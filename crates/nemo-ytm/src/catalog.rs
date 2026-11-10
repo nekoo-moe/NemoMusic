@@ -300,7 +300,7 @@ pub(crate) fn valid_browse_id(id: &str) -> bool {
 // Adapters from ytmapi-rs types
 // ---------------------------------------------------------------------------------------------
 
-mod adapt {
+pub(crate) mod adapt {
     use ytmapi_rs::common::{Thumbnail as ApiThumbnail, YoutubeID};
     use ytmapi_rs::parse::{
         AlbumResult, ArtistSong, GetAlbum, GetArtist, GetPlaylistDetails, ParsedSongArtist,
@@ -488,15 +488,15 @@ mod adapt {
 }
 
 /// The four filtered search answers, ready to map.
-struct SearchParts {
-    songs: Vec<ytmapi_rs::parse::SearchResultSong>,
-    albums: Vec<ytmapi_rs::parse::SearchResultAlbum>,
-    artists: Vec<ytmapi_rs::parse::SearchResultArtist>,
-    playlists: Vec<ytmapi_rs::parse::SearchResultPlaylist>,
+pub(crate) struct SearchParts {
+    pub(crate) songs: Vec<ytmapi_rs::parse::SearchResultSong>,
+    pub(crate) albums: Vec<ytmapi_rs::parse::SearchResultAlbum>,
+    pub(crate) artists: Vec<ytmapi_rs::parse::SearchResultArtist>,
+    pub(crate) playlists: Vec<ytmapi_rs::parse::SearchResultPlaylist>,
 }
 
 /// Turn the search answers into core types.
-fn map_search(parts: &SearchParts) -> SearchResults {
+pub(crate) fn map_search(parts: &SearchParts) -> SearchResults {
     SearchResults {
         songs: parts
             .songs
@@ -525,7 +525,7 @@ fn map_search(parts: &SearchParts) -> SearchResults {
     }
 }
 /// Fixed texts only: `ytmapi-rs` errors can carry response bodies.
-fn map_error(error: ytmapi_rs::Error) -> CatalogError {
+pub(crate) fn map_error(error: ytmapi_rs::Error) -> CatalogError {
     match error.into_kind() {
         ErrorKind::Web { .. } | ErrorKind::Io(_) => {
             CatalogError::Network("request to YouTube Music failed".to_owned())

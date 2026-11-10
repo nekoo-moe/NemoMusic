@@ -5,10 +5,15 @@
 //!
 //! Services run their network work on a `tokio` runtime handle given at construction and return
 //! futures that any executor can poll (see the app-mvp addendum). No URL is ever logged.
+//! Account cookies, names and ids are never logged either.
 
+pub mod account;
 pub mod catalog;
+pub mod credentials;
+pub mod home_feed;
 pub mod http;
 pub mod images;
+pub mod session;
 pub mod sponsorblock;
 pub mod stream;
 pub mod ytdlp;
