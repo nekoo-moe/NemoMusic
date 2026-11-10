@@ -1,0 +1,23 @@
+[package]
+name = "nemo-ytm"
+description = "YouTube Music client: sign-in, stream resolver, SponsorBlock and timed lyrics."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+nemo-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+# Only for the yt-dlp subprocess: process spawn, timeout, runtime, capped stdout read (io-util). No HTTP client.
+tokio = { version = "=1.54.1", default-features = false, features = ["process", "time", "rt", "io-util"] }
+
+[dev-dependencies]
+proptest.workspace = true
