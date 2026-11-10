@@ -3,6 +3,7 @@
 //! This crate has no I/O, no async runtime and no GUI. Every other `nemo-*` crate may depend on
 //! it; it depends on no other `nemo-*` crate (see `structure.md`).
 
+pub mod account;
 pub mod audio;
 pub mod catalog;
 pub mod lyrics;

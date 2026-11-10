@@ -9,6 +9,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::BoxFuture;
+use crate::account::AccountService;
 use crate::catalog::Catalog;
 use crate::lyrics::{LyricsDoc, LyricsQuery, ProviderId};
 use crate::player::{PlayerCommand, PlayerEvent, PlayerSnapshot};
@@ -110,4 +111,6 @@ pub struct Backend {
     pub lyrics: Arc<dyn LyricsService>,
     /// Cover art.
     pub images: Arc<dyn ImageSource>,
+    /// Google account sign-in.
+    pub account: Arc<dyn AccountService>,
 }

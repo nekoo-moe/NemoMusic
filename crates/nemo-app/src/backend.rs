@@ -96,6 +96,7 @@ pub fn build(
             player,
             lyrics: Arc::new(lyrics),
             images: Arc::new(images),
+            account: Arc::new(nemo_core::account::NoAccount),
         },
         local,
     })

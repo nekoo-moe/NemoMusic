@@ -925,6 +925,7 @@ pub fn mock_backend() -> Backend {
         player: Arc::new(MockPlayer::new()),
         lyrics: Arc::new(MockLyrics::default()),
         images: Arc::new(MockImages::default()),
+        account: Arc::new(nemo_core::account::NoAccount),
     }
 }
 
