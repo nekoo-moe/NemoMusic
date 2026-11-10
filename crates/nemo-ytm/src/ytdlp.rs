@@ -25,6 +25,10 @@ use tokio::runtime::Handle;
 
 /// How long one `yt-dlp` run may take.
 pub const RESOLVE_TIMEOUT: Duration = Duration::from_secs(20);
+/// Windows process flag that starts a console program without a console window.
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
 /// Largest stdout accepted from `yt-dlp`, in bytes.
 pub const MAX_OUTPUT_BYTES: u64 = 8 * 1024 * 1024;
 /// Largest part of stderr that is read for error mapping, in bytes. The text is never logged.
@@ -376,17 +380,21 @@ async fn read_stderr(mut stderr: tokio::process::ChildStderr) -> String {
 
 impl Job {
     async fn run(self, video: VideoId) -> Result<ResolvedStream, StreamError> {
-        let mut child = Command::new(&self.program)
+        let mut command = Command::new(&self.program);
+        command
             .args(args(&video))
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .kill_on_drop(true)
-            .spawn()
-            .map_err(|e| match e.kind() {
-                ErrorKind::NotFound => StreamError::ResolverMissing,
-                _ => StreamError::Network("could not start the resolver".to_owned()),
-            })?;
+            .kill_on_drop(true);
+        // The app has no console, so Windows would open a new console window for every
+        // yt-dlp run. CREATE_NO_WINDOW keeps it hidden.
+        #[cfg(windows)]
+        command.creation_flags(CREATE_NO_WINDOW);
+        let mut child = command.spawn().map_err(|e| match e.kind() {
+            ErrorKind::NotFound => StreamError::ResolverMissing,
+            _ => StreamError::Network("could not start the resolver".to_owned()),
+        })?;
         let stdout = child
             .stdout
             .take()
