@@ -65,6 +65,10 @@ impl Catalog for MergedCatalog {
     fn search<'a>(&'a self, query: &'a str) -> BoxFuture<'a, Result<SearchResults, CatalogError>> {
         Box::pin(async move {
             let local = self.local.search(query).await;
+            // An empty query means "list the local library"; never send it to YouTube Music.
+            if query.trim().is_empty() {
+                return local;
+            }
             let remote = self.remote.search(query).await;
             merge(local, remote)
         })

@@ -7,6 +7,7 @@ mod config;
 mod logging;
 mod merged;
 mod paths;
+mod ui_bridge;
 
 use paths::AppPaths;
 
@@ -40,7 +41,7 @@ fn main() {
     };
     backend::rescan_in_background(&services.local);
 
-    let options = nemo_ui::UiOptions::default();
+    let options = ui_bridge::options(settings, paths.root.clone());
     if let Err(err) = nemo_ui::run(services.backend, options) {
         tracing::error!(error = %err, "the window closed with an error");
     }

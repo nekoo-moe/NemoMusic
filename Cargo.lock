@@ -2614,6 +2614,7 @@ dependencies = [
  "nemo-core",
  "nemo-library",
  "nemo-lyrics",
+ "nemo-ui",
  "nemo-ytm",
  "serde",
  "serde_json",

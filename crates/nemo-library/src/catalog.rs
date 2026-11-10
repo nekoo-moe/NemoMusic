@@ -18,6 +18,9 @@ use crate::LocalLibrary;
 /// Prefix of local album ids, so they never clash with YouTube Music ids.
 pub const LOCAL_ALBUM_PREFIX: &str = "local-album:";
 
+/// Most tracks an empty query returns.
+pub const MAX_LISTED: usize = 5_000;
+
 /// A shared, read-mostly local library behind the [`Catalog`] trait.
 #[derive(Clone, Default)]
 pub struct LocalCatalog {
@@ -46,16 +49,18 @@ impl LocalCatalog {
             .map_err(|_| CatalogError::Unavailable("local library is busy".to_owned()))
     }
 
+    /// An empty query lists the whole library (capped), which the UI uses for its Library screen.
     fn search_now(&self, query: &str) -> Result<SearchResults, CatalogError> {
-        let songs: Vec<Track> = self
+        let lib = self
             .library
             .read()
-            .map_err(|_| CatalogError::Unavailable("local library is busy".to_owned()))?
-            .search(query)
-            .into_iter()
-            .take(100)
-            .cloned()
-            .collect();
+            .map_err(|_| CatalogError::Unavailable("local library is busy".to_owned()))?;
+        let songs: Vec<Track> = if query.trim().is_empty() {
+            lib.tracks().iter().take(MAX_LISTED).cloned().collect()
+        } else {
+            lib.search(query).into_iter().take(100).cloned().collect()
+        };
+        drop(lib);
         let albums = group_albums(&songs).into_values().map(|(s, _)| s).collect();
         Ok(SearchResults {
             songs,
