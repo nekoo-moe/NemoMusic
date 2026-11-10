@@ -96,6 +96,8 @@ pub mod color {
 
     /// `surface`.
     pub const SURFACE: Rgba = Rgba::from_rgb_hex(0x0E_0F12);
+    /// `surface-container-low` (between `surface` and `surface-container`): the sidebar.
+    pub const SURFACE_CONTAINER_LOW: Rgba = Rgba::from_rgb_hex(0x12_1418);
     /// `surface-container`.
     pub const SURFACE_CONTAINER: Rgba = Rgba::from_rgb_hex(0x16_181D);
     /// `surface-container-high`.

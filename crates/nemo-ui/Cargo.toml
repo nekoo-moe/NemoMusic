@@ -1,4 +1,4 @@
-﻿[package]
+[package]
 name = "nemo-ui"
 description = "User interface: theme tokens, views, widgets and album-art effects."
 version.workspace = true
@@ -12,12 +12,24 @@ workspace = true
 
 [features]
 # Everything iced-related is behind this feature so `cargo clippy --workspace` stays fast.
-gui = ["dep:iced"]
+gui = ["dep:iced", "dep:iced_test"]
 
 [dependencies]
 nemo-core.workspace = true
-iced = { version = "=0.14.0", optional = true, default-features = false, features = ["wgpu", "thread-pool"] }
+thiserror.workspace = true
+image = { version = "=0.25.10", default-features = false, features = ["png", "jpeg", "webp"] }
+iced = { version = "=0.14.0", optional = true, default-features = false, features = ["wgpu", "tiny-skia", "thread-pool", "image", "svg", "advanced"] }
+# Headless rendering for snapshot PNGs (same project as iced; tiny-skia renderer, no GPU).
+iced_test = { version = "=0.14.0", optional = true, default-features = false }
 
 [[example]]
 name = "glass_spike"
+required-features = ["gui"]
+
+[[example]]
+name = "ui_mock"
+required-features = ["gui"]
+
+[[example]]
+name = "snapshots"
 required-features = ["gui"]
