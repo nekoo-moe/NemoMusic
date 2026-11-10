@@ -62,6 +62,7 @@ pub fn options(settings: Settings, root: PathBuf) -> UiOptions {
         music_folders: folders,
         // No folder picker yet: folders are edited in settings.json (see README).
         on_add_music_folder: None,
+        maximized: true,
         ..UiOptions::default()
     }
 }

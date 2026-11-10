@@ -52,6 +52,8 @@ pub struct UiOptions {
     pub reduced_motion: bool,
     /// Window size at start, logical px.
     pub window_size: (f32, f32),
+    /// Open the window maximized, so it fits small screens such as 1366 x 768 laptops.
+    pub maximized: bool,
     /// Show the frame-time readout at start (F3 toggles it).
     pub show_frame_readout: bool,
     /// First screen.
@@ -73,6 +75,7 @@ impl std::fmt::Debug for UiOptions {
         f.debug_struct("UiOptions")
             .field("reduced_motion", &self.reduced_motion)
             .field("window_size", &self.window_size)
+            .field("maximized", &self.maximized)
             .field("show_frame_readout", &self.show_frame_readout)
             .field("start_route", &self.start_route)
             .field("settings", &self.settings)
@@ -88,6 +91,7 @@ impl Default for UiOptions {
         Self {
             reduced_motion: false,
             window_size: theme_layout::DEFAULT_WINDOW,
+            maximized: false,
             show_frame_readout: false,
             start_route: Route::Home,
             settings: UiSettings::default(),

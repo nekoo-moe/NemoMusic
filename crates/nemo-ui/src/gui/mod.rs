@@ -23,6 +23,7 @@ use nemo_core::services::Backend;
 /// Returns the iced error when the window or the renderer cannot start.
 pub fn run(backend: Backend, options: UiOptions) -> iced::Result {
     let (width, height) = options.window_size;
+    let maximized = options.maximized;
     let min = crate::theme::layout::MIN_WINDOW;
     iced::application(
         move || {
@@ -51,6 +52,7 @@ pub fn run(backend: Backend, options: UiOptions) -> iced::Result {
     .window(iced::window::Settings {
         size: iced::Size::new(width, height),
         min_size: Some(iced::Size::new(min.0, min.1)),
+        maximized,
         ..iced::window::Settings::default()
     })
     .run()
