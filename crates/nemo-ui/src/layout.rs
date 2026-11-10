@@ -42,11 +42,11 @@ pub const TRACK_ROW_COMPACT: u32 = 40;
 /// Window width below which Now Playing is compact.
 pub const COMPACT_WIDTH: u32 = 1100;
 /// Window height below which Now Playing is compact.
-pub const COMPACT_HEIGHT: u32 = 700;
+pub const COMPACT_HEIGHT: u32 = 600;
 /// Widest Now Playing art.
 pub const NOW_PLAYING_ART_MAX: u32 = 480;
 /// Narrowest non-compact Now Playing art.
-pub const NOW_PLAYING_ART_MIN: u32 = 400;
+pub const NOW_PLAYING_ART_MIN: u32 = 320;
 /// Compact Now Playing art (the largest; it shrinks with the height).
 pub const COMPACT_ART_MAX: u32 = 280;
 /// Narrowest compact art.
@@ -122,7 +122,7 @@ pub fn grid(window_w: u32, queue_open: bool) -> Grid {
     }
 }
 
-/// `true` when Now Playing uses the compact layout (`W < 1100` or `H < 700`).
+/// `true` when Now Playing uses the compact layout (`W < 1100` or `H < 600`). 600, not 700, so a maximized window on a 1366 x 768 laptop (about 697 px high) keeps art and lyrics side by side.
 #[must_use]
 pub const fn is_compact(window_w: u32, window_h: u32) -> bool {
     window_w < COMPACT_WIDTH || window_h < COMPACT_HEIGHT
@@ -213,8 +213,9 @@ mod tests {
     #[test]
     fn compact_breakpoints() {
         assert!(is_compact(1099, 800));
-        assert!(is_compact(1280, 699));
-        assert!(!is_compact(1100, 700));
+        assert!(is_compact(1280, 599));
+        assert!(!is_compact(1100, 600));
+        assert!(!is_compact(1366, 697));
         assert!(!is_compact(1280, 800));
     }
 
@@ -223,6 +224,8 @@ mod tests {
         assert_eq!(now_playing_art(1280, 800), 480);
         assert_eq!(now_playing_art(1280, 700), 420);
         assert_eq!(now_playing_art(960, 600), 240);
+        assert_eq!(now_playing_art(1366, 697), 417);
+        assert_eq!(now_playing_art(1280, 620), 340);
         assert_eq!(now_playing_art(1000, 800), 280);
         assert_eq!(now_playing_art(1280, 1200), 480);
     }
