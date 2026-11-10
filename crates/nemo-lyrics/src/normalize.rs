@@ -1,20 +1,11 @@
 //! String normalization for track matching.
 //!
-//! Std-only. This is NOT full Unicode NFKC (that needs the `unicode-normalization` crate, which
-//! is not approved). What it does: lowercase (Unicode aware), fold full-width ASCII forms
-//! (U+FF01..U+FF5E) and the ideographic space to ASCII, drop apostrophes, turn other
-//! punctuation into spaces, strip `(feat. ...)` / `[feat. ...]` / `(Remastered ...)` groups and
-//! `- Remastered 2011` style suffixes, collapse spaces.
+//! Steps: Unicode NFKC (folds full-width forms, ideographic space, ligatures, compatibility
+//! characters), Unicode-aware lowercase, strip `(feat. ...)` / `[feat. ...]` /
+//! `(Remastered ...)` groups and `- Remastered 2011` style suffixes, drop apostrophes, turn
+//! other punctuation into spaces, collapse spaces.
 
-/// Fold a char toward its ASCII form (partial NFKC: full-width forms only).
-fn fold_width(c: char) -> char {
-    match c {
-        '\u{3000}' => ' ',
-        '\u{ff01}'..='\u{ff5e}' => char::from_u32(u32::from(c) - 0xfee0).unwrap_or(c),
-        _ => c,
-    }
-}
-
+use unicode_normalization::UnicodeNormalization;
 /// True if a bracket group's lowercase content is noise to drop.
 fn is_noise_group(content: &str) -> bool {
     let c = content.trim_start();
@@ -74,11 +65,7 @@ fn strip_dash_suffix(s: &str) -> &str {
 /// Idempotent: `normalize(&normalize(x)) == normalize(x)`.
 #[must_use]
 pub fn normalize(input: &str) -> String {
-    let lowered: String = input
-        .chars()
-        .map(fold_width)
-        .flat_map(char::to_lowercase)
-        .collect();
+    let lowered: String = input.chars().nfkc().flat_map(char::to_lowercase).collect();
     let stripped = strip_groups(&lowered);
     let stripped = strip_dash_suffix(&stripped);
     let mut out = String::with_capacity(stripped.len());
@@ -122,6 +109,31 @@ mod tests {
             ("", ""),
             ("!!!", ""),
             ("Fate (Fitting)", "fate fitting"),
+        ];
+        for (input, want) in cases {
+            assert_eq!(normalize(input), *want, "input {input:?}");
+        }
+    }
+
+    #[test]
+    fn nfkc_folds_compatibility_forms() {
+        let cases: &[(&str, &str)] = &[
+            // Full-width Latin, digits and ideographic space.
+            (
+                "\u{ff34}\u{ff25}\u{ff33}\u{ff34}\u{3000}\u{ff11}\u{ff12}",
+                "test 12",
+            ),
+            // Ligature fi, superscript two, roman numeral three.
+            ("\u{fb01}ne", "fine"),
+            ("x\u{b2}", "x2"),
+            ("\u{2162}", "iii"),
+            // Half-width katakana folds to full-width katakana.
+            ("\u{ff76}\u{ff85}", "\u{30ab}\u{30ca}"),
+            // Precomposed and decomposed forms compare equal.
+            ("caf\u{e9}", "caf\u{e9}"),
+            ("cafe\u{301}", "caf\u{e9}"),
+            // Full-width brackets are NFKC-folded, so the noise group is stripped.
+            ("Song \u{ff08}feat. X\u{ff09}", "song"),
         ];
         for (input, want) in cases {
             assert_eq!(normalize(input), *want, "input {input:?}");

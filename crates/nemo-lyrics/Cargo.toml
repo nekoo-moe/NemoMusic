@@ -12,6 +12,17 @@ workspace = true
 
 [dependencies]
 nemo-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+lofty = "=0.25.5"
+reqwest = { version = "=0.13.5", default-features = false, features = ["native-tls"] }
+rusqlite = { version = "=0.41.1", features = ["bundled"] }
+tokio = { version = "=1.54.1", default-features = false, features = ["rt", "time", "sync"] }
+unicode-normalization = { version = "=0.1.26", default-features = false }
 
 [dev-dependencies]
 proptest.workspace = true
+tokio = { version = "=1.54.1", default-features = false, features = ["rt", "macros", "time", "test-util"] }
