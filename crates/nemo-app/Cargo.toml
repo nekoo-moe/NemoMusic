@@ -12,3 +12,4 @@ workspace = true
 
 [dependencies]
 nemo-core.workspace = true
+thiserror.workspace = true
