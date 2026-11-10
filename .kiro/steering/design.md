@@ -7,6 +7,8 @@ fileMatchPattern: "crates/nemo-ui/**"
 
 Language: Material 3 (Expressive, standard motion scheme) for structure + Liquid Glass for the floating control layer only (owner, 2026-11-10). Rules are tokens and numbers; section 14 holds iced notes. Define tokens once in one theme module; no literals in views. Stack: tech.md. Layout: structure.md. Rust: code.md. Apple publishes no numeric glass values; glass numbers below are NemoMusic choices, tuned in the prototype.
 
+Layout refinements: `docs/ui-reference.md` sections 3 to 6 (responsive grid, wireframes, breakpoints, styling rules) refine sections 4 and 9 and apply to every screen. Where they differ from sections 4 and 9, the refinement wins: sidebar is opaque `surface-container-low`; cards are at least 160 and flexible per the grid formula; Now Playing art is 480 (min 400, shrinks to fit H - 280) and 280 in compact mode (W < 1100 or H < 700); content bottom padding is 112 so the floating bar never hides rows; the queue panel pushes content from W >= 1280 and overlays (opaque) below that.
+
 ## 1. Principles
 - Art first: cover art is the largest, most colorful element. Chrome stays neutral.
 - Restraint: one accent set at a time, max 2 type weights per view, no decorative borders.

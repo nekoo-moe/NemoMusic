@@ -196,6 +196,13 @@ pub enum ProcessingStage {
     Normalize,
     /// Dither.
     Dither,
+    /// Channel up-mix or down-mix because the device has another channel count.
+    ChannelMix {
+        /// Source channel count.
+        from: u16,
+        /// Device channel count.
+        to: u16,
+    },
 }
 
 /// The device end of the signal path.
