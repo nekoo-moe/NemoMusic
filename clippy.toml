@@ -1,0 +1,13 @@
+# Product and protocol names that are not code. ".." keeps clippy's default list.
+doc-valid-idents = [
+    "NemoMusic",
+    "YouTube",
+    "SponsorBlock",
+    "LRCLIB",
+    "WebView2",
+    "WASAPI",
+    "ALAC",
+    "CoreAudio",
+    "PipeWire",
+    "..",
+]
