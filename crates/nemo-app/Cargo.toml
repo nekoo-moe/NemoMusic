@@ -13,3 +13,5 @@ workspace = true
 [dependencies]
 nemo-core.workspace = true
 thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber = { version = "=0.3.23", default-features = false, features = ["fmt", "std"] }
