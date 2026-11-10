@@ -16,8 +16,14 @@ serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
-# Only for the yt-dlp subprocess: process spawn, timeout, runtime, capped stdout read (io-util). No HTTP client.
-tokio = { version = "=1.54.1", default-features = false, features = ["process", "time", "rt", "io-util"] }
+# Runtime pieces: process spawn and timeout (yt-dlp), `sync` for the lazy catalog client, `macros` for `join!`.
+tokio = { version = "=1.54.1", default-features = false, features = ["process", "time", "rt", "io-util", "sync", "macros"] }
+# HTTP: Windows-native TLS (SChannel), so no cmake or NASM is needed. Blocking client for the stream reader,
+# async client (run on the app runtime) for SponsorBlock and cover art.
+reqwest = { version = "=0.13.5", default-features = false, features = ["blocking", "native-tls"] }
+# Anonymous YouTube Music catalog (NoAuth token). `native-tls` matches the reqwest backend above.
+ytmapi-rs = { version = "=0.3.4", default-features = false, features = ["native-tls", "simplified-queries"] }
 
 [dev-dependencies]
 proptest.workspace = true
+tokio = { version = "=1.54.1", default-features = false, features = ["rt-multi-thread", "time", "macros"] }

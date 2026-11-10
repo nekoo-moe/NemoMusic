@@ -9,7 +9,7 @@
 
 use std::ffi::{OsStr, OsString};
 use std::io::ErrorKind;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -21,11 +21,128 @@ use nemo_core::track::VideoId;
 use serde_json::Value;
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
+use tokio::runtime::Handle;
 
 /// How long one `yt-dlp` run may take.
 pub const RESOLVE_TIMEOUT: Duration = Duration::from_secs(20);
 /// Largest stdout accepted from `yt-dlp`, in bytes.
 pub const MAX_OUTPUT_BYTES: u64 = 8 * 1024 * 1024;
+/// Largest part of stderr that is read for error mapping, in bytes. The text is never logged.
+pub const MAX_STDERR_BYTES: u64 = 64 * 1024;
+
+/// Folder name winget uses for the `yt-dlp.yt-dlp` package under `...\WinGet\Packages`.
+const WINGET_PACKAGE_DIR: &str = "yt-dlp.yt-dlp_Microsoft.Winget.Source_8wekyb3d8bbwe";
+
+/// Find the `yt-dlp` executable.
+///
+/// Order: every directory on `PATH`, then `%LOCALAPPDATA%\Microsoft\WinGet\Links\yt-dlp.exe`
+/// (where winget puts command links), then `%LOCALAPPDATA%\NemoMusic\bin\yt-dlp.exe` (a copy the
+/// app downloads), then the winget package folder itself (a fresh install is there before the
+/// `Links` shim and `PATH` are refreshed). Returns `None` when none exists.
+#[must_use]
+pub fn locate_yt_dlp() -> Option<PathBuf> {
+    locate_in(
+        std::env::var_os("PATH").as_deref(),
+        std::env::var_os("LOCALAPPDATA")
+            .map(PathBuf::from)
+            .as_deref(),
+        &Path::is_file,
+    )
+}
+
+fn locate_in(
+    path_var: Option<&OsStr>,
+    local_app_data: Option<&Path>,
+    is_file: &dyn Fn(&Path) -> bool,
+) -> Option<PathBuf> {
+    let name = if cfg!(windows) {
+        "yt-dlp.exe"
+    } else {
+        "yt-dlp"
+    };
+    let on_path = path_var
+        .into_iter()
+        .flat_map(std::env::split_paths)
+        .filter(|dir| !dir.as_os_str().is_empty())
+        .map(|dir| dir.join(name));
+    let known = local_app_data.into_iter().flat_map(|base| {
+        [
+            base.join("Microsoft")
+                .join("WinGet")
+                .join("Links")
+                .join(name),
+            base.join("NemoMusic").join("bin").join(name),
+            // winget installs the portable package here; the `Links` shim (and `PATH`) only
+            // appear after a new login, so a fresh install is found through this folder.
+            base.join("Microsoft")
+                .join("WinGet")
+                .join("Packages")
+                .join(WINGET_PACKAGE_DIR)
+                .join(name),
+        ]
+    });
+    on_path.chain(known).find(|candidate| is_file(candidate))
+}
+
+/// Decide what a failed `yt-dlp` run means from the start of its stderr.
+///
+/// `NotAvailable`: region, age, private, removed or members-only videos. `Network`: cannot
+/// resolve, connect or time out, and any unknown text. `Parse`: the extractor could not read the
+/// page (YouTube changed). The text is only inspected, never stored or returned.
+fn classify_stderr(stderr: &str) -> StreamError {
+    let text = stderr.to_ascii_lowercase();
+    let has = |needles: &[&str]| needles.iter().any(|n| text.contains(n));
+    if has(&[
+        "video unavailable",
+        "this video is not available",
+        "private video",
+        "confirm your age",
+        "age-restricted",
+        "age restricted",
+        "not available in your country",
+        "not made this video available",
+        "blocked it in your country",
+        "blocked it on copyright",
+        "members-only",
+        "join this channel",
+        "this video has been removed",
+        "account associated with this video has been terminated",
+        "requires payment",
+        "premium",
+    ]) {
+        StreamError::NotAvailable
+    } else if has(&[
+        "unable to download",
+        "failed to resolve",
+        "getaddrinfo",
+        "name or service not known",
+        "temporary failure in name resolution",
+        "no address associated",
+        "connection refused",
+        "connection reset",
+        "connection aborted",
+        "network is unreachable",
+        "timed out",
+        "timeout",
+        "urlopen error",
+        "ssl:",
+        "http error 5",
+        "http error 429",
+        "too many requests",
+    ]) {
+        StreamError::Network("the resolver could not reach YouTube".to_owned())
+    } else if has(&[
+        "unable to extract",
+        "unsupported url",
+        "unexpected response",
+        "unable to parse",
+        "json",
+    ]) {
+        parse_err("the resolver could not read the page")
+    } else {
+        StreamError::Network("the resolver failed".to_owned())
+    }
+}
 
 /// Build the `yt-dlp` argument list for one video. Never a shell string.
 ///
@@ -128,6 +245,16 @@ fn candidate(entry: &Value) -> Option<Candidate> {
 /// [`StreamError::Parse`] when the text is not JSON or has no `formats` array;
 /// [`StreamError::NotAvailable`] when no audio-only format with a URL exists.
 pub fn parse(json: &str) -> Result<ResolvedStream, StreamError> {
+    parse_with(json, None)
+}
+
+/// Like [`parse`], but only formats whose codec is in `allowed` are considered
+/// (`None` allows every codec). A format with an unrecognised codec is [`Codec::Unknown`] and is
+/// accepted only when `allowed` is `None` or lists [`Codec::Unknown`].
+///
+/// # Errors
+/// Same as [`parse`]; [`StreamError::NotAvailable`] also when every format is filtered out.
+pub fn parse_with(json: &str, allowed: Option<&[Codec]>) -> Result<ResolvedStream, StreamError> {
     let root: Value = serde_json::from_str(json).map_err(|_| parse_err("not valid JSON"))?;
     let formats = root
         .get("formats")
@@ -136,6 +263,7 @@ pub fn parse(json: &str) -> Result<ResolvedStream, StreamError> {
     let best = formats
         .iter()
         .filter_map(candidate)
+        .filter(|c| allowed.is_none_or(|list| list.contains(&codec_of(&c.acodec))))
         .reduce(|best, next| {
             // Strictly greater, so on a tie the earlier format stays.
             if next.abr.unwrap_or(-1.0) > best.abr.unwrap_or(-1.0) {
@@ -178,6 +306,15 @@ pub fn parse(json: &str) -> Result<ResolvedStream, StreamError> {
 #[derive(Debug, Clone)]
 pub struct YtDlpResolver {
     program: PathBuf,
+    allowed: Option<Vec<Codec>>,
+    handle: Option<Handle>,
+}
+
+/// Everything one resolve run needs, owned, so it can run as a spawned task.
+#[derive(Debug, Clone)]
+struct Job {
+    program: PathBuf,
+    allowed: Option<Vec<Codec>>,
 }
 
 impl YtDlpResolver {
@@ -187,12 +324,29 @@ impl YtDlpResolver {
         Self::with_program("yt-dlp")
     }
 
-    /// Use a specific executable, for example a bundled copy.
+    /// Use a specific executable, for example a bundled copy or the result of [`locate_yt_dlp`].
     #[must_use]
     pub fn with_program(program: impl Into<PathBuf>) -> Self {
         Self {
             program: program.into(),
+            allowed: None,
+            handle: None,
         }
+    }
+
+    /// Only pick formats whose codec the audio engine can decode (default: every codec).
+    #[must_use]
+    pub fn with_allowed_codecs(mut self, codecs: &[Codec]) -> Self {
+        self.allowed = Some(codecs.to_vec());
+        self
+    }
+
+    /// Run the subprocess on this runtime. The future returned by `resolve` can then be polled
+    /// by any executor. Without a handle the future needs a tokio runtime on the polling thread.
+    #[must_use]
+    pub fn with_handle(mut self, handle: Handle) -> Self {
+        self.handle = Some(handle);
+        self
     }
 
     /// The configured executable path.
@@ -201,12 +355,32 @@ impl YtDlpResolver {
         self.program.as_os_str()
     }
 
-    async fn run(&self, video: &VideoId) -> Result<ResolvedStream, StreamError> {
+    fn job(&self) -> Job {
+        Job {
+            program: self.program.clone(),
+            allowed: self.allowed.clone(),
+        }
+    }
+}
+
+/// Read at most [`MAX_STDERR_BYTES`] of `stderr`, then drain the rest so the child never blocks.
+async fn read_stderr(mut stderr: tokio::process::ChildStderr) -> String {
+    let mut head = Vec::new();
+    let _ = (&mut stderr)
+        .take(MAX_STDERR_BYTES)
+        .read_to_end(&mut head)
+        .await;
+    let _ = tokio::io::copy(&mut stderr, &mut tokio::io::sink()).await;
+    String::from_utf8_lossy(&head).into_owned()
+}
+
+impl Job {
+    async fn run(self, video: VideoId) -> Result<ResolvedStream, StreamError> {
         let mut child = Command::new(&self.program)
-            .args(args(video))
+            .args(args(&video))
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
-            .stderr(Stdio::null())
+            .stderr(Stdio::piped())
             .kill_on_drop(true)
             .spawn()
             .map_err(|e| match e.kind() {
@@ -217,26 +391,35 @@ impl YtDlpResolver {
             .stdout
             .take()
             .ok_or_else(|| parse_err("no resolver output"))?;
-        let mut out = Vec::new();
-        // Read one byte past the cap so an oversized answer is detected, not truncated silently.
-        stdout
-            .take(MAX_OUTPUT_BYTES + 1)
-            .read_to_end(&mut out)
-            .await
-            .map_err(|_| StreamError::Network("could not read resolver output".to_owned()))?;
-        if out.len() as u64 > MAX_OUTPUT_BYTES {
-            return Err(parse_err("resolver output too large"));
-        }
+        let stderr = child
+            .stderr
+            .take()
+            .ok_or_else(|| parse_err("no resolver output"))?;
+        let read_stdout = async {
+            let mut out = Vec::new();
+            // Read one byte past the cap so an oversized answer is detected, not truncated silently.
+            stdout
+                .take(MAX_OUTPUT_BYTES + 1)
+                .read_to_end(&mut out)
+                .await
+                .map(|_| out)
+        };
+        let (out, err_text) = tokio::join!(read_stdout, read_stderr(stderr));
+        let out =
+            out.map_err(|_| StreamError::Network("could not read resolver output".to_owned()))?;
         let status = child
             .wait()
             .await
             .map_err(|_| StreamError::Network("could not wait for the resolver".to_owned()))?;
         if !status.success() {
-            // stderr is not read, so a region block and a network failure look alike here.
-            return Err(StreamError::NotAvailable);
+            // The stderr text is only classified, never kept or logged.
+            return Err(classify_stderr(&err_text));
+        }
+        if out.len() as u64 > MAX_OUTPUT_BYTES {
+            return Err(parse_err("resolver output too large"));
         }
         let text = std::str::from_utf8(&out).map_err(|_| parse_err("output is not UTF-8"))?;
-        parse(text)
+        parse_with(text, self.allowed.as_deref())
     }
 }
 
@@ -251,11 +434,25 @@ impl StreamResolver for YtDlpResolver {
         &'a self,
         video: &'a VideoId,
     ) -> BoxFuture<'a, Result<ResolvedStream, StreamError>> {
-        Box::pin(async move {
-            tokio::time::timeout(RESOLVE_TIMEOUT, self.run(video))
+        let job = self.job();
+        let video = video.clone();
+        let timed = async move {
+            tokio::time::timeout(RESOLVE_TIMEOUT, job.run(video))
                 .await
                 .unwrap_or_else(|_| Err(StreamError::Network("resolver timed out".to_owned())))
-        })
+        };
+        match &self.handle {
+            // Spawned on the app runtime; the returned future only awaits the join handle.
+            Some(handle) => {
+                let task = handle.spawn(timed);
+                Box::pin(async move {
+                    task.await.unwrap_or_else(|_| {
+                        Err(StreamError::Network("resolve was cancelled".to_owned()))
+                    })
+                })
+            }
+            None => Box::pin(timed),
+        }
     }
 }
 
@@ -441,6 +638,140 @@ mod tests {
         let id = vid("abcdefghijk");
         let result = runtime().block_on(resolver.resolve(&id));
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn allowed_codecs_filter_the_choice() {
+        let json = doc(&[
+            fmt("opus", "none", "opus", r#""abr":160.0,"#, URL_A),
+            fmt("aac", "none", "mp4a.40.2", r#""abr":128.0,"#, URL_B),
+        ]);
+        let aac_only = parse_with(&json, Some(&[Codec::Aac])).expect("parses");
+        assert_eq!(aac_only.info.codec, Codec::Aac);
+        assert_eq!(aac_only.url.expose(), URL_B);
+        let both = parse_with(&json, Some(&[Codec::Aac, Codec::Opus])).expect("parses");
+        assert_eq!(both.info.codec, Codec::Opus);
+        assert_eq!(
+            parse_with(&json, None).expect("parses").info.codec,
+            Codec::Opus
+        );
+        assert_eq!(
+            parse_with(&json, Some(&[Codec::Flac])).unwrap_err(),
+            StreamError::NotAvailable
+        );
+        assert_eq!(
+            parse_with(&json, Some(&[])).unwrap_err(),
+            StreamError::NotAvailable
+        );
+        // An unknown codec is accepted only when the list names `Unknown`.
+        let vorbis = doc(&[fmt("v", "none", "vorbis", r#""abr":96.0,"#, URL_A)]);
+        assert!(parse_with(&vorbis, Some(&[Codec::Opus])).is_err());
+        assert!(parse_with(&vorbis, Some(&[Codec::Unknown])).is_ok());
+    }
+
+    #[test]
+    fn builder_keeps_the_allowed_codecs() {
+        let resolver = YtDlpResolver::with_program("x").with_allowed_codecs(&[Codec::Opus]);
+        assert_eq!(resolver.job().allowed, Some(vec![Codec::Opus]));
+        assert_eq!(YtDlpResolver::new().job().allowed, None);
+    }
+
+    #[test]
+    fn stderr_is_mapped_to_typed_errors() {
+        let not_available = [
+            "ERROR: [youtube] abc: Video unavailable",
+            "ERROR: [youtube] abc: Private video. Sign in if you've been granted access",
+            "ERROR: [youtube] abc: Sign in to confirm your age. This video may be inappropriate",
+            "ERROR: The uploader has not made this video available in your country",
+            "ERROR: [youtube] abc: This video is available to Music Premium members only",
+            "ERROR: This video is not available",
+        ];
+        for text in not_available {
+            assert_eq!(classify_stderr(text), StreamError::NotAvailable, "{text}");
+        }
+        let network = [
+            "ERROR: [youtube] abc: Unable to download webpage: <urlopen error [Errno 11001] getaddrinfo failed>",
+            "ERROR: Unable to download JSON metadata: HTTP Error 503",
+            "ERROR: <urlopen error timed out>",
+            "ERROR: [Errno 10061] Connection refused",
+            "ERROR: HTTP Error 429: Too Many Requests",
+            "",
+            "some text nobody has seen before",
+        ];
+        for text in network {
+            assert!(
+                matches!(classify_stderr(text), StreamError::Network(_)),
+                "{text}"
+            );
+        }
+        let parse = [
+            "ERROR: [youtube] abc: Unable to extract initial player response",
+            "ERROR: Unsupported URL: https://example.invalid/",
+        ];
+        for text in parse {
+            assert!(
+                matches!(classify_stderr(text), StreamError::Parse(_)),
+                "{text}"
+            );
+        }
+    }
+
+    #[test]
+    fn mapped_errors_never_echo_stderr() {
+        let secret = "ERROR: Unable to download https://host.invalid/v?sig=SECRETSIG timed out";
+        let shown = format!("{:?}", classify_stderr(secret));
+        assert!(!shown.contains("SECRETSIG") && !shown.contains("host.invalid"));
+    }
+
+    #[test]
+    fn locate_prefers_path_then_winget_then_app_bin() {
+        let name = if cfg!(windows) {
+            "yt-dlp.exe"
+        } else {
+            "yt-dlp"
+        };
+        let local = PathBuf::from("LOCAL");
+        let on_path = PathBuf::from("bin1").join(name);
+        let winget = local
+            .join("Microsoft")
+            .join("WinGet")
+            .join("Links")
+            .join(name);
+        let nemo = local.join("NemoMusic").join("bin").join(name);
+        let path_var = std::env::join_paths(["bin0", "bin1"]).expect("joins");
+
+        let all = |p: &Path| p == on_path || p == winget || p == nemo;
+        assert_eq!(
+            locate_in(Some(&path_var), Some(&local), &all),
+            Some(on_path.clone())
+        );
+        let no_path = |p: &Path| p == winget || p == nemo;
+        assert_eq!(
+            locate_in(Some(&path_var), Some(&local), &no_path),
+            Some(winget.clone())
+        );
+        let only_nemo = |p: &Path| p == nemo;
+        assert_eq!(
+            locate_in(Some(&path_var), Some(&local), &only_nemo),
+            Some(nemo.clone())
+        );
+        let package = local
+            .join("Microsoft")
+            .join("WinGet")
+            .join("Packages")
+            .join(WINGET_PACKAGE_DIR)
+            .join(name);
+        let only_package = |p: &Path| p == package;
+        assert_eq!(
+            locate_in(Some(&path_var), Some(&local), &only_package),
+            Some(package.clone())
+        );
+        assert_eq!(locate_in(Some(&path_var), None, &only_nemo), None);
+        assert_eq!(locate_in(None, None, &all), None);
+        assert_eq!(
+            locate_in(Some(&path_var), Some(&local), &|_: &Path| false),
+            None
+        );
     }
 
     mod props {

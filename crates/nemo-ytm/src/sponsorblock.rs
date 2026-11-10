@@ -15,6 +15,8 @@ use nemo_core::track::VideoId;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
+use crate::http::{InitError, USER_AGENT, https_redirects, parse_retry_after};
+
 /// Base URL of the public API.
 pub const BASE_URL: &str = "https://sponsor.ajay.app";
 /// Segments whose submitted video duration differs from the real one by more than this are
@@ -29,7 +31,7 @@ pub const DEFAULT_CATEGORIES: [SegmentCategory; 4] = [
     SegmentCategory::Interaction,
 ];
 
-fn sha256_hex(data: &[u8]) -> String {
+pub(crate) fn sha256_hex(data: &[u8]) -> String {
     let digest = Sha256::digest(data);
     let mut out = String::with_capacity(64);
     for byte in &digest {
@@ -193,10 +195,91 @@ pub struct HttpResponse {
     pub retry_after: Option<Duration>,
 }
 
-/// Minimal HTTP GET, so tests can inject a fake. No real implementation exists in this crate yet.
+/// Minimal HTTP GET, so tests can inject a fake. [`ReqwestHttp`] is the real implementation.
 pub trait HttpGet: Send + Sync {
     /// GET one URL. The error text must not contain the URL.
     fn get<'a>(&'a self, url: &'a str) -> BoxFuture<'a, Result<HttpResponse, String>>;
+}
+
+/// Longest answer body accepted, in bytes. Real answers are a few KiB.
+const MAX_BODY_BYTES: usize = 2 * 1024 * 1024;
+/// Total time one lookup may take (app-mvp addendum: 3 s).
+pub const HTTP_TIMEOUT: Duration = Duration::from_secs(3);
+
+/// [`HttpGet`] over `reqwest`, run on the app's tokio runtime.
+///
+/// HTTPS only (also across redirects), `User-Agent` as in the app-mvp addendum, 3 s timeout, and
+/// `Retry-After` (seconds) read from every answer. Error texts never contain the URL. The future
+/// it returns can be polled by any executor.
+#[derive(Debug, Clone)]
+pub struct ReqwestHttp {
+    client: reqwest::Client,
+    handle: tokio::runtime::Handle,
+}
+
+impl ReqwestHttp {
+    /// Build the client. `handle` is the runtime that performs the requests.
+    ///
+    /// # Errors
+    /// [`InitError::Client`] when the TLS backend cannot start.
+    pub fn new(handle: tokio::runtime::Handle) -> Result<Self, InitError> {
+        Self::build(handle, true)
+    }
+
+    fn build(handle: tokio::runtime::Handle, https_only: bool) -> Result<Self, InitError> {
+        let client = reqwest::Client::builder()
+            .user_agent(USER_AGENT)
+            .timeout(HTTP_TIMEOUT)
+            .redirect(https_redirects())
+            .https_only(https_only)
+            .build()
+            .map_err(|_| InitError::Client)?;
+        Ok(Self { client, handle })
+    }
+}
+
+async fn fetch(client: reqwest::Client, url: String) -> Result<HttpResponse, String> {
+    let mut response = client.get(&url).send().await.map_err(|e| {
+        if e.is_timeout() {
+            "request timed out".to_owned()
+        } else {
+            "request failed".to_owned()
+        }
+    })?;
+    let status = response.status().as_u16();
+    let retry_after = response
+        .headers()
+        .get(reqwest::header::RETRY_AFTER)
+        .and_then(|v| v.to_str().ok())
+        .and_then(parse_retry_after);
+    let mut body = Vec::new();
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|_| "could not read the answer".to_owned())?
+    {
+        if body.len() + chunk.len() > MAX_BODY_BYTES {
+            return Err("answer too large".to_owned());
+        }
+        body.extend_from_slice(&chunk);
+    }
+    Ok(HttpResponse {
+        status,
+        body: String::from_utf8_lossy(&body).into_owned(),
+        retry_after,
+    })
+}
+
+impl HttpGet for ReqwestHttp {
+    fn get<'a>(&'a self, url: &'a str) -> BoxFuture<'a, Result<HttpResponse, String>> {
+        let client = self.client.clone();
+        let url = url.to_owned();
+        let task = self.handle.spawn(fetch(client, url));
+        Box::pin(async move {
+            task.await
+                .unwrap_or_else(|_| Err("request was cancelled".to_owned()))
+        })
+    }
 }
 
 /// `SponsorBlock` as a [`SegmentSource`].
@@ -443,5 +526,105 @@ mod tests {
                 let _ = parse_response(&s, &vid(ID), REAL);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod reqwest_tests {
+    use std::time::Instant;
+
+    use super::*;
+    use crate::test_server::{Response, TestServer};
+
+    fn runtime() -> tokio::runtime::Runtime {
+        tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(1)
+            .enable_all()
+            .build()
+            .expect("runtime builds")
+    }
+
+    /// Poll with a tiny executor-free `block_on` from another thread's point of view:
+    /// the future must not need the tokio runtime of the caller.
+    fn block_on_plain<F: std::future::Future>(future: F) -> F::Output {
+        use std::sync::Arc;
+        use std::task::{Context, Poll, Wake, Waker};
+
+        struct ThreadWaker(std::thread::Thread);
+        impl Wake for ThreadWaker {
+            fn wake(self: Arc<Self>) {
+                self.0.unpark();
+            }
+        }
+        let waker = Waker::from(Arc::new(ThreadWaker(std::thread::current())));
+        let mut context = Context::from_waker(&waker);
+        let mut future = Box::pin(future);
+        loop {
+            if let Poll::Ready(value) = future.as_mut().poll(&mut context) {
+                return value;
+            }
+            std::thread::park();
+        }
+    }
+
+    #[test]
+    fn answers_are_read_with_status_body_and_retry_after() {
+        let server = TestServer::start(|request, _| match request.path.as_str() {
+            "/ok" => Response::new(200, b"[]".to_vec()),
+            "/limited" => Response::new(429, Vec::new()).header("Retry-After", "17"),
+            _ => Response::new(500, Vec::new()),
+        });
+        let rt = runtime();
+        let http = ReqwestHttp::build(rt.handle().clone(), false).expect("builds");
+        let ok = block_on_plain(http.get(&server.url("/ok"))).expect("answers");
+        assert_eq!(
+            (ok.status, ok.body.as_str(), ok.retry_after),
+            (200, "[]", None)
+        );
+        let limited = block_on_plain(http.get(&server.url("/limited"))).expect("answers");
+        assert_eq!(limited.status, 429);
+        assert_eq!(limited.retry_after, Some(Duration::from_secs(17)));
+    }
+
+    #[test]
+    fn plain_http_is_refused_and_the_error_has_no_url() {
+        let server = TestServer::start(|_, _| Response::new(200, Vec::new()));
+        let rt = runtime();
+        let http = ReqwestHttp::new(rt.handle().clone()).expect("builds");
+        let url = server.url("/secret?sig=SECRET");
+        let error = block_on_plain(http.get(&url)).unwrap_err();
+        assert!(
+            !error.contains("127.0.0.1") && !error.contains("SECRET"),
+            "{error}"
+        );
+        assert_eq!(server.requests().len(), 0);
+    }
+
+    #[test]
+    fn a_slow_server_times_out_in_about_three_seconds() {
+        let server = TestServer::start(|_, _| {
+            std::thread::sleep(Duration::from_millis(3500));
+            Response::new(200, Vec::new())
+        });
+        let rt = runtime();
+        let http = ReqwestHttp::build(rt.handle().clone(), false).expect("builds");
+        let started = Instant::now();
+        let error = block_on_plain(http.get(&server.url("/slow"))).unwrap_err();
+        assert_eq!(error, "request timed out");
+        assert!(started.elapsed() < Duration::from_millis(3400));
+    }
+
+    #[test]
+    fn works_as_the_http_of_a_source() {
+        let body = r#"[{"videoID":"abcdefghijk","segments":[{"segment":[1,2],"UUID":"u","category":"sponsor","actionType":"skip","videoDuration":0}]}]"#;
+        let server = TestServer::start(move |_, _| Response::new(200, body.as_bytes().to_vec()));
+        let rt = runtime();
+        let http = ReqwestHttp::build(rt.handle().clone(), false).expect("builds");
+        // The real URL points at sponsor.ajay.app; only the transport is checked here.
+        let response = block_on_plain(http.get(&server.url("/api/skipSegments/ca2f"))).expect("ok");
+        let id = VideoId::parse("abcdefghijk").expect("valid id");
+        let segments =
+            parse_response(&response.body, &id, Duration::from_secs(100)).expect("parses");
+        assert_eq!(segments.len(), 1);
     }
 }
