@@ -148,6 +148,22 @@ impl Nav {
         self.index += 1;
     }
 
+    /// The sidebar entry to highlight. Album, artist and playlist pages light the entry the user
+    /// came from (an album opened from Home keeps Home lit), falling back to Library.
+    #[must_use]
+    pub fn active_entry(&self) -> Option<NavEntry> {
+        let is_detail =
+            |r: &Route| matches!(r, Route::Album(_) | Route::Artist(_) | Route::Playlist(_));
+        if !is_detail(self.current()) {
+            return self.current().entry();
+        }
+        self.stack[..self.index]
+            .iter()
+            .rev()
+            .find(|r| !is_detail(r) && !matches!(r, Route::NowPlaying))
+            .map_or(Some(NavEntry::Library), Route::entry)
+    }
+
     /// `true` when [`Self::back`] would move.
     #[must_use]
     pub fn can_back(&self) -> bool {
@@ -184,6 +200,24 @@ impl Nav {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn detail_pages_keep_the_entry_they_came_from() {
+        let album = || Route::Album(BrowseId("a".into()));
+        let mut nav = Nav::new(Route::Home);
+        nav.go(album());
+        assert_eq!(nav.active_entry(), Some(NavEntry::Home));
+        nav.go(Route::Artist(BrowseId("b".into())));
+        assert_eq!(nav.active_entry(), Some(NavEntry::Home));
+        nav.go(Route::Search(String::new()));
+        nav.go(album());
+        assert_eq!(nav.active_entry(), Some(NavEntry::Search));
+        assert_eq!(Nav::new(album()).active_entry(), Some(NavEntry::Library));
+        assert_eq!(
+            Nav::new(Route::Settings).active_entry(),
+            Some(NavEntry::Settings)
+        );
+    }
 
     #[test]
     fn history_goes_back_and_forward() {

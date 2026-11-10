@@ -70,7 +70,7 @@ pub fn view(app: &App, w: u32, h: u32) -> Element<'_, Message> {
 fn sidebar(app: &App, width: u32) -> Element<'_, Message> {
     let wide = width >= layout::SIDEBAR_WIDE;
     let route = app.ui.route();
-    let selected = route.entry();
+    let selected = app.ui.nav.active_entry();
 
     let mut logo = row![icon(Icon::Note, 24.0, col(color::ON_SURFACE))].align_y(Alignment::Center);
     if wide {
