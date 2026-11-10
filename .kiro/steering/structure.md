@@ -1,0 +1,82 @@
+---
+inclusion: always
+---
+
+# NemoMusic Project Structure
+
+Cargo workspace. All crates live under `crates/` and are named `nemo-*`. Stack choices are in `tech.md`; coding rules in `code.md`; visual rules in `design.md`.
+
+## Layout
+
+```
+NemoMusic/
+  Cargo.toml            # [workspace], shared [workspace.dependencies], exact versions
+  rust-toolchain.toml
+  crates/
+    nemo-core/          # domain types, traits, errors, events
+    nemo-audio/         # decode, ring buffer, output, gapless, resample
+    nemo-library/       # local files, SQLite, tags, scanning
+    nemo-ytm/           # YouTube Music client, login, SponsorBlock, YTM lyrics
+    nemo-lyrics/        # lyrics providers, parsers, matching, cache (proposed, ADR 0002)
+    nemo-ui/            # iced views, theme, widgets, album-art effects
+    nemo-app/           # binary: wiring, config, logging, startup
+  assets/               # fonts/, icons/, shaders/, images/ (with licenses)
+  docs/                 # architecture, signal path, ADRs in docs/adr/
+  tests/                # workspace-level integration tests
+  .kiro/steering/       # steering files
+```
+
+## Crate ownership
+
+- nemo-core: `Track`, `Album`, `Source` (Local or Ytm), `AudioFormat`, `SignalPath`, `PlayerCommand`, `PlayerEvent`, shared `Error`. No I/O, no async runtime, no GUI.
+- nemo-audio: symphonia decode, Opus decode, device enumeration, WASAPI and cpal output, optional ASIO, rubato, gapless queue, volume, signal-path report. Real-time code lives only here.
+- nemo-library: SQLite schema and migrations, folder scan, lofty tag read/write, cover art extraction, search over the local catalog.
+- nemo-ytm: `ytmapi-rs` catalog calls, `yt-dlp` stream resolver, Google sign-in and credential handling, account data fetch, SponsorBlock `SegmentSource`, the YTM timed-lyrics provider, rate limiting. Returns `nemo-core` types. Owns the ToS risk notice text.
+- nemo-lyrics: other `LyricsProvider` implementations (LRCLIB and more), LRC and enhanced-LRC parsers, match scoring, fallback chain. The `LyricsProvider` and `SegmentSource` traits live in `nemo-core`. Depends only on `nemo-core`.
+- nemo-ui: all iced code, theme, fonts, widgets, animations. Talks to the player only through `PlayerCommand` and `PlayerEvent`.
+- nemo-app: `main`, config file, tracing setup, crate wiring, packaging metadata. No business logic.
+
+## Allowed dependency direction
+
+Arrows point to the crate that is depended on. Anything not listed is forbidden.
+
+```
+nemo-app
+ ├─> nemo-ui ──────> nemo-core
+ ├─> nemo-audio ───> nemo-core
+ ├─> nemo-library ─> nemo-core
+ ├─> nemo-ytm ─────> nemo-core
+ ├─> nemo-lyrics ──> nemo-core
+ └─> nemo-core
+```
+
+Rules:
+- nemo-audio MUST NOT depend on nemo-ui, nemo-library, or nemo-ytm. Audio receives a stream or file source through a `nemo-core` trait.
+- nemo-ui MUST NOT depend on nemo-audio, nemo-library, or nemo-ytm directly. It uses `nemo-core` traits and messages; `nemo-app` supplies the implementations.
+- Library, ytm and lyrics crates MUST NOT depend on each other.
+- No cycles. `nemo-core` depends on no other `nemo-*` crate.
+- Check with `cargo tree -p <crate> --edges normal` before merging a dependency change.
+
+## Where things go
+
+- Unit tests: in the same file under `#[cfg(test)] mod tests`.
+- Crate integration tests: `crates/<crate>/tests/`.
+- Cross-crate end-to-end tests: `/tests/`.
+- Test audio fixtures: `crates/nemo-audio/tests/fixtures/` (short, under 200 KB each, license noted in `fixtures/README.md`).
+- Benchmarks: `crates/<crate>/benches/`.
+- Fonts, icons, shaders: `/assets/` only. Each asset folder has a `LICENSES.md`. No binary blobs elsewhere.
+- Design notes and decisions: `/docs/`. One ADR per file: `docs/adr/0001-short-title.md`.
+- Steering for agents: `/.kiro/steering/`.
+
+## Naming rules
+
+- Crate directory and package name are the same: `nemo-audio`. Rust path uses `nemo_audio`.
+- Files and modules: `snake_case`, singular nouns (`device.rs`, `resampler.rs`). No `utils.rs`, `helpers.rs`, `misc.rs`.
+- One public concept per file. Split a file over 400 lines.
+- Use `foo.rs` plus `foo/` for submodules, not `foo/mod.rs`.
+- Types `UpperCamelCase`; traits name a capability (`AudioSink`, `StreamResolver`); errors end in `Error`.
+- Messages and events: `PlayerCommand::Play`, `PlayerEvent::TrackChanged`. Past tense for events.
+- Cargo features are lowercase kebab-case (`asio`, `wasapi-exclusive`).
+- Asset files: `kebab-case`, with size or theme suffix (`icon-play-24.svg`).
+- Test names state behavior: `gapless_trims_encoder_padding`.
+- ADR and doc files: `kebab-case.md`.
