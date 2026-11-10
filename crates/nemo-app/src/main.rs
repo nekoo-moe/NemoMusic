@@ -1,8 +1,10 @@
 //! `NemoMusic` application binary. Wiring only; no business logic (see `structure.md`).
 
+#![windows_subsystem = "windows"]
+
+mod backend;
 mod config;
 mod logging;
-#[allow(dead_code, reason = "wired into the UI in task 2.2")]
 mod merged;
 mod paths;
 
@@ -11,25 +13,43 @@ use paths::AppPaths;
 fn main() {
     let paths = match AppPaths::resolve(None) {
         Ok(paths) => paths,
-        Err(err) => {
-            eprintln!("NemoMusic: {err}");
-            std::process::exit(1);
-        }
+        Err(err) => fatal(&err.to_string()),
     };
     if let Err(err) = paths.create_all() {
-        eprintln!("NemoMusic: cannot create data folders: {err}");
-        std::process::exit(1);
+        fatal(&format!("cannot create data folders: {err}"));
     }
     logging::init(&paths.logs);
     tracing::info!(version = env!("CARGO_PKG_VERSION"), "starting");
     let settings = config::Settings::load(&paths.root);
-    tracing::info!(folders = settings.music_folders.len(), tier = ?settings.glass_tier, "settings loaded");
     if let Err(err) = settings.save(&paths.root) {
         tracing::warn!(error = %err, "cannot save settings");
     }
-    println!(
-        "NemoMusic {} (data: {})",
-        env!("CARGO_PKG_VERSION"),
-        paths.root.display()
-    );
+
+    let runtime = match tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
+        .thread_name("nemo-io")
+        .enable_all()
+        .build()
+    {
+        Ok(rt) => rt,
+        Err(err) => fatal(&format!("cannot start the network runtime: {err}")),
+    };
+    let services = match backend::build(&paths, &settings, runtime.handle()) {
+        Ok(s) => s,
+        Err(err) => fatal(&err.to_string()),
+    };
+    backend::rescan_in_background(&services.local);
+
+    let options = nemo_ui::UiOptions::default();
+    if let Err(err) = nemo_ui::run(services.backend, options) {
+        tracing::error!(error = %err, "the window closed with an error");
+    }
+    tracing::info!("stopped");
+}
+
+/// Log, show a short message and exit. The window is not up yet, so stderr is all there is.
+fn fatal(message: &str) -> ! {
+    tracing::error!(message, "fatal");
+    eprintln!("NemoMusic: {message}");
+    std::process::exit(1);
 }
