@@ -39,7 +39,7 @@ pub struct LyricsQuery { pub title: String, pub artists: Vec<String>, pub album:
     pub duration_ms: Option<u64>, pub ytm_video_id: Option<String>, pub local_path: Option<PathBuf> }
 pub enum Granularity { Word, Line, Unsynced }          // ordered best to worst
 pub struct LyricsDoc { pub lines: Vec<LyricLine>, pub granularity: Granularity,
-    pub provider: ProviderId, pub provider_track: Option<MatchedMeta>, pub instrumental: bool }
+    pub provider: ProviderId, pub matched: Option<MatchedMeta>, pub instrumental: bool }
 pub struct LyricLine { pub start_ms: Option<u64>, pub end_ms: Option<u64>, pub text: String, pub words: Vec<LyricWord> }
 #[async_trait] pub trait LyricsProvider: Send + Sync {
     fn id(&self) -> ProviderId;                 // stable string, shown in UI
