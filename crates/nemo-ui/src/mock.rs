@@ -18,6 +18,7 @@ use std::time::{Duration, Instant};
 
 use image::{ImageFormat, Rgb, RgbImage};
 use nemo_core::BoxFuture;
+use nemo_core::account::{AccountError, AccountInfo, AccountService, AccountState, SignOutReport};
 use nemo_core::audio::{
     AudioFormat, Codec, Origin, OutputInfo, OutputMode, ProcessingStage, SignalPath, StreamInfo,
 };
@@ -27,6 +28,7 @@ use nemo_core::catalog::{
 };
 use nemo_core::lyrics::{Granularity, LyricLine, LyricsDoc, LyricsQuery, ProviderId};
 use nemo_core::player::{PlayState, PlayerCommand, PlayerEvent, PlayerSnapshot};
+use nemo_core::secret::Secret;
 use nemo_core::services::{
     Backend, EventReceiver, ImageError, ImageSource, LyricsLookup, LyricsService, PlayerControl,
 };
@@ -151,10 +153,23 @@ pub fn track(n: usize) -> Track {
         TRACK_WORDS[n % TRACK_WORDS.len()],
         TRACK_WORDS[(n * 7 + 3) % TRACK_WORDS.len()]
     );
+    // Two tracks carry Vietnamese text, so every snapshot and the live mock window exercise the
+    // bundled font's Vietnamese glyphs (stacked diacritics, D with stroke).
+    let (title, artists) = match n {
+        1 => (
+            "M\u{1edb}i Quen Nhau \u{110}\u{e3} R\u{1ee7}".to_owned(),
+            vec!["HIEUTHUHAI".to_owned(), "Ph\u{1b0}\u{1a1}ng Ly".to_owned()],
+        ),
+        2 => (
+            "\u{110}\u{ea}m M\u{1b0}a Nh\u{1edb} Ph\u{1ed1}".to_owned(),
+            vec!["Lam Khu\u{ea}".to_owned()],
+        ),
+        _ => (title, vec![ARTIST_NAMES[artist].to_owned()]),
+    };
     Track {
         id: TrackId(format!("mock-track-{n}")),
         title,
-        artists: vec![ARTIST_NAMES[artist].to_owned()],
+        artists,
         album: Some(ALBUM_TITLES[album].to_owned()),
         // 2:30 to 4:29; always known so the seek bar has a range.
         duration: Some(Duration::from_secs(150 + (n as u64 * 17) % 120)),
@@ -917,6 +932,156 @@ pub fn mock_backend_seeded() -> Backend {
     }
 }
 
+/// A future that is ready after a delay, without a runtime: a plain thread sleeps and wakes it.
+struct Delay {
+    shared: Arc<Mutex<DelayState>>,
+}
+
+#[derive(Default)]
+struct DelayState {
+    done: bool,
+    waker: Option<std::task::Waker>,
+}
+
+impl Delay {
+    fn new(after: Duration) -> Self {
+        let shared = Arc::new(Mutex::new(DelayState::default()));
+        let worker = Arc::clone(&shared);
+        std::thread::spawn(move || {
+            std::thread::sleep(after);
+            let mut s = worker
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            s.done = true;
+            if let Some(w) = s.waker.take() {
+                w.wake();
+            }
+        });
+        Self { shared }
+    }
+}
+
+impl std::future::Future for Delay {
+    type Output = ();
+
+    fn poll(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<()> {
+        let mut s = self
+            .shared
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if s.done {
+            std::task::Poll::Ready(())
+        } else {
+            s.waker = Some(cx.waker().clone());
+            std::task::Poll::Pending
+        }
+    }
+}
+
+/// A fake Google account: signing in (window or pasted cookie) takes a moment, then the account
+/// "Mira Okonkwo" is signed in; signing out clears it. Nothing is stored and no cookie is kept.
+pub struct MockAccount {
+    state: Arc<Mutex<AccountState>>,
+    delay: Duration,
+}
+
+impl MockAccount {
+    /// Signs in after one second, like a quick real sign-in.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::with_delay(Duration::from_secs(1))
+    }
+
+    /// Signs in after `delay`.
+    #[must_use]
+    pub fn with_delay(delay: Duration) -> Self {
+        Self {
+            state: Arc::new(Mutex::new(AccountState::SignedOut)),
+            delay,
+        }
+    }
+
+    /// Start already signed in (snapshots of the signed-in card).
+    #[must_use]
+    pub fn signed_in() -> Self {
+        let a = Self::new();
+        *a.lock() = AccountState::SignedIn(Self::info());
+        a
+    }
+
+    fn lock(&self) -> MutexGuard<'_, AccountState> {
+        self.state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    fn info() -> AccountInfo {
+        AccountInfo {
+            name: "Mira Okonkwo".to_owned(),
+            handle: Some("@miraokonkwo".to_owned()),
+            avatar: thumbs(7),
+        }
+    }
+
+    fn finish(&self, ok: bool) -> BoxFuture<'_, Result<AccountInfo, AccountError>> {
+        *self.lock() = AccountState::SigningIn;
+        let wait = Delay::new(self.delay);
+        let state = Arc::clone(&self.state);
+        Box::pin(async move {
+            wait.await;
+            let mut s = state
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if ok {
+                let info = Self::info();
+                *s = AccountState::SignedIn(info.clone());
+                Ok(info)
+            } else {
+                *s = AccountState::SignedOut;
+                Err(AccountError::Rejected)
+            }
+        })
+    }
+}
+
+impl Default for MockAccount {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl AccountService for MockAccount {
+    fn state(&self) -> AccountState {
+        self.lock().clone()
+    }
+
+    fn sign_in(&self) -> BoxFuture<'_, Result<AccountInfo, AccountError>> {
+        self.finish(true)
+    }
+
+    fn sign_in_with_cookie(
+        &self,
+        cookie: Secret<String>,
+    ) -> BoxFuture<'_, Result<AccountInfo, AccountError>> {
+        // The mock accepts any non-empty cookie and keeps nothing.
+        self.finish(!cookie.expose().trim().is_empty())
+    }
+
+    fn sign_out(&self) -> BoxFuture<'_, Result<SignOutReport, AccountError>> {
+        *self.lock() = AccountState::SignedOut;
+        Box::pin(async {
+            Ok(SignOutReport {
+                credentials_removed: 1,
+                files_removed: 12,
+                ended_remotely: true,
+            })
+        })
+    }
+}
+
 /// A complete fake [`Backend`].
 #[must_use]
 pub fn mock_backend() -> Backend {
@@ -925,7 +1090,16 @@ pub fn mock_backend() -> Backend {
         player: Arc::new(MockPlayer::new()),
         lyrics: Arc::new(MockLyrics::default()),
         images: Arc::new(MockImages::default()),
-        account: Arc::new(nemo_core::account::NoAccount),
+        account: Arc::new(MockAccount::new()),
+    }
+}
+
+/// Like [`mock_backend`], but already signed in.
+#[must_use]
+pub fn mock_backend_signed_in() -> Backend {
+    Backend {
+        account: Arc::new(MockAccount::signed_in()),
+        ..mock_backend()
     }
 }
 
@@ -1201,5 +1375,56 @@ mod tests {
         let b = mock_backend();
         assert_eq!(b.player.snapshot().queue.len(), 12);
         assert!(ready(b.catalog.search("")).is_ok());
+    }
+
+    /// Poll a future until it is ready, sleeping between polls (the mock account uses a timer).
+    fn wait<T>(fut: impl Future<Output = T>) -> T {
+        let mut fut = pin!(fut);
+        let mut cx = Context::from_waker(Waker::noop());
+        for _ in 0..500 {
+            if let Poll::Ready(v) = fut.as_mut().poll(&mut cx) {
+                return v;
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        panic!("the mock account never answered");
+    }
+
+    #[test]
+    fn the_mock_account_signs_in_and_out() {
+        let a = MockAccount::with_delay(Duration::from_millis(20));
+        assert_eq!(a.state(), AccountState::SignedOut);
+        let info = wait(a.sign_in()).expect("signs in");
+        assert_eq!(info.name, "Mira Okonkwo");
+        assert!(matches!(a.state(), AccountState::SignedIn(_)));
+        let report = wait(a.sign_out()).expect("signs out");
+        assert_eq!(report.credentials_removed, 1);
+        assert_eq!(a.state(), AccountState::SignedOut);
+    }
+
+    #[test]
+    fn the_mock_account_rejects_an_empty_cookie_and_never_prints_one() {
+        let a = MockAccount::with_delay(Duration::from_millis(10));
+        let empty = Secret::new(String::new());
+        assert_eq!(
+            wait(a.sign_in_with_cookie(empty)),
+            Err(AccountError::Rejected)
+        );
+        assert_eq!(a.state(), AccountState::SignedOut);
+        let cookie = Secret::new("SID=abc".to_owned());
+        assert_eq!(format!("{cookie:?}"), "[redacted]");
+        assert!(wait(a.sign_in_with_cookie(cookie)).is_ok());
+    }
+
+    #[test]
+    fn two_tracks_carry_vietnamese_text() {
+        assert_eq!(
+            track(1).title,
+            "M\u{1edb}i Quen Nhau \u{110}\u{e3} R\u{1ee7}"
+        );
+        assert_eq!(
+            track(1).artists.join(", "),
+            "HIEUTHUHAI, Ph\u{1b0}\u{1a1}ng Ly"
+        );
     }
 }

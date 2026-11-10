@@ -96,12 +96,18 @@ pub mod color {
 
     /// `surface`.
     pub const SURFACE: Rgba = Rgba::from_rgb_hex(0x0E_0F12);
+    /// `surface-container-lowest`: the window behind the three panes.
+    pub const SURFACE_CONTAINER_LOWEST: Rgba = Rgba::from_rgb_hex(0x09_0A0C);
     /// `surface-container-low` (between `surface` and `surface-container`): the sidebar.
     pub const SURFACE_CONTAINER_LOW: Rgba = Rgba::from_rgb_hex(0x12_1418);
     /// `surface-container`.
     pub const SURFACE_CONTAINER: Rgba = Rgba::from_rgb_hex(0x16_181D);
     /// `surface-container-high`.
     pub const SURFACE_CONTAINER_HIGH: Rgba = Rgba::from_rgb_hex(0x1E_2128);
+    /// `surface-container-highest`: chips, search pill, floating capsule base.
+    pub const SURFACE_CONTAINER_HIGHEST: Rgba = Rgba::from_rgb_hex(0x27_2A32);
+    /// `outline` (white at about 18%): chip borders.
+    pub const OUTLINE: Rgba = Rgba::from_rgba_hex(0xFFFF_FF2E);
     /// `on-surface`.
     pub const ON_SURFACE: Rgba = Rgba::from_rgb_hex(0xF2_F3F5);
     /// `on-surface-variant`.
@@ -245,12 +251,22 @@ pub mod type_scale {
     pub const TITLE_SM: TextStyle = TextStyle { size: 16, line: 24 };
     /// `title-md` 20/28.
     pub const TITLE_MD: TextStyle = TextStyle { size: 20, line: 28 };
+    /// `label-md` 12/16.
+    pub const LABEL_MD: TextStyle = TextStyle { size: 12, line: 16 };
+    /// `title-lg` 22/28: shelf and section headers.
+    pub const TITLE_LG: TextStyle = TextStyle { size: 22, line: 28 };
+    /// `headline-sm` 24/32.
+    pub const HEADLINE_SM: TextStyle = TextStyle { size: 24, line: 32 };
     /// `headline-md` 28/36.
     pub const HEADLINE_MD: TextStyle = TextStyle { size: 28, line: 36 };
+    /// `headline-lg` 32/40.
+    pub const HEADLINE_LG: TextStyle = TextStyle { size: 32, line: 40 };
     /// `display-md` 40/48.
     pub const DISPLAY_MD: TextStyle = TextStyle { size: 40, line: 48 };
     /// Regular weight.
     pub const WEIGHT_REGULAR: u16 = 400;
+    /// Medium weight (buttons, chips, navigation labels).
+    pub const WEIGHT_MEDIUM: u16 = 500;
     /// Semibold weight.
     pub const WEIGHT_SEMIBOLD: u16 = 600;
 }

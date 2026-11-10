@@ -6,6 +6,7 @@
 
 #![allow(clippy::struct_excessive_bools)] // settings, UI state and the app are bundles of independent flags
 
+pub mod anim;
 pub mod copy;
 pub mod cover;
 pub mod format;

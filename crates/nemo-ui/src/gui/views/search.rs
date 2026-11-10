@@ -20,7 +20,7 @@ use nemo_core::track::Artwork;
 
 /// The Search screen.
 pub fn view(app: &App, w: u32) -> Element<'_, Message> {
-    let grid = layout::grid(w, app.ui.queue_open);
+    let grid = layout::grid_in(w);
     // Content widths are small exact numbers.
     #[allow(clippy::cast_precision_loss)]
     let content_w = grid.content as f32;
@@ -87,14 +87,14 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
                     artwork: Artwork::Remote(a.thumbnails.clone()),
                     title: a.title.clone(),
                     subtitle: format::artists(&a.artists),
-                    shape: ArtShape::Card,
+                    shape: ArtShape::Tile,
                     on_press: Message::Ui(Event::Go(Route::Album(a.id.clone()))),
                 })
                 .collect();
             c = c
                 .push(section_title("Albums"))
                 .push(vspace(gap::MD))
-                .push(card_grid(app, grid, cards, 1))
+                .push(card_grid(app, grid, cards, 1, 0))
                 .push(vspace(gap::XXL));
         }
         if !r.artists.is_empty() {
@@ -112,7 +112,7 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
             c = c
                 .push(section_title("Artists"))
                 .push(vspace(gap::MD))
-                .push(card_grid(app, grid, cards, 1))
+                .push(card_grid(app, grid, cards, 1, 1))
                 .push(vspace(gap::XXL));
         }
         if !r.playlists.is_empty() {
@@ -123,14 +123,14 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
                     artwork: Artwork::Remote(p.thumbnails.clone()),
                     title: p.title.clone(),
                     subtitle: p.author.clone().unwrap_or_else(|| "Playlist".to_owned()),
-                    shape: ArtShape::Card,
+                    shape: ArtShape::Tile,
                     on_press: Message::Ui(Event::Go(Route::Playlist(p.id.clone()))),
                 })
                 .collect();
             c = c
                 .push(section_title("Playlists"))
                 .push(vspace(gap::MD))
-                .push(card_grid(app, grid, cards, 1));
+                .push(card_grid(app, grid, cards, 1, 2));
         }
     } else if let Some(e) = &search.error {
         c = c.push(status(

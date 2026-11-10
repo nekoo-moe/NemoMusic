@@ -4,7 +4,8 @@
 use iced::widget::{Button, Container, Svg, Text, button, container, slider, svg, text, tooltip};
 use iced::{Background, Border, Color, Element, Length, Padding, Pixels, Shadow, Vector};
 
-use super::assets::{Icon, font};
+use super::assets::{Icon, font, font_w};
+use super::fx::fx;
 use crate::theme::{Rgba, TextStyle, color, glass, shape};
 
 /// Convert a token colour.
@@ -44,13 +45,28 @@ pub fn label<'a>(
         .wrapping(text::Wrapping::None)
 }
 
+/// A text run at an exact weight (`Normal`, `Medium` or `Semibold`).
+pub fn label_w<'a>(
+    content: impl text::IntoFragment<'a>,
+    style: TextStyle,
+    weight: iced::font::Weight,
+    color: Color,
+) -> Text<'a> {
+    text(content)
+        .size(Pixels(f32::from(style.size)))
+        .line_height(text::LineHeight::Absolute(Pixels(f32::from(style.line))))
+        .font(font_w(weight))
+        .color(color)
+        .wrapping(text::Wrapping::None)
+}
+
 /// Shorten `s` with an ellipsis so it fits `width` px at `size` px. iced 0.14 text has no
 /// ellipsis, so this uses an average advance (0.56 em for the bundled font) and errs short.
 #[must_use]
 pub fn fit(s: &str, width: f32, size: u16) -> String {
     // Display arithmetic on small numbers.
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-    let max = ((width / (f32::from(size) * 0.56)).floor().max(1.0)) as usize;
+    let max = ((width / (f32::from(size) * 0.55)).floor().max(1.0)) as usize;
     if s.chars().count() <= max {
         s.to_owned()
     } else {
@@ -165,7 +181,38 @@ pub fn button_style(
     }
 }
 
-/// A round icon button (`size` px square target, >= 32 px).
+/// A button with a fixed fill and no state change of its own: [`Fx`] draws the animated state
+/// layer on top. `radius` is the corner radius.
+pub fn button_flat(
+    idle: Color,
+    radius: f32,
+) -> impl Fn(&iced::Theme, button::Status) -> button::Style {
+    move |_, _| button::Style {
+        background: Some(Background::Color(idle)),
+        text_color: col(color::ON_SURFACE),
+        border: Border {
+            radius: radius.into(),
+            ..Border::default()
+        },
+        shadow: Shadow::default(),
+        snap: false,
+    }
+}
+
+/// A flat button wrapped in [`Fx`] (animated hover and press layers). The caller builds the
+/// `button` (content, padding, size, message); this only styles and wraps it.
+pub fn animated<'a, M: Clone + 'a>(
+    button: Button<'a, M>,
+    idle: Color,
+    radius: f32,
+) -> Element<'a, M> {
+    fx(button.style(button_flat(idle, radius)))
+        .radius(radius)
+        .into()
+}
+
+/// A round icon button (`size` px square target, >= 32 px) with an animated state layer. With no
+/// message it is drawn at 38% and does nothing.
 pub fn icon_button<'a, M: Clone + 'a>(
     glyph: Icon,
     glyph_size: f32,
@@ -173,18 +220,31 @@ pub fn icon_button<'a, M: Clone + 'a>(
     ink: Color,
     idle_bg: Color,
     message: Option<M>,
-) -> Button<'a, M> {
+) -> Element<'a, M> {
+    let ink = if message.is_some() {
+        ink
+    } else {
+        Color {
+            a: ink.a * 0.38,
+            ..ink
+        }
+    };
     let inner = container(icon(glyph, glyph_size, ink))
         .width(Length::Fixed(target))
         .height(Length::Fixed(target))
         .center_x(Length::Fixed(target))
         .center_y(Length::Fixed(target));
-    let b = button(inner)
-        .padding(0)
-        .style(button_style(idle_bg, shape::FULL));
-    match message {
+    let enabled = message.is_some();
+    let b = button(inner).padding(0);
+    let b = match message {
         Some(m) => b.on_press(m),
         None => b,
+    };
+    let wrapped = fx(b.style(button_flat(idle_bg, shape::FULL))).radius(target / 2.0);
+    if enabled {
+        wrapped.into()
+    } else {
+        wrapped.passive().into()
     }
 }
 
@@ -217,6 +277,81 @@ pub fn slider_style(
             },
         }
     }
+}
+
+/// A flat button with a fill and an optional 1 px outline, for chips. [`Fx`] adds the layer.
+pub fn button_outlined(
+    fill: Color,
+    outline: Option<Color>,
+    radius: f32,
+) -> impl Fn(&iced::Theme, button::Status) -> button::Style {
+    move |_, _| button::Style {
+        background: Some(Background::Color(fill)),
+        text_color: col(color::ON_SURFACE),
+        border: Border {
+            radius: radius.into(),
+            width: if outline.is_some() { 1.0 } else { 0.0 },
+            color: outline.unwrap_or(Color::TRANSPARENT),
+        },
+        shadow: Shadow::default(),
+        snap: false,
+    }
+}
+
+/// Angle of a top-to-bottom gradient in iced (to be checked against a snapshot).
+pub const DOWN: f32 = std::f32::consts::PI;
+
+/// A vertical two-stop gradient background, `top` to `bottom`.
+#[must_use]
+pub fn vertical_gradient(top: Color, bottom: Color) -> Background {
+    Background::Gradient(
+        iced::gradient::Linear::new(iced::Radians(DOWN))
+            .add_stop(0.0, top)
+            .add_stop(1.0, bottom)
+            .into(),
+    )
+}
+
+/// Thin scroll bars that match the panes: a 6 px pill at 24% `on-surface`, 40% on hover.
+pub fn scroll_style(
+    theme: &iced::Theme,
+    status: iced::widget::scrollable::Status,
+) -> iced::widget::scrollable::Style {
+    use iced::widget::scrollable::Status;
+    let mut style = iced::widget::scrollable::default(theme, status);
+    let alpha = match status {
+        Status::Hovered {
+            is_vertical_scrollbar_hovered: true,
+            ..
+        }
+        | Status::Dragged {
+            is_vertical_scrollbar_dragged: true,
+            ..
+        } => 0.40,
+        _ => 0.20,
+    };
+    style.container = container::Style::default();
+    style.vertical_rail.background = None;
+    style.vertical_rail.border = Border::default();
+    style.vertical_rail.scroller.background =
+        Background::Color(col(color::ON_SURFACE.with_alpha(alpha)));
+    style.vertical_rail.scroller.border = Border {
+        radius: shape::FULL.into(),
+        ..Border::default()
+    };
+    style
+}
+
+/// A vertical scroll area with the thin scroll bar.
+pub fn scroll<'a, M: 'a>(content: impl Into<Element<'a, M>>) -> iced::widget::Scrollable<'a, M> {
+    iced::widget::scrollable(content)
+        .direction(iced::widget::scrollable::Direction::Vertical(
+            iced::widget::scrollable::Scrollbar::new()
+                .width(6)
+                .scroller_width(6)
+                .margin(2),
+        ))
+        .style(scroll_style)
 }
 
 /// Glass tint colour: `surface-container` at `alpha`.

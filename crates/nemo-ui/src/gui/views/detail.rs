@@ -27,7 +27,7 @@ const HERO: u32 = 320;
 
 /// An Album, Artist or Playlist page.
 pub fn view(app: &App, w: u32) -> Element<'_, Message> {
-    let grid = layout::grid(w, app.ui.queue_open);
+    let grid = layout::grid_in(w);
     let Some(key) = DetailKey::of(app.ui.route()) else {
         return page(grid.content, vspace(0.0));
     };
@@ -269,14 +269,14 @@ fn artist<'a>(
                 subtitle: al
                     .year
                     .map_or_else(|| "Album".to_owned(), |y| y.to_string()),
-                shape: ArtShape::Card,
+                shape: ArtShape::Tile,
                 on_press: Message::Ui(Event::Go(Route::Album(al.id.clone()))),
             })
             .collect();
         c = c
             .push(section_title("Albums"))
             .push(vspace(gap::MD))
-            .push(card_grid(app, grid, cards, 2));
+            .push(card_grid(app, grid, cards, 2, 0));
     }
     c.into()
 }

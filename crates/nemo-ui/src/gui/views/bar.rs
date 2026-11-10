@@ -1,27 +1,35 @@
-//! The floating player bar (Tier Low glass, `design.md` sections 6 and 7) and the transport
+//! The floating player capsule (Tier Low glass, `design.md` sections 6 and 7) and the transport
 //! controls Now Playing shares.
 //!
-//! Tier Low: a pre-blurred cover texture, tint, edge highlight, shadow, radius 28. No live
-//! backdrop sampling. If the tint cannot reach 4.5:1 even at 0.90 alpha, the bar falls back to an
-//! opaque `surface-container-high`.
+//! Tier Low: the cover's colours behind a tint, an edge highlight, a shadow, radius 36. No live
+//! backdrop sampling. If the tint cannot reach 4.5:1 even at 0.90 alpha, the capsule falls back
+//! to an opaque `surface-container-highest`. The play button is a circle that morphs into a
+//! rounded square while a song plays (`anim::play_radius`).
 
+use iced::font::Weight;
 use iced::widget::{Space, button, column, container, image, row, slider, stack};
 use iced::{Alignment, Background, Border, Color, Element, Length, Padding};
 
-use super::super::app::{App, Message};
+use super::super::app::{App, CoverView, Message};
 use super::super::assets::Icon;
+use super::super::fx::fx;
 use super::super::style::{
-    button_style, col, fit, gap, glass_tint, icon, icon_button, label, shadow, slider_style,
-    spinner,
+    animated, button_flat, col, fit, gap, glass_tint, icon, icon_button, label, label_w, shadow,
+    slider_style, spinner, tip,
 };
 use super::kit::art_placeholder;
+use crate::anim::play_radius;
 use crate::format;
 use crate::keys::KeyAction;
 use crate::palette::Palette;
-use crate::route::Route;
 use crate::state::Event;
-use crate::theme::{color, glass, layout as theme_layout, shape, type_scale};
+use crate::theme::{color, glass, shape, type_scale};
 use nemo_core::player::PlayerCommand;
+
+/// Capsule height.
+const HEIGHT: f32 = 72.0;
+/// Capsule corner radius: half the height.
+const RADIUS: f32 = HEIGHT / 2.0;
 
 /// Text for the quality badge, from the real signal path (`AAC 129 kbps · Lossy · Resample`).
 /// `Unknown` when there is none; `Buffering` while the player waits for data.
@@ -33,28 +41,37 @@ pub fn badge_text(app: &App) -> String {
     crate::signal::badge_label(app.ui.snapshot.signal_path.as_ref())
 }
 
-/// The bar, `bar_w` px wide and 88 px high.
-pub fn view(app: &App, bar_w: u32) -> Element<'_, Message> {
+/// The capsule, `width` px wide and 72 px high.
+pub fn view(app: &App, width: f32) -> Element<'_, Message> {
     let accent = app.accent();
-    let radius = glass::RADIUS;
-    // The bar width is a small positive number.
-    #[allow(clippy::cast_precision_loss)]
-    let width = bar_w as f32;
-    let side = if width < 900.0 {
-        240.0
-    } else if width < 1100.0 {
-        280.0
+    let compact = width < 800.0;
+    let roomy = width >= 1240.0;
+    // Fixed parts: controls, track, right group; the progress takes the rest.
+    let controls_w = if compact {
+        3.0 * 48.0
     } else {
-        320.0
+        5.0 * 44.0 + 12.0
+    };
+    let track_w = if compact { 168.0 } else { 232.0 };
+    let right_w = if roomy {
+        400.0
+    } else if compact {
+        150.0
+    } else {
+        280.0
     };
 
     let content = row![
-        container(left(app, side)).width(Length::Fixed(side)),
-        container(center(app, accent)).width(Length::Fill),
-        container(right(app, side)).width(Length::Fixed(side)),
+        container(controls(app, accent, compact)).width(Length::Fixed(controls_w)),
+        Space::new().width(gap::MD),
+        container(track_info(app, track_w)).width(Length::Fixed(track_w)),
+        Space::new().width(gap::MD),
+        container(seek_row(app, accent)).width(Length::Fill),
+        Space::new().width(gap::MD),
+        container(right(app, right_w, roomy, compact)).width(Length::Fixed(right_w)),
     ]
     .align_y(Alignment::Center)
-    .padding(gap::MD)
+    .padding(Padding::from([0.0, gap::LG]))
     .height(Length::Fill);
 
     let glass_ok = if app.ui.settings.opaque_chrome() {
@@ -70,7 +87,7 @@ pub fn view(app: &App, bar_w: u32) -> Element<'_, Message> {
             .style(move |_| container::Style {
                 shadow: shadow(glass::SHADOW_OFFSET_Y, glass::SHADOW_BLUR, glass::SHADOW),
                 border: Border {
-                    radius: radius.into(),
+                    radius: RADIUS.into(),
                     ..Border::default()
                 },
                 ..container::Style::default()
@@ -93,25 +110,23 @@ pub fn view(app: &App, bar_w: u32) -> Element<'_, Message> {
                     .style(move |_| container::Style {
                         background: Some(Background::Gradient(grad.into())),
                         border: Border {
-                            radius: radius.into(),
+                            radius: RADIUS.into(),
                             ..Border::default()
                         },
                         ..container::Style::default()
                     })
                     .into(),
             );
-            layers.push(tint_layer(glass_tint(alpha), radius));
+            layers.push(tint_layer(glass_tint(alpha), RADIUS));
         }
         // Tonal fallback: opaque, no glass.
-        _ => layers.push(tint_layer(col(color::SURFACE_CONTAINER_HIGH), radius)),
+        _ => layers.push(tint_layer(col(color::SURFACE_CONTAINER_HIGHEST), RADIUS)),
     }
     layers.push(content.into());
-    layers.push(edge_layer(radius, glass_ok.is_some()));
+    layers.push(edge_layer(RADIUS, glass_ok.is_some()));
     container(stack(layers))
         .width(Length::Fixed(width))
-        .height(Length::Fixed(f32::from(
-            u16::try_from(crate::layout::PLAYER_BAR_HEIGHT).unwrap_or(88),
-        )))
+        .height(Length::Fixed(HEIGHT))
         .into()
 }
 
@@ -165,27 +180,46 @@ fn edge_layer<'a>(radius: f32, glass_on: bool) -> Element<'a, Message> {
     stack![ring, top].into()
 }
 
-/// Current cover at `size` px with radius `radius`, or the placeholder.
-pub fn cover_art<'a>(app: &App, size: f32, radius: f32) -> Element<'a, Message> {
-    match &app.cover {
-        Some(c) => image(if size <= 96.0 {
-            c.art_bar.clone()
-        } else {
-            c.art.clone()
-        })
-        .width(Length::Fixed(size))
-        .height(Length::Fixed(size))
-        .content_fit(iced::ContentFit::Fill)
-        .into(),
-        None => art_placeholder(size, radius, false),
+/// One cover handle for a slot: the 128 px bar bake up to 96 px, the 480 px bake above.
+fn cover_handle(c: &CoverView, size: f32) -> image::Handle {
+    if size <= 96.0 {
+        c.art_bar.clone()
+    } else {
+        c.art.clone()
     }
 }
 
-fn left(app: &App, side: f32) -> Element<'_, Message> {
+/// Current cover at `size` px with radius `radius`, or the placeholder. When the track changed
+/// the old cover stays under the new one while it fades in (400 ms).
+pub fn cover_art<'a>(app: &App, size: f32, radius: f32) -> Element<'a, Message> {
+    let Some(c) = &app.cover else {
+        return art_placeholder(size, radius, false);
+    };
+    let fade = app.anim.cover();
+    let draw = |handle: image::Handle, opacity: f32| {
+        image(handle)
+            .width(Length::Fixed(size))
+            .height(Length::Fixed(size))
+            .content_fit(iced::ContentFit::Fill)
+            .opacity(opacity)
+    };
+    match &app.prev_cover {
+        Some(prev) if fade < 0.999 => stack![
+            draw(cover_handle(prev, size), 1.0),
+            draw(cover_handle(c, size), fade)
+        ]
+        .width(Length::Fixed(size))
+        .height(Length::Fixed(size))
+        .into(),
+        _ => draw(cover_handle(c, size), 1.0).into(),
+    }
+}
+
+fn track_info(app: &App, width: f32) -> Element<'_, Message> {
     let Some(track) = &app.ui.snapshot.current else {
         return Space::new().into();
     };
-    let text_w = side - 64.0 - gap::MD;
+    let text_w = width - 48.0 - gap::MD;
     let texts = column![
         label(
             fit(&track.title, text_w, type_scale::BODY_MD.size),
@@ -204,75 +238,121 @@ fn left(app: &App, side: f32) -> Element<'_, Message> {
             col(color::ON_SURFACE_VARIANT)
         ),
     ];
-    button(
+    let b = button(
         row![
-            cover_art(app, 64.0, shape::MD),
+            cover_art(app, 48.0, shape::MD),
             Space::new().width(gap::MD),
             texts
         ]
         .align_y(Alignment::Center),
     )
     .padding(0)
-    .style(button_style(Color::TRANSPARENT, shape::MD))
-    .on_press(Message::Ui(Event::Go(Route::NowPlaying)))
-    .into()
-}
-
-fn center(app: &App, accent: Palette) -> Element<'_, Message> {
-    column![
-        container(transport(app, accent, 40.0)).center_x(Length::Fill),
-        seek_row(app, accent),
-    ]
-    .spacing(gap::XS)
-    .width(Length::Fill)
-    .into()
-}
-
-/// Previous, play/pause, next. The play button is the one place the accent fills a control.
-pub fn transport(app: &App, accent: Palette, play_size: f32) -> Element<'_, Message> {
-    let ink = col(color::ON_SURFACE);
-    let playing = app.ui.is_playing();
-    // While a stream starts (a YouTube track takes seconds) the glyph becomes a calm ring.
-    let glyph: Element<'_, Message> = if app.ui.is_buffering() {
-        spinner(play_size / 2.0 + 4.0, col(accent.on_primary), app.spin).into()
-    } else {
-        icon(
-            if playing { Icon::Pause } else { Icon::Play },
-            play_size / 2.0,
-            col(accent.on_primary),
-        )
-        .into()
-    };
-    let play = button(
-        container(glyph)
-            .width(Length::Fixed(play_size))
-            .height(Length::Fixed(play_size))
-            .center_x(Length::Fixed(play_size))
-            .center_y(Length::Fixed(play_size)),
+    .on_press(Message::OpenNowPlaying);
+    tip(
+        animated(b, Color::TRANSPARENT, shape::LG),
+        "Show Now Playing",
     )
-    .padding(0)
-    .style(button_style(col(accent.primary), shape::FULL))
-    .on_press(Message::Ui(Event::Key(KeyAction::TogglePlay)));
-    row![
+}
+
+/// Shuffle, previous, play, next, repeat.
+fn controls(app: &App, accent: Palette, compact: bool) -> Element<'_, Message> {
+    let ink = col(color::ON_SURFACE);
+    let dim = col(color::ON_SURFACE_VARIANT);
+    let mut r = row![].spacing(gap::XS).align_y(Alignment::Center);
+    if !compact {
+        r = r.push(tip(
+            icon_button(
+                Icon::Shuffle,
+                20.0,
+                40.0,
+                dim,
+                Color::TRANSPARENT,
+                (app.ui.snapshot.queue.len() > 2).then_some(Message::ShuffleQueue),
+            ),
+            "Shuffle what plays next",
+        ));
+    }
+    r = r.push(prev_button(ink, 40.0));
+    r = r.push(play_button(app, accent, 48.0));
+    r = r.push(next_button(ink, 40.0));
+    if !compact {
+        r = r.push(tip(
+            icon_button(Icon::Repeat, 20.0, 40.0, dim, Color::TRANSPARENT, None),
+            "Repeat is not available yet",
+        ));
+    }
+    r.into()
+}
+
+fn prev_button<'a>(ink: Color, target: f32) -> Element<'a, Message> {
+    tip(
         icon_button(
             Icon::Prev,
-            20.0,
-            40.0,
+            24.0,
+            target,
             ink,
             Color::TRANSPARENT,
             Some(Message::Ui(Event::Command(PlayerCommand::Previous))),
         ),
-        play,
+        "Previous",
+    )
+}
+
+fn next_button<'a>(ink: Color, target: f32) -> Element<'a, Message> {
+    tip(
         icon_button(
             Icon::Next,
-            20.0,
-            40.0,
+            24.0,
+            target,
             ink,
             Color::TRANSPARENT,
             Some(Message::Ui(Event::Command(PlayerCommand::Next))),
         ),
+        "Next",
+    )
+}
+
+/// The play button: a circle that morphs into a rounded square while a song plays. While a
+/// stream starts the glyph becomes a calm ring.
+pub fn play_button(app: &App, accent: Palette, size: f32) -> Element<'_, Message> {
+    let playing = app.ui.is_playing();
+    let glyph: Element<'_, Message> = if app.ui.is_buffering() {
+        spinner(size / 2.0 + 2.0, col(accent.on_primary), app.spin).into()
+    } else {
+        icon(
+            if playing { Icon::Pause } else { Icon::Play },
+            size / 2.0 + 4.0,
+            col(accent.on_primary),
+        )
+        .into()
+    };
+    let radius = play_radius(size, app.anim.play.value);
+    let b = button(
+        container(glyph)
+            .width(Length::Fixed(size))
+            .height(Length::Fixed(size))
+            .center_x(Length::Fixed(size))
+            .center_y(Length::Fixed(size)),
+    )
+    .padding(0)
+    .on_press(Message::Ui(Event::Key(KeyAction::TogglePlay)));
+    tip(
+        fx(b.style(button_flat(col(accent.primary), radius)))
+            .layer(col(accent.on_primary))
+            .radius(radius),
+        if playing { "Pause" } else { "Play" },
+    )
+}
+
+/// Previous, play/pause, next, for the full-window Now Playing.
+pub fn transport(app: &App, accent: Palette, play_size: f32) -> Element<'_, Message> {
+    let ink = col(color::ON_SURFACE);
+    row![
+        prev_button(ink, 48.0),
+        play_button(app, accent, play_size),
+        next_button(ink, 48.0),
     ]
-    .spacing(gap::SM)
+    .spacing(gap::MD)
     .align_y(Alignment::Center)
     .into()
 }
@@ -294,8 +374,8 @@ pub fn seek_row(app: &App, accent: Palette) -> Element<'_, Message> {
     };
     let dim = col(color::ON_SURFACE_VARIANT);
     let time = |text: String, right: bool| {
-        container(label(text, type_scale::LABEL_SM, false, dim))
-            .width(Length::Fixed(44.0))
+        container(label(text, type_scale::LABEL_MD, false, dim))
+            .width(Length::Fixed(40.0))
             .align_x(if right {
                 Alignment::Start
             } else {
@@ -308,7 +388,7 @@ pub fn seek_row(app: &App, accent: Palette) -> Element<'_, Message> {
         .height(16.0)
         .style(slider_style(
             col(accent.primary),
-            col(color::ON_SURFACE.with_alpha(0.24)),
+            col(color::ON_SURFACE.with_alpha(0.20)),
             col(accent.primary),
             6.0,
         ));
@@ -330,77 +410,85 @@ pub fn seek_row(app: &App, accent: Palette) -> Element<'_, Message> {
 /// opens the signal-path popover; lossy never gets a success colour.
 pub fn badge(app: &App, max_w: f32) -> Element<'_, Message> {
     let text = fit(&badge_text(app), max_w, type_scale::LABEL_SM.size);
-    button(
-        container(label(
+    let b = button(
+        container(label_w(
             text,
             type_scale::LABEL_SM,
-            false,
+            Weight::Medium,
             col(color::ON_SURFACE_VARIANT),
         ))
-        .padding(Padding::from([2.0, gap::SM])),
+        .padding(Padding::from([4.0, gap::MD])),
     )
     .padding(0)
-    .style(|_, status| {
-        let hovered = matches!(status, button::Status::Hovered | button::Status::Pressed);
-        button::Style {
-            background: hovered.then(|| col(color::ON_SURFACE.with_alpha(0.08)).into()),
-            text_color: col(color::ON_SURFACE),
-            border: Border {
-                color: col(color::OUTLINE_VARIANT),
-                width: 1.0,
-                radius: shape::FULL.into(),
-            },
-            shadow: iced::Shadow::default(),
-            snap: false,
-        }
-    })
-    .on_press(Message::Ui(Event::ToggleSignalPath))
+    .on_press(Message::Ui(Event::ToggleSignalPath));
+    fx(b.style(|_, _| button::Style {
+        background: None,
+        text_color: col(color::ON_SURFACE),
+        border: Border {
+            color: col(color::OUTLINE),
+            width: 1.0,
+            radius: shape::FULL.into(),
+        },
+        shadow: iced::Shadow::default(),
+        snap: false,
+    }))
+    .radius(shape::FULL)
     .into()
 }
-fn right(app: &App, side: f32) -> Element<'_, Message> {
+
+fn right(app: &App, width: f32, roomy: bool, compact: bool) -> Element<'_, Message> {
     let ink = col(color::ON_SURFACE);
+    let dim = col(color::ON_SURFACE_VARIANT);
+    let volume_w = if compact { 72.0 } else { 88.0 };
     let volume = slider(0..=100_u8, app.ui.snapshot.volume_percent, |v| {
         Message::Ui(Event::Command(PlayerCommand::SetVolume(v)))
     })
     .height(16.0)
-    .width(Length::Fixed(
-        side - 40.0 - 20.0 - 2.0 * gap::SM - 2.0 * gap::MD - 40.0,
-    ))
+    .width(Length::Fixed(volume_w))
     .style(slider_style(
         col(color::ON_SURFACE),
-        col(color::ON_SURFACE.with_alpha(0.24)),
+        col(color::ON_SURFACE.with_alpha(0.20)),
         col(color::ON_SURFACE),
         5.0,
     ));
-    let queue = icon_button(
-        Icon::Queue,
-        20.0,
-        40.0,
-        ink,
-        if app.ui.queue_open {
-            col(color::ON_SURFACE.with_alpha(0.12))
-        } else {
-            Color::TRANSPARENT
-        },
-        Some(Message::Ui(Event::ToggleQueue)),
+    let queue_on = app.pane_open && app.np_tab == super::super::app::NpTab::Queue;
+    let queue = tip(
+        icon_button(
+            Icon::Queue,
+            22.0,
+            40.0,
+            ink,
+            if queue_on {
+                col(color::ON_SURFACE.with_alpha(0.14))
+            } else {
+                Color::TRANSPARENT
+            },
+            Some(Message::Ui(Event::ToggleQueue)),
+        ),
+        "Queue",
     );
-    column![
-        container(badge(app, side - 2.0 * gap::MD))
-            .align_x(Alignment::End)
-            .width(Length::Fill),
-        row![
-            icon(Icon::Volume, 20.0, col(color::ON_SURFACE_VARIANT)),
-            Space::new().width(gap::SM),
-            volume,
-            Space::new().width(Length::Fill),
-            queue
-        ]
-        .align_y(Alignment::Center),
-    ]
-    .spacing(gap::XS)
-    .width(Length::Fill)
-    .into()
+    let vol_icon = if app.ui.snapshot.volume_percent == 0 {
+        Icon::VolumeOff
+    } else {
+        Icon::Volume
+    };
+    let mut r = row![Space::new().width(Length::Fill)]
+        .spacing(gap::XS)
+        .align_y(Alignment::Center);
+    if roomy {
+        r = r.push(badge(app, 190.0));
+    }
+    if !compact {
+        r = r.push(tip(
+            icon_button(Icon::Heart, 22.0, 40.0, dim, Color::TRANSPARENT, None),
+            "Likes are not available yet",
+        ));
+    }
+    r = r
+        .push(queue)
+        .push(icon(vol_icon, 22.0, dim))
+        .push(Space::new().width(gap::XS))
+        .push(volume);
+    let _ = width;
+    r.into()
 }
-
-/// Layout constant reference so the compiler checks the bar height token is the one used.
-pub const BAR_HEIGHT: f32 = theme_layout::PLAYER_BAR_HEIGHT;

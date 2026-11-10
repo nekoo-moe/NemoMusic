@@ -4,7 +4,7 @@
 use nemo_core::lyrics::{Granularity, LyricsDoc};
 
 use crate::theme::TextStyle;
-use crate::theme::type_scale::{HEADLINE_MD, TITLE_MD, TITLE_SM};
+use crate::theme::type_scale::{BODY_MD, HEADLINE_MD, TITLE_MD, TITLE_SM};
 
 /// A line changes when `position >= start - 150 ms`.
 pub const LEAD_MS: i64 = 150;
@@ -47,6 +47,19 @@ impl LineRole {
         }
     }
 
+    /// Type style for the dense lyrics of the right pane: 20/28, 16/24, 14/20.
+    #[must_use]
+    pub fn style_d(self, dense: bool) -> TextStyle {
+        if !dense {
+            return self.style();
+        }
+        match self {
+            Self::Active => TITLE_MD,
+            Self::Neighbor => TITLE_SM,
+            Self::Other => BODY_MD,
+        }
+    }
+
     /// Weight: 600 for the active line, 400 otherwise (two weights per view).
     #[must_use]
     pub fn semibold(self) -> bool {
@@ -79,17 +92,31 @@ pub fn active_line(doc: &LyricsDoc, position_ms: i64, offset_ms: i64) -> Option<
 /// Height in px of a one-line row of the given role.
 #[must_use]
 pub fn row_height(role: LineRole) -> f32 {
-    f32::from(role.style().line) + LINE_GAP
+    row_height_d(role, false)
+}
+
+/// [`row_height`] for the dense (right pane) or roomy (full window) lyrics.
+#[must_use]
+pub fn row_height_d(role: LineRole, dense: bool) -> f32 {
+    f32::from(role.style_d(dense).line) + LINE_GAP
 }
 
 /// The scroll offset (px from the top of the list) that puts the top of line `active` at
 /// [`ANCHOR`] of the viewport. `line_count` lines, one text row each.
 #[must_use]
 pub fn scroll_target(active: Option<usize>, viewport_h: f32) -> f32 {
+    scroll_target_d(active, viewport_h, false)
+}
+
+/// [`scroll_target`] for the dense (right pane) or roomy (full window) lyrics.
+#[must_use]
+pub fn scroll_target_d(active: Option<usize>, viewport_h: f32, dense: bool) -> f32 {
     let Some(a) = active else {
         return 0.0;
     };
-    let above: f32 = (0..a).map(|i| row_height(LineRole::of(i, Some(a)))).sum();
+    let above: f32 = (0..a)
+        .map(|i| row_height_d(LineRole::of(i, Some(a)), dense))
+        .sum();
     (above - ANCHOR * viewport_h).max(0.0)
 }
 

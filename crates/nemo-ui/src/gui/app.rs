@@ -13,21 +13,27 @@ use std::time::{Duration, Instant};
 
 use iced::widget::image;
 use iced::{Element, Size, Subscription, Task, keyboard, stream, window};
+use nemo_core::account::{AccountError, AccountInfo, AccountState, SignOutReport};
 use nemo_core::catalog::{
     AlbumDetail, AlbumSummary, ArtistDetail, BrowseId, PlaylistDetail, SearchResults, Shelf,
     ShelfItem,
 };
 use nemo_core::lyrics::LyricsQuery;
-use nemo_core::player::PlayerEvent;
+use nemo_core::player::{PlayerCommand, PlayerEvent};
+use nemo_core::secret::Secret;
 use nemo_core::services::{Backend, LyricsLookup, PlayerControl};
 use nemo_core::track::{Artwork, Track, TrackId};
 
+use super::fx;
 use super::style;
 use super::views;
+use crate::anim::Anim;
+use crate::copy;
 use crate::cover::{self, Baked, CoverData};
 use crate::frame_stats::FrameStats;
 use crate::home;
 use crate::keys::{self, Key, Mods};
+use crate::layout;
 use crate::lru::{ART_CAPACITY, Lru};
 use crate::palette::Palette;
 use crate::route::Route;
@@ -113,6 +119,27 @@ pub enum ArtShape {
     Hero,
     /// Artists: a circle.
     Circle,
+    /// Large shelf card, radius 20.
+    Tile,
+    /// List thumbnail of 48 to 56 px, radius `shape.md`.
+    Thumb,
+}
+
+/// Corner radius of the large shelf cards.
+pub const TILE_RADIUS: f32 = 20.0;
+
+impl ArtShape {
+    /// Corner radius in px for a slot `size` px wide.
+    #[must_use]
+    pub fn radius(self, size: f32) -> f32 {
+        match self {
+            Self::Circle => size / 2.0,
+            Self::Card | Self::Thumb => shape::MD,
+            Self::Row => shape::SM,
+            Self::Hero => 24.0,
+            Self::Tile => TILE_RADIUS,
+        }
+    }
 }
 
 /// One picture a view wants: where it comes from, the slot size and the shape.
@@ -142,16 +169,10 @@ impl ArtSpec {
     /// Corner radius as a fraction of the width.
     #[must_use]
     pub fn fraction(&self) -> f32 {
-        let radius = match self.shape {
-            ArtShape::Circle => return 0.5,
-            ArtShape::Card => shape::MD,
-            ArtShape::Row => shape::SM,
-            ArtShape::Hero => shape::LG,
-        };
         // Slot sizes are small integers, exact in f32.
         #[allow(clippy::cast_precision_loss)]
         let size = self.size.max(1) as f32;
-        radius / size
+        self.shape.radius(size) / size
     }
 }
 
@@ -296,6 +317,172 @@ pub enum CompactTab {
     Queue,
 }
 
+/// Tabs of the right Now Playing pane.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum NpTab {
+    /// Synced lyrics.
+    #[default]
+    Lyrics,
+    /// The queue.
+    Queue,
+    /// Details and the honest quality badge.
+    Info,
+}
+
+impl NpTab {
+    /// All tabs in order.
+    pub const ALL: [Self; 3] = [Self::Lyrics, Self::Queue, Self::Info];
+
+    /// Tab label.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Lyrics => "Lyrics",
+            Self::Queue => "Queue",
+            Self::Info => "Info",
+        }
+    }
+}
+
+/// Filter chips on Home: they keep only shelf items of one kind.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum HomeFilter {
+    /// Everything.
+    #[default]
+    All,
+    /// Songs only.
+    Songs,
+    /// Albums only.
+    Albums,
+    /// Artists only.
+    Artists,
+    /// Playlists only.
+    Playlists,
+}
+
+impl HomeFilter {
+    /// All chips in order.
+    pub const ALL: [Self; 5] = [
+        Self::All,
+        Self::Songs,
+        Self::Albums,
+        Self::Artists,
+        Self::Playlists,
+    ];
+
+    /// Chip label.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::All => "All",
+            Self::Songs => "Songs",
+            Self::Albums => "Albums",
+            Self::Artists => "Artists",
+            Self::Playlists => "Playlists",
+        }
+    }
+
+    /// `true` if a shelf item passes the filter.
+    #[must_use]
+    pub fn keeps(self, item: &ShelfItem) -> bool {
+        matches!(
+            (self, item),
+            (Self::All, _)
+                | (Self::Songs, ShelfItem::Song(_))
+                | (Self::Albums, ShelfItem::Album(_))
+                | (Self::Artists, ShelfItem::Artist(_))
+                | (Self::Playlists, ShelfItem::Playlist(_))
+        )
+    }
+}
+
+/// Filter chips of the library list in the left pane.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LibFilter {
+    /// Playlists.
+    Playlists,
+    /// Artists.
+    Artists,
+    /// Albums.
+    Albums,
+}
+
+impl LibFilter {
+    /// All chips in order.
+    pub const ALL: [Self; 3] = [Self::Playlists, Self::Artists, Self::Albums];
+
+    /// Chip label.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Playlists => "Playlists",
+            Self::Artists => "Artists",
+            Self::Albums => "Albums",
+        }
+    }
+}
+
+/// What the sign-in sheet remembers. The cookie lives only in a [`Secret`]: its `Debug` prints
+/// `[redacted]`, it is never logged, and it is emptied when it is sent.
+#[derive(Debug, Clone)]
+pub struct AccountUi {
+    /// The sheet is open.
+    pub open: bool,
+    /// The masked cookie field is shown.
+    pub cookie_mode: bool,
+    /// What was typed in the masked field.
+    pub cookie: Secret<String>,
+    /// A sign-in or sign-out call is running.
+    pub busy: bool,
+    /// Plain-words error of the last call.
+    pub error: Option<String>,
+    /// Sign out waits for the confirmation.
+    pub confirm_sign_out: bool,
+    /// Result line of the last sign-out.
+    pub notice: Option<String>,
+}
+
+impl Default for AccountUi {
+    fn default() -> Self {
+        Self {
+            open: false,
+            cookie_mode: false,
+            cookie: Secret::new(String::new()),
+            busy: false,
+            error: None,
+            confirm_sign_out: false,
+            notice: None,
+        }
+    }
+}
+
+/// Messages of the sign-in sheet.
+#[derive(Debug, Clone)]
+pub enum AccountMsg {
+    /// Open the sheet.
+    Open,
+    /// Close the sheet.
+    Close,
+    /// Press "Sign in with Google".
+    SignIn,
+    /// Show or hide the masked cookie field.
+    CookieMode(bool),
+    /// The masked field changed.
+    CookieInput(Secret<String>),
+    /// Press "Check cookie".
+    CookieSubmit,
+    /// Press "Sign out" (asks first).
+    AskSignOut,
+    /// Leave the confirmation.
+    CancelSignOut,
+    /// Confirm sign out.
+    SignOut,
+    /// A sign-in call finished.
+    SignedIn(Result<AccountInfo, AccountError>),
+    /// A sign-out call finished.
+    SignedOut(Result<SignOutReport, AccountError>),
+}
+
 /// Sections of the Settings screen.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SettingsSection {
@@ -425,6 +612,20 @@ pub enum Message {
     SettingsSection(SettingsSection),
     /// Open Settings on this section.
     SettingsSectionGo(SettingsSection),
+    /// Open or close the right Now Playing pane.
+    TogglePane,
+    /// Pick a tab of the right pane (opens the pane).
+    NpTab(NpTab),
+    /// Pick a Home filter chip.
+    HomeFilter(HomeFilter),
+    /// Pick or clear a library filter chip.
+    LibFilter(Option<LibFilter>),
+    /// Shuffle the rest of the queue.
+    ShuffleQueue,
+    /// Open Now Playing: the right pane when it fits, the full window otherwise.
+    OpenNowPlaying,
+    /// The sign-in sheet.
+    Account(AccountMsg),
     /// Load a detail page again after an error.
     RetryDetail(DetailKey),
     /// The user wants to add a music folder.
@@ -465,6 +666,12 @@ pub enum Job {
     Cover(Track),
     /// Look up lyrics.
     Lyrics(Track),
+    /// Open the sign-in window.
+    SignIn,
+    /// Sign in with a pasted cookie.
+    SignInCookie(Secret<String>),
+    /// Sign out.
+    SignOut,
     /// Find the album or artist page of a track.
     Resolve {
         /// What to open.
@@ -571,8 +778,8 @@ pub async fn run_job(job: Job, backend: Backend) -> Message {
             let built = match backend.images.image(&track.artwork, 640).await {
                 Ok(raw) => cover::analyze(&raw)
                     .and_then(|data| {
-                        let art = cover::bake(&raw, 480, 16.0 / 480.0)?;
-                        let bar = cover::bake(&raw, 128, 12.0 / 64.0)?;
+                        let art = cover::bake(&raw, 480, 24.0 / 480.0)?;
+                        let bar = cover::bake(&raw, 128, 12.0 / 48.0)?;
                         Ok(Arc::new(CoverBuilt { art, bar, data }))
                     })
                     .map_err(|e| e.to_string()),
@@ -595,6 +802,11 @@ pub async fn run_job(job: Job, backend: Backend) -> Message {
                 offset_ms,
             }
         }
+        Job::SignIn => Message::Account(AccountMsg::SignedIn(backend.account.sign_in().await)),
+        Job::SignInCookie(cookie) => Message::Account(AccountMsg::SignedIn(
+            backend.account.sign_in_with_cookie(cookie).await,
+        )),
+        Job::SignOut => Message::Account(AccountMsg::SignedOut(backend.account.sign_out().await)),
         Job::Resolve { kind, track } => Message::Ui(resolve(&backend, kind, &track).await),
     }
 }
@@ -658,6 +870,16 @@ pub struct App {
     art_queue: VecDeque<ArtSpec>,
     art_inflight: usize,
     pub(crate) cover: Option<CoverView>,
+    /// The cover before the current one, drawn under it while they cross-fade.
+    pub(crate) prev_cover: Option<CoverView>,
+    pub(crate) anim: Anim,
+    pub(crate) pane_open: bool,
+    pane_user_set: bool,
+    pub(crate) np_tab: NpTab,
+    pub(crate) home_filter: HomeFilter,
+    pub(crate) lib_filter: Option<LibFilter>,
+    pub(crate) account: AccountUi,
+    last_line: Option<usize>,
     pub(crate) seek_drag: Option<f32>,
     pub(crate) compact_tab: CompactTab,
     pub(crate) settings_section: SettingsSection,
@@ -683,6 +905,11 @@ impl App {
             options.reduced_motion,
         )
         .with_settings(options.settings.clone());
+        let reduced = ui.reduced_motion;
+        fx::set_reduced_motion(reduced);
+        // Window sizes are small positive numbers.
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let pane_open = layout::right_pushes(options.window_size.0 as u32);
         let mut app = Self {
             backend,
             ui,
@@ -698,6 +925,15 @@ impl App {
             art_queue: VecDeque::new(),
             art_inflight: 0,
             cover: None,
+            prev_cover: None,
+            anim: Anim::new(reduced),
+            pane_open,
+            pane_user_set: false,
+            np_tab: NpTab::default(),
+            home_filter: HomeFilter::default(),
+            lib_filter: None,
+            account: AccountUi::default(),
+            last_line: None,
             seek_drag: None,
             compact_tab: CompactTab::default(),
             settings_section: SettingsSection::default(),
@@ -825,8 +1061,177 @@ impl App {
 
     fn sync_viewport(&mut self) -> Vec<Job> {
         let (w, h) = self.window_px();
-        let v = views::now_playing::lyrics_viewport_height(w, h);
-        self.dispatch(Event::LyricsViewport(v))
+        let full = matches!(self.ui.route(), Route::NowPlaying);
+        let v = if full {
+            views::now_playing::lyrics_viewport_height(w, h)
+        } else {
+            layout::pane_lyrics_height(w, h)
+        };
+        let mut jobs = self.dispatch(Event::LyricsDense(!full));
+        jobs.extend(self.dispatch(Event::LyricsViewport(v)));
+        jobs
+    }
+
+    /// `true` while a sign-in or sign-out call runs (here or in the service).
+    #[must_use]
+    pub fn account_busy(&self) -> bool {
+        self.account.busy || matches!(self.backend.account.state(), AccountState::SigningIn)
+    }
+
+    /// `true` while anything animates; the window subscribes to frames only then.
+    #[must_use]
+    pub fn needs_frames(&self) -> bool {
+        self.ui.needs_frames() || self.anim.active() || self.account_busy()
+    }
+
+    /// Point every animation at the state it should show. Cheap; runs after every update.
+    fn sync_anim(&mut self) {
+        // The queue flag and the pane tab stay one fact.
+        if self.ui.queue_open && !(self.pane_open && self.np_tab == NpTab::Queue) {
+            self.pane_open = true;
+            self.np_tab = NpTab::Queue;
+        } else if !self.ui.queue_open && self.np_tab == NpTab::Queue {
+            self.np_tab = NpTab::Lyrics;
+        }
+        let reduced = self.ui.reduced_motion;
+        fx::set_reduced_motion(reduced);
+        self.anim.set_reduced(reduced);
+        let unit = |on: bool| if on { 1.0 } else { 0.0 };
+        self.anim.pane.target = unit(self.pane_open);
+        self.anim.capsule.target = unit(self.ui.snapshot.current.is_some());
+        self.anim.play.target = unit(self.ui.is_playing() && !self.ui.is_buffering());
+        self.anim.sheet.target = unit(self.account.open);
+        if !self.account.open {
+            self.anim.sheet.snap(0.0);
+        }
+        let line = self.ui.active_lyric();
+        if line != self.last_line {
+            self.last_line = line;
+            self.anim.restart_line();
+        }
+    }
+
+    fn set_tab(&mut self, tab: NpTab) {
+        self.pane_open = true;
+        self.pane_user_set = true;
+        self.np_tab = tab;
+        self.ui.queue_open = tab == NpTab::Queue;
+    }
+
+    fn account_msg(&mut self, msg: AccountMsg) -> Vec<Job> {
+        let acc = &mut self.account;
+        match msg {
+            AccountMsg::Open => {
+                acc.open = true;
+                acc.error = None;
+                acc.confirm_sign_out = false;
+                acc.cookie_mode = false;
+                self.anim.sheet.snap(0.0);
+            }
+            AccountMsg::Close => {
+                acc.open = false;
+                acc.cookie = Secret::new(String::new());
+                acc.cookie_mode = false;
+                acc.notice = None;
+                acc.confirm_sign_out = false;
+                self.ui.text_focused = false;
+            }
+            AccountMsg::SignIn => {
+                if self.ui.settings.tos_acknowledged && !acc.busy {
+                    acc.busy = true;
+                    acc.error = None;
+                    acc.notice = None;
+                    return vec![Job::SignIn];
+                }
+            }
+            AccountMsg::CookieMode(on) => {
+                acc.cookie_mode = on;
+                acc.error = None;
+                if !on {
+                    acc.cookie = Secret::new(String::new());
+                }
+                self.ui.text_focused = on;
+            }
+            AccountMsg::CookieInput(text) => acc.cookie = text,
+            AccountMsg::CookieSubmit => {
+                if self.ui.settings.tos_acknowledged
+                    && !acc.busy
+                    && !acc.cookie.expose().trim().is_empty()
+                {
+                    acc.busy = true;
+                    acc.error = None;
+                    // The cookie leaves the UI state here; only the service keeps it.
+                    let cookie = std::mem::replace(&mut acc.cookie, Secret::new(String::new()));
+                    return vec![Job::SignInCookie(cookie)];
+                }
+            }
+            AccountMsg::AskSignOut => acc.confirm_sign_out = true,
+            AccountMsg::CancelSignOut => acc.confirm_sign_out = false,
+            AccountMsg::SignOut => {
+                acc.busy = true;
+                acc.confirm_sign_out = false;
+                return vec![Job::SignOut];
+            }
+            AccountMsg::SignedIn(result) => {
+                acc.busy = false;
+                match result {
+                    Ok(_) => {
+                        acc.error = None;
+                        acc.cookie_mode = false;
+                        acc.notice = None;
+                        self.ui.text_focused = false;
+                    }
+                    Err(e) => {
+                        acc.error = Some(copy::account_error(&e));
+                        if matches!(e, AccountError::Blocked | AccountError::Unavailable(_)) {
+                            acc.cookie_mode = true;
+                            self.ui.text_focused = true;
+                        }
+                    }
+                }
+            }
+            AccountMsg::SignedOut(result) => {
+                acc.busy = false;
+                match result {
+                    Ok(report) => {
+                        acc.error = None;
+                        acc.notice = Some(copy::sign_out_result(&report));
+                    }
+                    Err(e) => acc.error = Some(copy::account_error(&e)),
+                }
+            }
+        }
+        Vec::new()
+    }
+
+    /// Shuffle what plays after the current track without interrupting it: every other entry is
+    /// removed and added back in random order.
+    fn shuffle_queue(&mut self) -> Vec<Job> {
+        let snap = self.ui.snapshot.clone();
+        let Some(current) = snap.queue_index else {
+            return Vec::new();
+        };
+        let mut jobs = Vec::new();
+        let mut others: Vec<Track> = snap
+            .queue
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| *i != current)
+            .map(|(_, t)| t.clone())
+            .collect();
+        if others.len() < 2 {
+            return jobs;
+        }
+        shuffle(&mut others);
+        for i in (0..snap.queue.len()).rev() {
+            if i != current {
+                jobs.extend(self.dispatch(Event::Command(PlayerCommand::RemoveAt(i))));
+            }
+        }
+        for t in others {
+            jobs.extend(self.dispatch(Event::Command(PlayerCommand::Enqueue(t))));
+        }
+        jobs
     }
 
     /// Run an event through the reducer and its effects; returns jobs to start.
@@ -886,11 +1291,15 @@ impl App {
     /// Start whatever the current state asks for and has not asked for yet: the library listing,
     /// Home shelves (after the notice), the detail page of the route, and pictures in view.
     fn after_update(&mut self) -> Vec<Job> {
+        let mut jobs = Vec::new();
         if *self.ui.route() != self.last_route {
             self.last_route = self.ui.route().clone();
             self.rows_limit = ROWS_STEP;
+            self.anim.restart_page();
+            jobs.extend(self.sync_viewport());
         }
-        let mut jobs = self.pump_loads();
+        self.sync_anim();
+        jobs.extend(self.pump_loads());
         self.probe_art();
         jobs.extend(self.pump_art());
         jobs
@@ -974,13 +1383,56 @@ impl App {
             Message::Player(ev) => self.dispatch(Event::Player(ev)),
             Message::Frame(now) => self.on_frame(now),
             Message::Key(key, mods) => match keys::map(key, mods, self.ui.text_focused) {
+                // Esc closes the sign-in sheet first.
+                Some(keys::KeyAction::Close) if self.account.open => {
+                    self.account_msg(AccountMsg::Close)
+                }
                 Some(action) => self.dispatch(Event::Key(action)),
                 None => Vec::new(),
             },
             Message::Resized(size) => {
                 self.window = size;
+                if !self.pane_user_set {
+                    let (w, _) = self.window_px();
+                    self.pane_open = layout::right_pushes(w);
+                }
                 self.sync_viewport()
             }
+            Message::TogglePane => {
+                self.pane_open = !self.pane_open;
+                self.pane_user_set = true;
+                if !self.pane_open {
+                    self.ui.queue_open = false;
+                }
+                Vec::new()
+            }
+            Message::NpTab(tab) => {
+                self.set_tab(tab);
+                Vec::new()
+            }
+            Message::HomeFilter(filter) => {
+                self.home_filter = filter;
+                self.anim.restart_page();
+                Vec::new()
+            }
+            Message::LibFilter(filter) => {
+                self.lib_filter = filter;
+                Vec::new()
+            }
+            Message::ShuffleQueue => self.shuffle_queue(),
+            Message::OpenNowPlaying => {
+                let (w, _) = self.window_px();
+                if layout::right_pushes(w) {
+                    self.pane_open = !self.pane_open || self.np_tab != NpTab::Lyrics;
+                    self.pane_user_set = true;
+                    self.np_tab = NpTab::Lyrics;
+                    self.ui.queue_open = false;
+                    Vec::new()
+                } else {
+                    self.dispatch(Event::Go(Route::NowPlaying))
+                }
+            }
+            Message::Account(msg) => self.account_msg(msg),
             Message::HomeFeed(result) => match result {
                 Ok(shelves) if !shelves.is_empty() => {
                     self.home.shelves.clone_from(shelves.as_ref());
@@ -1111,7 +1563,8 @@ impl App {
         });
         self.last_frame = Some(now);
         let mut jobs = Vec::new();
-        if self.ui.is_buffering() && !self.ui.reduced_motion {
+        self.anim.step(dt);
+        if (self.ui.is_buffering() || self.account_busy()) && !self.ui.reduced_motion {
             // One calm turn per 1.2 s.
             self.spin = (self.spin + dt.min(100.0) / 1200.0 * std::f32::consts::TAU)
                 % std::f32::consts::TAU;
@@ -1120,7 +1573,8 @@ impl App {
             jobs.extend(self.dispatch(Event::Position(self.backend.player.position())));
         }
         jobs.extend(self.dispatch(Event::Frame { dt_ms: dt }));
-        if !self.ui.needs_frames() {
+        self.sync_anim();
+        if !self.needs_frames() {
             // Idle: the next burst of frames must not see this gap as a long frame.
             self.last_frame = None;
         }
@@ -1133,6 +1587,8 @@ impl App {
             Ok(b) if is_current => {
                 let handle =
                     |p: &Baked| image::Handle::from_rgba(p.width, p.height, p.rgba.clone());
+                self.prev_cover = self.cover.take();
+                self.anim.restart_cover();
                 self.cover = Some(CoverView {
                     track: track.clone(),
                     art: handle(&b.art),
@@ -1150,6 +1606,7 @@ impl App {
             Err(_) if is_current => {
                 // No cover: neutral placeholder, fallback accent.
                 self.cover = None;
+                self.prev_cover = None;
                 self.dispatch(Event::CoverReady {
                     track,
                     palette: Palette::fallback(),
@@ -1190,7 +1647,7 @@ impl App {
             window::resize_events().map(|(_, size)| Message::Resized(size)),
             Subscription::run_with(PlayerKey(Arc::clone(&self.backend.player)), player_events),
         ];
-        if self.ui.needs_frames() || self.readout {
+        if self.needs_frames() || self.readout {
             subs.push(window::frames().map(Message::Frame));
         }
         Subscription::batch(subs)
@@ -1201,6 +1658,8 @@ impl App {
         for _ in 0..240 {
             self.dispatch(Event::Frame { dt_ms: 16.0 });
         }
+        self.sync_anim();
+        self.anim.finish();
     }
 
     /// Run jobs to completion on the calling thread (headless runs and tests).

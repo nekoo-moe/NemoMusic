@@ -11,7 +11,10 @@ use iced_test::Simulator;
 use nemo_core::player::{PlayState, PlayerCommand};
 use nemo_core::services::Backend;
 
-use super::app::{App, Message, SettingsSection, UiOptions};
+use nemo_core::account::AccountError;
+use nemo_core::secret::Secret;
+
+use super::app::{AccountMsg, App, HomeFilter, Message, NpTab, SettingsSection, UiOptions};
 use super::assets;
 use super::style;
 use crate::route::Route;
@@ -24,8 +27,85 @@ use crate::state::{Event, Toast};
 /// # Errors
 /// A message when the renderer cannot be created or the file cannot be written.
 pub fn render_png(app: &App, size: (u32, u32), out: &Path) -> Result<(), String> {
+    render_view_png(app.view(), size, out)
+}
+
+/// Type specimen: Vietnamese and Latin text at the sizes and weights of the type scale, with
+/// tabular digits. Proves the bundled font draws the owner's test strings.
+#[must_use]
+pub fn specimen<'a>() -> iced::Element<'a, Message> {
+    use crate::theme::type_scale as t;
+    use iced::widget::{column, container};
+    let ink = style::col(crate::theme::color::ON_SURFACE);
+    let dim = style::col(crate::theme::color::ON_SURFACE_VARIANT);
+    let lines: [(crate::theme::TextStyle, bool, &str); 8] = [
+        (
+            t::DISPLAY_MD,
+            true,
+            "M\u{1edb}i Quen Nhau \u{110}\u{e3} R\u{1ee7}",
+        ),
+        (t::HEADLINE_MD, true, "HIEUTHUHAI, Ph\u{1b0}\u{1a1}ng Ly"),
+        (
+            t::TITLE_LG,
+            true,
+            "\u{110}\u{ea}m M\u{1b0}a Nh\u{1edb} Ph\u{1ed1} \u{b7} Lam Khu\u{ea}",
+        ),
+        (
+            t::TITLE_MD,
+            false,
+            "ANH L\u{c0} TH\u{1eb0}NG T\u{1ed2}I \u{b7} Ch\u{103}m Hoa \u{b7} L\u{1edd}i H\u{1ee9}a N\u{103}m 18",
+        ),
+        (
+            t::BODY_MD,
+            false,
+            "Ti\u{1ebf}ng Vi\u{1ec7}t: \u{1ea0}\u{1ea2}\u{1ea4}\u{1ea6}\u{1ea8}\u{1eaa}\u{1eac}\u{1eae}\u{1eb0}\u{1eb2}\u{1eb4}\u{1eb6} \u{1ebe}\u{1ec0}\u{1ec2}\u{1ec4}\u{1ec6} \u{1ed0}\u{1ed2}\u{1ed4}\u{1ed6}\u{1ed8} \u{1edc}\u{1ede}\u{1ee0}\u{1ee2} \u{1eea}\u{1eec}\u{1eee}\u{1ef0} \u{1ef2}\u{1ef4}\u{1ef6}\u{1ef8}",
+        ),
+        (
+            t::BODY_MD,
+            false,
+            "ạảấầẩẫậắằẳẵặ ẹẻẽếềểễệ ọỏốồổỗộớờởỡợ ụủứừửữự ỳỵỷỹ \u{111}",
+        ),
+        (
+            t::LABEL_MD,
+            true,
+            "0:11  1:11  2:22  3:33  4:44  5:55  6:66  7:77  8:88  9:99  (tabular digits)",
+        ),
+        (
+            t::BODY_SM,
+            false,
+            "Opus 160 kbps \u{b7} Lossy \u{b7} Resample \u{b7} Lyrics: LRCLIB \u{b7} Synced",
+        ),
+    ];
+    let mut c = column![].spacing(12);
+    for (i, (st, bold, text)) in lines.into_iter().enumerate() {
+        c = c.push(style::label(text, st, bold, if i < 4 { ink } else { dim }));
+    }
+    container(c)
+        .padding(32)
+        .width(iced::Length::Fill)
+        .height(iced::Length::Fill)
+        .style(|_| container::Style {
+            background: Some(style::col(crate::theme::color::SURFACE_CONTAINER).into()),
+            ..container::Style::default()
+        })
+        .into()
+}
+
+/// Render any view at `size` logical px to a PNG (2x scale, see [`render_png`]).
+///
+/// # Errors
+/// A message when the renderer cannot be created or the file cannot be written.
+pub fn render_view_png(
+    view: iced::Element<'_, Message>,
+    size: (u32, u32),
+    out: &Path,
+) -> Result<(), String> {
     let settings = iced::Settings {
-        fonts: vec![assets::FONT_REGULAR.into(), assets::FONT_SEMIBOLD.into()],
+        fonts: vec![
+            assets::FONT_REGULAR.into(),
+            assets::FONT_MEDIUM.into(),
+            assets::FONT_SEMIBOLD.into(),
+        ],
         default_font: assets::font(false),
         default_text_size: Pixels(14.0),
         antialiasing: true,
@@ -34,7 +114,7 @@ pub fn render_png(app: &App, size: (u32, u32), out: &Path) -> Result<(), String>
     // Window sizes are small positive numbers.
     #[allow(clippy::cast_precision_loss)]
     let logical = Size::new(size.0 as f32, size.1 as f32);
-    let mut sim = Simulator::with_size(settings, logical, app.view());
+    let mut sim = Simulator::with_size(settings, logical, view);
     let snapshot = sim.snapshot(&style::theme()).map_err(|e| e.to_string())?;
 
     // `matches_image` writes `<stem>-<renderer>.png` when the file does not exist yet.
@@ -98,13 +178,39 @@ pub struct Scenario {
     pub toast: Option<String>,
     /// Settings section to show.
     pub section: SettingsSection,
+    /// Tab of the right pane.
+    pub np_tab: NpTab,
+    /// Force the right pane open or closed (default: the window size decides).
+    pub pane_open: Option<bool>,
+    /// Home filter chip.
+    pub home_filter: HomeFilter,
+    /// The sign-in sheet to show, if any.
+    pub sheet: Sheet,
+}
+
+/// Which state of the sign-in sheet a snapshot shows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Sheet {
+    /// No sheet.
+    #[default]
+    None,
+    /// Signed out, notice accepted.
+    SignIn,
+    /// The masked cookie field with a typed (hidden) value.
+    Cookie,
+    /// A blocked sign-in window and its plain-words error.
+    Error,
+    /// Signed in (use a signed-in backend).
+    SignedIn,
+    /// Signed in, waiting for the sign-out confirmation.
+    ConfirmSignOut,
 }
 
 impl Default for Scenario {
     fn default() -> Self {
         Self {
             route: Route::Home,
-            size: (1280, 800),
+            size: (1366, 697),
             position_secs: 83,
             track: 1,
             playing: false,
@@ -120,6 +226,10 @@ impl Default for Scenario {
             menu_track: None,
             toast: None,
             section: SettingsSection::default(),
+            np_tab: NpTab::Lyrics,
+            pane_open: None,
+            home_filter: HomeFilter::All,
+            sheet: Sheet::None,
         }
     }
 }
@@ -177,6 +287,38 @@ pub fn build_app(backend: &Backend, scenario: &Scenario) -> App {
             &mut app,
             Message::Ui(Event::OpenMenu(crate::mock::track(n))),
         );
+    }
+    if let Some(open) = scenario.pane_open {
+        app.pane_open = open;
+    }
+    if scenario.np_tab != NpTab::Lyrics {
+        run(&mut app, Message::NpTab(scenario.np_tab));
+    }
+    app.home_filter = scenario.home_filter;
+    match scenario.sheet {
+        Sheet::None => {}
+        Sheet::SignIn | Sheet::SignedIn => run(&mut app, Message::Account(AccountMsg::Open)),
+        Sheet::Cookie => {
+            run(&mut app, Message::Account(AccountMsg::Open));
+            run(&mut app, Message::Account(AccountMsg::CookieMode(true)));
+            run(
+                &mut app,
+                Message::Account(AccountMsg::CookieInput(Secret::new(
+                    "not-a-real-cookie-value".to_owned(),
+                ))),
+            );
+        }
+        Sheet::Error => {
+            run(&mut app, Message::Account(AccountMsg::Open));
+            run(
+                &mut app,
+                Message::Account(AccountMsg::SignedIn(Err(AccountError::Blocked))),
+            );
+        }
+        Sheet::ConfirmSignOut => {
+            run(&mut app, Message::Account(AccountMsg::Open));
+            run(&mut app, Message::Account(AccountMsg::AskSignOut));
+        }
     }
     if scenario.buffering {
         app.ui.snapshot.state = PlayState::Buffering;

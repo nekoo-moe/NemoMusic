@@ -123,6 +123,8 @@ pub enum Event {
     LyricsFollow,
     /// Lyrics viewport height in px.
     LyricsViewport(f32),
+    /// The lyrics are shown dense (right pane) or roomy (full window).
+    LyricsDense(bool),
     /// A text field gained or lost focus.
     TextFocus(bool),
     /// Reset the lyrics offset to zero.
@@ -241,6 +243,8 @@ pub struct UiState {
     pub follow_pause_ms: f32,
     /// Lyrics viewport height, px.
     pub lyric_viewport_h: f32,
+    /// Lyrics are drawn dense (right pane sizes) instead of roomy (full window sizes).
+    pub lyric_dense: bool,
     /// Text field focused.
     pub text_focused: bool,
     /// Honour reduced motion (the OS option or the setting).
@@ -281,6 +285,7 @@ impl UiState {
             lyric_scroll: Spring::new(0.0),
             follow_pause_ms: 0.0,
             lyric_viewport_h: 480.0,
+            lyric_dense: false,
             text_focused: false,
             reduced_motion,
             settings: UiSettings::default(),
@@ -431,6 +436,13 @@ impl UiState {
                 if (self.lyric_viewport_h - h).abs() > 0.5 {
                     self.lyric_viewport_h = h;
                     self.retarget_scroll();
+                }
+            }
+            Event::LyricsDense(dense) => {
+                if self.lyric_dense != dense {
+                    self.lyric_dense = dense;
+                    self.retarget_scroll();
+                    self.lyric_scroll.snap(self.lyric_scroll.target);
                 }
             }
             Event::TextFocus(on) => self.text_focused = on,
@@ -716,7 +728,8 @@ impl UiState {
     fn retarget_scroll(&mut self) {
         let active = self.active_lyric();
         self.last_active = active;
-        self.lyric_scroll.target = lyrics_view::scroll_target(active, self.lyric_viewport_h);
+        self.lyric_scroll.target =
+            lyrics_view::scroll_target_d(active, self.lyric_viewport_h, self.lyric_dense);
     }
 }
 

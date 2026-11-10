@@ -8,6 +8,7 @@
 
 pub mod app;
 pub mod assets;
+pub mod fx;
 pub mod headless;
 pub mod style;
 pub mod views;
@@ -46,6 +47,7 @@ pub fn run(backend: Backend, options: UiOptions) -> iced::Result {
     .subscription(App::subscription)
     .theme(App::theme)
     .font(assets::FONT_REGULAR)
+    .font(assets::FONT_MEDIUM)
     .font(assets::FONT_SEMIBOLD)
     .default_font(assets::font(false))
     .antialiasing(true)

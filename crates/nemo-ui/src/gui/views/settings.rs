@@ -22,7 +22,7 @@ const RIGHT_MAX: f32 = 720.0;
 
 /// The Settings screen.
 pub fn view(app: &App, w: u32) -> Element<'_, Message> {
-    let grid = layout::grid(w, app.ui.queue_open);
+    let grid = layout::grid_in(w);
     // Content widths are small exact numbers.
     #[allow(clippy::cast_precision_loss)]
     let content_w = grid.content as f32;

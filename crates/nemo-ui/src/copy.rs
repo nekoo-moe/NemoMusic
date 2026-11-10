@@ -49,14 +49,14 @@ pub const EGRESS: [(&str, &str); 7] = [
     ),
     (
         "accounts.google.com, *.gstatic.com",
-        "Google sign-in page. Only while you sign in (not built yet)",
+        "Google sign-in page. Only while you sign in",
     ),
 ];
 /// Where local data lives (README).
 pub const PRIVACY_DATA: &str = "Your library, history and caches stay in %LOCALAPPDATA%\\NemoMusic. Sign-in data is kept in Windows Credential Manager.";
 
 /// About: licence line.
-pub const ABOUT_LICENSE: &str = "NemoMusic is free software under the GPL-3.0 licence. The bundled font is IBM Plex Sans (SIL Open Font License 1.1); the icons were drawn for this project.";
+pub const ABOUT_LICENSE: &str = "NemoMusic is free software under the GPL-3.0 licence. The bundled font is Google Sans Flex (SIL Open Font License 1.1); the icons are Material Symbols Rounded (Apache License 2.0).";
 /// About: credits.
 pub const ABOUT_CREDITS: [&str; 2] = [
     "Lyrics: LRCLIB (lrclib.net) and YouTube Music. The provider name is shown with every lyric.",
@@ -70,9 +70,113 @@ pub const LIBRARY_EMPTY_TITLE: &str = "Your library is empty";
 /// Library empty state, how to add music.
 pub const LIBRARY_EMPTY_HELP: &str = "Add a music folder in Settings, under Library. NemoMusic reads FLAC, ALAC, WAV, MP3, AAC and Ogg files and keeps the list on this computer.";
 
+/// Sign-in sheet: title when signed out.
+pub const ACCOUNT_TITLE: &str = "Sign in to YouTube Music";
+/// Sign-in sheet: where everything lives (`design.md` section 11, word for word).
+pub const ACCOUNT_LOCAL: &str = "Everything stays on this computer. NemoMusic has no server. Your sign-in and library data are stored here, in Windows Credential Manager.";
+/// Sign-in sheet: the Terms of Service notice (`design.md` section 11, word for word).
+pub const ACCOUNT_TOS: &str = "NemoMusic uses YouTube Music without an official API. This may break YouTube's Terms of Service and your account could be restricted.";
+/// Sign-in sheet: primary button.
+pub const ACCOUNT_SIGN_IN: &str = "Sign in with Google";
+/// Sign-in sheet: fallback toggle.
+pub const ACCOUNT_PASTE: &str = "Paste cookie instead";
+/// Sign-in sheet: back from the fallback.
+pub const ACCOUNT_USE_WINDOW: &str = "Use the sign-in window instead";
+/// Sign-in sheet: help under the cookie field.
+pub const ACCOUNT_COOKIE_HELP: &str = "Copy the cookie header of a signed-in music.youtube.com request from your own browser. It is hidden while you type, kept in Windows Credential Manager, and never shown again.";
+/// Sign-in sheet: placeholder of the masked field.
+pub const ACCOUNT_COOKIE_PLACEHOLDER: &str = "Paste the cookie here";
+/// Sign-in sheet: waiting for the sign-in window.
+pub const ACCOUNT_WAITING: &str =
+    "Finish signing in in the window that opened. This sheet updates by itself.";
+/// Sign-in sheet: checking a pasted cookie.
+pub const ACCOUNT_CHECKING: &str = "Checking with YouTube Music\u{2026}";
+/// Sign-in sheet: the notice has not been accepted yet.
+pub const ACCOUNT_NEEDS_NOTICE: &str = "Read the first-run notice before you sign in.";
+/// Sign-out confirmation (`design.md` section 11, word for word).
+pub const ACCOUNT_SIGN_OUT_CONFIRM: &str =
+    "This removes your sign-in, library cache, history and lyrics cache from this computer.";
+
+/// Plain words for a sign-in or sign-out failure. Never contains the cookie or any token.
+#[must_use]
+pub fn account_error(error: &nemo_core::account::AccountError) -> String {
+    use nemo_core::account::AccountError as E;
+    match error {
+        E::Cancelled => {
+            "The sign-in window was closed before you finished. You are still signed out."
+                .to_owned()
+        }
+        E::Blocked => "Google would not show its sign-in page in this window. Use \u{201c}Paste cookie instead\u{201d} below.".to_owned(),
+        E::Rejected => "YouTube Music did not accept this sign-in. If you pasted a cookie, check that you copied all of it from a browser where you are signed in.".to_owned(),
+        E::Unavailable(_) => "The sign-in window cannot open on this computer. Use \u{201c}Paste cookie instead\u{201d} below.".to_owned(),
+        E::Storage(_) => "NemoMusic could not save the sign-in in Windows Credential Manager, so you are still signed out.".to_owned(),
+        E::Network(_) => "The network request failed. Check your connection and try again.".to_owned(),
+    }
+}
+
+/// What sign-out removed, in one sentence.
+#[must_use]
+pub fn sign_out_result(report: &nemo_core::account::SignOutReport) -> String {
+    let remote = if report.ended_remotely {
+        " The session was also ended on Google\u{2019}s side."
+    } else {
+        ""
+    };
+    format!(
+        "Signed out. Removed {} saved sign-in{} and {} cache file{} from this computer.{remote}",
+        report.credentials_removed,
+        if report.credentials_removed == 1 {
+            ""
+        } else {
+            "s"
+        },
+        report.files_removed,
+        if report.files_removed == 1 { "" } else { "s" },
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn account_wording_matches_design_section_11() {
+        assert!(ACCOUNT_LOCAL.starts_with("Everything stays on this computer."));
+        assert!(ACCOUNT_TOS.contains("could be restricted"));
+        assert_eq!(
+            ACCOUNT_SIGN_OUT_CONFIRM,
+            "This removes your sign-in, library cache, history and lyrics cache from this computer."
+        );
+    }
+
+    #[test]
+    fn account_errors_are_plain_and_leak_nothing() {
+        use nemo_core::account::AccountError as E;
+        for e in [
+            E::Cancelled,
+            E::Blocked,
+            E::Rejected,
+            E::Unavailable("SECRET-DETAIL".to_owned()),
+            E::Storage("SECRET-DETAIL".to_owned()),
+            E::Network("SECRET-DETAIL".to_owned()),
+        ] {
+            let text = account_error(&e);
+            assert!(!text.contains("SECRET-DETAIL") && text.ends_with('.'));
+        }
+    }
+
+    #[test]
+    fn sign_out_result_counts() {
+        let r = nemo_core::account::SignOutReport {
+            credentials_removed: 1,
+            files_removed: 3,
+            ended_remotely: false,
+        };
+        assert_eq!(
+            sign_out_result(&r),
+            "Signed out. Removed 1 saved sign-in and 3 cache files from this computer."
+        );
+    }
 
     #[test]
     fn the_notice_is_the_adr_text() {

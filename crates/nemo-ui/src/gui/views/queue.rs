@@ -1,54 +1,31 @@
-//! The queue panel (right, 320 px, opaque `surface-container`, never glass): now playing, next
-//! up, remove, play next and clear.
+//! The queue, shown as a tab of the right pane (opaque, never glass): now playing, next up,
+//! remove, play next and clear.
 
-use iced::widget::{Space, button, column, container, row, scrollable};
+use iced::widget::{Space, button, column, container, row};
 use iced::{Alignment, Color, Element, Length, Padding};
 use nemo_core::track::Track;
 
 use super::super::app::{App, ArtShape, Message, ROWS_STEP};
 use super::super::assets::Icon;
-use super::super::style::{button_style, col, fill, fit, gap, icon_button, label, tip};
+use super::super::style::{animated, col, fit, gap, icon_button, label, scroll, tip};
 use super::kit::{art, text_button, vspace};
 use crate::format;
-use crate::layout;
 use crate::state::{Event, QueueOp};
 use crate::theme::{color, shape, type_scale};
 
-/// Width available to the title column of a row.
-const TEXT_W: f32 = 168.0;
-
-/// The panel.
-pub fn panel(app: &App) -> Element<'_, Message> {
+/// The queue tab for a pane `width` px wide: a header with Clear, then the rows.
+pub fn tab(app: &App, width: f32) -> Element<'_, Message> {
     let snap = &app.ui.snapshot;
     let dim = col(color::ON_SURFACE_VARIANT);
     let can_clear = snap.queue.len() > 1;
+    // Row text width: pane less padding, art 48, gap 12 and the two small buttons.
+    let text_w = (width - 24.0 - 48.0 - gap::MD - 2.0 * 32.0 - gap::SM).max(80.0);
 
-    let header = row![
-        label("Queue", type_scale::TITLE_MD, true, col(color::ON_SURFACE)),
-        Space::new().width(Length::Fill),
-        if can_clear {
-            text_button("Clear", Message::Ui(Event::Queue(QueueOp::Clear)))
-        } else {
-            Space::new().into()
-        },
-        icon_button(
-            Icon::Close,
-            20.0,
-            40.0,
-            col(color::ON_SURFACE),
-            Color::TRANSPARENT,
-            Some(Message::Ui(Event::ToggleQueue)),
-        ),
-    ]
-    .align_y(Alignment::Center)
-    .height(Length::Fixed(56.0))
-    .padding(Padding::from([0.0, gap::LG]));
-
-    let mut body = column![].spacing(0).padding(Padding::from([0.0, gap::SM]));
+    let mut body = column![].spacing(0);
     if let Some(cur) = snap.queue_index.and_then(|i| snap.queue.get(i)) {
         body = body
             .push(section_label("Now playing"))
-            .push(item(app, cur, 0, true, 56.0));
+            .push(item(app, cur, 0, true, text_w));
     } else {
         body = body.push(section_label("Nothing is playing"));
     }
@@ -70,33 +47,49 @@ pub fn panel(app: &App) -> Element<'_, Message> {
     } else {
         body = body.push(section_label("Next up"));
         for (offset, t) in next.iter().enumerate().take(ROWS_STEP) {
-            body = body.push(item(app, t, start + offset, false, 48.0));
+            body = body.push(item(app, t, start + offset, false, text_w));
         }
     }
     let earlier = snap.queue_index.unwrap_or(0).min(snap.queue.len());
     if earlier > 0 {
         body = body.push(section_label("Earlier"));
         for (i, t) in snap.queue.iter().enumerate().take(earlier).take(ROWS_STEP) {
-            body = body.push(item(app, t, i, false, 48.0));
+            body = body.push(item(app, t, i, false, text_w));
         }
     }
 
-    // Opaque `surface-container`, not glass.
-    fill(
-        column![header, scrollable(body).height(Length::Fill)],
-        color::SURFACE_CONTAINER,
-    )
-    .width(Length::Fixed(f32::from(
-        u16::try_from(layout::QUEUE_WIDTH).unwrap_or(320),
-    )))
-    .height(Length::Fill)
+    let header = row![
+        label(
+            format!("{} in queue", snap.queue.len()),
+            type_scale::BODY_SM,
+            false,
+            dim
+        ),
+        Space::new().width(Length::Fill),
+        if can_clear {
+            text_button("Clear", Message::Ui(Event::Queue(QueueOp::Clear)))
+        } else {
+            Space::new().into()
+        },
+    ]
+    .align_y(Alignment::Center)
+    .height(Length::Fixed(40.0))
+    .padding(Padding::from([0.0, gap::SM]));
+    column![
+        header,
+        scroll(container(body).padding(Padding {
+            bottom: super::kit::PAGE_BOTTOM,
+            ..Padding::ZERO
+        }))
+        .height(Length::Fill)
+    ]
     .into()
 }
 
 fn section_label(text: &str) -> Element<'_, Message> {
     container(label(
         text,
-        type_scale::LABEL_SM,
+        type_scale::LABEL_MD,
         false,
         col(color::ON_SURFACE_VARIANT),
     ))
@@ -115,58 +108,59 @@ fn item<'a>(
     t: &'a Track,
     index: usize,
     current: bool,
-    height: f32,
+    text_w: f32,
 ) -> Element<'a, Message> {
     let dim = col(color::ON_SURFACE_VARIANT);
+    let accent = app.accent();
+    let line = row![
+        art(app, &t.artwork, 48, ArtShape::Thumb),
+        Space::new().width(gap::MD),
+        column![
+            label(
+                fit(&t.title, text_w, type_scale::BODY_MD.size),
+                type_scale::BODY_MD,
+                true,
+                if current {
+                    col(accent.primary)
+                } else {
+                    col(color::ON_SURFACE)
+                },
+            ),
+            label(
+                fit(
+                    &format::artists(&t.artists),
+                    text_w,
+                    type_scale::BODY_SM.size
+                ),
+                type_scale::BODY_SM,
+                false,
+                dim,
+            ),
+        ]
+        .width(Length::Fixed(text_w)),
+    ]
+    .align_y(Alignment::Center);
     let main = button(
-        container(
-            row![
-                art(app, &t.artwork, 40, ArtShape::Row),
-                Space::new().width(gap::MD),
-                column![
-                    label(
-                        fit(&t.title, TEXT_W, type_scale::BODY_MD.size),
-                        type_scale::BODY_MD,
-                        true,
-                        col(color::ON_SURFACE),
-                    ),
-                    label(
-                        fit(
-                            &format::artists(&t.artists),
-                            TEXT_W,
-                            type_scale::BODY_SM.size
-                        ),
-                        type_scale::BODY_SM,
-                        false,
-                        dim,
-                    ),
-                ]
-                .width(Length::Fixed(TEXT_W)),
-            ]
+        container(line)
+            .height(Length::Fixed(60.0))
+            .padding(Padding::from([0.0, gap::SM]))
             .align_y(Alignment::Center),
-        )
-        .height(Length::Fixed(height))
-        .padding(Padding::from([0.0, gap::SM]))
-        .align_y(Alignment::Center),
     )
     .padding(0)
-    .style(button_style(
-        if current {
-            col(color::SURFACE_CONTAINER_HIGH)
-        } else {
-            Color::TRANSPARENT
-        },
-        shape::MD,
-    ))
     .width(Length::Fill)
     .on_press(Message::Ui(Event::Queue(QueueOp::Jump(index))));
-    let mut r = row![main].align_y(Alignment::Center);
+    let idle = if current {
+        col(color::SURFACE_CONTAINER_HIGH)
+    } else {
+        Color::TRANSPARENT
+    };
+    let mut r = row![animated(main, idle, shape::LG)].align_y(Alignment::Center);
     if !current {
         r = r
             .push(tip(
                 icon_button(
                     Icon::Next,
-                    16.0,
+                    18.0,
                     32.0,
                     dim,
                     Color::TRANSPARENT,
@@ -177,7 +171,7 @@ fn item<'a>(
             .push(tip(
                 icon_button(
                     Icon::Close,
-                    16.0,
+                    18.0,
                     32.0,
                     dim,
                     Color::TRANSPARENT,

@@ -1,6 +1,7 @@
-//! Views. [`root`] picks the shell or full-window Now Playing and stacks the overlays; the
-//! content router in [`shell`] matches on [`Route`], so a new screen adds one arm.
+//! Views. [`root`] picks the three-pane shell or full-window Now Playing and stacks the overlays;
+//! the content router in [`shell`] matches on [`Route`], so a new screen adds one arm.
 
+pub mod account;
 pub mod bar;
 pub mod detail;
 pub mod home;
@@ -8,6 +9,7 @@ pub mod kit;
 pub mod library;
 pub mod now_playing;
 pub mod overlays;
+pub mod pane;
 pub mod queue;
 pub mod search;
 pub mod settings;
@@ -32,32 +34,22 @@ pub fn root(app: &App) -> Element<'_, Message> {
         shell::view(app, w, h)
     };
     let mut layers: Vec<Element<'_, Message>> = vec![
-        fill(page, color::SURFACE)
+        fill(page, color::SURFACE_CONTAINER_LOWEST)
             .width(Length::Fill)
             .height(Length::Fill)
             .into(),
     ];
 
-    // Insets of the main column, so notices sit above the bar and not under the panels.
-    let (left, right, bar_space) = if now_playing {
-        (0, 0, gap::XL)
+    // Space below the notices, so they sit above the capsule and not under it.
+    let bar_space = if now_playing || app.ui.snapshot.current.is_none() {
+        gap::XL
     } else {
-        let queue = if layout::queue_pushes_content(w, app.ui.queue_open) {
-            layout::QUEUE_WIDTH
-        } else {
-            0
-        };
-        let bottom = if app.ui.snapshot.current.is_some() {
-            // Bar 88 + inset 12 above and below.
-            f32::from(u16::try_from(layout::CONTENT_BOTTOM_PADDING).unwrap_or(112))
-        } else {
-            gap::XL
-        };
-        (layout::sidebar_width(w), queue, bottom)
+        // Capsule 72 + margin 16 + a little air.
+        // Layout numbers are small, exact in f32.
+        #[allow(clippy::cast_precision_loss)]
+        let space = (layout::CAPSULE_HEIGHT + layout::CAPSULE_MARGIN + layout::PANE_GAP) as f32;
+        space
     };
-    // Pixel sizes are small, exact in f32.
-    #[allow(clippy::cast_precision_loss)]
-    let (left, right) = (left as f32, right as f32);
 
     if let Some(toast) = overlays::toast(app) {
         layers.push(
@@ -67,10 +59,8 @@ pub fn root(app: &App) -> Element<'_, Message> {
                 .align_y(Alignment::End)
                 .center_x(Length::Fill)
                 .padding(Padding {
-                    top: 0.0,
-                    right,
                     bottom: bar_space + gap::XS,
-                    left,
+                    ..Padding::ZERO
                 })
                 .into(),
         );
@@ -79,7 +69,7 @@ pub fn root(app: &App) -> Element<'_, Message> {
         let (top, bottom) = if now_playing {
             (56.0, 0.0)
         } else {
-            (0.0, bar_space - gap::XS)
+            (0.0, bar_space + gap::XS)
         };
         layers.push(
             container(overlays::signal_popover(app))
@@ -93,7 +83,7 @@ pub fn root(app: &App) -> Element<'_, Message> {
                 })
                 .padding(Padding {
                     top,
-                    right: right + gap::LG,
+                    right: gap::XL,
                     bottom,
                     left: 0.0,
                 })
@@ -130,6 +120,9 @@ pub fn root(app: &App) -> Element<'_, Message> {
     }
     if let Some(track) = &app.ui.menu {
         layers.push(overlays::track_menu(app, track));
+    }
+    if app.account.open {
+        layers.push(account::sheet(app));
     }
     if app.ui.tos_sheet_visible() {
         layers.push(overlays::tos_sheet(app));

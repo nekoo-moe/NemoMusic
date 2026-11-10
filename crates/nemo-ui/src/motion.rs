@@ -110,7 +110,8 @@ impl Crossfade {
     }
 }
 
-/// A critically damped spring on one value (`spatial.default`: stiffness 700, damping ratio 1).
+/// A damped spring on one value. [`Spring::new`] is `spatial.default` (stiffness 700, damping
+/// ratio 1, no overshoot); [`Spring::tuned`] picks any token of `design.md` section 8.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Spring {
     /// Current value.
@@ -119,15 +120,19 @@ pub struct Spring {
     /// Where the value is heading.
     pub target: f32,
     stiffness: f32,
+    ratio: f32,
+    rest: f32,
 }
 
 impl Spring {
     /// `spatial.default` stiffness.
     pub const DEFAULT_STIFFNESS: f32 = 700.0;
-    /// Distance and speed under which the spring counts as settled.
+    /// Distance and speed under which a px spring counts as settled.
     const REST: f32 = 0.25;
+    /// Same for a spring on a 0 to 1 value.
+    const REST_UNIT: f32 = 0.002;
 
-    /// A spring at rest at `value`.
+    /// A px spring at rest at `value` (`spatial.default`).
     #[must_use]
     pub fn new(value: f32) -> Self {
         Self {
@@ -135,6 +140,20 @@ impl Spring {
             velocity: 0.0,
             target: value,
             stiffness: Self::DEFAULT_STIFFNESS,
+            ratio: 1.0,
+            rest: Self::REST,
+        }
+    }
+
+    /// A spring on a 0 to 1 value with the given stiffness and damping ratio (below 1 it
+    /// overshoots, which only the play button uses).
+    #[must_use]
+    pub fn tuned(value: f32, stiffness: f32, ratio: f32) -> Self {
+        Self {
+            stiffness,
+            ratio,
+            rest: Self::REST_UNIT,
+            ..Self::new(value)
         }
     }
 
@@ -145,15 +164,20 @@ impl Spring {
         self.velocity = 0.0;
     }
 
+    /// Jump to the target without animating.
+    pub fn finish(&mut self) {
+        self.snap(self.target);
+    }
+
     /// `true` once at rest on the target.
     #[must_use]
     pub fn is_settled(&self) -> bool {
-        (self.value - self.target).abs() < Self::REST && self.velocity.abs() < Self::REST
+        (self.value - self.target).abs() < self.rest && self.velocity.abs() < self.rest
     }
 
     /// Advance by `dt_s` seconds (substeps of at most 4 ms keep the integration stable).
     pub fn step(&mut self, dt_s: f32) {
-        let damping = 2.0 * self.stiffness.sqrt();
+        let damping = 2.0 * self.ratio * self.stiffness.sqrt();
         let mut left = dt_s.clamp(0.0, 0.1);
         while left > 0.0 {
             let h = left.min(0.004);
@@ -168,7 +192,6 @@ impl Spring {
         }
     }
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;

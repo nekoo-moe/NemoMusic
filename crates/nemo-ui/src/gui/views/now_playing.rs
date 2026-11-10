@@ -7,7 +7,7 @@ use iced::{Alignment, Color, Element, Length, Padding, mouse};
 
 use super::super::app::{App, CompactTab, Message};
 use super::super::assets::Icon;
-use super::super::style::{button_style, col, fit, gap, icon_button, label};
+use super::super::style::{animated, button_style, col, fit, gap, icon_button, label, label_w};
 use super::super::widgets::Offset;
 use super::bar::{badge, cover_art, seek_row, transport};
 use crate::format;
@@ -72,26 +72,25 @@ fn close_button<'a>() -> Element<'a, Message> {
         Color::TRANSPARENT,
         Some(Message::Ui(Event::Back)),
     )
-    .into()
 }
 
-fn pill_button(text: &str, message: Message) -> Element<'_, Message> {
-    button(
-        container(label(
-            text,
-            type_scale::LABEL_SM,
-            false,
-            col(color::ON_SURFACE),
-        ))
-        .padding(Padding::from([gap::XS, gap::MD])),
-    )
-    .padding(0)
-    .style(button_style(
-        col(color::ON_SURFACE.with_alpha(0.08)),
+/// A small pill button (`label-md`, medium).
+pub fn pill_button(text: &str, message: Message) -> Element<'_, Message> {
+    animated(
+        button(
+            container(label_w(
+                text,
+                type_scale::LABEL_MD,
+                iced::font::Weight::Medium,
+                col(color::ON_SURFACE),
+            ))
+            .padding(Padding::from([gap::SM, gap::LG])),
+        )
+        .padding(0)
+        .on_press(message),
+        col(color::ON_SURFACE.with_alpha(0.10)),
         shape::FULL,
-    ))
-    .on_press(message)
-    .into()
+    )
 }
 
 /// Lyrics offset control: `-50 ms`, value, `+50 ms`, reset (ADR 0002). Only for synced lyrics.
@@ -184,7 +183,7 @@ fn wide(app: &App, w: u32, h: u32) -> Element<'_, Message> {
     let accent = app.accent();
 
     let left = column![
-        cover_art(app, art, shape::LG),
+        cover_art(app, art, shape::XL),
         Space::new().height(gap::XL),
         titles(app, art, false),
         Space::new().height(gap::LG),
@@ -250,7 +249,7 @@ fn compact(app: &App, w: u32, h: u32) -> Element<'_, Message> {
         CompactTab::Queue => compact_queue(app, width),
     };
     let body = column![
-        cover_art(app, art, shape::LG),
+        cover_art(app, art, shape::XL),
         Space::new().height(gap::MD),
         titles(app, width, true),
         Space::new().height(gap::MD),
@@ -363,14 +362,16 @@ fn compact_queue(app: &App, width: f32) -> Element<'_, Message> {
     scrollable(rows).height(Length::Fill).into()
 }
 
-fn lyric_ink(role: LineRole) -> Color {
+/// Ink of a lyric line: bright when active, dimmed otherwise.
+pub fn lyric_ink(role: LineRole) -> Color {
     match role {
         LineRole::Active => col(color::ON_SURFACE),
         _ => col(color::ON_SURFACE_VARIANT.with_alpha(crate::cover::LYRIC_DIM_ALPHA)),
     }
 }
 
-fn status_text(title: &str, detail: Option<String>) -> Element<'_, Message> {
+/// A centred status message in the lyrics area.
+pub fn status_text(title: &str, detail: Option<String>) -> Element<'_, Message> {
     let mut c = column![label(
         title,
         type_scale::TITLE_MD,
@@ -394,7 +395,7 @@ fn status_text(title: &str, detail: Option<String>) -> Element<'_, Message> {
 }
 
 /// Loading and missing states.
-fn lyrics_status(app: &App, width: f32) -> Element<'_, Message> {
+pub fn lyrics_status(app: &App, width: f32) -> Element<'_, Message> {
     let _ = width;
     match &app.ui.lyrics {
         LyricsState::Missing(tried) => {
@@ -410,7 +411,7 @@ fn lyrics_status(app: &App, width: f32) -> Element<'_, Message> {
 }
 
 /// Provider and sync state; never hidden (`design.md` section 10).
-fn footer(app: &App, width: f32) -> Element<'_, Message> {
+pub fn footer(app: &App, width: f32) -> Element<'_, Message> {
     let doc = match &app.ui.lyrics {
         LyricsState::Ready(d) => Some(d),
         _ => None,

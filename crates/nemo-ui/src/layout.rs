@@ -151,6 +151,132 @@ pub fn lyrics_column_width(window_w: u32, art: u32) -> u32 {
         .min(LYRICS_MAX_WIDTH)
 }
 
+// ---------------------------------------------------------------------------------------------
+// Three-pane shell (`docs/ui-redesign.md` section 2)
+// ---------------------------------------------------------------------------------------------
+
+/// Gap between the panes and between a pane and the window edge.
+pub const PANE_GAP: u32 = 8;
+/// Corner radius of a pane (`shape.xl`).
+pub const PANE_RADIUS: f32 = 28.0;
+/// Left pane width below [`SIDEBAR_BREAKPOINT`]: an icon rail.
+pub const LEFT_RAIL: u32 = 80;
+/// Left pane width from [`SIDEBAR_BREAKPOINT`].
+pub const LEFT_WIDE: u32 = 248;
+/// Left pane width from [`GAP_BREAKPOINT`].
+pub const LEFT_WIDER: u32 = 288;
+/// Right (Now Playing) pane width from 1280.
+pub const RIGHT_WIDE: u32 = 316;
+/// Right pane width from [`GAP_BREAKPOINT`].
+pub const RIGHT_WIDER: u32 = 380;
+/// Right pane width below 1280, where it overlays the content.
+pub const RIGHT_OVERLAY: u32 = 340;
+/// Window width from which the right pane pushes the centre pane and is open by default.
+pub const RIGHT_PUSH_BREAKPOINT: u32 = 1280;
+/// Floating capsule height.
+pub const CAPSULE_HEIGHT: u32 = 72;
+/// Gap between the capsule and the window bottom.
+pub const CAPSULE_MARGIN: u32 = 16;
+/// Widest capsule.
+pub const CAPSULE_MAX: u32 = 1280;
+/// Narrowest capsule.
+pub const CAPSULE_MIN: u32 = 560;
+/// Scroll padding at the bottom of a pane so the capsule never hides the last row.
+pub const PANE_BOTTOM_RESERVE: u32 = CAPSULE_HEIGHT + CAPSULE_MARGIN + PANE_GAP;
+/// Height of the centre pane top bar.
+pub const CENTER_BAR: u32 = 64;
+
+/// Left pane width for a window width.
+#[must_use]
+pub const fn left_width(window_w: u32) -> u32 {
+    if window_w >= GAP_BREAKPOINT {
+        LEFT_WIDER
+    } else if window_w >= SIDEBAR_BREAKPOINT {
+        LEFT_WIDE
+    } else {
+        LEFT_RAIL
+    }
+}
+
+/// Right pane width (when fully open) for a window width.
+#[must_use]
+pub const fn right_width(window_w: u32) -> u32 {
+    if window_w >= GAP_BREAKPOINT {
+        RIGHT_WIDER
+    } else if window_w >= RIGHT_PUSH_BREAKPOINT {
+        RIGHT_WIDE
+    } else {
+        RIGHT_OVERLAY
+    }
+}
+
+/// `true` when the open right pane narrows the centre pane (it overlays below 1280).
+#[must_use]
+pub const fn right_pushes(window_w: u32) -> bool {
+    window_w >= RIGHT_PUSH_BREAKPOINT
+}
+
+/// Centre pane width. `right_open` is the animated open fraction of the right pane (0 to 1);
+/// it only matters when the pane pushes.
+#[must_use]
+pub fn center_width(window_w: u32, right_open: f32) -> u32 {
+    let right = if right_pushes(window_w) {
+        // A fraction of a width in px: small, non-negative.
+        #[allow(
+            clippy::cast_precision_loss,
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss
+        )]
+        let px = (right_width(window_w) as f32 * right_open.clamp(0.0, 1.2)).round() as u32;
+        px + if px > 0 { PANE_GAP } else { 0 }
+    } else {
+        0
+    };
+    window_w.saturating_sub(2 * PANE_GAP + PANE_GAP + left_width(window_w) + right)
+}
+
+/// Capsule width.
+#[must_use]
+pub fn capsule_width(window_w: u32) -> u32 {
+    (window_w * 4 / 5).clamp(CAPSULE_MIN, CAPSULE_MAX)
+}
+
+/// Card grid inside a pane of `pane_w` px: padding 24 each side, cards at least 176 wide,
+/// gap 16 (24 from a 1000 px pane), at most 6 columns, card width rounded down to 4.
+#[must_use]
+pub fn grid_in(pane_w: u32) -> Grid {
+    let content = pane_w.saturating_sub(2 * CONTENT_PADDING).min(CONTENT_MAX);
+    let gap = if pane_w >= 1000 { GAP_WIDE } else { GAP_NARROW };
+    let columns = ((content + gap) / (PANE_CARD_MIN + gap)).clamp(2, 6);
+    let card = content.saturating_sub(gap * (columns - 1)) / columns / 4 * 4;
+    Grid {
+        sidebar: 0,
+        content,
+        gap,
+        columns,
+        card,
+    }
+}
+
+/// Narrowest card art in a pane.
+pub const PANE_CARD_MIN: u32 = 176;
+
+/// Square art of the right pane: the pane width less 12 px padding on both sides.
+#[must_use]
+pub fn pane_art(window_w: u32) -> u32 {
+    right_width(window_w).saturating_sub(24)
+}
+
+/// Height of the lyrics list in the right pane, in px: the pane height less art, title block,
+/// live line, tabs, footer and the space the capsule covers.
+#[must_use]
+pub fn pane_lyrics_height(window_w: u32, window_h: u32) -> f32 {
+    let used = 12 + pane_art(window_w) + 12 + 68 + 40 + 48 + 8 + 24 + PANE_BOTTOM_RESERVE;
+    // Small positive pixel counts, exact in f32.
+    #[allow(clippy::cast_precision_loss)]
+    let h = window_h.saturating_sub(2 * PANE_GAP).saturating_sub(used) as f32;
+    h.max(72.0)
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -235,5 +361,39 @@ mod tests {
         assert_eq!(lyrics_column_width(1280, 480), 640);
         assert_eq!(lyrics_column_width(2000, 480), 640);
         assert!(lyrics_column_width(1100, 420) < 640);
+    }
+
+    #[test]
+    fn three_pane_widths_at_the_two_target_sizes() {
+        // 1366 x 697: left 248, right 316, centre 770.
+        assert_eq!(left_width(1366), 248);
+        assert_eq!(right_width(1366), 316);
+        assert_eq!(center_width(1366, 1.0), 1366 - 24 - 248 - 316 - 8);
+        assert_eq!(center_width(1366, 0.0), 1366 - 24 - 248);
+        // 1920 x 1040: left 288, right 380.
+        assert_eq!(center_width(1920, 1.0), 1920 - 24 - 288 - 380 - 8);
+        // Below 1280 the pane overlays: the centre does not shrink.
+        assert_eq!(center_width(1100, 1.0), 1100 - 24 - 248);
+        assert_eq!(left_width(960), LEFT_RAIL);
+    }
+
+    #[test]
+    fn pane_grid_fits_and_keeps_big_cards() {
+        for w in (400..=1400).step_by(20) {
+            let g = grid_in(w);
+            assert!(g.columns >= 2 && g.columns <= 6);
+            assert!(g.card * g.columns + g.gap * (g.columns - 1) <= g.content.max(1) + 8);
+        }
+        assert_eq!(grid_in(770).columns, 3);
+        assert!(grid_in(770).card >= 200);
+    }
+
+    #[test]
+    fn capsule_and_lyrics_area_have_room() {
+        assert_eq!(capsule_width(1366), 1092);
+        assert_eq!(capsule_width(1920), 1280);
+        assert_eq!(capsule_width(600), 560);
+        assert!(pane_lyrics_height(1366, 697) >= 72.0);
+        assert!(pane_lyrics_height(1920, 1040) > 300.0);
     }
 }

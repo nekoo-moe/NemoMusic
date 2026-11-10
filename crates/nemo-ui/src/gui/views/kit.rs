@@ -1,12 +1,19 @@
-//! Pieces shared by the screens: page frame, cards and grids, track rows, buttons, empty states.
+//! Pieces shared by the screens: page frame, cards and grids, track rows, buttons, chips, empty
+//! states. Every pressable piece is wrapped in [`fx`](super::super::fx) so it has an animated
+//! state layer; cards also lift and enter with a stagger.
 
+use iced::font::Weight;
 use iced::widget::text::Wrapping;
-use iced::widget::{Space, button, column, container, image, row, scrollable};
+use iced::widget::{Space, button, column, container, image, row, stack};
 use iced::{Alignment, Background, Border, Color, Element, Length, Padding};
 
 use super::super::app::{App, ArtShape, ListSource, Message};
 use super::super::assets::Icon;
-use super::super::style::{button_style, col, fit, gap, icon, icon_button, label, tip};
+use super::super::fx::{entrance, fx};
+use super::super::style::{
+    animated, button_flat, button_outlined, col, fit, gap, icon, icon_button, label, label_w,
+    scroll, tip, vertical_gradient,
+};
 use crate::layout;
 use crate::palette::Palette;
 use crate::signal;
@@ -15,14 +22,22 @@ use crate::theme::{color, shape, type_scale};
 use nemo_core::audio::Origin;
 use nemo_core::track::{Artwork, Track};
 
-/// Bottom padding of a page so the floating bar never hides the last row.
-#[allow(clippy::cast_precision_loss)] // 112 is exact in f32
-pub const PAGE_BOTTOM: f32 = layout::CONTENT_BOTTOM_PADDING as f32;
+/// Bottom padding of a page so the floating capsule never hides the last row.
+#[allow(clippy::cast_precision_loss)] // 96 is exact in f32
+pub const PAGE_BOTTOM: f32 = layout::PANE_BOTTOM_RESERVE as f32;
 /// Track row height.
-#[allow(clippy::cast_precision_loss)] // 48 is exact in f32
-pub const ROW_H: f32 = layout::TRACK_ROW as f32;
+pub const ROW_H: f32 = 56.0;
+/// Height of a Quick picks row.
+pub const QUICK_H: f32 = 64.0;
 
-/// A scrolling page: a column `content` px wide, centred, with top padding 24 and bottom 112.
+/// The colour of the pane behind a page; entrances fade to it.
+#[must_use]
+pub fn pane_bg() -> Color {
+    col(color::SURFACE_CONTAINER)
+}
+
+/// A scrolling page: a column `content_w` px wide, centred, with a thin scroll bar and bottom
+/// padding for the capsule.
 pub fn page<'a>(content_w: u32, body: impl Into<Element<'a, Message>>) -> Element<'a, Message> {
     // Content widths are small exact numbers.
     #[allow(clippy::cast_precision_loss)]
@@ -30,22 +45,22 @@ pub fn page<'a>(content_w: u32, body: impl Into<Element<'a, Message>>) -> Elemen
     let framed = container(column![body.into()].width(Length::Fixed(width)))
         .width(Length::Fill)
         .padding(Padding {
-            top: gap::XL,
+            top: gap::SM,
             bottom: PAGE_BOTTOM,
             ..Padding::ZERO
         })
         .center_x(Length::Fill);
-    scrollable(framed)
+    scroll(framed)
         .width(Length::Fill)
         .height(Length::Fill)
         .into()
 }
 
-/// `title-md` semibold section title.
+/// `title-lg` semibold section title.
 pub fn section_title<'a>(text: impl Into<String>) -> Element<'a, Message> {
     label(
         text.into(),
-        type_scale::TITLE_MD,
+        type_scale::TITLE_LG,
         true,
         col(color::ON_SURFACE),
     )
@@ -59,6 +74,17 @@ pub fn page_title<'a>(text: impl Into<String>) -> Element<'a, Message> {
         type_scale::HEADLINE_MD,
         true,
         col(color::ON_SURFACE),
+    )
+    .into()
+}
+
+/// Small caps line above a title.
+pub fn eyebrow<'a>(text: impl Into<String>) -> Element<'a, Message> {
+    label_w(
+        text.into().to_uppercase(),
+        type_scale::LABEL_SM,
+        Weight::Medium,
+        col(color::ON_SURFACE_VARIANT),
     )
     .into()
 }
@@ -86,15 +112,18 @@ pub fn art_placeholder<'a>(size: f32, radius: f32, loading: bool) -> Element<'a,
     let _ = loading;
     container(icon(
         Icon::Note,
-        (size / 4.0).clamp(16.0, 48.0),
-        col(color::ON_SURFACE_VARIANT),
+        (size / 3.0).clamp(16.0, 56.0),
+        col(color::ON_SURFACE_VARIANT.with_alpha(0.7)),
     ))
     .width(Length::Fixed(size))
     .height(Length::Fixed(size))
     .center_x(Length::Fixed(size))
     .center_y(Length::Fixed(size))
     .style(move |_| container::Style {
-        background: Some(col(color::SURFACE_CONTAINER).into()),
+        background: Some(vertical_gradient(
+            col(color::SURFACE_CONTAINER_HIGHEST),
+            col(color::SURFACE_CONTAINER_HIGH),
+        )),
         border: Border {
             radius: radius.into(),
             ..Border::default()
@@ -121,14 +150,9 @@ pub fn art<'a>(
             .content_fit(iced::ContentFit::Fill)
             .into();
     }
-    let radius = match art_shape {
-        ArtShape::Circle => px / 2.0,
-        ArtShape::Card => shape::MD,
-        ArtShape::Row => shape::SM,
-        ArtShape::Hero => shape::LG,
-    };
-    art_placeholder(px, radius, true)
+    art_placeholder(px, art_shape.radius(px), true)
 }
+
 /// What a card shows.
 pub struct Card {
     /// Picture source.
@@ -143,66 +167,135 @@ pub struct Card {
     pub on_press: Message,
 }
 
-/// A card: square art, title 14/20 semibold, subtitle 12/18 (`ui-reference.md` section 3).
-pub fn card_view<'a>(app: &App, card: Card, size: u32) -> Element<'a, Message> {
+fn scrim_style(radius: f32) -> impl Fn(&iced::Theme) -> container::Style {
+    move |_| container::Style {
+        background: Some(Background::Gradient(
+            iced::gradient::Linear::new(iced::Radians(super::super::style::DOWN))
+                .add_stop(0.0, Color::from_rgba(0.0, 0.0, 0.0, 0.0))
+                .add_stop(0.52, Color::from_rgba(0.0, 0.0, 0.0, 0.0))
+                .add_stop(1.0, Color::from_rgba(0.0, 0.0, 0.0, 0.82))
+                .into(),
+        )),
+        border: Border {
+            radius: radius.into(),
+            ..Border::default()
+        },
+        ..container::Style::default()
+    }
+}
+
+/// A large card: the art fills it, the title and subtitle sit on a bottom scrim, and it lifts on
+/// hover. Artists get a round picture with the text below. `stagger` is its place in the
+/// entrance order.
+pub fn card_view<'a>(app: &App, card: Card, size: u32, stagger: usize) -> Element<'a, Message> {
     // Card sizes are small exact numbers.
     #[allow(clippy::cast_precision_loss)]
     let px = size as f32;
-    let round = card.shape == ArtShape::Circle;
-    let align = if round {
-        Alignment::Center
-    } else {
-        Alignment::Start
-    };
-    let text = column![
-        label(
-            fit(&card.title, px, type_scale::BODY_MD.size),
-            type_scale::BODY_MD,
-            true,
-            col(color::ON_SURFACE)
-        ),
-        label(
-            fit(&card.subtitle, px, type_scale::BODY_SM.size),
-            type_scale::BODY_SM,
-            false,
-            col(color::ON_SURFACE_VARIANT)
-        ),
-    ]
-    .width(Length::Fixed(px))
-    .align_x(align);
-    button(
-        column![
-            art(app, &card.artwork, size, card.shape),
-            vspace(gap::SM),
-            text
+    let progress = app.anim.reveal(stagger);
+    if card.shape == ArtShape::Circle {
+        let text = column![
+            label(
+                fit(&card.title, px, type_scale::BODY_MD.size),
+                type_scale::BODY_MD,
+                true,
+                col(color::ON_SURFACE)
+            ),
+            label(
+                fit(&card.subtitle, px, type_scale::BODY_SM.size),
+                type_scale::BODY_SM,
+                false,
+                col(color::ON_SURFACE_VARIANT)
+            ),
         ]
         .width(Length::Fixed(px))
-        .align_x(align),
-    )
+        .align_x(Alignment::Center);
+        let b = button(
+            column![
+                art(app, &card.artwork, size, ArtShape::Circle),
+                vspace(gap::MD),
+                text
+            ]
+            .width(Length::Fixed(px))
+            .align_x(Alignment::Center),
+        )
+        .padding(0)
+        .on_press(card.on_press);
+        return entrance(
+            fx(b.style(button_flat(Color::TRANSPARENT, shape::XL)))
+                .radius(shape::XL)
+                .lift(4.0),
+            progress,
+            pane_bg(),
+        );
+    }
+    let ink = col(color::ON_SURFACE);
+    let text = column![
+        label(
+            fit(&card.title, px - 28.0, type_scale::TITLE_SM.size),
+            type_scale::TITLE_SM,
+            true,
+            ink
+        ),
+        label(
+            fit(&card.subtitle, px - 28.0, type_scale::BODY_SM.size),
+            type_scale::BODY_SM,
+            false,
+            col(color::ON_SURFACE.with_alpha(0.78))
+        ),
+    ];
+    let overlay = container(text)
+        .width(Length::Fixed(px))
+        .height(Length::Fixed(px))
+        .align_y(Alignment::End)
+        .padding(Padding {
+            top: 0.0,
+            right: gap::MD,
+            bottom: gap::MD,
+            left: gap::MD,
+        })
+        .style(scrim_style(super::super::app::TILE_RADIUS));
+    let b = button(stack![
+        art(app, &card.artwork, size, ArtShape::Tile),
+        overlay
+    ])
     .padding(0)
-    .style(button_style(Color::TRANSPARENT, shape::MD))
-    .on_press(card.on_press)
-    .into()
+    .on_press(card.on_press);
+    entrance(
+        fx(b.style(button_flat(
+            Color::TRANSPARENT,
+            super::super::app::TILE_RADIUS,
+        )))
+        .radius(super::super::app::TILE_RADIUS)
+        .lift(4.0),
+        progress,
+        pane_bg(),
+    )
 }
 
-/// Cards in rows of `grid.columns`, at most `max_rows` rows.
+/// Cards in rows of `grid.columns`, at most `max_rows` rows. `base` is the stagger index of the
+/// first card.
 pub fn card_grid<'a>(
     app: &App,
     grid: layout::Grid,
     cards: Vec<Card>,
     max_rows: usize,
+    base: usize,
 ) -> Element<'a, Message> {
     // Grid numbers are small exact numbers.
     #[allow(clippy::cast_precision_loss)]
     let gap_px = grid.gap as f32;
     let per_row = grid.columns as usize;
     let mut rows = column![].spacing(gap::XL);
-    let mut it = cards.into_iter().take(per_row * max_rows).peekable();
+    let mut it = cards
+        .into_iter()
+        .take(per_row * max_rows)
+        .enumerate()
+        .peekable();
     while it.peek().is_some() {
         let line: Vec<Element<'a, Message>> = it
             .by_ref()
             .take(per_row)
-            .map(|c| card_view(app, c, grid.card))
+            .map(|(i, c)| card_view(app, c, grid.card, base + i))
             .collect();
         rows = rows.push(row(line).spacing(gap_px));
     }
@@ -221,20 +314,27 @@ pub fn filled_button(
     accent: Palette,
     message: Message,
 ) -> Element<'_, Message> {
-    button(
+    let b = button(
         row![
             icon(glyph, 20.0, col(accent.on_primary)),
             Space::new().width(gap::SM),
-            label(text, type_scale::BODY_MD, true, col(accent.on_primary)),
+            label_w(
+                text,
+                type_scale::BODY_MD,
+                Weight::Medium,
+                col(accent.on_primary)
+            ),
         ]
         .align_y(Alignment::Center)
         .padding(Padding::from([0.0, gap::XL]))
         .height(Length::Fixed(48.0)),
     )
     .padding(0)
-    .style(button_style(col(accent.primary), shape::FULL))
-    .on_press(message)
-    .into()
+    .on_press(message);
+    fx(b.style(button_flat(col(accent.primary), shape::FULL)))
+        .layer(col(accent.on_primary))
+        .radius(shape::FULL)
+        .into()
 }
 
 /// Tonal pill button.
@@ -243,37 +343,44 @@ pub fn tonal_button(
     glyph: Option<Icon>,
     message: Option<Message>,
 ) -> Element<'_, Message> {
-    let ink = col(color::ON_SURFACE);
+    let enabled = message.is_some();
+    let ink = if enabled {
+        col(color::ON_SURFACE)
+    } else {
+        col(color::ON_SURFACE.with_alpha(0.38))
+    };
     let mut content = row![].align_y(Alignment::Center);
     if let Some(g) = glyph {
         content = content
             .push(icon(g, 20.0, ink))
             .push(Space::new().width(gap::SM));
     }
-    content = content.push(label(text, type_scale::BODY_MD, true, ink));
+    content = content.push(label_w(text, type_scale::BODY_MD, Weight::Medium, ink));
     let b = button(
         content
             .padding(Padding::from([0.0, gap::XL]))
             .height(Length::Fixed(48.0)),
     )
-    .padding(0)
-    .style(button_style(
-        col(color::SURFACE_CONTAINER_HIGH),
-        shape::FULL,
-    ));
+    .padding(0);
     match message {
-        Some(m) => b.on_press(m).into(),
-        None => b.into(),
+        Some(m) => animated(
+            b.on_press(m),
+            col(color::SURFACE_CONTAINER_HIGHEST),
+            shape::FULL,
+        ),
+        None => fx(b.style(button_flat(col(color::SURFACE_CONTAINER_HIGH), shape::FULL)))
+            .passive()
+            .into(),
     }
 }
 
-/// Small text button (height 40) in `on-surface-variant`.
+/// Small text button (height 40).
 pub fn text_button(text: &str, message: Message) -> Element<'_, Message> {
-    button(
-        container(label(
+    let b = button(
+        container(label_w(
             text,
             type_scale::BODY_MD,
-            true,
+            Weight::Medium,
             col(color::ON_SURFACE),
         ))
         .padding(Padding::from([0.0, gap::LG]))
@@ -281,9 +388,37 @@ pub fn text_button(text: &str, message: Message) -> Element<'_, Message> {
         .align_y(Alignment::Center),
     )
     .padding(0)
-    .style(button_style(Color::TRANSPARENT, shape::FULL))
-    .on_press(message)
-    .into()
+    .on_press(message);
+    animated(b, Color::TRANSPARENT, shape::FULL)
+}
+
+/// A filter chip, height 32: outlined when off, the cover's `secondary-container` when on.
+pub fn chip(text: &str, selected: bool, accent: Palette, message: Message) -> Element<'_, Message> {
+    let (fill, ink, outline) = if selected {
+        (
+            col(accent.secondary_container),
+            col(accent.on_secondary_container),
+            None,
+        )
+    } else {
+        (
+            Color::TRANSPARENT,
+            col(color::ON_SURFACE),
+            Some(col(color::OUTLINE)),
+        )
+    };
+    let b = button(
+        container(label_w(text, type_scale::LABEL_MD, Weight::Medium, ink))
+            .padding(Padding::from([0.0, gap::MD + gap::XS]))
+            .height(Length::Fixed(32.0))
+            .align_y(Alignment::Center),
+    )
+    .padding(0)
+    .on_press(message);
+    fx(b.style(button_outlined(fill, outline, shape::FULL)))
+        .layer(ink)
+        .radius(shape::FULL)
+        .into()
 }
 
 /// A calm status block: glyph, title, detail and an optional action. Never red.
@@ -331,7 +466,7 @@ pub struct RowCtx {
     pub show_album: bool,
 }
 
-/// One track row, 48 px high: art or number, title and artist, album, badge, duration, menu.
+/// One track row, 56 px high: art or number, title and artist, album, badge, duration, menu.
 pub fn track_row<'a>(
     app: &'a App,
     track: &'a Track,
@@ -343,28 +478,29 @@ pub fn track_row<'a>(
     let dim = col(color::ON_SURFACE_VARIANT);
     let ink = col(color::ON_SURFACE);
     let width = ctx.width;
+    let accent = app.accent();
 
     let lead: Element<'a, Message> = if ctx.numbered {
         let inner: Element<'a, Message> = if current {
-            icon(Icon::Volume, 16.0, ink).into()
+            icon(Icon::Volume, 20.0, col(accent.primary)).into()
         } else {
             label(format!("{}", index + 1), type_scale::BODY_MD, false, dim).into()
         };
         container(inner)
-            .width(Length::Fixed(40.0))
-            .height(Length::Fixed(40.0))
-            .center_x(Length::Fixed(40.0))
-            .center_y(Length::Fixed(40.0))
+            .width(Length::Fixed(44.0))
+            .height(Length::Fixed(44.0))
+            .center_x(Length::Fixed(44.0))
+            .center_y(Length::Fixed(44.0))
             .into()
     } else {
-        art(app, &track.artwork, 40, ArtShape::Row)
+        art(app, &track.artwork, 44, ArtShape::Row)
     };
 
     let show_badge = width >= 640.0;
     let show_album = ctx.show_album && width >= 760.0;
     let badge_w = if show_badge { 96.0 + gap::MD } else { 0.0 };
-    // lead 40 + gap 12, duration 56, menu 40, row padding 2 x 8.
-    let fixed = 40.0 + gap::MD + 56.0 + 40.0 + 2.0 * gap::SM + badge_w;
+    // lead 44 + gap 12, duration 56, menu 40, row padding 2 x 8.
+    let fixed = 44.0 + gap::MD + 56.0 + 40.0 + 2.0 * gap::SM + badge_w;
     let flex = (width - fixed).max(120.0);
     let (title_w, album_w) = if show_album {
         (flex * 0.55 - gap::MD, flex * 0.45)
@@ -380,7 +516,7 @@ pub fn track_row<'a>(
                 fit(&track.title, title_w, type_scale::BODY_MD.size),
                 type_scale::BODY_MD,
                 true,
-                ink
+                if current { col(accent.primary) } else { ink }
             ),
             label(
                 fit(
@@ -465,13 +601,12 @@ pub fn track_row<'a>(
     )
     .padding(0)
     .width(Length::Fill)
-    .style(button_style(idle, shape::MD))
     .on_press(Message::PlayAt {
         source: ctx.source.clone(),
         index,
     });
     row![
-        main,
+        animated(main, idle, shape::LG),
         tip(
             icon_button(
                 Icon::More,
@@ -489,6 +624,67 @@ pub fn track_row<'a>(
     .into()
 }
 
+/// A "Quick picks" row: art 56, title and artist; the playing song is tinted.
+pub fn quick_pick<'a>(
+    app: &'a App,
+    track: &'a Track,
+    source: ListSource,
+    index: usize,
+    width: f32,
+    stagger: usize,
+) -> Element<'a, Message> {
+    let current = app.ui.snapshot.current.as_ref().map(|t| &t.id) == Some(&track.id);
+    let accent = app.accent();
+    let text_w = (width - 56.0 - gap::MD - 2.0 * gap::SM - gap::SM).max(80.0);
+    let line = row![
+        art(app, &track.artwork, 56, ArtShape::Thumb),
+        Space::new().width(gap::MD),
+        column![
+            label(
+                fit(&track.title, text_w, type_scale::BODY_MD.size),
+                type_scale::BODY_MD,
+                true,
+                if current {
+                    col(accent.primary)
+                } else {
+                    col(color::ON_SURFACE)
+                }
+            ),
+            label(
+                fit(
+                    &crate::format::artists(&track.artists),
+                    text_w,
+                    type_scale::BODY_SM.size
+                ),
+                type_scale::BODY_SM,
+                false,
+                col(color::ON_SURFACE_VARIANT)
+            ),
+        ]
+        .width(Length::Fixed(text_w)),
+    ]
+    .align_y(Alignment::Center);
+    let b = button(
+        container(line)
+            .width(Length::Fixed(width))
+            .height(Length::Fixed(QUICK_H))
+            .padding(Padding::from([0.0, gap::SM]))
+            .align_y(Alignment::Center),
+    )
+    .padding(0)
+    .on_press(Message::PlayAt { source, index });
+    let idle = if current {
+        col(color::SURFACE_CONTAINER_HIGH)
+    } else {
+        Color::TRANSPARENT
+    };
+    entrance(
+        animated(b, idle, shape::LG),
+        app.anim.reveal(stagger),
+        pane_bg(),
+    )
+}
+
 /// Rows of `tracks`, at most `limit` of them, then a "Show more" button when more exist.
 pub fn track_list<'a>(
     app: &'a App,
@@ -498,7 +694,11 @@ pub fn track_list<'a>(
 ) -> Element<'a, Message> {
     let mut c = column![];
     for (i, t) in tracks.iter().enumerate().take(limit) {
-        c = c.push(track_row(app, t, i, ctx));
+        c = c.push(entrance(
+            track_row(app, t, i, ctx),
+            app.anim.reveal(i.min(6)),
+            pane_bg(),
+        ));
     }
     if tracks.len() > limit {
         c = c
@@ -523,7 +723,7 @@ pub fn tile<'a>(
         .style(move |_| container::Style {
             background: Some(Background::Color(col(bg))),
             border: Border {
-                radius: shape::MD.into(),
+                radius: shape::LG.into(),
                 ..Border::default()
             },
             ..container::Style::default()

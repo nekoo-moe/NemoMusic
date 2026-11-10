@@ -20,7 +20,7 @@ use crate::theme::{color, type_scale};
 
 /// The Library screen.
 pub fn view(app: &App, w: u32) -> Element<'_, Message> {
-    let grid = layout::grid(w, app.ui.queue_open);
+    let grid = layout::grid_in(w);
     // Content widths are small exact numbers.
     #[allow(clippy::cast_precision_loss)]
     let content_w = grid.content as f32;
@@ -65,7 +65,7 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
         c = c
             .push(section_title("Albums"))
             .push(vspace(gap::MD))
-            .push(card_grid(app, grid, cards, 3))
+            .push(card_grid(app, grid, cards, 3, 0))
             .push(vspace(gap::XXL));
     }
     if !app.local_tracks.is_empty() {
