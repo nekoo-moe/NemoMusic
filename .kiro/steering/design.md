@@ -9,6 +9,8 @@ Language: Material 3 (Expressive, standard motion scheme) for structure + Liquid
 
 Layout refinements: `docs/ui-reference.md` sections 3 to 6 (responsive grid, wireframes, breakpoints, styling rules) refine sections 4 and 9 and apply to every screen. Where they differ from sections 4 and 9, the refinement wins: sidebar is opaque `surface-container-low`; cards are at least 160 and flexible per the grid formula; Now Playing art is 480 (min 400, shrinks to fit H - 280) and 280 in compact mode (W < 1100 or H < 700); content bottom padding is 112 so the floating bar never hides rows; the queue panel pushes content from W >= 1280 and overlays (opaque) below that.
 
+Owner direction (2026-11-10, evening): the first build looked "raw". Go full Material 3 Expressive: rounded surface panels, pill chips, tonal buttons, real M3 motion on every state change, a proper bundled type family with Vietnamese glyphs, and Google sign-in. The bar to beat is SimpMusic desktop (three rounded panes: navigation + library, content, a right "Now Playing" pane with large art and live lyrics, a floating player capsule). Where this direction and older numbers below disagree, this direction wins; `docs/ui-redesign.md` holds the new detailed spec.
+
 ## 1. Principles
 - Art first: cover art is the largest, most colorful element. Chrome stays neutral.
 - Restraint: one accent set at a time, max 2 type weights per view, no decorative borders.
