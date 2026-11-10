@@ -1,5 +1,6 @@
 //! `NemoMusic` application binary. Wiring only; no business logic (see `structure.md`).
 
+mod config;
 mod logging;
 mod paths;
 
@@ -19,6 +20,11 @@ fn main() {
     }
     logging::init(&paths.logs);
     tracing::info!(version = env!("CARGO_PKG_VERSION"), "starting");
+    let settings = config::Settings::load(&paths.root);
+    tracing::info!(folders = settings.music_folders.len(), tier = ?settings.glass_tier, "settings loaded");
+    if let Err(err) = settings.save(&paths.root) {
+        tracing::warn!(error = %err, "cannot save settings");
+    }
     println!(
         "NemoMusic {} (data: {})",
         env!("CARGO_PKG_VERSION"),
