@@ -3,11 +3,9 @@
 //! [`CaptureSink`] is for tests (no device). [`CpalSink`] opens the default output device in
 //! shared mode and refuses a device whose rate or channel count differs from the source.
 
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use nemo_core::audio::{AudioFormat, OutputInfo, OutputMode};
+
+pub use crate::cpal_sink::{CpalSink, CpalSinkFactory, OutputDeviceInfo, list_output_devices};
 
 /// The function a sink calls to fetch samples. It runs on the audio thread, so it must be
 /// real-time safe.
@@ -19,6 +17,9 @@ pub enum SinkError {
     /// There is no default output device.
     #[error("no default output device")]
     NoDevice,
+    /// No output device has the requested name.
+    #[error("no output device named {0}")]
+    DeviceNotFound(String),
     /// The device rate or channel count differs from the source. No resampling is done.
     #[error(
         "device format {device_rate} Hz / {device_channels} ch does not match source \
@@ -35,7 +36,7 @@ pub enum SinkError {
         device_channels: u16,
     },
     /// The device default sample format is not 32-bit float.
-    #[error("device default sample format is {0}, only f32 is supported")]
+    #[error("device default sample format is {0}, only f32, i16 and i32 are supported")]
     UnsupportedSampleFormat(String),
     /// The audio backend reported an error.
     #[error("audio backend error: {0}")]
@@ -75,6 +76,28 @@ pub trait AudioSink {
     fn start(&mut self, callback: RenderCallback) -> Result<(), SinkError>;
     /// Stop pulling samples.
     fn stop(&mut self);
+    /// Frames between the render callback writing a sample and the speakers playing it, as the
+    /// device last reported. Zero when the sink does not know.
+    fn latency_frames(&self) -> u64 {
+        0
+    }
+}
+
+/// Opens the output sink for a track. Called on the player's control thread.
+pub trait SinkFactory: Send + Sync {
+    /// Open a sink for audio in the source format. A sink may return another format (a shared
+    /// device keeps its own); the player then adds resampling or channel mixing.
+    ///
+    /// # Errors
+    /// Returns [`SinkError`] when no device can be opened.
+    fn open(&self, source: AudioFormat) -> Result<Box<dyn AudioSink>, SinkError>;
+
+    /// `true` when [open](Self::open) can return a sink in the source rate and channel count
+    /// (an exclusive device). The player then reopens the sink when the next track has another
+    /// format. alse when the device fixes the format (shared mode).
+    fn can_follow_source(&self) -> bool {
+        false
+    }
 }
 
 /// A sink that records what it is given. The caller drives it with [`CaptureSink::pump`].
@@ -134,97 +157,6 @@ impl AudioSink for CaptureSink {
 
     fn stop(&mut self) {
         self.callback = None;
-    }
-}
-
-/// The default output device in shared mode, opened with its default configuration.
-///
-/// Shared mode means the operating system mixer sits between this app and the hardware, so the
-/// path is never reported as bit-perfect.
-pub struct CpalSink {
-    output: OutputInfo,
-    device: cpal::Device,
-    config: cpal::StreamConfig,
-    stream: Option<cpal::Stream>,
-    stream_failed: Arc<AtomicBool>,
-}
-
-impl CpalSink {
-    /// Open the default output device and require it to match `source` in rate and channels.
-    ///
-    /// # Errors
-    ///
-    /// [`SinkError::NoDevice`], [`SinkError::Backend`], [`SinkError::UnsupportedSampleFormat`]
-    /// or [`SinkError::FormatMismatch`].
-    pub fn open(source: AudioFormat) -> Result<Self, SinkError> {
-        let device = cpal::default_host()
-            .default_output_device()
-            .ok_or(SinkError::NoDevice)?;
-        let supported = device
-            .default_output_config()
-            .map_err(|e| SinkError::Backend(e.to_string()))?;
-        let device_format = AudioFormat {
-            sample_rate: supported.sample_rate(),
-            channels: supported.channels(),
-            bit_depth: None,
-        };
-        check_format(source, device_format)?;
-        if supported.sample_format() != cpal::SampleFormat::F32 {
-            return Err(SinkError::UnsupportedSampleFormat(
-                supported.sample_format().to_string(),
-            ));
-        }
-        let device_name = device
-            .description()
-            .map_or_else(|_| "Unknown device".to_owned(), |d| d.name().to_owned());
-        Ok(Self {
-            output: OutputInfo {
-                device_name,
-                mode: OutputMode::Shared,
-                format: device_format,
-            },
-            config: supported.into(),
-            device,
-            stream: None,
-            stream_failed: Arc::new(AtomicBool::new(false)),
-        })
-    }
-
-    /// `true` if the backend reported a stream error since the sink started.
-    #[must_use]
-    pub fn stream_failed(&self) -> bool {
-        self.stream_failed.load(Ordering::Relaxed)
-    }
-}
-
-impl AudioSink for CpalSink {
-    fn output_info(&self) -> &OutputInfo {
-        &self.output
-    }
-
-    fn start(&mut self, mut callback: RenderCallback) -> Result<(), SinkError> {
-        if self.stream.is_some() {
-            return Err(SinkError::AlreadyStarted);
-        }
-        let failed = Arc::clone(&self.stream_failed);
-        let stream = self
-            .device
-            .build_output_stream(
-                self.config,
-                move |data: &mut [f32], _: &cpal::OutputCallbackInfo| callback(data),
-                move |_err: cpal::Error| failed.store(true, Ordering::Relaxed),
-                None,
-            )
-            .map_err(|e| SinkError::Backend(e.to_string()))?;
-        stream
-            .play()
-            .map_err(|e| SinkError::Backend(e.to_string()))?;
-        self.stream = Some(stream);
-        Ok(())
-    }
-
-    fn stop(&mut self) {
-        self.stream = None;
     }
 }
 

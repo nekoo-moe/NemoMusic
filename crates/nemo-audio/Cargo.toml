@@ -1,4 +1,4 @@
-﻿[package]
+[package]
 name = "nemo-audio"
 description = "Decode, ring buffer, device output, gapless playback and signal-path report."
 version.workspace = true
@@ -25,7 +25,10 @@ multiple_crate_versions = "allow"
 [dependencies]
 nemo-core.workspace = true
 thiserror.workspace = true
-symphonia = { version = "=0.6.1", default-features = false, features = ["flac", "wav", "pcm"] }
+tracing.workspace = true
+symphonia = { version = "=0.6.1", default-features = false, features = ["flac", "wav", "pcm", "isomp4", "aac", "mkv", "mp3"] }
 rtrb = "=0.4.1"
 cpal = { version = "=0.18.2", default-features = false }
 
+
+rubato = { version = "=5.0.1", default-features = false }

@@ -1,6 +1,6 @@
 //! The real-time render step: ring consumer -> output buffer.
 
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 
 use rtrb::Consumer;
 
@@ -32,10 +32,45 @@ pub fn render(consumer: &mut Consumer<f32>, out: &mut [f32], underruns: &AtomicU
     copied
 }
 
+/// The gain factor for a volume in percent: linear amplitude, `percent / 100`.
+#[must_use]
+pub fn gain_for_percent(percent: u8) -> f32 {
+    f32::from(percent.min(100)) / 100.0
+}
+
+/// Bit pattern of the neutral gain. A gain with these bits is skipped with no arithmetic.
+pub const UNITY_GAIN_BITS: u32 = 1.0_f32.to_bits();
+
+/// Scale `samples` by the gain stored as `f32` bits in `gain_bits`. At unity gain (volume 100)
+/// the samples are left alone: no multiplication happens.
+///
+/// RT-SAFE: one relaxed atomic load and an in-place multiply. No allocation, no lock.
+pub fn apply_gain(samples: &mut [f32], gain_bits: &AtomicU32) {
+    let bits = gain_bits.load(Ordering::Relaxed);
+    if bits == UNITY_GAIN_BITS {
+        return;
+    }
+    let gain = f32::from_bits(bits);
+    for s in samples {
+        *s *= gain;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::ring::{new_ring, push_slice};
+
+    #[test]
+    fn unity_gain_is_skipped_and_half_gain_halves_exactly() {
+        let bits = AtomicU32::new(UNITY_GAIN_BITS);
+        let mut s = [0.3_f32, -0.7, 1.0];
+        apply_gain(&mut s, &bits);
+        assert_eq!(s, [0.3, -0.7, 1.0]);
+        bits.store(gain_for_percent(50).to_bits(), Ordering::Relaxed);
+        apply_gain(&mut s, &bits);
+        assert_eq!(s, [0.15, -0.35, 0.5]);
+    }
 
     #[test]
     fn full_ring_copies_unchanged_and_counts_nothing() {

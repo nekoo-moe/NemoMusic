@@ -6,6 +6,8 @@ use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+mod common;
+
 use nemo_audio::render::render;
 use nemo_audio::ring::{new_ring, push_slice};
 
@@ -97,4 +99,161 @@ fn underrun_path_allocates_nothing() {
     assert_eq!(after - before, 0, "render allocated on the underrun path");
     assert_eq!(underruns.load(Ordering::SeqCst), 1_000);
     assert!(out.iter().all(|s| *s == 0.0));
+}
+
+#[test]
+fn ten_seconds_of_render_with_gain_allocate_nothing() {
+    use std::sync::atomic::AtomicU32;
+
+    use nemo_audio::render::{apply_gain, gain_for_percent};
+
+    let (mut producer, mut consumer) = new_ring(CALLBACK_SAMPLES * CALLBACKS_10S);
+    let block = vec![0.25_f32; CALLBACK_SAMPLES];
+    for _ in 0..CALLBACKS_10S {
+        assert_eq!(push_slice(&mut producer, &block), CALLBACK_SAMPLES);
+    }
+    let underruns = AtomicU64::new(0);
+    let gain = AtomicU32::new(gain_for_percent(50).to_bits());
+    let mut out = vec![0.0_f32; CALLBACK_SAMPLES];
+
+    let before = count();
+    for _ in 0..CALLBACKS_10S {
+        let got = render(&mut consumer, &mut out, &underruns);
+        apply_gain(&mut out[..got], &gain);
+    }
+    let after = count();
+
+    assert_eq!(after - before, 0, "render + gain allocated");
+    assert_eq!(underruns.load(Ordering::SeqCst), 0);
+    assert!(
+        out.iter().all(|s| s.to_bits() == 0.125_f32.to_bits()),
+        "gain 50 halves the samples"
+    );
+}
+
+mod player_callback {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+    use std::thread;
+    use std::time::Duration;
+
+    use super::count;
+    use crate::common::fakes::{FakeOpener, FakeResolver, local_track};
+    use crate::common::fixtures::{tone_i16, wav_bytes};
+    use nemo_audio::player::{Player, PlayerDeps};
+    use nemo_audio::sink::{AudioSink, RenderCallback, SinkError, SinkFactory};
+    use nemo_core::audio::{AudioFormat, OutputInfo, OutputMode};
+    use nemo_core::player::PlayerCommand;
+
+    /// A device that counts the allocations its own thread makes inside the render callback.
+    struct CountingSink {
+        info: OutputInfo,
+        callbacks: Arc<AtomicU64>,
+        allocations: Arc<AtomicU64>,
+        stop: Arc<AtomicBool>,
+        thread: Option<thread::JoinHandle<()>>,
+    }
+
+    impl AudioSink for CountingSink {
+        fn output_info(&self) -> &OutputInfo {
+            &self.info
+        }
+
+        fn start(&mut self, mut callback: RenderCallback) -> Result<(), SinkError> {
+            let (callbacks, allocations, stop) = (
+                Arc::clone(&self.callbacks),
+                Arc::clone(&self.allocations),
+                Arc::clone(&self.stop),
+            );
+            self.thread = Some(thread::spawn(move || {
+                let mut buf = vec![0.0_f32; 960];
+                let mut warm = 0;
+                while !stop.load(Ordering::SeqCst) {
+                    let before = count();
+                    callback(&mut buf);
+                    let used = count() - before;
+                    // The first callbacks may touch lazily initialised state; measure after.
+                    if buf.iter().any(|s| *s != 0.0) {
+                        warm += 1;
+                    }
+                    if warm > 20 {
+                        allocations.fetch_add(used as u64, Ordering::SeqCst);
+                        callbacks.fetch_add(1, Ordering::SeqCst);
+                    }
+                    thread::sleep(Duration::from_micros(300));
+                }
+            }));
+            Ok(())
+        }
+
+        fn stop(&mut self) {
+            self.stop.store(true, Ordering::SeqCst);
+            if let Some(t) = self.thread.take() {
+                let _ = t.join();
+            }
+        }
+    }
+
+    struct Factory {
+        callbacks: Arc<AtomicU64>,
+        allocations: Arc<AtomicU64>,
+    }
+
+    impl SinkFactory for Factory {
+        fn open(&self, source: AudioFormat) -> Result<Box<dyn AudioSink>, SinkError> {
+            Ok(Box::new(CountingSink {
+                info: OutputInfo {
+                    device_name: "Counting".into(),
+                    mode: OutputMode::Shared,
+                    format: source,
+                },
+                callbacks: Arc::clone(&self.callbacks),
+                allocations: Arc::clone(&self.allocations),
+                stop: Arc::new(AtomicBool::new(false)),
+                thread: None,
+            }))
+        }
+    }
+
+    #[test]
+    fn the_real_player_callback_allocates_nothing_at_volume_100_and_50() {
+        let ints = tone_i16(48_000, 2, 60 * 48_000, 440.0);
+        let dir = std::env::temp_dir().join(format!("nemo-rt-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let path = dir.join("long.wav");
+        std::fs::write(&path, wav_bytes(&ints, 16, 48_000, 2)).expect("fixture");
+        let callbacks = Arc::new(AtomicU64::new(0));
+        let allocations = Arc::new(AtomicU64::new(0));
+        let player = Player::spawn(PlayerDeps {
+            resolver: Arc::new(FakeResolver { known: vec![] }),
+            opener: Arc::new(FakeOpener {
+                files: std::collections::HashMap::default(),
+                chunk: None,
+            }),
+            segments: None,
+            sink_factory: Arc::new(Factory {
+                callbacks: Arc::clone(&callbacks),
+                allocations: Arc::clone(&allocations),
+            }),
+        });
+        player.send(PlayerCommand::Play(local_track(1, path.clone())));
+        let wait = |n: u64| {
+            let start = std::time::Instant::now();
+            while callbacks.load(Ordering::SeqCst) < n {
+                assert!(start.elapsed() < Duration::from_secs(30), "no callbacks");
+                thread::sleep(Duration::from_millis(5));
+            }
+        };
+        wait(1000);
+        player.send(PlayerCommand::SetVolume(50));
+        let mark = callbacks.load(Ordering::SeqCst);
+        wait(mark + 1000);
+        assert_eq!(
+            allocations.load(Ordering::SeqCst),
+            0,
+            "the render callback allocated"
+        );
+        drop(player);
+        std::fs::remove_file(path).expect("cleanup");
+    }
 }

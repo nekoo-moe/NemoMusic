@@ -12,8 +12,11 @@ use std::io;
 use std::path::Path;
 
 use nemo_core::audio::{AudioFormat, Codec, Origin, StreamInfo};
+use symphonia::core::codecs::audio::AudioCodecId;
 use symphonia::core::codecs::audio::AudioDecoderOptions;
-use symphonia::core::codecs::audio::well_known::CODEC_ID_FLAC;
+use symphonia::core::codecs::audio::well_known::{
+    CODEC_ID_AAC, CODEC_ID_FLAC, CODEC_ID_MP3, CODEC_ID_PCM_MULAW, CODEC_ID_PCM_S32LE,
+};
 use symphonia::core::errors::Error as SymphoniaError;
 use symphonia::core::formats::probe::Hint;
 use symphonia::core::formats::{FormatOptions, TrackType};
@@ -35,6 +38,9 @@ pub enum DecodeError {
     /// The stream does not state a fact the engine needs. Nothing is guessed.
     #[error("the stream does not state its {0}")]
     MissingParameter(&'static str),
+    /// The stream uses a codec this build cannot decode (for example Opus).
+    #[error("unsupported codec")]
+    UnsupportedCodec,
     /// The channel count or sample rate is outside what this crate can carry.
     #[error("unsupported stream layout: {0}")]
     UnsupportedLayout(&'static str),
@@ -115,12 +121,7 @@ pub fn decode_file(path: &Path) -> Result<DecodedAudio, DecodeError> {
         .filter(|c| *c > 0)
         .ok_or(DecodeError::UnsupportedLayout("channel count"))?;
     let bit_depth = params.bits_per_sample.and_then(|b| u8::try_from(b).ok());
-    let codec = if params.codec == CODEC_ID_FLAC {
-        Codec::Flac
-    } else {
-        // Only the `flac` and `pcm` decoders are compiled in, so anything else fails below.
-        Codec::Pcm
-    };
+    let codec = codec_from_id(params.codec);
     let mut decoder = symphonia::default::get_codecs()
         .make_audio_decoder(params, &AudioDecoderOptions::default())?;
 
@@ -151,4 +152,29 @@ pub fn decode_file(path: &Path) -> Result<DecodedAudio, DecodeError> {
         format,
         samples,
     })
+}
+
+/// Codecs the streaming decoder can really decode in this build, for stream selection.
+///
+/// Opus is absent on purpose: symphonia 0.6.1 has an Opus codec id (it can demux Opus in
+/// Ogg or Matroska) but ships no Opus decoder, so offering it would only fail at playback.
+#[must_use]
+pub fn supported_stream_codecs() -> &'static [Codec] {
+    &[Codec::Aac, Codec::Flac, Codec::Mp3, Codec::Pcm]
+}
+
+/// Map a symphonia codec id to the shared [`Codec`]. Every PCM id maps to [`Codec::Pcm`];
+/// anything unlisted is [`Codec::Unknown`].
+pub(crate) fn codec_from_id(id: AudioCodecId) -> Codec {
+    if id == CODEC_ID_FLAC {
+        Codec::Flac
+    } else if id == CODEC_ID_AAC {
+        Codec::Aac
+    } else if id == CODEC_ID_MP3 {
+        Codec::Mp3
+    } else if (CODEC_ID_PCM_S32LE..=CODEC_ID_PCM_MULAW).contains(&id) {
+        Codec::Pcm
+    } else {
+        Codec::Unknown
+    }
 }

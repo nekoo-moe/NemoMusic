@@ -28,6 +28,19 @@ nemo-ytm = { path = "crates/nemo-ytm" }
 nemo-lyrics = { path = "crates/nemo-lyrics" }
 nemo-ui = { path = "crates/nemo-ui" }
 
+# Debug builds still need real-time DSP: an unoptimised 256-tap sinc runs only ~1.4x real time.
+[profile.dev.package.rubato]
+opt-level = 3
+
+[profile.dev.package."symphonia-core"]
+opt-level = 3
+
+[profile.dev.package."symphonia-bundle-flac"]
+opt-level = 3
+
+[profile.dev.package."symphonia-codec-aac"]
+opt-level = 3
+
 [workspace.lints.rust]
 unsafe_code = "forbid"
 missing_docs = "warn"

@@ -1,4 +1,8 @@
-//! Synthetic WAV fixtures written from code. Shared by the integration tests.
+//! Synthetic fixtures and fakes written from code. Shared by the integration tests.
+#![allow(dead_code)] // reason: each test binary uses a different part of this module
+
+pub mod fakes;
+pub mod fixtures;
 
 use std::fs;
 use std::path::Path;
@@ -31,30 +35,8 @@ pub fn test_signal(bits: u32, frames: usize) -> Vec<i32> {
 
 /// Write interleaved integers as a little-endian PCM WAV with `bits` bits (16 or 24).
 pub fn write_wav(path: &Path, samples: &[i32], bits: u32, rate: u32, channels: u16) {
-    let bytes_per = bits / 8;
-    let data_len = u32::try_from(samples.len()).expect("invariant: small file") * bytes_per;
-    let block = u16::try_from(bytes_per).expect("invariant: 2 or 3") * channels;
-    let mut wav = Vec::new();
-    wav.extend_from_slice(b"RIFF");
-    wav.extend_from_slice(&(36 + data_len).to_le_bytes());
-    wav.extend_from_slice(b"WAVEfmt ");
-    wav.extend_from_slice(&16_u32.to_le_bytes());
-    wav.extend_from_slice(&1_u16.to_le_bytes()); // PCM
-    wav.extend_from_slice(&channels.to_le_bytes());
-    wav.extend_from_slice(&rate.to_le_bytes());
-    wav.extend_from_slice(&(rate * u32::from(block)).to_le_bytes());
-    wav.extend_from_slice(&block.to_le_bytes());
-    wav.extend_from_slice(
-        &u16::try_from(bits)
-            .expect("invariant: 16 or 24")
-            .to_le_bytes(),
-    );
-    wav.extend_from_slice(b"data");
-    wav.extend_from_slice(&data_len.to_le_bytes());
-    for s in samples {
-        wav.extend_from_slice(&s.to_le_bytes()[..usize::try_from(bytes_per).expect("invariant")]);
-    }
-    fs::write(path, wav).expect("test fixture write");
+    fs::write(path, fixtures::wav_bytes(samples, bits, rate, channels))
+        .expect("test fixture write");
 }
 
 /// Convert decoded `f32` back to integers the way a lossless path would: scale by `2^(bits-1)`.
