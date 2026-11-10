@@ -2,6 +2,8 @@
 
 mod config;
 mod logging;
+#[allow(dead_code, reason = "wired into the UI in task 2.2")]
+mod merged;
 mod paths;
 
 use paths::AppPaths;
