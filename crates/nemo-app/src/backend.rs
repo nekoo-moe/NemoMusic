@@ -5,14 +5,20 @@ use std::sync::Arc;
 use nemo_audio::decoder::supported_stream_codecs;
 use nemo_audio::player::{Player, PlayerDeps};
 use nemo_audio::sink::CpalSinkFactory;
+use nemo_core::account::{AccountService, NoAccount};
 use nemo_core::player::PlayerCommand;
 use nemo_core::segment::SegmentSource;
 use nemo_core::services::Backend;
 use nemo_library::catalog::LOCAL_ALBUM_PREFIX;
 use nemo_library::{LocalCatalog, LocalLibrary};
 use nemo_lyrics::LyricsHub;
+use nemo_ytm::account::{
+    AccountCatalog, AccountConfig, GoogleAccount, SessionSlot, default_helper_path,
+};
 use nemo_ytm::catalog::YtmCatalog;
+use nemo_ytm::credentials::WindowsStore;
 use nemo_ytm::images::ImageCache;
+use nemo_ytm::session::YtmSessionBackend;
 use nemo_ytm::sponsorblock::{ReqwestHttp, SponsorBlockSource};
 use nemo_ytm::stream::HttpStreamOpener;
 use nemo_ytm::ytdlp::{YtDlpResolver, locate_yt_dlp};
@@ -53,9 +59,13 @@ pub fn build(
     handle: &Handle,
 ) -> Result<Services, StartError> {
     let local = LocalCatalog::new(LocalLibrary::new(settings.music_folders.clone()));
+    let account_slot: SessionSlot = SessionSlot::default();
+    let account = build_account(paths, handle, &account_slot);
+    // Signed out: the anonymous catalog. Signed in: the account's session, switched live.
+    let remote = AccountCatalog::new(Arc::new(YtmCatalog::new(handle.clone())), account_slot);
     let catalog = MergedCatalog::new(
         Arc::new(local.clone()),
-        Arc::new(YtmCatalog::new(handle.clone())),
+        Arc::new(remote),
         LOCAL_ALBUM_PREFIX,
     );
 
@@ -96,10 +106,34 @@ pub fn build(
             player,
             lyrics: Arc::new(lyrics),
             images: Arc::new(images),
-            account: Arc::new(nemo_core::account::NoAccount),
+            account,
         },
         local,
     })
+}
+
+/// The Google account service, or `NoAccount` when Credential Manager or the helper is missing.
+fn build_account(paths: &AppPaths, handle: &Handle, slot: &SessionSlot) -> Arc<dyn AccountService> {
+    let store = match WindowsStore::new() {
+        Ok(store) => store,
+        Err(err) => {
+            tracing::warn!(error = %err, "sign-in disabled");
+            return Arc::new(NoAccount);
+        }
+    };
+    let helper = default_helper_path().unwrap_or_else(|| paths.bin.join("nemo-signin.exe"));
+    let config = AccountConfig {
+        helper,
+        webview_dir: paths.webview.clone(),
+        cache_file: paths.account.join("account.json"),
+    };
+    Arc::new(GoogleAccount::new(
+        config,
+        Arc::new(store),
+        Arc::new(YtmSessionBackend::new(handle.clone())),
+        slot.clone(),
+        handle.clone(),
+    ))
 }
 
 /// Rescan the local library on its own thread so the window opens at once.

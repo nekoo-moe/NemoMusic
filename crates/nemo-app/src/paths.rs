@@ -23,6 +23,10 @@ pub struct AppPaths {
     pub logs: PathBuf,
     /// Optional helper programs, such as a private `yt-dlp.exe`.
     pub bin: PathBuf,
+    /// The sign-in window's own `WebView2` profile. Sign-out deletes it.
+    pub webview: PathBuf,
+    /// Cached account header (name, avatar). Sign-out deletes it.
+    pub account: PathBuf,
 }
 
 /// No data directory could be found for this user.
@@ -41,6 +45,8 @@ impl AppPaths {
             library: root.join("library"),
             logs: root.join("logs"),
             bin: root.join("bin"),
+            webview: root.join("webview"),
+            account: root.join("account"),
             root,
         }
     }
@@ -99,7 +105,9 @@ mod tests {
     fn every_folder_sits_under_the_root() {
         let root = Path::new("C:/data/NemoMusic");
         let p = AppPaths::under(root);
-        for dir in [&p.images, &p.lyrics, &p.library, &p.logs, &p.bin] {
+        for dir in [
+            &p.images, &p.lyrics, &p.library, &p.logs, &p.bin, &p.webview, &p.account,
+        ] {
             assert!(dir.starts_with(root), "{}", dir.display());
         }
         assert_eq!(p.root, root);
