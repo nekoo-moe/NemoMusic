@@ -2,10 +2,10 @@
 
 ## Tasks
 Wave 0 (Kiro)
-- [ ] 0.1 UI reference research -> `docs/ui-reference.md`. _Requirements: 13_
-- [ ] 0.2 Install `yt-dlp` for development; record the locator rule. _Requirements: 3, 9_
-- [ ] 0.3 Core contracts in `nemo-core` (Catalog, ByteSource, StreamOpener, PlayerControl, LyricsService, ImageSource). _Requirements: 2, 3_
-- [ ] 0.4 Record approved crates in `tech.md` and the egress list in the README. _Requirements: 11_
+- [x] 0.1 UI reference research -> `docs/ui-reference.md`. _Requirements: 13_
+- [x] 0.2 Install `yt-dlp` for development; record the locator rule. _Requirements: 3, 9_
+- [x] 0.3 Core contracts in `nemo-core` (Catalog, ByteSource, StreamOpener, PlayerControl, LyricsService, ImageSource). _Requirements: 2, 3_
+- [x] 0.4 Record approved crates in `tech.md` and the egress list in the README. _Requirements: 11_
 
 Wave 1 (parallel agents, one crate each)
 - [ ] 1.1 `nemo-ytm`: reqwest client, HTTP range `ByteSource`, `HttpGet`, anonymous `Catalog` via `ytmapi-rs`, image fetch with disk cache, `yt-dlp` locator. _Requirements: 2, 3, 9_
