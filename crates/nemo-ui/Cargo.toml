@@ -1,0 +1,23 @@
+﻿[package]
+name = "nemo-ui"
+description = "User interface: theme tokens, views, widgets and album-art effects."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+# Everything iced-related is behind this feature so `cargo clippy --workspace` stays fast.
+gui = ["dep:iced"]
+
+[dependencies]
+nemo-core.workspace = true
+iced = { version = "=0.14.0", optional = true, default-features = false, features = ["wgpu", "thread-pool"] }
+
+[[example]]
+name = "glass_spike"
+required-features = ["gui"]
