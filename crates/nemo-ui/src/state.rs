@@ -4,16 +4,60 @@
 
 use std::time::Duration;
 
+use std::sync::Arc;
+
+use nemo_core::catalog::SearchResults;
 use nemo_core::lyrics::{LyricsDoc, ProviderId};
 use nemo_core::player::{PlayState, PlayerCommand, PlayerEvent, PlayerSnapshot};
 use nemo_core::services::LyricsLookup;
 use nemo_core::track::{Track, TrackId};
 
+use crate::home;
 use crate::keys::KeyAction;
 use crate::lyrics_view::{self, FOLLOW_PAUSE_MS};
 use crate::motion::{Crossfade, Spring};
 use crate::palette::Palette;
 use crate::route::{Nav, Route};
+use crate::search::{SearchState, Submit};
+use crate::settings::{SettingChange, UiSettings};
+
+/// How long a playback-failure notice stays, in ms.
+pub const FAILURE_TOAST_MS: f32 = 7_000.0;
+/// How long the "skipped segment" pill with its Undo button stays (ADR 0003: 5 s).
+pub const SKIP_TOAST_MS: f32 = 5_000.0;
+
+/// A calm notice above the player bar. Never red; it has no counter and does not blink.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Toast {
+    /// Short text.
+    pub text: String,
+    /// Time left in ms.
+    pub left_ms: f32,
+    /// Show an `Undo` button (SponsorBlock skips).
+    pub undo: bool,
+}
+
+/// What a context-menu action looks up.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResolveKind {
+    /// Open the album of a track.
+    Album,
+    /// Open the first artist of a track.
+    Artist,
+}
+
+/// A change to the queue from the queue panel.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QueueOp {
+    /// Play the entry at this index.
+    Jump(usize),
+    /// Remove the entry at this index.
+    Remove(usize),
+    /// Move the entry at this index to play right after the current track.
+    PlayNext(usize),
+    /// Remove everything except the current track.
+    Clear,
+}
 
 /// Lyrics of the current track.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -83,6 +127,58 @@ pub enum Event {
     TextFocus(bool),
     /// Reset the lyrics offset to zero.
     LyricsOffsetReset,
+    /// A setting changed on the Settings screen.
+    Setting(SettingChange),
+    /// The notice checkbox was ticked or cleared.
+    TosCheck(bool),
+    /// Continue on the first-run notice (needs the checkbox).
+    TosContinue,
+    /// Close the notice without accepting it, for this session.
+    TosLater,
+    /// Show the notice again.
+    TosReview,
+    /// The search box text changed.
+    SearchInput(String),
+    /// The debounce timer of this sequence number fired.
+    SearchDebounced(u64),
+    /// Enter in the search box.
+    SearchSubmit,
+    /// Try the failed search again.
+    SearchRetry,
+    /// A search finished.
+    SearchDone {
+        /// The query that was run.
+        query: String,
+        /// The answer or a short error.
+        result: Result<Arc<SearchResults>, String>,
+    },
+    /// Replace the queue with `tracks` and start at `start`.
+    PlayTracks {
+        /// The new queue.
+        tracks: Vec<Track>,
+        /// Index to start with.
+        start: usize,
+    },
+    /// Play this track after the current one.
+    PlayNext(Track),
+    /// Add this track to the end of the queue.
+    Enqueue(Track),
+    /// Change the queue.
+    Queue(QueueOp),
+    /// Open the track menu.
+    OpenMenu(Track),
+    /// Close the track menu.
+    CloseMenu,
+    /// Open the album of this track.
+    GoToAlbum(Track),
+    /// Open the artist of this track.
+    GoToArtist(Track),
+    /// Hide the notice above the bar.
+    DismissToast,
+    /// Undo the last SponsorBlock skip.
+    UndoSkip,
+    /// Open or close the signal-path popover.
+    ToggleSignalPath,
 }
 
 /// Work for the GUI shell.
@@ -105,6 +201,21 @@ pub enum Effect {
     },
     /// Flip the frame-time readout (the GUI owns the sampler).
     ToggleFrameReadout,
+    /// Start the debounce timer for this sequence number.
+    Debounce(u64),
+    /// Run this search.
+    RunSearch(String),
+    /// Put the keyboard focus in the search box.
+    FocusSearch,
+    /// Tell the app the settings changed.
+    SettingsChanged(UiSettings),
+    /// Look up the album or artist of this track, then open it.
+    Resolve {
+        /// What to open.
+        kind: ResolveKind,
+        /// The track the menu was opened on.
+        track: Track,
+    },
 }
 
 /// The whole UI state, minus pixels.
@@ -132,8 +243,25 @@ pub struct UiState {
     pub lyric_viewport_h: f32,
     /// Text field focused.
     pub text_focused: bool,
-    /// Honour reduced motion.
+    /// Honour reduced motion (the OS option or the setting).
     pub reduced_motion: bool,
+    /// Settings shown on the Settings screen.
+    pub settings: UiSettings,
+    /// The first-run notice checkbox.
+    pub tos_checked: bool,
+    /// The notice was closed with "Not now" for this session.
+    pub tos_dismissed: bool,
+    /// Search box and its answer.
+    pub search: SearchState,
+    /// Recently played tracks, newest first.
+    pub recent: Vec<Track>,
+    /// Notice above the bar.
+    pub toast: Option<Toast>,
+    /// Track the context menu is open on.
+    pub menu: Option<Track>,
+    /// Signal-path popover open.
+    pub signal_open: bool,
+    motion_option: bool,
     last_active: Option<usize>,
 }
 
@@ -155,8 +283,43 @@ impl UiState {
             lyric_viewport_h: 480.0,
             text_focused: false,
             reduced_motion,
+            settings: UiSettings::default(),
+            tos_checked: false,
+            tos_dismissed: false,
+            search: SearchState::default(),
+            recent: Vec::new(),
+            toast: None,
+            menu: None,
+            signal_open: false,
+            motion_option: reduced_motion,
             last_active: None,
         }
+    }
+
+    /// Start with these settings (reduce motion follows them as well as the OS option).
+    #[must_use]
+    pub fn with_settings(mut self, settings: UiSettings) -> Self {
+        self.reduced_motion = self.motion_option || settings.reduce_motion;
+        self.settings = settings;
+        self
+    }
+
+    /// `true` while the first-run notice covers the window.
+    #[must_use]
+    pub fn tos_sheet_visible(&self) -> bool {
+        !self.settings.tos_acknowledged && !self.tos_dismissed
+    }
+
+    /// `true` once YouTube Music features may be used.
+    #[must_use]
+    pub fn youtube_enabled(&self) -> bool {
+        self.settings.tos_acknowledged
+    }
+
+    /// `true` while the player waits for data (a YouTube track takes seconds to start).
+    #[must_use]
+    pub fn is_buffering(&self) -> bool {
+        self.snapshot.state == PlayState::Buffering
     }
 
     /// The current route.
@@ -201,20 +364,23 @@ impl UiState {
             || !self.accent.is_done()
             || !self.lyric_scroll.is_settled()
             || self.follow_pause_ms > 0.0
+            || self.toast.is_some()
     }
 
     /// Apply an event; returns the effects to run.
+    #[allow(clippy::too_many_lines)] // one flat match over every event
     pub fn apply(&mut self, event: Event) -> Vec<Effect> {
         let mut fx = Vec::new();
         match event {
             Event::Key(action) => self.key(action, &mut fx),
-            Event::Player(_) => fx.push(Effect::RefreshSnapshot),
+            Event::Player(ev) => {
+                self.player_event(&ev);
+                fx.push(Effect::RefreshSnapshot);
+            }
             Event::Snapshot(s) => self.snapshot(s, &mut fx),
             Event::Position(p) => self.position = p,
             Event::Frame { dt_ms } => self.frame(dt_ms),
-            Event::Go(route) => {
-                self.nav.go(route);
-            }
+            Event::Go(route) => self.go(route, &mut fx),
             Event::Back => {
                 self.nav.back();
             }
@@ -269,8 +435,177 @@ impl UiState {
             }
             Event::TextFocus(on) => self.text_focused = on,
             Event::LyricsOffsetReset => self.set_offset(0, &mut fx),
+            Event::Setting(change) => self.setting(change, &mut fx),
+            Event::TosCheck(on) => self.tos_checked = on,
+            Event::TosContinue => {
+                if self.tos_checked {
+                    self.settings.tos_acknowledged = true;
+                    fx.push(Effect::SettingsChanged(self.settings.clone()));
+                }
+            }
+            Event::TosLater => self.tos_dismissed = true,
+            Event::TosReview => self.tos_dismissed = false,
+            Event::SearchInput(text) => {
+                if let Some(seq) = self.search.input(text) {
+                    fx.push(Effect::Debounce(seq));
+                }
+            }
+            Event::SearchDebounced(seq) => {
+                if let Some(q) = self.search.debounced(seq) {
+                    fx.push(Effect::RunSearch(q));
+                }
+            }
+            Event::SearchSubmit => match self.search.submit() {
+                Submit::Nothing => {}
+                Submit::Run(q) => fx.push(Effect::RunSearch(q)),
+                Submit::Play(tracks) => {
+                    fx.push(Effect::Send(PlayerCommand::SetQueue { tracks, start: 0 }));
+                }
+            },
+            Event::SearchRetry => {
+                if let Some(q) = self.search.retry() {
+                    fx.push(Effect::RunSearch(q));
+                }
+            }
+            Event::SearchDone { query, result } => {
+                if let Some(tracks) = self.search.done(&query, result) {
+                    fx.push(Effect::Send(PlayerCommand::SetQueue { tracks, start: 0 }));
+                }
+            }
+            Event::PlayTracks { tracks, start } => {
+                if start < tracks.len() {
+                    fx.push(Effect::Send(PlayerCommand::SetQueue { tracks, start }));
+                }
+            }
+            Event::PlayNext(track) => {
+                self.menu = None;
+                fx.push(Effect::Send(PlayerCommand::PlayNext(track)));
+            }
+            Event::Enqueue(track) => {
+                self.menu = None;
+                fx.push(Effect::Send(PlayerCommand::Enqueue(track)));
+            }
+            Event::Queue(op) => self.queue_op(op, &mut fx),
+            Event::OpenMenu(track) => self.menu = Some(track),
+            Event::CloseMenu => self.menu = None,
+            Event::GoToAlbum(track) => {
+                self.menu = None;
+                fx.push(Effect::Resolve {
+                    kind: ResolveKind::Album,
+                    track,
+                });
+            }
+            Event::GoToArtist(track) => {
+                self.menu = None;
+                fx.push(Effect::Resolve {
+                    kind: ResolveKind::Artist,
+                    track,
+                });
+            }
+            Event::DismissToast => self.toast = None,
+            Event::UndoSkip => {
+                self.toast = None;
+                fx.push(Effect::Send(PlayerCommand::UndoSkip));
+            }
+            Event::ToggleSignalPath => self.signal_open = !self.signal_open,
         }
         fx
+    }
+
+    fn go(&mut self, route: Route, fx: &mut Vec<Effect>) {
+        self.menu = None;
+        self.signal_open = false;
+        if route == Route::Queue {
+            // The queue is a panel, not a page.
+            self.queue_open = !self.queue_open;
+            return;
+        }
+        if let Route::Search(q) = &route {
+            let q = q.trim().to_owned();
+            if !q.is_empty()
+                && q != self.search.query()
+                && let Some(run) = self.search.set(&q)
+            {
+                fx.push(Effect::RunSearch(run));
+            }
+            fx.push(Effect::FocusSearch);
+            self.text_focused = true;
+        } else {
+            self.text_focused = false;
+        }
+        self.nav.go(route);
+    }
+
+    fn player_event(&mut self, event: &PlayerEvent) {
+        match event {
+            PlayerEvent::Failed { message } => {
+                self.toast = Some(Toast {
+                    text: message.clone(),
+                    left_ms: FAILURE_TOAST_MS,
+                    undo: false,
+                });
+            }
+            PlayerEvent::SegmentSkipped(segment) => {
+                self.toast = Some(Toast {
+                    text: format!(
+                        "Skipped sponsor segment ({})",
+                        crate::format::clock(segment.start)
+                    ),
+                    left_ms: SKIP_TOAST_MS,
+                    undo: true,
+                });
+            }
+            _ => {}
+        }
+    }
+
+    fn setting(&mut self, change: SettingChange, fx: &mut Vec<Effect>) {
+        self.settings.apply(change);
+        self.reduced_motion = self.motion_option || self.settings.reduce_motion;
+        match change {
+            SettingChange::SponsorBlock(on) => {
+                fx.push(Effect::Send(PlayerCommand::SetSkipSegments(on)));
+            }
+            SettingChange::Volume(v) => fx.push(Effect::Send(PlayerCommand::SetVolume(v.min(100)))),
+            _ => {}
+        }
+        fx.push(Effect::SettingsChanged(self.settings.clone()));
+    }
+
+    fn queue_op(&mut self, op: QueueOp, fx: &mut Vec<Effect>) {
+        let queue = &self.snapshot.queue;
+        match op {
+            QueueOp::Jump(start) => {
+                if start < queue.len() {
+                    fx.push(Effect::Send(PlayerCommand::SetQueue {
+                        tracks: queue.clone(),
+                        start,
+                    }));
+                }
+            }
+            QueueOp::Remove(i) => {
+                if i < queue.len() {
+                    fx.push(Effect::Send(PlayerCommand::RemoveAt(i)));
+                }
+            }
+            QueueOp::PlayNext(i) => {
+                // Taking the entry out first, then inserting it after the current track.
+                if let Some(track) = queue.get(i).cloned()
+                    && self.snapshot.queue_index != Some(i)
+                {
+                    fx.push(Effect::Send(PlayerCommand::RemoveAt(i)));
+                    fx.push(Effect::Send(PlayerCommand::PlayNext(track)));
+                }
+            }
+            QueueOp::Clear => {
+                // From the end, so earlier indices stay valid; the current track stays.
+                for i in (0..queue.len()).rev() {
+                    if self.snapshot.queue_index != Some(i) {
+                        fx.push(Effect::Send(PlayerCommand::RemoveAt(i)));
+                    }
+                }
+            }
+        }
     }
 
     fn key(&mut self, action: KeyAction, fx: &mut Vec<Effect>) {
@@ -300,10 +635,15 @@ impl UiState {
             }
             KeyAction::Next => fx.push(Effect::Send(PlayerCommand::Next)),
             KeyAction::Previous => fx.push(Effect::Send(PlayerCommand::Previous)),
-            KeyAction::OpenSearch => self.nav.go(Route::Search(String::new())),
-            KeyAction::OpenSettings => self.nav.go(Route::Settings),
+            KeyAction::OpenSearch => self.go(Route::Search(String::new()), fx),
+            KeyAction::OpenSettings => self.go(Route::Settings, fx),
             KeyAction::Close => {
-                if self.queue_open {
+                self.text_focused = false;
+                if self.menu.is_some() {
+                    self.menu = None;
+                } else if self.signal_open {
+                    self.signal_open = false;
+                } else if self.queue_open {
                     self.queue_open = false;
                 } else {
                     self.nav.back();
@@ -340,6 +680,7 @@ impl UiState {
         self.lyric_scroll.snap(0.0);
         self.follow_pause_ms = 0.0;
         if let Some(track) = self.snapshot.current.clone() {
+            home::remember(&mut self.recent, &track);
             self.lyrics = LyricsState::Loading;
             fx.push(Effect::LoadCover(track.clone()));
             fx.push(Effect::LoadLyrics(track));
@@ -353,6 +694,12 @@ impl UiState {
     fn frame(&mut self, dt_ms: f32) {
         let dt_ms = dt_ms.clamp(0.0, 100.0);
         self.accent.advance(dt_ms);
+        if let Some(t) = &mut self.toast {
+            t.left_ms -= dt_ms;
+            if t.left_ms <= 0.0 {
+                self.toast = None;
+            }
+        }
         if self.follow_pause_ms > 0.0 {
             // The "Back to current line" pill is visible meanwhile; following resumes by itself.
             self.follow_pause_ms = (self.follow_pause_ms - dt_ms).max(0.0);
@@ -696,5 +1043,164 @@ mod tests {
         s.apply(Event::Frame { dt_ms: 16.0 });
         assert_eq!(s.active_lyric(), None);
         assert!(s.lyric_scroll.value.abs() < f32::EPSILON);
+    }
+}
+
+#[cfg(test)]
+mod screen_tests {
+    use super::*;
+    use crate::mock;
+    use nemo_core::segment::{Segment, SegmentCategory};
+
+    fn state() -> UiState {
+        let mut s = UiState::new(Route::Home, PlayerSnapshot::default(), false);
+        let queue: Vec<Track> = (0..4).map(mock::track).collect();
+        s.apply(Event::Snapshot(PlayerSnapshot {
+            state: PlayState::Playing,
+            current: Some(queue[1].clone()),
+            queue,
+            queue_index: Some(1),
+            ..PlayerSnapshot::default()
+        }));
+        s
+    }
+
+    #[test]
+    fn a_failure_is_a_calm_toast_that_expires() {
+        let mut s = state();
+        s.apply(Event::Player(PlayerEvent::Failed {
+            message: "Could not play this song.".into(),
+        }));
+        assert_eq!(s.toast.as_ref().map(|t| t.undo), Some(false));
+        for _ in 0..500 {
+            s.apply(Event::Frame { dt_ms: 16.0 });
+        }
+        assert!(s.toast.is_none());
+    }
+
+    #[test]
+    fn a_skipped_segment_offers_undo() {
+        let mut s = state();
+        s.apply(Event::Player(PlayerEvent::SegmentSkipped(Segment {
+            start: Duration::from_secs(42),
+            end: Duration::from_secs(60),
+            category: SegmentCategory::Sponsor,
+            id: "x".into(),
+        })));
+        let t = s.toast.clone().expect("toast");
+        assert!(t.undo && t.text.contains("(0:42)"));
+        assert_eq!(
+            s.apply(Event::UndoSkip),
+            vec![Effect::Send(PlayerCommand::UndoSkip)]
+        );
+        assert!(s.toast.is_none());
+    }
+
+    #[test]
+    fn the_notice_needs_its_checkbox_and_reports_the_setting() {
+        let mut s = state();
+        assert!(s.tos_sheet_visible() && !s.youtube_enabled());
+        assert_eq!(s.apply(Event::TosContinue), vec![]);
+        s.apply(Event::TosCheck(true));
+        let fx = s.apply(Event::TosContinue);
+        assert!(matches!(&fx[..], [Effect::SettingsChanged(x)] if x.tos_acknowledged));
+        assert!(!s.tos_sheet_visible() && s.youtube_enabled());
+    }
+
+    #[test]
+    fn not_now_hides_the_sheet_but_keeps_youtube_off() {
+        let mut s = state();
+        s.apply(Event::TosLater);
+        assert!(!s.tos_sheet_visible() && !s.youtube_enabled());
+        s.apply(Event::TosReview);
+        assert!(s.tos_sheet_visible());
+    }
+
+    #[test]
+    fn sponsorblock_switch_sends_the_player_command_and_the_callback() {
+        let mut s = state();
+        let fx = s.apply(Event::Setting(SettingChange::SponsorBlock(true)));
+        assert_eq!(fx[0], Effect::Send(PlayerCommand::SetSkipSegments(true)));
+        assert!(matches!(&fx[1], Effect::SettingsChanged(x) if x.sponsorblock));
+        let fx = s.apply(Event::Setting(SettingChange::ReduceMotion(true)));
+        assert!(s.reduced_motion && fx.len() == 1);
+    }
+
+    #[test]
+    fn queue_clear_removes_from_the_end_and_keeps_the_current_track() {
+        let mut s = state();
+        let fx = s.apply(Event::Queue(QueueOp::Clear));
+        assert_eq!(
+            fx,
+            vec![
+                Effect::Send(PlayerCommand::RemoveAt(3)),
+                Effect::Send(PlayerCommand::RemoveAt(2)),
+                Effect::Send(PlayerCommand::RemoveAt(0)),
+            ]
+        );
+        let fx = s.apply(Event::Queue(QueueOp::PlayNext(3)));
+        assert_eq!(fx.len(), 2);
+        assert_eq!(s.apply(Event::Queue(QueueOp::PlayNext(1))), vec![]);
+    }
+
+    #[test]
+    fn search_events_debounce_then_run_and_enter_plays() {
+        let mut s = state();
+        let fx = s.apply(Event::SearchInput("lofi".into()));
+        let Effect::Debounce(seq) = fx[0] else {
+            panic!("expected a debounce, got {fx:?}");
+        };
+        let fx = s.apply(Event::SearchDebounced(seq));
+        assert_eq!(fx, vec![Effect::RunSearch("lofi".into())]);
+        let results = Arc::new(SearchResults {
+            songs: vec![mock::track(5)],
+            ..SearchResults::default()
+        });
+        s.apply(Event::SearchDone {
+            query: "lofi".into(),
+            result: Ok(results),
+        });
+        let fx = s.apply(Event::SearchSubmit);
+        assert!(matches!(
+            &fx[..],
+            [Effect::Send(PlayerCommand::SetQueue { start: 0, .. })]
+        ));
+    }
+
+    #[test]
+    fn search_shortcuts_focus_the_box_and_esc_closes_things_in_order() {
+        let mut s = state();
+        let fx = s.apply(Event::Key(KeyAction::OpenSearch));
+        assert!(fx.contains(&Effect::FocusSearch) && s.text_focused);
+        s.apply(Event::OpenMenu(mock::track(2)));
+        s.apply(Event::ToggleSignalPath);
+        s.apply(Event::ToggleQueue);
+        s.apply(Event::Key(KeyAction::Close));
+        assert!(s.menu.is_none() && s.signal_open && s.queue_open);
+        s.apply(Event::Key(KeyAction::Close));
+        assert!(!s.signal_open && s.queue_open);
+        s.apply(Event::Key(KeyAction::Close));
+        assert!(!s.queue_open);
+    }
+
+    #[test]
+    fn recent_tracks_and_menu_actions() {
+        let mut s = state();
+        assert_eq!(s.recent.len(), 1);
+        s.apply(Event::OpenMenu(mock::track(2)));
+        let fx = s.apply(Event::GoToArtist(mock::track(2)));
+        assert!(s.menu.is_none());
+        assert!(matches!(
+            &fx[..],
+            [Effect::Resolve {
+                kind: ResolveKind::Artist,
+                ..
+            }]
+        ));
+        s.apply(Event::Go(Route::Queue));
+        assert!(
+            s.queue_open && *s.route() == Route::Home,
+            "queue is a panel"
+        );
     }
 }

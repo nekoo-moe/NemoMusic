@@ -60,6 +60,14 @@ pub enum Icon {
     Note,
     /// Cross.
     Close,
+    /// Three dots.
+    More,
+    /// Crossing arrows.
+    Shuffle,
+    /// Progress ring with a gap.
+    Spinner,
+    /// Circle with an i.
+    Info,
 }
 
 impl Icon {
@@ -80,6 +88,10 @@ impl Icon {
             Self::ChevronDown => include_bytes!("../../assets/icons/chevron-down.svg"),
             Self::Note => include_bytes!("../../assets/icons/note.svg"),
             Self::Close => include_bytes!("../../assets/icons/close.svg"),
+            Self::More => include_bytes!("../../assets/icons/more.svg"),
+            Self::Shuffle => include_bytes!("../../assets/icons/shuffle.svg"),
+            Self::Spinner => include_bytes!("../../assets/icons/spinner.svg"),
+            Self::Info => include_bytes!("../../assets/icons/info.svg"),
         }
     }
 
@@ -112,6 +124,10 @@ mod tests {
             Icon::ChevronDown,
             Icon::Note,
             Icon::Close,
+            Icon::More,
+            Icon::Shuffle,
+            Icon::Spinner,
+            Icon::Info,
         ] {
             let s = std::str::from_utf8(icon.source()).expect("utf8");
             assert!(

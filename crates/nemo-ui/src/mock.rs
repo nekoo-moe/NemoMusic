@@ -205,6 +205,44 @@ fn playlist_summary(p: usize) -> PlaylistSummary {
     }
 }
 
+/// Number of local albums in the mock library (their ids start with `local-album:`).
+pub const LOCAL_ALBUMS: usize = 2;
+const LOCAL_ALBUM_TITLES: [&str; LOCAL_ALBUMS] = ["Field Recordings", "Living Room Sessions"];
+
+/// Local mock tracks (every fifth track), in order.
+fn local_tracks() -> Vec<Track> {
+    tracks()
+        .into_iter()
+        .filter(|t| t.origin == Origin::Local)
+        .collect()
+}
+
+fn local_album_summary(a: usize) -> AlbumSummary {
+    let first = local_tracks().get(a * PER_ALBUM).cloned();
+    let artists = first
+        .as_ref()
+        .map(|t| t.artists.clone())
+        .unwrap_or_default();
+    let thumbnails = match first.map(|t| t.artwork) {
+        Some(Artwork::Remote(t)) => t,
+        _ => Vec::new(),
+    };
+    AlbumSummary {
+        id: BrowseId(format!("{}{a}", crate::home::LOCAL_ALBUM_PREFIX)),
+        title: LOCAL_ALBUM_TITLES[a % LOCAL_ALBUMS].to_owned(),
+        artists,
+        year: None,
+        thumbnails,
+    }
+}
+
+fn local_album_index(id: &BrowseId) -> Option<usize> {
+    id.0.strip_prefix(crate::home::LOCAL_ALBUM_PREFIX)?
+        .parse()
+        .ok()
+        .filter(|a| *a < LOCAL_ALBUMS)
+}
+
 fn thumbs(n: usize) -> Vec<Thumbnail> {
     match cover_artwork(n) {
         Artwork::Remote(t) => t,
@@ -232,8 +270,9 @@ impl Catalog for MockCatalog {
             .into_iter()
             .filter(|t| hit(&t.title) || t.artists.iter().any(|a| hit(a)))
             .collect();
-        let albums = (0..TRACKS / PER_ALBUM)
-            .map(album_summary)
+        let albums = (0..LOCAL_ALBUMS)
+            .map(local_album_summary)
+            .chain((0..TRACKS / PER_ALBUM).map(album_summary))
             .filter(|a| hit(&a.title) || a.artists.iter().any(|x| hit(x)))
             .collect();
         let artists = (0..ARTISTS)
@@ -255,11 +294,22 @@ impl Catalog for MockCatalog {
     }
 
     fn album<'a>(&'a self, id: &'a BrowseId) -> BoxFuture<'a, Result<AlbumDetail, CatalogError>> {
-        let result = index_of(id, "album")
-            .filter(|a| *a < TRACKS / PER_ALBUM)
-            .map(|a| AlbumDetail {
-                summary: album_summary(a),
-                tracks: (a * PER_ALBUM..(a + 1) * PER_ALBUM).map(track).collect(),
+        let local = local_album_index(id).map(|a| AlbumDetail {
+            summary: local_album_summary(a),
+            tracks: local_tracks()
+                .into_iter()
+                .skip(a * PER_ALBUM)
+                .take(PER_ALBUM)
+                .collect(),
+        });
+        let result = local
+            .or_else(|| {
+                index_of(id, "album")
+                    .filter(|a| *a < TRACKS / PER_ALBUM)
+                    .map(|a| AlbumDetail {
+                        summary: album_summary(a),
+                        tracks: (a * PER_ALBUM..(a + 1) * PER_ALBUM).map(track).collect(),
+                    })
             })
             .ok_or(CatalogError::NotFound);
         Box::pin(async move { result })
@@ -316,13 +366,23 @@ impl Catalog for MockCatalog {
                         .map(|a| ShelfItem::Artist(artist_summary(a)))
                         .collect(),
                 },
+                Shelf {
+                    title: "Playlists".to_owned(),
+                    items: (0..PLAYLISTS)
+                        .map(|p| ShelfItem::Playlist(playlist_summary(p)))
+                        .collect(),
+                },
+                Shelf {
+                    title: "Songs".to_owned(),
+                    items: (0..12).map(|n| ShelfItem::Song(track(n))).collect(),
+                },
             ])
         })
     }
 }
 
-/// Signal path of a mock track: YouTube Opus 160 kbps through the shared mixer, or local FLAC
-/// 96 kHz / 24-bit to an exclusive device.
+/// Signal path of a mock track: YouTube AAC 129 kbps resampled to a 48 kHz device in shared mode
+/// (what the dev machine reports), or local FLAC 96 kHz / 24-bit to an exclusive device.
 #[must_use]
 pub fn signal_path(track: &Track) -> SignalPath {
     match track.origin {
@@ -335,17 +395,20 @@ pub fn signal_path(track: &Track) -> SignalPath {
             SignalPath {
                 source: StreamInfo {
                     origin: Origin::YoutubeMusic,
-                    codec: Codec::Opus,
-                    bitrate_kbps: Some(160),
+                    codec: Codec::Aac,
+                    bitrate_kbps: Some(129),
                     format: Some(AudioFormat {
-                        sample_rate: 48_000,
+                        sample_rate: 44_100,
                         channels: 2,
                         bit_depth: None,
                     }),
                 },
-                processing: vec![ProcessingStage::Gain { db: -1.5 }],
+                processing: vec![ProcessingStage::Resample {
+                    from_hz: 44_100,
+                    to_hz: 48_000,
+                }],
                 output: OutputInfo {
-                    device_name: "Mock speakers".to_owned(),
+                    device_name: "Speakers (Realtek Audio)".to_owned(),
                     mode: OutputMode::Shared,
                     format: out,
                 },
@@ -790,6 +853,70 @@ impl ImageSource for MockImages {
     }
 }
 
+/// A catalog that behaves like the real merged one: no home feed, an empty query lists only the
+/// local library, and any other query answers with a slice of the mock catalog (a different slice
+/// per query), so the seed shelves on Home fill up.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct SeededCatalog;
+
+impl Catalog for SeededCatalog {
+    fn search<'a>(&'a self, query: &'a str) -> BoxFuture<'a, Result<SearchResults, CatalogError>> {
+        let q = query.trim();
+        let all = tracks();
+        let result = if q.is_empty() {
+            SearchResults {
+                songs: all
+                    .into_iter()
+                    .filter(|t| t.origin == Origin::Local)
+                    .collect(),
+                albums: (0..LOCAL_ALBUMS).map(local_album_summary).collect(),
+                ..SearchResults::default()
+            }
+        } else {
+            let k = q.bytes().map(usize::from).sum::<usize>() % 4;
+            SearchResults {
+                songs: all.into_iter().skip(k * 7).take(8).collect(),
+                albums: (0..TRACKS / PER_ALBUM)
+                    .skip(k)
+                    .take(5)
+                    .map(album_summary)
+                    .collect(),
+                artists: (0..ARTISTS).skip(k).take(4).map(artist_summary).collect(),
+                playlists: (0..PLAYLISTS)
+                    .skip(k)
+                    .take(3)
+                    .map(playlist_summary)
+                    .collect(),
+            }
+        };
+        Box::pin(async move { Ok(result) })
+    }
+
+    fn album<'a>(&'a self, id: &'a BrowseId) -> BoxFuture<'a, Result<AlbumDetail, CatalogError>> {
+        MockCatalog.album(id)
+    }
+
+    fn artist<'a>(&'a self, id: &'a BrowseId) -> BoxFuture<'a, Result<ArtistDetail, CatalogError>> {
+        MockCatalog.artist(id)
+    }
+
+    fn playlist<'a>(
+        &'a self,
+        id: &'a BrowseId,
+    ) -> BoxFuture<'a, Result<PlaylistDetail, CatalogError>> {
+        MockCatalog.playlist(id)
+    }
+}
+
+/// Like [`mock_backend`], but the catalog behaves like the real one (see [`SeededCatalog`]).
+#[must_use]
+pub fn mock_backend_seeded() -> Backend {
+    Backend {
+        catalog: Arc::new(SeededCatalog),
+        ..mock_backend()
+    }
+}
+
 /// A complete fake [`Backend`].
 #[must_use]
 pub fn mock_backend() -> Backend {
@@ -826,7 +953,7 @@ mod tests {
     fn catalog_has_forty_tracks_ten_albums_eight_artists() {
         let r = ready(MockCatalog.search("")).expect("ok");
         assert_eq!(r.songs.len(), 40);
-        assert_eq!(r.albums.len(), 10);
+        assert_eq!(r.albums.len(), 10 + LOCAL_ALBUMS);
         assert_eq!(r.artists.len(), 8);
         assert_eq!(r.playlists.len(), 6);
         let ids: std::collections::HashSet<_> = r.songs.iter().map(|t| t.id.0.clone()).collect();
@@ -897,7 +1024,7 @@ mod tests {
     fn tracks_show_honest_signal_paths() {
         let yt = track(0);
         assert_eq!(yt.origin, Origin::YoutubeMusic);
-        assert_eq!(signal_path(&yt).source.badge(), "Opus 160\u{2009}kbps");
+        assert_eq!(signal_path(&yt).source.badge(), "AAC 129\u{2009}kbps");
         let local = track(3);
         assert_eq!(local.origin, Origin::Local);
         let p = signal_path(&local);

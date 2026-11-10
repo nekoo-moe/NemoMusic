@@ -135,7 +135,7 @@ fn header(app: &App, height: f32, with_offset: bool) -> Element<'_, Message> {
             .push(offset_controls(app))
             .push(Space::new().width(gap::LG));
     }
-    r.push(badge(app))
+    r.push(badge(app, 300.0))
         .padding(Padding::from([0.0, gap::XL]))
         .height(Length::Fixed(height))
         .into()

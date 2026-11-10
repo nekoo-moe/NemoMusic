@@ -1,7 +1,7 @@
 //! Token-to-iced glue: colours, text, and the widget styles every view shares. Views take every
 //! colour, size and radius from here or from [`crate::theme`], never a literal.
 
-use iced::widget::{Button, Container, Svg, Text, button, container, slider, svg, text};
+use iced::widget::{Button, Container, Svg, Text, button, container, slider, svg, text, tooltip};
 use iced::{Background, Border, Color, Element, Length, Padding, Pixels, Shadow, Vector};
 
 use super::assets::{Icon, font};
@@ -67,6 +67,37 @@ pub fn icon<'a>(icon: Icon, size: f32, color: Color) -> Svg<'a> {
         .width(Length::Fixed(size))
         .height(Length::Fixed(size))
         .style(move |_, _| svg::Style { color: Some(color) })
+}
+
+/// The progress ring turned by `angle` radians (the app advances it while buffering).
+pub fn spinner<'a>(size: f32, color: Color, angle: f32) -> Svg<'a> {
+    icon(Icon::Spinner, size, color).rotation(iced::Radians(angle))
+}
+
+/// Wrap `content` in a tooltip that appears after 500 ms (`design.md` section 13).
+pub fn tip<'a, M: 'a>(content: impl Into<Element<'a, M>>, text: &'a str) -> Element<'a, M> {
+    tooltip(
+        content,
+        container(label(
+            text,
+            crate::theme::type_scale::LABEL_SM,
+            false,
+            col(color::ON_SURFACE),
+        ))
+        .padding(Padding::from([gap::XS, gap::SM]))
+        .style(|_| container::Style {
+            background: Some(Background::Color(col(color::SURFACE_CONTAINER_HIGH))),
+            border: Border {
+                radius: shape::SM.into(),
+                color: col(color::OUTLINE_VARIANT),
+                width: 1.0,
+            },
+            ..container::Style::default()
+        }),
+        tooltip::Position::Top,
+    )
+    .delay(std::time::Duration::from_millis(500))
+    .into()
 }
 
 /// A flat container background.

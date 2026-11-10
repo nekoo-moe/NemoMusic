@@ -113,6 +113,15 @@ pub fn round_corners(bytes: &[u8], fraction: f32) -> Result<Vec<u8>, PaletteErro
     let mut img = image::load_from_memory(bytes)
         .map_err(|_| PaletteError::Decode)?
         .to_rgba8();
+    cut_corners(&mut img, fraction);
+    let mut out = Vec::new();
+    img.write_to(&mut Cursor::new(&mut out), ImageFormat::Png)
+        .map_err(|_| PaletteError::Decode)?;
+    Ok(out)
+}
+
+/// Make the corners of `img` transparent: radius `fraction` x width, anti-aliased over one px.
+fn cut_corners(img: &mut image::RgbaImage, fraction: f32) {
     let (w, h) = (img.width(), img.height());
     // Image sizes are small, exact in f32.
     #[allow(clippy::cast_precision_loss)]
@@ -133,12 +142,49 @@ pub fn round_corners(bytes: &[u8], fraction: f32) -> Result<Vec<u8>, PaletteErro
             p.0[3] = a;
         }
     }
-    let mut out = Vec::new();
-    img.write_to(&mut Cursor::new(&mut out), ImageFormat::Png)
-        .map_err(|_| PaletteError::Decode)?;
-    Ok(out)
 }
 
+/// A decoded, cropped, scaled picture as raw RGBA pixels: iced shows it without decoding
+/// anything on the UI thread (`Handle::from_rgba`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Baked {
+    /// Width in px.
+    pub width: u32,
+    /// Height in px.
+    pub height: u32,
+    /// `width * height * 4` bytes, straight alpha.
+    pub rgba: Vec<u8>,
+}
+
+/// Decode `bytes`, crop to a centred square (`cover`), shrink to at most `max_px` (a smaller
+/// source stays at its own size: covers are never upscaled) and cut the corners with a radius of
+/// `fraction` x width (0.5 gives a circle). Runs on a worker thread.
+///
+/// # Errors
+/// [`PaletteError::Decode`] when the bytes are not a supported image.
+pub fn bake(bytes: &[u8], max_px: u32, fraction: f32) -> Result<Baked, PaletteError> {
+    let img = image::load_from_memory(bytes).map_err(|_| PaletteError::Decode)?;
+    let (w, h) = (img.width(), img.height());
+    let side = w.min(h).max(1);
+    let square = img.crop_imm((w - side) / 2, (h - side) / 2, side, side);
+    let target = side.min(max_px.max(1));
+    let mut out = if target < side {
+        imageops::resize(
+            &square.to_rgba8(),
+            target,
+            target,
+            imageops::FilterType::Triangle,
+        )
+    } else {
+        square.to_rgba8()
+    };
+    cut_corners(&mut out, fraction);
+    Ok(Baked {
+        width: out.width(),
+        height: out.height(),
+        rgba: out.into_raw(),
+    })
+}
 /// Tint alpha for the glass bar over a backdrop whose lightest colour is `backdrop`
 /// (`design.md` section 6): start at 0.55 and raise in 0.05 steps up to 0.90 until both
 /// `on-surface` and `on-surface-variant` reach 4.5:1 over tint plus backdrop. `None` means the
@@ -191,6 +237,25 @@ mod tests {
         img.write_to(&mut Cursor::new(&mut out), ImageFormat::Png)
             .expect("invariant: encoding a small RGBA image cannot fail");
         out
+    }
+
+    #[test]
+    fn bake_crops_square_never_upscales_and_cuts_corners() {
+        let wide = RgbaImage::from_pixel(200, 100, ImgRgba([200, 40, 40, 255]));
+        let small = bake(&png(&wide), 400, 0.12).expect("bake");
+        assert_eq!(
+            (small.width, small.height),
+            (100, 100),
+            "square, not upscaled"
+        );
+        assert_eq!(small.rgba.len(), 100 * 100 * 4);
+        assert_eq!(small.rgba[3], 0, "the corner pixel is transparent");
+        let mid = (50 * 100 + 50) * 4;
+        assert_eq!(small.rgba[mid + 3], 255);
+        let big = RgbaImage::from_pixel(600, 600, ImgRgba([10, 200, 40, 255]));
+        let shrunk = bake(&png(&big), 150, 0.5).expect("bake");
+        assert_eq!((shrunk.width, shrunk.height), (150, 150));
+        assert!(bake(b"not an image", 100, 0.1).is_err());
     }
 
     #[test]

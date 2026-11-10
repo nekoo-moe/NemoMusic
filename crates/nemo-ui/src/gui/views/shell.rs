@@ -1,17 +1,17 @@
 //! Shell: opaque sidebar, top bar, content router, queue panel and the floating player bar.
 
-use iced::widget::{Space, button, column, container, row, scrollable, stack};
+use iced::widget::{Space, button, column, container, row, stack};
 use iced::{Alignment, Element, Length, Padding};
 
 use super::super::app::{App, Message};
 use super::super::assets::Icon;
 use super::super::style::{button_style, col, fill, gap, icon, icon_button, label};
-use super::{bar, home};
+use super::{bar, detail, home, library, queue, search, settings};
 use crate::layout;
 use crate::route::{NavEntry, Route};
 use crate::state::Event;
 use crate::theme::{color, shape, type_scale};
-use nemo_core::player::PlayerCommand;
+use nemo_core::catalog::{PlaylistSummary, ShelfItem};
 
 /// Sidebar entry height.
 const ENTRY_H: f32 = 40.0;
@@ -29,7 +29,7 @@ pub fn view(app: &App, w: u32, h: u32) -> Element<'_, Message> {
         .width(Length::Fill)
         .height(Length::Fill);
     if pushes {
-        body = body.push(queue_panel(app));
+        body = body.push(queue::panel(app));
     }
 
     // The bar floats over the main column, inset 12 px from the window edges.
@@ -57,7 +57,7 @@ pub fn view(app: &App, w: u32, h: u32) -> Element<'_, Message> {
     if app.ui.queue_open && !pushes {
         // Below 1280 the panel overlays the content (opaque, never glass).
         layers.push(
-            container(queue_panel(app))
+            container(queue::panel(app))
                 .width(Length::Fill)
                 .height(Length::Fill)
                 .align_x(Alignment::End)
@@ -95,7 +95,7 @@ fn sidebar(app: &App, width: u32) -> Element<'_, Message> {
     .width(Length::Fill);
 
     for entry in NavEntry::ALL {
-        let on = selected == Some(entry);
+        let on = selected == Some(entry) || (entry == NavEntry::Queue && app.ui.queue_open);
         let ink = col(if on {
             color::ON_SURFACE
         } else {
@@ -142,58 +142,62 @@ fn sidebar(app: &App, width: u32) -> Element<'_, Message> {
         list = list.push(container(b).padding(Padding::from([0.0, gap::SM])));
     }
 
-    if wide && let Some(Ok(home)) = &app.home {
-        {
-            list = list.push(Space::new().height(gap::LG));
-            list = list.push(
-                container(
-                    container(label(
-                        "Playlists",
-                        type_scale::LABEL_SM,
-                        false,
-                        col(color::ON_SURFACE_VARIANT),
-                    ))
-                    .padding(Padding::from([gap::XS, gap::MD])),
-                )
-                .padding(Padding::from([0.0, gap::SM])),
-            );
-            for p in home.playlists.iter().take(4) {
-                let on = *route == Route::Playlist(p.id.clone());
-                let ink = col(if on {
-                    color::ON_SURFACE
-                } else {
-                    color::ON_SURFACE_VARIANT
-                });
-                let idle = if on {
-                    col(color::SURFACE_CONTAINER_HIGH)
-                } else {
-                    iced::Color::TRANSPARENT
-                };
-                let b = button(
-                    container(label(
-                        super::super::style::fit(
-                            &p.title,
-                            sidebar_w - 56.0,
-                            type_scale::BODY_MD.size,
-                        ),
-                        type_scale::BODY_MD,
-                        on,
-                        ink,
-                    ))
-                    .height(Length::Fixed(ENTRY_H))
-                    .width(Length::Fill)
-                    .padding(Padding::from([0.0, gap::MD]))
-                    .align_y(Alignment::Center),
-                )
-                .padding(0)
+    let playlists: Vec<&PlaylistSummary> = app
+        .home
+        .shelves
+        .iter()
+        .flat_map(|s| s.items.iter())
+        .filter_map(|i| match i {
+            ShelfItem::Playlist(p) => Some(p),
+            _ => None,
+        })
+        .take(4)
+        .collect();
+    if wide && !playlists.is_empty() {
+        list = list.push(Space::new().height(gap::LG));
+        list = list.push(
+            container(
+                container(label(
+                    "Playlists",
+                    type_scale::LABEL_SM,
+                    false,
+                    col(color::ON_SURFACE_VARIANT),
+                ))
+                .padding(Padding::from([gap::XS, gap::MD])),
+            )
+            .padding(Padding::from([0.0, gap::SM])),
+        );
+        for p in playlists {
+            let on = *route == Route::Playlist(p.id.clone());
+            let ink = col(if on {
+                color::ON_SURFACE
+            } else {
+                color::ON_SURFACE_VARIANT
+            });
+            let idle = if on {
+                col(color::SURFACE_CONTAINER_HIGH)
+            } else {
+                iced::Color::TRANSPARENT
+            };
+            let b = button(
+                container(label(
+                    super::super::style::fit(&p.title, sidebar_w - 56.0, type_scale::BODY_MD.size),
+                    type_scale::BODY_MD,
+                    on,
+                    ink,
+                ))
+                .height(Length::Fixed(ENTRY_H))
                 .width(Length::Fill)
-                .style(button_style(idle, shape::MD))
-                .on_press(Message::Ui(Event::Go(Route::Playlist(p.id.clone()))));
-                list = list.push(container(b).padding(Padding::from([0.0, gap::SM])));
-            }
+                .padding(Padding::from([0.0, gap::MD]))
+                .align_y(Alignment::Center),
+            )
+            .padding(0)
+            .width(Length::Fill)
+            .style(button_style(idle, shape::MD))
+            .on_press(Message::Ui(Event::Go(Route::Playlist(p.id.clone()))));
+            list = list.push(container(b).padding(Padding::from([0.0, gap::SM])));
         }
     }
-
     fill(list, color::SURFACE_CONTAINER_LOW)
         .width(Length::Fixed(sidebar_w))
         .height(Length::Fill)
@@ -285,108 +289,14 @@ fn top_bar(app: &App) -> Element<'_, Message> {
     .into()
 }
 
-/// The content router. Search, Album, Artist, Playlist, Queue and Settings get their own
-/// modules later; each only needs an arm here.
+/// The content router: one arm per screen.
 fn content(app: &App, w: u32, _h: u32) -> Element<'_, Message> {
     match app.ui.route() {
-        Route::Home => home::view(app, w),
-        other => placeholder(other),
+        Route::Search(_) => search::view(app, w),
+        Route::Library => library::view(app, w),
+        Route::Settings => settings::view(app, w),
+        Route::Album(_) | Route::Artist(_) | Route::Playlist(_) => detail::view(app, w),
+        // The queue is a panel and Now Playing is its own screen; both are handled before this.
+        Route::Home | Route::Queue | Route::NowPlaying => home::view(app, w),
     }
-}
-
-fn placeholder(route: &Route) -> Element<'static, Message> {
-    let dim = col(color::ON_SURFACE_VARIANT);
-    container(
-        column![
-            icon(Icon::Note, 32.0, dim),
-            Space::new().height(gap::MD),
-            label(
-                route.title(),
-                type_scale::TITLE_MD,
-                true,
-                col(color::ON_SURFACE)
-            ),
-            Space::new().height(gap::XS),
-            label(
-                "This screen is not built yet.",
-                type_scale::BODY_MD,
-                false,
-                dim
-            ),
-        ]
-        .align_x(Alignment::Center),
-    )
-    .width(Length::Fill)
-    .height(Length::Fill)
-    .center_x(Length::Fill)
-    .center_y(Length::Fill)
-    .into()
-}
-
-fn queue_panel(app: &App) -> Element<'_, Message> {
-    let snap = &app.ui.snapshot;
-    let header = row![
-        label("Queue", type_scale::TITLE_MD, true, col(color::ON_SURFACE)),
-        Space::new().width(Length::Fill),
-        icon_button(
-            Icon::Close,
-            20.0,
-            40.0,
-            col(color::ON_SURFACE),
-            iced::Color::TRANSPARENT,
-            Some(Message::Ui(Event::ToggleQueue)),
-        )
-    ]
-    .align_y(Alignment::Center)
-    .height(Length::Fixed(56.0))
-    .padding(Padding::from([0.0, gap::LG]));
-
-    let mut rows = column![].spacing(0);
-    for (i, t) in snap.queue.iter().enumerate() {
-        let current = snap.queue_index == Some(i);
-        let inner = column![
-            label(
-                super::super::style::fit(&t.title, 260.0, type_scale::BODY_MD.size),
-                type_scale::BODY_MD,
-                current,
-                col(color::ON_SURFACE),
-            ),
-            label(
-                super::super::style::fit(
-                    &crate::format::artists(&t.artists),
-                    260.0,
-                    type_scale::BODY_SM.size
-                ),
-                type_scale::BODY_SM,
-                false,
-                col(color::ON_SURFACE_VARIANT),
-            ),
-        ];
-        rows = rows.push(
-            button(
-                container(inner)
-                    .height(Length::Fixed(48.0))
-                    .width(Length::Fill)
-                    .padding(Padding::from([0.0, gap::LG]))
-                    .align_y(Alignment::Center),
-            )
-            .padding(0)
-            .width(Length::Fill)
-            .style(button_style(iced::Color::TRANSPARENT, shape::MD))
-            .on_press(Message::Ui(Event::Command(PlayerCommand::SetQueue {
-                tracks: snap.queue.clone(),
-                start: i,
-            }))),
-        );
-    }
-    // The queue panel is opaque `surface-container`, never glass.
-    fill(
-        column![header, scrollable(rows).height(Length::Fill)],
-        color::SURFACE_CONTAINER,
-    )
-    .width(Length::Fixed(f32::from(
-        u16::try_from(layout::QUEUE_WIDTH).unwrap_or(320),
-    )))
-    .height(Length::Fill)
-    .into()
 }

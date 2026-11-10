@@ -12,8 +12,9 @@ use super::super::app::{App, Message};
 use super::super::assets::Icon;
 use super::super::style::{
     button_style, col, fit, gap, glass_tint, icon, icon_button, label, shadow, slider_style,
+    spinner,
 };
-use super::home::art_placeholder;
+use super::kit::art_placeholder;
 use crate::format;
 use crate::keys::KeyAction;
 use crate::palette::Palette;
@@ -22,14 +23,14 @@ use crate::state::Event;
 use crate::theme::{color, glass, layout as theme_layout, shape, type_scale};
 use nemo_core::player::PlayerCommand;
 
-/// Text for the quality badge, from the real signal path. `Unknown` when there is none.
+/// Text for the quality badge, from the real signal path (`AAC 129 kbps · Lossy · Resample`).
+/// `Unknown` when there is none; `Buffering` while the player waits for data.
 #[must_use]
 pub fn badge_text(app: &App) -> String {
-    app.ui
-        .snapshot
-        .signal_path
-        .as_ref()
-        .map_or_else(|| "Unknown".to_owned(), |p| p.source.badge())
+    if app.ui.is_buffering() {
+        return "Buffering\u{2026}".to_owned();
+    }
+    crate::signal::badge_label(app.ui.snapshot.signal_path.as_ref())
 }
 
 /// The bar, `bar_w` px wide and 88 px high.
@@ -39,7 +40,13 @@ pub fn view(app: &App, bar_w: u32) -> Element<'_, Message> {
     // The bar width is a small positive number.
     #[allow(clippy::cast_precision_loss)]
     let width = bar_w as f32;
-    let side = if width < 900.0 { 240.0 } else { 280.0 };
+    let side = if width < 900.0 {
+        240.0
+    } else if width < 1100.0 {
+        280.0
+    } else {
+        320.0
+    };
 
     let content = row![
         container(left(app, side)).width(Length::Fixed(side)),
@@ -50,7 +57,11 @@ pub fn view(app: &App, bar_w: u32) -> Element<'_, Message> {
     .padding(gap::MD)
     .height(Length::Fill);
 
-    let glass_ok = app.cover.as_ref().and_then(|c| c.tint_alpha);
+    let glass_ok = if app.ui.settings.opaque_chrome() {
+        None
+    } else {
+        app.cover.as_ref().and_then(|c| c.tint_alpha)
+    };
     let mut layers: Vec<Element<'_, Message>> = vec![
         // Shadow `0 8 24 #00000052`.
         container(Space::new())
@@ -221,16 +232,23 @@ fn center(app: &App, accent: Palette) -> Element<'_, Message> {
 pub fn transport(app: &App, accent: Palette, play_size: f32) -> Element<'_, Message> {
     let ink = col(color::ON_SURFACE);
     let playing = app.ui.is_playing();
-    let play = button(
-        container(icon(
+    // While a stream starts (a YouTube track takes seconds) the glyph becomes a calm ring.
+    let glyph: Element<'_, Message> = if app.ui.is_buffering() {
+        spinner(play_size / 2.0 + 4.0, col(accent.on_primary), app.spin).into()
+    } else {
+        icon(
             if playing { Icon::Pause } else { Icon::Play },
             play_size / 2.0,
             col(accent.on_primary),
-        ))
-        .width(Length::Fixed(play_size))
-        .height(Length::Fixed(play_size))
-        .center_x(Length::Fixed(play_size))
-        .center_y(Length::Fixed(play_size)),
+        )
+        .into()
+    };
+    let play = button(
+        container(glyph)
+            .width(Length::Fixed(play_size))
+            .height(Length::Fixed(play_size))
+            .center_x(Length::Fixed(play_size))
+            .center_y(Length::Fixed(play_size)),
     )
     .padding(0)
     .style(button_style(col(accent.primary), shape::FULL))
@@ -308,26 +326,37 @@ pub fn seek_row(app: &App, accent: Palette) -> Element<'_, Message> {
     .into()
 }
 
-/// Quality badge pill: real format text only; lossy never gets a success colour.
-pub fn badge(app: &App) -> Element<'_, Message> {
-    container(label(
-        badge_text(app),
-        type_scale::LABEL_SM,
-        false,
-        col(color::ON_SURFACE_VARIANT),
-    ))
-    .padding(Padding::from([2.0, gap::SM]))
-    .style(|_| container::Style {
-        border: Border {
-            color: col(color::OUTLINE_VARIANT),
-            width: 1.0,
-            radius: shape::FULL.into(),
-        },
-        ..container::Style::default()
+/// Quality badge pill: the real format, quality word and processing, never a guess. Pressing it
+/// opens the signal-path popover; lossy never gets a success colour.
+pub fn badge(app: &App, max_w: f32) -> Element<'_, Message> {
+    let text = fit(&badge_text(app), max_w, type_scale::LABEL_SM.size);
+    button(
+        container(label(
+            text,
+            type_scale::LABEL_SM,
+            false,
+            col(color::ON_SURFACE_VARIANT),
+        ))
+        .padding(Padding::from([2.0, gap::SM])),
+    )
+    .padding(0)
+    .style(|_, status| {
+        let hovered = matches!(status, button::Status::Hovered | button::Status::Pressed);
+        button::Style {
+            background: hovered.then(|| col(color::ON_SURFACE.with_alpha(0.08)).into()),
+            text_color: col(color::ON_SURFACE),
+            border: Border {
+                color: col(color::OUTLINE_VARIANT),
+                width: 1.0,
+                radius: shape::FULL.into(),
+            },
+            shadow: iced::Shadow::default(),
+            snap: false,
+        }
     })
+    .on_press(Message::Ui(Event::ToggleSignalPath))
     .into()
 }
-
 fn right(app: &App, side: f32) -> Element<'_, Message> {
     let ink = col(color::ON_SURFACE);
     let volume = slider(0..=100_u8, app.ui.snapshot.volume_percent, |v| {
@@ -356,7 +385,7 @@ fn right(app: &App, side: f32) -> Element<'_, Message> {
         Some(Message::Ui(Event::ToggleQueue)),
     );
     column![
-        container(badge(app))
+        container(badge(app, side - 2.0 * gap::MD))
             .align_x(Alignment::End)
             .width(Length::Fill),
         row![
