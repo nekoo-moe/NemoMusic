@@ -17,3 +17,8 @@ tracing.workspace = true
 tracing-subscriber = { version = "=0.3.23", default-features = false, features = ["fmt", "std"] }
 serde.workspace = true
 serde_json.workspace = true
+nemo-audio.workspace = true
+nemo-ytm.workspace = true
+nemo-lyrics.workspace = true
+nemo-library.workspace = true
+tokio = { version = "=1.54.1", default-features = false, features = ["rt-multi-thread", "time"] }
