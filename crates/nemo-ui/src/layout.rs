@@ -176,13 +176,14 @@ pub const RIGHT_PUSH_BREAKPOINT: u32 = 1280;
 /// Floating capsule height.
 pub const CAPSULE_HEIGHT: u32 = 72;
 /// Gap between the capsule and the window bottom.
-pub const CAPSULE_MARGIN: u32 = 16;
+pub const CAPSULE_MARGIN: u32 = 8;
 /// Widest capsule.
 pub const CAPSULE_MAX: u32 = 1280;
 /// Narrowest capsule.
 pub const CAPSULE_MIN: u32 = 560;
-/// Scroll padding at the bottom of a pane so the capsule never hides the last row.
-pub const PANE_BOTTOM_RESERVE: u32 = CAPSULE_HEIGHT + CAPSULE_MARGIN + PANE_GAP;
+/// Extra space under the panes while the capsule shows: the panes end above the capsule, so it
+/// never covers a row (the usual [`PANE_GAP`] below the panes comes on top of this).
+pub const PANE_BOTTOM_RESERVE: u32 = CAPSULE_HEIGHT + CAPSULE_MARGIN;
 /// Height of the centre pane top bar.
 pub const CENTER_BAR: u32 = 64;
 
@@ -261,17 +262,28 @@ pub fn grid_in(pane_w: u32) -> Grid {
 /// Narrowest card art in a pane.
 pub const PANE_CARD_MIN: u32 = 176;
 
-/// Square art of the right pane: the pane width less 12 px padding on both sides.
+/// Square art of the right pane: the pane width less 12 px padding on both sides, and no taller
+/// than what leaves room for the title, the tabs and a few lyric lines (never below 200).
 #[must_use]
-pub fn pane_art(window_w: u32) -> u32 {
-    right_width(window_w).saturating_sub(24)
+pub fn pane_art(window_w: u32, window_h: u32) -> u32 {
+    let by_width = right_width(window_w).saturating_sub(24);
+    let pane_h = window_h.saturating_sub(2 * PANE_GAP + PANE_BOTTOM_RESERVE);
+    by_width.min(pane_h.saturating_sub(PANE_TEXT_AREA).max(PANE_ART_MIN))
 }
 
+/// Narrowest right pane art.
+pub const PANE_ART_MIN: u32 = 200;
+/// Height the right pane keeps for everything but the art and the lyric lines: padding, title
+/// and artist row, tabs and the provider footer, plus about four lyric lines.
+pub const PANE_TEXT_AREA: u32 = PANE_FIXED + 128;
+/// Fixed heights of the right pane around the art and the lyric lines: top padding 12, title row 12 + 68, gap 8, tabs 44, gap 8, 6 spare, footer 24.
+pub const PANE_FIXED: u32 = 182;
+
 /// Height of the lyrics list in the right pane, in px: the pane height less art, title block,
-/// live line, tabs, footer and the space the capsule covers.
+/// tabs and footer. The pane ends above the capsule, so the capsule reserve is taken off too.
 #[must_use]
 pub fn pane_lyrics_height(window_w: u32, window_h: u32) -> f32 {
-    let used = 12 + pane_art(window_w) + 12 + 68 + 40 + 48 + 8 + 24 + PANE_BOTTOM_RESERVE;
+    let used = PANE_FIXED + pane_art(window_w, window_h) + PANE_BOTTOM_RESERVE;
     // Small positive pixel counts, exact in f32.
     #[allow(clippy::cast_precision_loss)]
     let h = window_h.saturating_sub(2 * PANE_GAP).saturating_sub(used) as f32;
@@ -393,7 +405,14 @@ mod tests {
         assert_eq!(capsule_width(1366), 1092);
         assert_eq!(capsule_width(1920), 1280);
         assert_eq!(capsule_width(600), 560);
-        assert!(pane_lyrics_height(1366, 697) >= 72.0);
+        assert!(
+            pane_lyrics_height(1366, 697) >= 120.0,
+            "{}",
+            pane_lyrics_height(1366, 697)
+        );
         assert!(pane_lyrics_height(1920, 1040) > 300.0);
+        // The art shrinks on a short window and fills the pane width on a tall one.
+        assert!(pane_art(1366, 697) < pane_art(1366, 900));
+        assert_eq!(pane_art(1920, 1040), 356);
     }
 }

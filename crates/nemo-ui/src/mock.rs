@@ -27,7 +27,7 @@ use nemo_core::catalog::{
     PlaylistDetail, PlaylistSummary, SearchResults, Shelf, ShelfItem,
 };
 use nemo_core::lyrics::{Granularity, LyricLine, LyricsDoc, LyricsQuery, ProviderId};
-use nemo_core::player::{PlayState, PlayerCommand, PlayerEvent, PlayerSnapshot};
+use nemo_core::player::{PlayState, PlayerCommand, PlayerEvent, PlayerSnapshot, RepeatMode};
 use nemo_core::secret::Secret;
 use nemo_core::services::{
     Backend, EventReceiver, ImageError, ImageSource, LyricsLookup, LyricsService, PlayerControl,
@@ -394,6 +394,15 @@ impl Catalog for MockCatalog {
             ])
         })
     }
+
+    /// The mock accepts every like, so the UI flow can be driven without an account.
+    fn rate_song<'a>(
+        &'a self,
+        _video_id: &'a nemo_core::track::VideoId,
+        _liked: bool,
+    ) -> BoxFuture<'a, Result<(), CatalogError>> {
+        Box::pin(async { Ok(()) })
+    }
 }
 
 /// Signal path of a mock track: YouTube AAC 129 kbps resampled to a 48 kHz device in shared mode
@@ -578,16 +587,20 @@ impl PlayerState {
     fn next(&mut self) {
         match self.snapshot.queue_index {
             Some(i) if i + 1 < self.snapshot.queue.len() => self.start(i + 1),
+            Some(_) if self.snapshot.repeat == RepeatMode::All => self.start(0),
             _ => self.stop(),
         }
     }
 
-    /// Move to the next track when the current one has run out.
+    /// Move to the next track when the current one has run out; repeat One plays it again.
     fn advance(&mut self) {
         if self.snapshot.state == PlayState::Playing
             && self.snapshot.duration.is_some_and(|d| self.position() >= d)
         {
-            self.next();
+            match (self.snapshot.repeat, self.snapshot.queue_index) {
+                (RepeatMode::One, Some(i)) => self.start(i),
+                _ => self.next(),
+            }
         }
     }
 
@@ -653,6 +666,10 @@ impl PlayerState {
             }
             PlayerCommand::SetSkipSegments(on) => self.snapshot.skip_segments = on,
             PlayerCommand::UndoSkip => {}
+            PlayerCommand::SetRepeat(mode) => {
+                self.snapshot.repeat = mode;
+                self.emit(PlayerEvent::RepeatChanged(mode));
+            }
         }
     }
 

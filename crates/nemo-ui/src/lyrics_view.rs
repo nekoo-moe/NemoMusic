@@ -117,7 +117,21 @@ pub fn scroll_target_d(active: Option<usize>, viewport_h: f32, dense: bool) -> f
     let above: f32 = (0..a)
         .map(|i| row_height_d(LineRole::of(i, Some(a)), dense))
         .sum();
-    (above - ANCHOR * viewport_h).max(0.0)
+    let raw = (above - ANCHOR * viewport_h).max(0.0);
+    if !dense {
+        return raw;
+    }
+    // The small pane rests on a row edge, so no half-cut line shows at its top.
+    let mut edge = 0.0;
+    let mut acc = 0.0;
+    for i in 0..=a {
+        if acc > raw {
+            break;
+        }
+        edge = acc;
+        acc += row_height_d(LineRole::of(i, Some(a)), dense);
+    }
+    edge
 }
 
 /// Footer text: `Lyrics: <provider> . Synced` (design.md section 10). Never hidden.

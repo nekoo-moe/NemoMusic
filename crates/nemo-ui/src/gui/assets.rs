@@ -107,8 +107,14 @@ icons! {
     Info => "info",
     /// Repeat.
     Repeat => "repeat",
+    /// Repeat the current song.
+    RepeatOne => "repeat-one",
     /// Heart outline.
     Heart => "favorite",
+    /// Heart, filled (liked).
+    HeartFill => "favorite-fill",
+    /// Music note with a slash (nothing to show).
+    MusicOff => "music-off",
     /// Plus.
     Add => "add",
     /// Compass.

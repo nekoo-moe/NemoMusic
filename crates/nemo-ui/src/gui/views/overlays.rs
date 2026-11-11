@@ -8,7 +8,9 @@ use nemo_core::track::Track;
 
 use super::super::app::{App, ArtShape, Message};
 use super::super::assets::{Icon, font};
-use super::super::style::{button_style, col, fit, gap, icon, icon_button, label, shadow, spinner};
+use super::super::style::{
+    animated, button_flat, col, fit, gap, icon, icon_button, label, shadow, spinner,
+};
 use super::kit::{art, paragraph, vspace};
 use crate::copy;
 use crate::format;
@@ -65,11 +67,10 @@ pub fn track_menu<'a>(app: &'a App, track: &'a Track) -> Element<'a, Message> {
             .height(Length::Fixed(48.0)),
         )
         .padding(0)
-        .width(Length::Fill)
-        .style(button_style(Color::TRANSPARENT, shape::MD));
+        .width(Length::Fill);
         match event {
-            Some(e) => b.on_press(Message::Ui(e)).into(),
-            None => b.into(),
+            Some(e) => animated(b.on_press(Message::Ui(e)), Color::TRANSPARENT, shape::MD),
+            None => b.style(button_flat(Color::TRANSPARENT, shape::MD)).into(),
         }
     };
     let mut items = column![
@@ -206,19 +207,20 @@ pub fn tos_sheet(app: &App) -> Element<'_, Message> {
             .height(Length::Fixed(48.0))
             .align_y(Alignment::Center),
     )
-    .padding(0)
-    .style(button_style(
-        if checked {
-            col(accent.primary)
-        } else {
-            col(color::ON_SURFACE.with_alpha(0.12))
-        },
-        shape::FULL,
-    ));
-    let cont = if checked {
-        cont.on_press(Message::Ui(Event::TosContinue))
+    .padding(0);
+    let cont_idle = if checked {
+        col(accent.primary)
     } else {
-        cont
+        col(color::ON_SURFACE.with_alpha(0.12))
+    };
+    let cont: Element<'_, Message> = if checked {
+        animated(
+            cont.on_press(Message::Ui(Event::TosContinue)),
+            cont_idle,
+            shape::FULL,
+        )
+    } else {
+        cont.style(button_flat(cont_idle, shape::FULL)).into()
     };
     let later = button(
         container(label(
@@ -232,8 +234,8 @@ pub fn tos_sheet(app: &App) -> Element<'_, Message> {
         .align_y(Alignment::Center),
     )
     .padding(0)
-    .style(button_style(Color::TRANSPARENT, shape::FULL))
     .on_press(Message::Ui(Event::TosLater));
+    let later = animated(later, Color::TRANSPARENT, shape::FULL);
     body = body
         .push(check)
         .push(vspace(gap::XL))
@@ -314,7 +316,7 @@ pub fn toast(app: &App) -> Option<Element<'_, Message>> {
     ]
     .align_y(Alignment::Center);
     if t.undo {
-        r = r.push(Space::new().width(gap::SM)).push(
+        r = r.push(Space::new().width(gap::SM)).push(animated(
             button(
                 container(label("Undo", type_scale::BODY_SM, true, ink))
                     .padding(Padding::from([0.0, gap::MD]))
@@ -322,9 +324,10 @@ pub fn toast(app: &App) -> Option<Element<'_, Message>> {
                     .align_y(Alignment::Center),
             )
             .padding(0)
-            .style(button_style(Color::TRANSPARENT, shape::FULL))
             .on_press(Message::Ui(Event::UndoSkip)),
-        );
+            Color::TRANSPARENT,
+            shape::FULL,
+        ));
     }
     r = r.push(icon_button(
         Icon::Close,

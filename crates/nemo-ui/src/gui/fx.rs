@@ -9,18 +9,35 @@
 //! moves, so an idle window draws no frames. With reduced motion every value jumps to its target.
 //! The child keeps its own layout and events; `Fx` only watches the cursor.
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::time::Instant;
 
 use iced::advanced::layout::{self, Layout, Node};
+use iced::advanced::widget::operation::Focusable;
 use iced::advanced::widget::{Operation, Tree, tree};
 use iced::advanced::{Clipboard, Shell, Widget, overlay, renderer};
-use iced::{Border, Color, Element, Event, Length, Rectangle, Shadow, Size, Vector, mouse, window};
+use iced::keyboard::key::Named;
+use iced::{
+    Border, Color, Element, Event, Length, Rectangle, Shadow, Size, Vector, keyboard, mouse, window,
+};
 
 use crate::anim;
 use crate::motion::Spring;
 
 static REDUCED_MOTION: AtomicBool = AtomicBool::new(false);
+
+static FOCUS_RGBA: AtomicU32 = AtomicU32::new(0x8A_B4_F8_FF);
+
+/// Colour of the keyboard focus ring (`design.md` section 5: 2 px `primary`, 2 px offset). The
+/// app sets it to the cover's accent before each frame.
+pub fn set_focus_color(c: Color) {
+    FOCUS_RGBA.store(u32::from_be_bytes(c.into_rgba8()), Ordering::Relaxed);
+}
+
+fn focus_color() -> Color {
+    let [red, green, blue, alpha] = FOCUS_RGBA.load(Ordering::Relaxed).to_be_bytes();
+    Color::from_rgba8(red, green, blue, f32::from(alpha) / 255.0)
+}
 
 /// Tell every [`Fx`] whether motion is reduced (the app sets it before each frame is built).
 pub fn set_reduced_motion(on: bool) {
@@ -131,6 +148,22 @@ struct State {
     press: Spring,
     down: bool,
     last: Option<Instant>,
+    /// Keyboard focus (set by Tab through the focus operations); draws the ring.
+    focused: bool,
+}
+
+impl Focusable for State {
+    fn is_focused(&self) -> bool {
+        self.focused
+    }
+
+    fn focus(&mut self) {
+        self.focused = true;
+    }
+
+    fn unfocus(&mut self) {
+        self.focused = false;
+    }
 }
 
 impl Default for State {
@@ -141,6 +174,7 @@ impl Default for State {
             press: Spring::tuned(0.0, k, z),
             down: false,
             last: None,
+            focused: false,
         }
     }
 }
@@ -201,6 +235,10 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for Fx<'_, M> {
                 .as_widget_mut()
                 .operate(&mut tree.children[0], child, renderer, operation);
         }
+        if self.interactive {
+            let state = tree.state.downcast_mut::<State>();
+            operation.focusable(None, layout.bounds(), state);
+        }
     }
 
     fn update(
@@ -214,6 +252,42 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for Fx<'_, M> {
         shell: &mut Shell<'_, M>,
         viewport: &Rectangle,
     ) {
+        if self.interactive {
+            let state = tree.state.downcast_mut::<State>();
+            match event {
+                // A mouse press anywhere ends keyboard focus: the ring is for the keyboard.
+                Event::Mouse(mouse::Event::ButtonPressed(_)) => state.focused = false,
+                // Enter or Space on the focused control presses it: the child button gets a
+                // click at its centre.
+                Event::Keyboard(keyboard::Event::KeyPressed {
+                    key: keyboard::Key::Named(Named::Enter | Named::Space),
+                    ..
+                }) if state.focused => {
+                    if let Some(child) = layout.children().next() {
+                        let at = mouse::Cursor::Available(layout.bounds().center());
+                        for click in [
+                            mouse::Event::ButtonPressed(mouse::Button::Left),
+                            mouse::Event::ButtonReleased(mouse::Button::Left),
+                        ] {
+                            self.content.as_widget_mut().update(
+                                &mut tree.children[0],
+                                &Event::Mouse(click),
+                                child,
+                                at,
+                                renderer,
+                                clipboard,
+                                shell,
+                                viewport,
+                            );
+                        }
+                    }
+                    shell.capture_event();
+                    shell.request_redraw();
+                    return;
+                }
+                _ => {}
+            }
+        }
         if let Some(child) = layout.children().next() {
             self.content.as_widget_mut().update(
                 &mut tree.children[0],
@@ -373,6 +447,29 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for Fx<'_, M> {
                     a: self.layer.a * alpha,
                     ..self.layer
                 },
+            );
+        }
+
+        if self.interactive && state.focused {
+            // 2 px ring, 1 px air between it and the control.
+            let ring = Rectangle {
+                x: moved.x - 3.0,
+                y: moved.y - 3.0,
+                width: moved.width + 6.0,
+                height: moved.height + 6.0,
+            };
+            renderer.fill_quad(
+                renderer::Quad {
+                    bounds: ring,
+                    border: Border {
+                        radius: (self.radius + 3.0).into(),
+                        width: 2.0,
+                        color: focus_color(),
+                    },
+                    shadow: Shadow::default(),
+                    snap: false,
+                },
+                Color::TRANSPARENT,
             );
         }
 

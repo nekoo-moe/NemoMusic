@@ -7,7 +7,7 @@ use iced::{Alignment, Color, Element, Length, Padding, mouse};
 
 use super::super::app::{App, CompactTab, Message};
 use super::super::assets::Icon;
-use super::super::style::{animated, button_style, col, fit, gap, icon_button, label, label_w};
+use super::super::style::{animated, col, fit, gap, icon_button, label, label_w};
 use super::super::widgets::Offset;
 use super::bar::{badge, cover_art, seek_row, transport};
 use crate::format;
@@ -216,7 +216,12 @@ fn compact(app: &App, w: u32, h: u32) -> Element<'_, Message> {
 
     let tab = |text: &'static str, which: CompactTab| {
         let on = app.compact_tab == which;
-        button(
+        let idle = if on {
+            col(color::SURFACE_CONTAINER_HIGH)
+        } else {
+            Color::TRANSPARENT
+        };
+        let b = button(
             container(label(
                 text,
                 type_scale::BODY_MD,
@@ -234,15 +239,8 @@ fn compact(app: &App, w: u32, h: u32) -> Element<'_, Message> {
         )
         .padding(0)
         .width(Length::Fill)
-        .style(button_style(
-            if on {
-                col(color::SURFACE_CONTAINER_HIGH)
-            } else {
-                Color::TRANSPARENT
-            },
-            shape::FULL,
-        ))
-        .on_press(Message::CompactTab(which))
+        .on_press(Message::CompactTab(which));
+        animated(b, idle, shape::FULL)
     };
     let lower: Element<'_, Message> = match app.compact_tab {
         CompactTab::Lyrics => compact_lyrics(app, width),
@@ -321,7 +319,7 @@ fn compact_queue(app: &App, width: f32) -> Element<'_, Message> {
     let mut rows = column![];
     for (i, t) in snap.queue.iter().enumerate() {
         let current = snap.queue_index == Some(i);
-        rows = rows.push(
+        rows = rows.push(animated(
             button(
                 container(
                     row![
@@ -352,12 +350,13 @@ fn compact_queue(app: &App, width: f32) -> Element<'_, Message> {
             )
             .padding(0)
             .width(Length::Fill)
-            .style(button_style(Color::TRANSPARENT, shape::MD))
             .on_press(Message::Ui(Event::Command(PlayerCommand::SetQueue {
                 tracks: snap.queue.clone(),
                 start: i,
             }))),
-        );
+            Color::TRANSPARENT,
+            shape::MD,
+        ));
     }
     scrollable(rows).height(Length::Fill).into()
 }
@@ -394,30 +393,60 @@ pub fn status_text(title: &str, detail: Option<String>) -> Element<'_, Message> 
         .into()
 }
 
-/// Loading and missing states.
+/// Loading and missing states: one calm block, centred. A missing song gets an icon, the plain
+/// sentence and the providers that were asked; nothing else is drawn under it.
 pub fn lyrics_status(app: &App, width: f32) -> Element<'_, Message> {
-    let _ = width;
-    match &app.ui.lyrics {
+    let dim = col(color::ON_SURFACE_VARIANT);
+    let (glyph, title, detail) = match &app.ui.lyrics {
         LyricsState::Missing(tried) => {
-            let names: Vec<&str> = tried.iter().map(|p| p.as_str()).collect();
-            status_text(
-                "No lyrics found",
-                Some(format!("Tried: {}", names.join(", "))),
+            let names: Vec<&str> = tried
+                .iter()
+                .map(|p| p.as_str())
+                .filter(|n| !n.is_empty())
+                .collect();
+            (
+                Icon::MusicOff,
+                "No lyrics for this song",
+                (!names.is_empty()).then(|| format!("Looked at {}", names.join(", "))),
             )
         }
-        LyricsState::Loading => status_text("Looking for lyrics\u{2026}", None),
-        _ => status_text("No lyrics", None),
+        LyricsState::Loading => (Icon::Lyrics, "Looking for lyrics\u{2026}", None),
+        _ => (Icon::MusicOff, "No lyrics for this song", None),
+    };
+    let mut c = column![
+        super::super::style::icon(glyph, 32.0, dim),
+        Space::new().height(gap::MD),
+        label(title, type_scale::TITLE_SM, true, col(color::ON_SURFACE)),
+    ]
+    .align_x(Alignment::Center);
+    if let Some(d) = detail {
+        c = c.push(Space::new().height(gap::XS)).push(
+            label(d, type_scale::BODY_SM, false, dim)
+                .wrapping(iced::widget::text::Wrapping::Word)
+                .width(Length::Fixed((width - 2.0 * gap::LG).max(120.0)))
+                .align_x(iced::alignment::Horizontal::Center),
+        );
     }
+    container(c)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .center_x(Length::Fill)
+        .center_y(Length::Fill)
+        .into()
 }
 
 /// Provider and sync state; never hidden (`design.md` section 10).
 pub fn footer(app: &App, width: f32) -> Element<'_, Message> {
-    let doc = match &app.ui.lyrics {
-        LyricsState::Ready(d) => Some(d),
-        _ => None,
+    // Without lyrics there is nothing to credit; the empty state names the providers instead.
+    let LyricsState::Ready(doc) = &app.ui.lyrics else {
+        return Space::new().height(gap::SM).into();
     };
     container(label(
-        fit(&lyrics_view::footer(doc), width, type_scale::LABEL_SM.size),
+        fit(
+            &lyrics_view::footer(Some(doc)),
+            width,
+            type_scale::LABEL_SM.size,
+        ),
         type_scale::LABEL_SM,
         false,
         col(color::ON_SURFACE_VARIANT),

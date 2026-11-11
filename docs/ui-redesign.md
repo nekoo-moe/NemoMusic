@@ -22,8 +22,8 @@ margin and 8 px gaps. Scroll content keeps 16 px side padding, so nothing pokes 
 | 1366 x 697 (1280 to 1599) | 248 | 770, 3 card columns of about 226 | 316 open (user can collapse, spring), art 292 | 1040 x 72 |
 | 1100 to 1279 | 248 | rest | collapsed; opening it overlays the centre (340, opaque) | W - 64 |
 | below 1100 (min 960) | 80 icon rail | rest | overlay on demand | W - 64, min 560 |
-Capsule: bottom centre, 16 px above the window edge, floats over the panes. Every scroller keeps
-96 px bottom padding so the capsule never hides a row. Heights: at 697 the right pane shows art,
+Capsule: bottom centre, 8 px above the window edge. While a song is loaded the three panes END above it (80 px reserve plus the pane gap), so the capsule never covers a row; scrollers keep 16 px of air. Checked at 1366 x 697 and 1920 x 1040.
+Heights: at 697 the right pane shows art,
 title, actions, live line, tabs, and about 3 lyric lines; at 1040 it shows about 10 lines.
 
 Left pane: nav pills Home, Search, Library (active pill = `secondary-container` of the cover
@@ -104,7 +104,26 @@ first-run notice is accepted, with a button that reopens it.
 7. It works at 1366 x 697 without clipping and degrades to a rail and an overlay pane.
 8. Idle cost is zero frames, so the glass capsule and the animation do not tax a laptop battery.
 
+## 6a. Round 2 additions (owner review)
+- Repeat: `RepeatMode {Off, All, One}` in nemo-core (`SetRepeat`, `PlayerSnapshot.repeat`, `RepeatChanged`).
+  nemo-audio wraps (All) or replays (One) through the same gapless prefetch; Next and Previous stay manual. The
+  capsule button is a tonal toggle (`secondary-container`) with a repeat-one glyph.
+- Like: `Catalog::rate_song` (default: not available). nemo-ytm implements it with `ytmapi-rs` 0.3.4
+  `YtMusic::rate_song`; the account-aware and merged catalogs forward it. The heart fills with the accent when
+  liked, opens the sign-in sheet when signed out, and is disabled for local files.
+- Text: `gui/textfit.rs` measures with the real advances of the bundled font, cuts at word ends and breaks card
+  titles into two lines. The 0.55 em estimate is gone.
+- Lyrics: no lyrics shows one empty state (icon, "No lyrics for this song", providers tried) and no footer. The
+  right pane shows 5 to 7 lines with the spring glide and rests on a row edge.
+- Right pane with nothing playing: recent songs, then one suggested song card from Home.
+- Every button animates (Settings, sheets, menus, toast Undo too). Tab walks the controls; the focused one gets a
+  2 px accent ring, and Enter or Space presses it.
+
 ## 7. Not done, said plainly
+The last lyric line of the small pane can still be cut at its bottom edge; sliders, toggles, checkboxes and text
+fields keep iced's instant hover; the focus ring is clipped inside scroll areas and focus does not scroll a control
+into view; a song's like state is known only from the Liked songs shelf and this session.
+Earlier list:
 Live backdrop blur (tier Low only), repeat and like (no player or catalog command yet), a mood
 chip row (no mood data), shape morph of cards (the play button is the only morph), Windows
 high-contrast mode detection. See the final report for measured frame times.

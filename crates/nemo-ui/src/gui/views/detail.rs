@@ -99,7 +99,10 @@ struct Hero<'a> {
 }
 
 fn hero<'a>(app: &'a App, h: &Hero<'_>, key: &DetailKey, content_w: f32) -> Element<'a, Message> {
-    let text_w = (content_w - 320.0 - gap::XXL).max(240.0);
+    // 320 px art in a wide pane, 240 in the 1366 px laptop layout, so the page is not all cover.
+    let hero_px: u32 = if content_w >= 960.0 { HERO } else { 240 };
+    let text_w =
+        (content_w - f32::from(u16::try_from(hero_px).unwrap_or(320)) - gap::XXL).max(240.0);
     let dim = col(color::ON_SURFACE_VARIANT);
     let source = ListSource::Detail(key.clone());
     let mut info = column![
@@ -130,7 +133,7 @@ fn hero<'a>(app: &'a App, h: &Hero<'_>, key: &DetailKey, content_w: f32) -> Elem
             info.push(vspace(gap::SM))
                 .push(paragraph(n.clone(), type_scale::BODY_SM, dim, text_w));
     }
-    info = info.push(Space::new().height(Length::Fill)).push(row![
+    info = info.push(vspace(gap::LG)).push(row![
         filled_button(
             "Play",
             Icon::Play,
@@ -148,12 +151,11 @@ fn hero<'a>(app: &'a App, h: &Hero<'_>, key: &DetailKey, content_w: f32) -> Elem
         ),
     ]);
     row![
-        art(app, &h.artwork, HERO, h.shape),
+        art(app, &h.artwork, hero_px, h.shape),
         Space::new().width(gap::XXL),
-        info.height(Length::Fixed(320.0))
-            .width(Length::Fixed(text_w)),
+        info.width(Length::Fixed(text_w)),
     ]
-    .align_y(Alignment::Start)
+    .align_y(Alignment::End)
     .into()
 }
 

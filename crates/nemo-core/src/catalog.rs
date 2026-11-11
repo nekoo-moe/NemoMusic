@@ -153,4 +153,19 @@ pub trait Catalog: Send + Sync {
     fn home(&self) -> BoxFuture<'_, Result<Vec<Shelf>, CatalogError>> {
         Box::pin(async { Err(CatalogError::Unavailable("home feed".to_owned())) })
     }
+
+    /// Like (`liked = true`) or remove the like of a song. Needs a signed-in session: the
+    /// default, and every anonymous catalog, says it is not available.
+    fn rate_song<'a>(
+        &'a self,
+        video_id: &'a crate::track::VideoId,
+        liked: bool,
+    ) -> BoxFuture<'a, Result<(), CatalogError>> {
+        let _ = (video_id, liked);
+        Box::pin(async {
+            Err(CatalogError::Unavailable(
+                "likes need a signed-in account".to_owned(),
+            ))
+        })
+    }
 }

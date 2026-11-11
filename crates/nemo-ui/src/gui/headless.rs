@@ -186,6 +186,11 @@ pub struct Scenario {
     pub home_filter: HomeFilter,
     /// The sign-in sheet to show, if any.
     pub sheet: Sheet,
+    /// Stop playback: `Some(false)` before the app starts (nothing was ever played),
+    /// `Some(true)` after the first track showed (it is then in the recent list).
+    pub stopped: Option<bool>,
+    /// Repeat mode of the player.
+    pub repeat: nemo_core::player::RepeatMode,
 }
 
 /// Which state of the sign-in sheet a snapshot shows.
@@ -230,6 +235,8 @@ impl Default for Scenario {
             pane_open: None,
             home_filter: HomeFilter::All,
             sheet: Sheet::None,
+            stopped: None,
+            repeat: nemo_core::player::RepeatMode::Off,
         }
     }
 }
@@ -269,8 +276,17 @@ pub fn build_app(backend: &Backend, scenario: &Scenario) -> App {
     if !scenario.playing {
         backend.player.send(PlayerCommand::Pause);
     }
+    backend
+        .player
+        .send(PlayerCommand::SetRepeat(scenario.repeat));
+    if scenario.stopped == Some(false) {
+        backend.player.send(PlayerCommand::Stop);
+    }
     let (mut app, jobs) = App::new(backend.clone(), &options);
     app.settle_blocking(jobs);
+    if scenario.stopped == Some(true) {
+        run(&mut app, Message::Ui(Event::Command(PlayerCommand::Stop)));
+    }
     app.settings_section = scenario.section;
     app.dispatch(Event::Position(backend.player.position()));
     if let Some(q) = &scenario.search {

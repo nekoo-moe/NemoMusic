@@ -4,17 +4,19 @@
 use iced::font::Weight;
 use iced::widget::{Space, button, column, container, mouse_area, row, stack};
 use iced::{Alignment, Color, Element, Length, Padding, mouse};
+use nemo_core::catalog::ShelfItem;
 use nemo_core::lyrics::Granularity;
+use nemo_core::track::Track;
 
-use super::super::app::{App, Message, NpTab};
+use super::super::app::{App, ArtShape, ListSource, Message, NpTab};
 use super::super::assets::Icon;
 use super::super::fx::{Fx, fx};
 use super::super::style::{
     button_flat, col, fit, gap, icon, icon_button, label, label_w, scroll, tip, vertical_gradient,
 };
 use super::super::widgets::Offset;
-use super::bar::{badge, cover_art};
-use super::kit::{paragraph, vspace};
+use super::bar::{badge, cover_art, like_button};
+use super::kit::{Card, card_view, paragraph, quick_pick, vspace};
 use super::now_playing::{footer, lyric_ink, lyrics_status, pill_button, status_text};
 use super::queue;
 use super::shell::pane_surface;
@@ -48,46 +50,116 @@ pub fn view(app: &App, full_w: f32, slot: Length) -> Element<'_, Message> {
     .into()
 }
 
+/// Nothing is playing: a short line about it, then what is useful. The recent songs come first;
+/// without any, one song from the Home shelves is offered as a card. Nothing here is invented.
 fn empty(app: &App, width: f32) -> Element<'_, Message> {
     let accent = app.accent();
-    let mark = container(icon(Icon::Note, 40.0, col(accent.on_primary_container)))
-        .width(Length::Fixed(96.0))
-        .height(Length::Fixed(96.0))
-        .center_x(Length::Fixed(96.0))
-        .center_y(Length::Fixed(96.0))
+    let pad = gap::LG;
+    let inner = width - 2.0 * pad;
+    let dim = col(color::ON_SURFACE_VARIANT);
+    let mark = container(icon(Icon::Note, 28.0, col(accent.on_primary_container)))
+        .width(Length::Fixed(56.0))
+        .height(Length::Fixed(56.0))
+        .center_x(Length::Fixed(56.0))
+        .center_y(Length::Fixed(56.0))
         .style(move |_| container::Style {
             background: Some(col(accent.primary_container).into()),
             border: iced::Border {
-                radius: 32.0.into(),
+                radius: shape::LG.into(),
                 ..iced::Border::default()
             },
             ..container::Style::default()
         });
-    container(
-        column![
-            mark,
-            vspace(gap::LG),
-            label(
-                "Nothing playing",
-                type_scale::TITLE_MD,
-                true,
-                col(color::ON_SURFACE)
-            ),
-            vspace(gap::XS),
-            paragraph(
-                "Pick a song and its cover, lyrics and queue show up here.",
-                type_scale::BODY_MD,
-                col(color::ON_SURFACE_VARIANT),
-                width - 64.0
-            ),
-        ]
-        .align_x(Alignment::Center),
-    )
+    let header = column![
+        mark,
+        vspace(gap::MD),
+        label(
+            "Nothing playing",
+            type_scale::TITLE_MD,
+            true,
+            col(color::ON_SURFACE)
+        ),
+        vspace(gap::XS),
+        label(
+            "Pick a song and its cover, lyrics and queue show up here.",
+            type_scale::BODY_MD,
+            false,
+            dim
+        )
+        .wrapping(iced::widget::text::Wrapping::Word)
+        .width(Length::Fixed(inner))
+        .align_x(iced::alignment::Horizontal::Center),
+    ]
+    .width(Length::Fixed(inner))
+    .align_x(Alignment::Center);
+    let mut c = column![header, vspace(gap::XL)].width(Length::Fixed(inner));
+
+    let recent = &app.ui.recent;
+    if !recent.is_empty() {
+        c = c
+            .push(label("Play it again", type_scale::LABEL_MD, true, dim))
+            .push(vspace(gap::SM));
+        for (i, track) in recent.iter().enumerate().take(4) {
+            c = c.push(quick_pick(app, track, ListSource::Recent, i, inner, i));
+        }
+        c = c.push(vspace(gap::LG));
+    }
+    // A suggestion fills the space when there is little history.
+    if recent.len() < 3
+        && let Some((source, index, track)) = suggestion(app)
+    {
+        {
+            c = c
+                .push(label("Start with", type_scale::LABEL_MD, true, dim))
+                .push(vspace(gap::SM))
+                .push(card_view(
+                    app,
+                    Card {
+                        artwork: track.artwork.clone(),
+                        title: track.title.clone(),
+                        subtitle: format::artists(&track.artists),
+                        shape: ArtShape::Tile,
+                        on_press: Message::PlayAt { source, index },
+                    },
+                    // Card size is the pane width less padding, a small exact number.
+                    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                    {
+                        inner.max(160.0) as u32
+                    },
+                    0,
+                ));
+        }
+    }
+    container(scroll(container(c).padding(Padding {
+        top: pad,
+        right: pad,
+        bottom: pad,
+        left: pad,
+    })))
     .width(Length::Fixed(width))
     .height(Length::Fill)
-    .center_x(Length::Fixed(width))
-    .center_y(Length::Fill)
     .into()
+}
+
+/// A song worth offering when nothing was played yet: the first song of the Home shelves, or
+/// the first local track.
+fn suggestion(app: &App) -> Option<(ListSource, usize, Track)> {
+    for (n, shelf) in app.home.shelves.iter().enumerate() {
+        let songs: Vec<&Track> = shelf
+            .items
+            .iter()
+            .filter_map(|i| match i {
+                ShelfItem::Song(t) => Some(t),
+                _ => None,
+            })
+            .collect();
+        if let Some(first) = songs.first() {
+            return Some((ListSource::Home(n), 0, (*first).clone()));
+        }
+    }
+    app.local_tracks
+        .first()
+        .map(|t| (ListSource::Library, 0, t.clone()))
 }
 
 fn playing(app: &App, width: f32) -> Element<'_, Message> {
@@ -99,12 +171,14 @@ fn playing(app: &App, width: f32) -> Element<'_, Message> {
     let inner = width - 2.0 * pad;
     let ink = col(color::ON_SURFACE);
     let dim = col(color::ON_SURFACE_VARIANT);
+    let (w, h) = app.window_px();
+    // The art may be narrower than the pane on a short window; it stays centred.
+    // Pixel sizes are small exact numbers.
+    #[allow(clippy::cast_precision_loss)]
+    let art = (layout::pane_art(w, h) as f32).min(inner);
 
     let actions = row![
-        tip(
-            icon_button(Icon::Heart, 22.0, 40.0, dim, Color::TRANSPARENT, None),
-            "Likes are not available yet",
-        ),
+        like_button(app, track, 22.0, 40.0),
         tip(
             icon_button(
                 Icon::More,
@@ -155,33 +229,40 @@ fn playing(app: &App, width: f32) -> Element<'_, Message> {
     ]
     .width(Length::Fixed(inner));
 
-    let (w, h) = app.window_px();
     let tab_h = layout::pane_lyrics_height(w, h);
     let tab_body: Element<'_, Message> = match app.np_tab {
         NpTab::Lyrics => lyrics_tab(app, inner, tab_h),
         NpTab::Queue => queue::tab(app, width),
         NpTab::Info => info_tab(app, inner),
     };
+    // The lyrics tab shows the lines themselves; the other tabs keep one live line.
+    let live: Element<'_, Message> = if app.np_tab == NpTab::Lyrics {
+        Space::new().height(gap::SM).into()
+    } else {
+        container(live_line(app, inner))
+            .padding(Padding {
+                top: gap::XS,
+                bottom: gap::SM,
+                ..Padding::ZERO
+            })
+            .into()
+    };
 
     column![
-        container(cover_art(app, inner, 18.0)).padding(Padding {
-            top: pad,
-            right: pad,
-            bottom: 0.0,
-            left: pad,
-        }),
+        container(cover_art(app, art, 18.0))
+            .width(Length::Fixed(width))
+            .center_x(Length::Fixed(width))
+            .padding(Padding {
+                top: pad,
+                ..Padding::ZERO
+            }),
         container(titles).padding(Padding {
             top: gap::MD,
             right: pad,
             bottom: 0.0,
             left: pad,
         }),
-        container(live_line(app, inner)).padding(Padding {
-            top: gap::XS,
-            right: pad,
-            bottom: gap::SM,
-            left: pad,
-        }),
+        container(live).padding(Padding::from([0.0, pad])),
         container(tabs(
             app,
             accent.secondary_container,
@@ -203,7 +284,6 @@ fn playing(app: &App, width: f32) -> Element<'_, Message> {
     .width(Length::Fixed(width))
     .into()
 }
-
 /// The live lyric line: the current line of synced lyrics, or why there is none.
 fn live_line(app: &App, width: f32) -> Element<'_, Message> {
     let st = type_scale::TITLE_SM;

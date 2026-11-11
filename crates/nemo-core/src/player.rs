@@ -22,6 +22,30 @@ pub enum PlayState {
     Buffering,
 }
 
+/// What happens when the queue reaches its end (or the current track ends).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum RepeatMode {
+    /// Stop after the last track.
+    #[default]
+    Off,
+    /// Start again from the first track after the last one.
+    All,
+    /// Play the current track again and again.
+    One,
+}
+
+impl RepeatMode {
+    /// The mode a press of the repeat button selects: Off, All, One, Off.
+    #[must_use]
+    pub const fn cycled(self) -> Self {
+        match self {
+            Self::Off => Self::All,
+            Self::All => Self::One,
+            Self::One => Self::Off,
+        }
+    }
+}
+
 /// A request to the player.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PlayerCommand {
@@ -58,6 +82,8 @@ pub enum PlayerCommand {
     SetSkipSegments(bool),
     /// Undo the last SponsorBlock skip: seek back and ignore that segment for this play.
     UndoSkip,
+    /// Choose what happens at the end of the queue or of the current track.
+    SetRepeat(RepeatMode),
 }
 
 /// Something that happened in the player. Names are past tense.
@@ -75,6 +101,8 @@ pub enum PlayerEvent {
     QueueChanged,
     /// The volume changed (percent).
     VolumeChanged(u8),
+    /// The repeat mode changed.
+    RepeatChanged(RepeatMode),
     /// A SponsorBlock segment was skipped.
     SegmentSkipped(Segment),
     /// The audio callback ran out of data. `total` counts underruns since start.
@@ -110,6 +138,8 @@ pub struct PlayerSnapshot {
     pub underruns: u64,
     /// Whether SponsorBlock skipping is on.
     pub skip_segments: bool,
+    /// The repeat mode.
+    pub repeat: RepeatMode,
 }
 
 impl Default for PlayerSnapshot {
@@ -124,13 +154,25 @@ impl Default for PlayerSnapshot {
             signal_path: None,
             underruns: 0,
             skip_segments: false,
+            repeat: RepeatMode::Off,
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{PlayState, PlayerSnapshot};
+    use super::{PlayState, PlayerSnapshot, RepeatMode};
+
+    #[test]
+    fn repeat_cycles_off_all_one_off() {
+        let mut m = RepeatMode::default();
+        assert_eq!(m, RepeatMode::Off);
+        m = m.cycled();
+        assert_eq!(m, RepeatMode::All);
+        m = m.cycled();
+        assert_eq!(m, RepeatMode::One);
+        assert_eq!(m.cycled(), RepeatMode::Off);
+    }
 
     #[test]
     fn a_new_snapshot_is_stopped_at_full_volume() {

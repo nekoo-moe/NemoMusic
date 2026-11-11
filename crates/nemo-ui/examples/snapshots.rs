@@ -1,4 +1,4 @@
-﻿//! Renders the reference screens headless to `docs/ui/snapshots/*.png` (tiny-skia, no GPU).
+//! Renders the reference screens headless to `docs/ui/snapshots/*.png` (tiny-skia, no GPU).
 //!
 //! ```text
 //! $env:ICED_TEST_BACKEND = 'tiny-skia'
@@ -11,6 +11,7 @@
 use std::path::PathBuf;
 
 use nemo_core::catalog::BrowseId;
+use nemo_core::player::RepeatMode;
 use nemo_core::services::Backend;
 use nemo_ui::UiSettings;
 use nemo_ui::gui::app::{HomeFilter, NpTab, SettingsSection};
@@ -233,6 +234,71 @@ fn scenarios() -> Vec<Shot> {
             ..at(Route::Home)
         },
     ));
+    out.push(shot(
+        named("no-lyrics", size),
+        Scenario {
+            track: 5,
+            ..at(Route::Home)
+        },
+    ));
+    out.push(shot(
+        named("pane-empty", size),
+        Scenario {
+            stopped: Some(false),
+            ..at(Route::Home)
+        },
+    ));
+    out.push(shot(
+        named("pane-recent", size),
+        Scenario {
+            stopped: Some(true),
+            ..at(Route::Home)
+        },
+    ));
+    out.push(shot(
+        named("repeat-all", size),
+        Scenario {
+            repeat: RepeatMode::All,
+            ..at(Route::Home)
+        },
+    ));
+    out.push(shot(
+        named("repeat-one", size),
+        Scenario {
+            repeat: RepeatMode::One,
+            ..at(Route::Home)
+        },
+    ));
+    out.push(Shot {
+        signed_in: true,
+        ..shot(
+            named("signed-in-liked", size),
+            Scenario {
+                route: Route::Album(BrowseId("mock-album-2".to_owned())),
+                size,
+                ..Scenario::default()
+            },
+        )
+    });
+    {
+        let size = SIZES[1];
+        out.push(shot(
+            named("pane-empty", size),
+            Scenario {
+                stopped: Some(false),
+                size,
+                ..Scenario::default()
+            },
+        ));
+        out.push(shot(
+            named("no-lyrics", size),
+            Scenario {
+                track: 5,
+                size,
+                ..Scenario::default()
+            },
+        ));
+    }
     for compact in [(960, 600), (1100, 700)] {
         out.push(shot(
             named("home", compact),

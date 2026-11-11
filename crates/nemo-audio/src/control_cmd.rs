@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
-use nemo_core::player::{PlayState, PlayerCommand, PlayerEvent};
+use nemo_core::player::{PlayState, PlayerCommand, PlayerEvent, RepeatMode};
 use nemo_core::track::Track;
 
 use crate::control::{Core, NextSlot, NextState, micros};
@@ -47,7 +47,18 @@ impl Core {
             PlayerCommand::SetVolume(p) => self.set_volume(p),
             PlayerCommand::SetSkipSegments(on) => self.set_skip(on),
             PlayerCommand::UndoSkip => self.undo_skip(),
+            PlayerCommand::SetRepeat(mode) => self.set_repeat(mode),
         }
+    }
+
+    fn set_repeat(&mut self, mode: RepeatMode) {
+        if self.repeat == mode {
+            return;
+        }
+        self.repeat = mode;
+        self.notify(&PlayerEvent::RepeatChanged(mode));
+        // What plays after the current track may have changed: fix the prefetch and the ring.
+        self.queue_edited();
     }
 
     fn set_queue(&mut self, tracks: Vec<Track>, start: usize) {
@@ -170,6 +181,7 @@ impl Core {
     fn next_track(&mut self) {
         match self.index {
             Some(i) if i + 1 < self.queue.len() => self.start_track(i + 1, Duration::ZERO),
+            Some(_) if self.repeat == RepeatMode::All => self.start_track(0, Duration::ZERO),
             Some(_) => self.stop_all(),
             None if !self.queue.is_empty() => self.start_track(0, Duration::ZERO),
             None => {}
@@ -213,10 +225,17 @@ impl Core {
         self.prefetch_next();
     }
 
-    /// Index of the first queue entry after the current one that has not failed.
+    /// Index of the entry that plays after the current one: the first later entry that has
+    /// not failed; with repeat All it wraps to the start, with repeat One it is the current
+    /// entry itself (so the replay is gapless too). `None` when nothing follows.
     pub fn next_entry_index(&self) -> Option<usize> {
-        let from = self.index? + 1;
-        (from..self.queue.len()).find(|i| !self.failed.contains(&self.queue[*i].id))
+        let current = self.index?;
+        let ok = |i: &usize| !self.failed.contains(&self.queue[*i].id);
+        match self.repeat {
+            RepeatMode::One => Some(current).filter(ok),
+            RepeatMode::Off => (current + 1..self.queue.len()).find(ok),
+            RepeatMode::All => (current + 1..self.queue.len()).chain(0..=current).find(ok),
+        }
     }
 
     /// Start opening the next track while the current one plays.

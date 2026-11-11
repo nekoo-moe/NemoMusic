@@ -24,7 +24,8 @@ use crate::keys::KeyAction;
 use crate::palette::Palette;
 use crate::state::Event;
 use crate::theme::{color, glass, shape, type_scale};
-use nemo_core::player::PlayerCommand;
+use nemo_core::player::{PlayerCommand, RepeatMode};
+use nemo_core::track::Track;
 
 /// Capsule height.
 const HEIGHT: f32 = 72.0;
@@ -276,12 +277,112 @@ fn controls(app: &App, accent: Palette, compact: bool) -> Element<'_, Message> {
     r = r.push(play_button(app, accent, 48.0));
     r = r.push(next_button(ink, 40.0));
     if !compact {
-        r = r.push(tip(
-            icon_button(Icon::Repeat, 20.0, 40.0, dim, Color::TRANSPARENT, None),
-            "Repeat is not available yet",
-        ));
+        r = r.push(repeat_button(app, 40.0));
     }
     r.into()
+}
+
+/// The repeat toggle: Off, All, One. When on it is a tonal circle in the cover's colours and
+/// the glyph says which mode (a "1" for One).
+pub fn repeat_button(app: &App, target: f32) -> Element<'_, Message> {
+    let accent = app.accent();
+    let mode = app.ui.snapshot.repeat;
+    let (glyph, ink, bg, hint) = match mode {
+        RepeatMode::Off => (
+            Icon::Repeat,
+            col(color::ON_SURFACE_VARIANT),
+            Color::TRANSPARENT,
+            "Repeat off",
+        ),
+        RepeatMode::All => (
+            Icon::Repeat,
+            col(accent.on_secondary_container),
+            col(accent.secondary_container),
+            "Repeat all",
+        ),
+        RepeatMode::One => (
+            Icon::RepeatOne,
+            col(accent.on_secondary_container),
+            col(accent.secondary_container),
+            "Repeat one song",
+        ),
+    };
+    tip(
+        icon_button(
+            glyph,
+            20.0,
+            target,
+            ink,
+            bg,
+            Some(Message::Ui(Event::Command(PlayerCommand::SetRepeat(
+                mode.cycled(),
+            )))),
+        ),
+        hint,
+    )
+}
+
+/// The like heart of a song: filled in the accent when liked. Signed out it opens the sign-in
+/// sheet; a local file cannot be liked, so there it is drawn disabled.
+pub fn like_button<'a>(
+    app: &App,
+    track: &Track,
+    glyph_size: f32,
+    target: f32,
+) -> Element<'a, Message> {
+    let dim = col(color::ON_SURFACE_VARIANT);
+    if track.video_id.is_none() {
+        return tip(
+            icon_button(
+                Icon::Heart,
+                glyph_size,
+                target,
+                dim,
+                Color::TRANSPARENT,
+                None,
+            ),
+            "Only YouTube Music songs can be liked",
+        );
+    }
+    let message = Some(Message::ToggleLike(track.clone()));
+    if !app.signed_in() {
+        return tip(
+            icon_button(
+                Icon::Heart,
+                glyph_size,
+                target,
+                dim,
+                Color::TRANSPARENT,
+                message,
+            ),
+            "Sign in to like songs",
+        );
+    }
+    if app.is_liked(track) {
+        tip(
+            icon_button(
+                Icon::HeartFill,
+                glyph_size,
+                target,
+                col(app.accent().primary),
+                Color::TRANSPARENT,
+                message,
+            ),
+            "Remove from liked songs",
+        )
+    } else {
+        tip(
+            icon_button(
+                Icon::Heart,
+                glyph_size,
+                target,
+                col(color::ON_SURFACE),
+                Color::TRANSPARENT,
+                message,
+            ),
+            "Like this song",
+        )
+    }
 }
 
 fn prev_button<'a>(ink: Color, target: f32) -> Element<'a, Message> {
@@ -478,11 +579,8 @@ fn right(app: &App, width: f32, roomy: bool, compact: bool) -> Element<'_, Messa
     if roomy {
         r = r.push(badge(app, 190.0));
     }
-    if !compact {
-        r = r.push(tip(
-            icon_button(Icon::Heart, 22.0, 40.0, dim, Color::TRANSPARENT, None),
-            "Likes are not available yet",
-        ));
+    if !compact && let Some(track) = &app.ui.snapshot.current {
+        r = r.push(like_button(app, track, 22.0, 40.0));
     }
     r = r
         .push(queue)

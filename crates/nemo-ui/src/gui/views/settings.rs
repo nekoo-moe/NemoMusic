@@ -5,7 +5,7 @@ use iced::widget::{Space, button, column, container, row, slider, toggler};
 use iced::{Alignment, Background, Color, Element, Length, Padding};
 
 use super::super::app::{App, Message, SettingsSection};
-use super::super::style::{button_style, col, gap, label, slider_style};
+use super::super::style::{animated, col, gap, label, slider_style};
 use super::kit::{page, page_title, paragraph, text_button, tile, tonal_button, vspace};
 use crate::copy;
 use crate::format;
@@ -32,7 +32,12 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
     let mut menu = column![].spacing(gap::XS).width(Length::Fixed(MENU_W));
     for s in SettingsSection::ALL {
         let on = s == section;
-        menu = menu.push(
+        let idle = if on {
+            col(color::SURFACE_CONTAINER_HIGH)
+        } else {
+            Color::TRANSPARENT
+        };
+        menu = menu.push(animated(
             button(
                 container(label(
                     s.label(),
@@ -51,16 +56,10 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
             )
             .padding(0)
             .width(Length::Fill)
-            .style(button_style(
-                if on {
-                    col(color::SURFACE_CONTAINER_HIGH)
-                } else {
-                    Color::TRANSPARENT
-                },
-                shape::MD,
-            ))
             .on_press(Message::SettingsSection(s)),
-        );
+            idle,
+            shape::MD,
+        ));
     }
 
     let rows: Vec<Element<'_, Message>> = match section {
@@ -334,7 +333,12 @@ fn appearance(app: &App, width: f32) -> Vec<Element<'_, Message>> {
     let s = &app.ui.settings;
     let seg = |tier: GlassTier| -> Element<'_, Message> {
         let on = s.glass_tier == tier;
-        button(
+        let idle = if on {
+            col(color::ON_SURFACE.with_alpha(0.16))
+        } else {
+            col(color::ON_SURFACE.with_alpha(0.06))
+        };
+        let b = button(
             container(label(
                 tier.label(),
                 type_scale::BODY_MD,
@@ -346,16 +350,8 @@ fn appearance(app: &App, width: f32) -> Vec<Element<'_, Message>> {
             .align_y(Alignment::Center),
         )
         .padding(0)
-        .style(button_style(
-            if on {
-                col(color::ON_SURFACE.with_alpha(0.16))
-            } else {
-                col(color::ON_SURFACE.with_alpha(0.06))
-            },
-            shape::FULL,
-        ))
-        .on_press(Message::Ui(Event::Setting(SettingChange::GlassTier(tier))))
-        .into()
+        .on_press(Message::Ui(Event::Setting(SettingChange::GlassTier(tier))));
+        animated(b, idle, shape::FULL)
     };
     vec![
         setting_row(

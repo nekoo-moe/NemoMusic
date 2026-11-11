@@ -181,6 +181,8 @@ pub enum Event {
     UndoSkip,
     /// Open or close the signal-path popover.
     ToggleSignalPath,
+    /// Show a short calm notice above the bar.
+    Notice(String),
 }
 
 /// Work for the GUI shell.
@@ -520,6 +522,13 @@ impl UiState {
                 fx.push(Effect::Send(PlayerCommand::UndoSkip));
             }
             Event::ToggleSignalPath => self.signal_open = !self.signal_open,
+            Event::Notice(text) => {
+                self.toast = Some(Toast {
+                    text,
+                    left_ms: FAILURE_TOAST_MS,
+                    undo: false,
+                });
+            }
         }
         fx
     }

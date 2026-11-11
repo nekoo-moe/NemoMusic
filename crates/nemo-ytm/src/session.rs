@@ -197,6 +197,19 @@ impl Inner {
             .ok_or(CatalogError::NotFound)
     }
 
+    /// Like or un-like a song with this account.
+    async fn rate_song(&self, video_id: String, liked: bool) -> Result<(), CatalogError> {
+        let api = self.api().await?;
+        let status = if liked {
+            ytmapi_rs::common::LikeStatus::Liked
+        } else {
+            ytmapi_rs::common::LikeStatus::Indifferent
+        };
+        api.rate_song(ytmapi_rs::common::VideoID::from_raw(video_id), status)
+            .await
+            .map_err(map_error)
+    }
+
     /// Home feed, then the account's playlists and liked songs. Only the home request must
     /// work; the library shelves are added when they load.
     async fn home(&self) -> Result<Vec<Shelf>, CatalogError> {
@@ -336,6 +349,16 @@ impl Catalog for SessionCatalog {
     fn home(&self) -> BoxFuture<'_, Result<Vec<Shelf>, CatalogError>> {
         let inner = Arc::clone(&self.inner);
         self.run(async move { inner.home().await })
+    }
+
+    fn rate_song<'a>(
+        &'a self,
+        video_id: &'a nemo_core::track::VideoId,
+        liked: bool,
+    ) -> BoxFuture<'a, Result<(), CatalogError>> {
+        let inner = Arc::clone(&self.inner);
+        let id = video_id.as_str().to_owned();
+        self.run(async move { inner.rate_song(id, liked).await })
     }
 }
 

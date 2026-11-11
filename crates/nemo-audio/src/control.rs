@@ -10,7 +10,7 @@ use std::sync::{Arc, PoisonError};
 use std::time::Duration;
 
 use nemo_core::audio::{AudioFormat, ProcessingStage, SignalPath, StreamInfo};
-use nemo_core::player::{PlayState, PlayerEvent, PlayerSnapshot};
+use nemo_core::player::{PlayState, PlayerEvent, PlayerSnapshot, RepeatMode};
 use nemo_core::segment::Segment;
 use nemo_core::track::Track;
 
@@ -89,6 +89,7 @@ pub(crate) struct Core {
     pub state: PlayState,
     pub volume: u8,
     pub skip: bool,
+    pub repeat: RepeatMode,
     pub gain: Arc<AtomicU32>,
     pub pipe: Option<Pipeline>,
     pub underruns_base: u64,
@@ -114,6 +115,7 @@ impl Core {
             state: PlayState::Stopped,
             volume: 100,
             skip: false,
+            repeat: RepeatMode::Off,
             gain: Arc::new(AtomicU32::new(UNITY_GAIN_BITS)),
             pipe: None,
             underruns_base: 0,
@@ -202,6 +204,7 @@ impl Core {
             signal_path: self.signal_path(),
             underruns: self.total_underruns(),
             skip_segments: self.skip,
+            repeat: self.repeat,
         };
         *self
             .shared

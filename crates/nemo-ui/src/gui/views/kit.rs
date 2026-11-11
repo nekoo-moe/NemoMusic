@@ -11,8 +11,8 @@ use super::super::app::{App, ArtShape, ListSource, Message};
 use super::super::assets::Icon;
 use super::super::fx::{entrance, fx};
 use super::super::style::{
-    animated, button_flat, button_outlined, col, fit, gap, icon, icon_button, label, label_w,
-    scroll, tip, vertical_gradient,
+    animated, button_flat, button_outlined, col, fit, fit_lines, gap, icon, icon_button, label,
+    label_w, scroll, tip, vertical_gradient,
 };
 use crate::layout;
 use crate::palette::Palette;
@@ -22,9 +22,9 @@ use crate::theme::{color, shape, type_scale};
 use nemo_core::audio::Origin;
 use nemo_core::track::{Artwork, Track};
 
-/// Bottom padding of a page so the floating capsule never hides the last row.
-#[allow(clippy::cast_precision_loss)] // 96 is exact in f32
-pub const PAGE_BOTTOM: f32 = layout::PANE_BOTTOM_RESERVE as f32;
+/// Bottom padding of a scrolling page. The panes already end above the capsule, so this is only
+/// breathing room under the last row.
+pub const PAGE_BOTTOM: f32 = 16.0;
 /// Track row height.
 pub const ROW_H: f32 = 56.0;
 /// Height of a Quick picks row.
@@ -230,8 +230,9 @@ pub fn card_view<'a>(app: &App, card: Card, size: u32, stagger: usize) -> Elemen
     }
     let ink = col(color::ON_SURFACE);
     let text = column![
+        // Two lines for a long title, broken at a space; never a cut inside a word.
         label(
-            fit(&card.title, px - 28.0, type_scale::TITLE_SM.size),
+            fit_lines(&card.title, px - 28.0, type_scale::TITLE_SM.size, 2),
             type_scale::TITLE_SM,
             true,
             ink
@@ -394,6 +395,17 @@ pub fn text_button(text: &str, message: Message) -> Element<'_, Message> {
 
 /// A filter chip, height 32: outlined when off, the cover's `secondary-container` when on.
 pub fn chip(text: &str, selected: bool, accent: Palette, message: Message) -> Element<'_, Message> {
+    chip_padded(text, selected, accent, message, gap::MD + gap::XS)
+}
+
+/// [`chip`] with its own side padding (the narrow library pane uses 12).
+pub fn chip_padded(
+    text: &str,
+    selected: bool,
+    accent: Palette,
+    message: Message,
+    side: f32,
+) -> Element<'_, Message> {
     let (fill, ink, outline) = if selected {
         (
             col(accent.secondary_container),
@@ -409,7 +421,7 @@ pub fn chip(text: &str, selected: bool, accent: Palette, message: Message) -> El
     };
     let b = button(
         container(label_w(text, type_scale::LABEL_MD, Weight::Medium, ink))
-            .padding(Padding::from([0.0, gap::MD + gap::XS]))
+            .padding(Padding::from([0.0, side]))
             .height(Length::Fixed(32.0))
             .align_y(Alignment::Center),
     )

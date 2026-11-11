@@ -18,6 +18,8 @@ pub enum Key {
     Escape,
     /// F3.
     F3,
+    /// Tab (moves the keyboard focus; the GUI handles it).
+    Tab,
     /// A character key (lower case).
     Char(char),
 }
@@ -91,7 +93,7 @@ pub fn map(key: Key, mods: Mods, in_text_field: bool) -> Option<KeyAction> {
         Key::Char('/') => Some(KeyAction::OpenSearch),
         Key::Char('[') => Some(KeyAction::LyricsOffsetBy(-LYRICS_OFFSET_STEP_MS)),
         Key::Char(']') => Some(KeyAction::LyricsOffsetBy(LYRICS_OFFSET_STEP_MS)),
-        Key::Char(_) => None,
+        Key::Char(_) | Key::Tab => None,
     }
 }
 

@@ -437,6 +437,15 @@ impl Catalog for AccountCatalog {
         let catalog = self.current();
         Box::pin(async move { catalog.home().await })
     }
+
+    fn rate_song<'a>(
+        &'a self,
+        video_id: &'a nemo_core::track::VideoId,
+        liked: bool,
+    ) -> BoxFuture<'a, Result<(), CatalogError>> {
+        let catalog = self.current();
+        Box::pin(async move { catalog.rate_song(video_id, liked).await })
+    }
 }
 
 #[cfg(test)]

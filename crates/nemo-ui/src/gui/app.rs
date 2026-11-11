@@ -628,6 +628,17 @@ pub enum Message {
     Account(AccountMsg),
     /// Load a detail page again after an error.
     RetryDetail(DetailKey),
+    /// Like or un-like a song (opens the sign-in sheet when nobody is signed in).
+    ToggleLike(Track),
+    /// A like call finished.
+    LikeDone {
+        /// Track.
+        track: TrackId,
+        /// What was asked for.
+        liked: bool,
+        /// The answer.
+        result: Result<(), String>,
+    },
     /// The user wants to add a music folder.
     AddFolder,
     /// Nothing.
@@ -672,6 +683,13 @@ pub enum Job {
     SignInCookie(Secret<String>),
     /// Sign out.
     SignOut,
+    /// Like or un-like a song.
+    Rate {
+        /// The song.
+        track: Track,
+        /// `true` to like.
+        liked: bool,
+    },
     /// Find the album or artist page of a track.
     Resolve {
         /// What to open.
@@ -807,6 +825,21 @@ pub async fn run_job(job: Job, backend: Backend) -> Message {
             backend.account.sign_in_with_cookie(cookie).await,
         )),
         Job::SignOut => Message::Account(AccountMsg::SignedOut(backend.account.sign_out().await)),
+        Job::Rate { track, liked } => {
+            let result = match &track.video_id {
+                Some(video) => backend
+                    .catalog
+                    .rate_song(video, liked)
+                    .await
+                    .map_err(|e| e.to_string()),
+                None => Err("not a YouTube Music song".to_owned()),
+            };
+            Message::LikeDone {
+                track: track.id,
+                liked,
+                result,
+            }
+        }
         Job::Resolve { kind, track } => Message::Ui(resolve(&backend, kind, &track).await),
     }
 }
@@ -879,6 +912,8 @@ pub struct App {
     pub(crate) home_filter: HomeFilter,
     pub(crate) lib_filter: Option<LibFilter>,
     pub(crate) account: AccountUi,
+    /// Likes the user changed in this session (over what the Liked songs shelf says).
+    likes: HashMap<TrackId, bool>,
     last_line: Option<usize>,
     pub(crate) seek_drag: Option<f32>,
     pub(crate) compact_tab: CompactTab,
@@ -933,6 +968,7 @@ impl App {
             home_filter: HomeFilter::default(),
             lib_filter: None,
             account: AccountUi::default(),
+            likes: HashMap::new(),
             last_line: None,
             seek_drag: None,
             compact_tab: CompactTab::default(),
@@ -1021,6 +1057,25 @@ impl App {
         }
     }
 
+    /// `true` when nobody needs to sign in to like songs.
+    #[must_use]
+    pub fn signed_in(&self) -> bool {
+        matches!(self.backend.account.state(), AccountState::SignedIn(_))
+    }
+
+    /// `true` when the song is liked: what the user did this session, else the Liked songs shelf.
+    #[must_use]
+    pub fn is_liked(&self, track: &Track) -> bool {
+        self.likes.get(&track.id).copied().unwrap_or_else(|| {
+            self.home
+                .shelves
+                .iter()
+                .filter(|s| s.title == "Liked songs")
+                .flat_map(|s| s.items.iter())
+                .any(|i| matches!(i, ShelfItem::Song(t) if t.id == track.id))
+        })
+    }
+
     /// The tracks of a list.
     #[must_use]
     pub fn tracks_of(&self, source: &ListSource) -> Vec<Track> {
@@ -1095,6 +1150,7 @@ impl App {
         }
         let reduced = self.ui.reduced_motion;
         fx::set_reduced_motion(reduced);
+        fx::set_focus_color(style::col(self.ui.accent.current().primary));
         self.anim.set_reduced(reduced);
         let unit = |on: bool| if on { 1.0 } else { 0.0 };
         self.anim.pane.target = unit(self.pane_open);
@@ -1541,6 +1597,30 @@ impl App {
                 self.details.remove(&key);
                 Vec::new()
             }
+            Message::ToggleLike(track) => {
+                if !self.signed_in() {
+                    return self.account_msg(AccountMsg::Open);
+                }
+                if track.video_id.is_none() {
+                    return Vec::new();
+                }
+                let liked = !self.is_liked(&track);
+                self.likes.insert(track.id.clone(), liked);
+                vec![Job::Rate { track, liked }]
+            }
+            Message::LikeDone {
+                track,
+                liked,
+                result,
+            } => {
+                if result.is_err() {
+                    self.likes.insert(track, !liked);
+                    return self.dispatch(Event::Notice(
+                        "Could not update your like. Try again in a moment.".to_owned(),
+                    ));
+                }
+                Vec::new()
+            }
             Message::AddFolder => {
                 if let Some(cb) = &self.on_add_music_folder {
                     cb();
@@ -1625,6 +1705,14 @@ impl App {
 
     /// iced `update`.
     pub fn update(&mut self, message: Message) -> Task<Message> {
+        // Tab walks the focusable controls ([`fx::Fx`] draws the focus ring on the one that has it).
+        if let Message::Key(Key::Tab, mods) = &message {
+            return if mods.shift {
+                iced::widget::operation::focus_previous()
+            } else {
+                iced::widget::operation::focus_next()
+            };
+        }
         let jobs = self.update_core(message);
         let mut tasks = vec![self.jobs_to_task(jobs)];
         if std::mem::take(&mut self.focus_search) {
@@ -1705,6 +1793,7 @@ fn map_key(event: keyboard::Event) -> Option<Message> {
         keyboard::Key::Named(Named::ArrowDown) => Key::Down,
         keyboard::Key::Named(Named::Escape) => Key::Escape,
         keyboard::Key::Named(Named::F3) => Key::F3,
+        keyboard::Key::Named(Named::Tab) => Key::Tab,
         keyboard::Key::Character(c) => Key::Char(c.chars().next()?.to_ascii_lowercase()),
         _ => return None,
     };

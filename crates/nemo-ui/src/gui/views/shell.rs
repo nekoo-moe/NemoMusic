@@ -15,7 +15,7 @@ use super::super::fx::{entrance, fx};
 use super::super::style::{
     animated, button_flat, col, fit, gap, icon, icon_button, label, label_w, scroll, spinner, tip,
 };
-use super::kit::{art, chip, pane_bg, vspace};
+use super::kit::{art, chip, chip_padded, pane_bg, vspace};
 use super::{bar, detail, home, library, pane, search, settings};
 use crate::format;
 use crate::layout;
@@ -61,6 +61,11 @@ pub fn view(app: &App, w: u32, h: u32) -> Element<'_, Message> {
         .spacing(gap::SM)
         .width(Length::Fill)
         .height(Length::Fill);
+    // The panes end above the capsule while it shows, so it never covers a row.
+    let capsule_p = app.anim.capsule.value.clamp(0.0, 1.0);
+    // A small constant, exact in f32.
+    #[allow(clippy::cast_precision_loss)]
+    let reserve = layout::PANE_BOTTOM_RESERVE as f32 * capsule_p;
     if pushes && open > 0.002 {
         body = body.push(pane::view(
             app,
@@ -70,7 +75,10 @@ pub fn view(app: &App, w: u32, h: u32) -> Element<'_, Message> {
     }
     let mut layers: Vec<Element<'_, Message>> = vec![
         container(body)
-            .padding(gap::SM)
+            .padding(Padding {
+                bottom: gap::SM + reserve,
+                ..Padding::new(gap::SM)
+            })
             .width(Length::Fill)
             .height(Length::Fill)
             .into(),
@@ -85,7 +93,10 @@ pub fn view(app: &App, w: u32, h: u32) -> Element<'_, Message> {
             .width(Length::Fill)
             .height(Length::Fill)
             .align_x(Alignment::End)
-            .padding(gap::SM)
+            .padding(Padding {
+                bottom: gap::SM + reserve,
+                ..Padding::new(gap::SM)
+            })
             .into(),
         );
     }
@@ -303,11 +314,12 @@ fn library_chips(app: &App) -> Element<'_, Message> {
     let mut r = row![].spacing(gap::SM);
     for f in LibFilter::ALL {
         let on = app.lib_filter == Some(f);
-        r = r.push(chip(
+        r = r.push(chip_padded(
             f.label(),
             on,
             accent,
             Message::LibFilter(if on { None } else { Some(f) }),
+            gap::MD,
         ));
     }
     r.into()

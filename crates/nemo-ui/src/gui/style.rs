@@ -61,20 +61,17 @@ pub fn label_w<'a>(
 }
 
 /// Shorten `s` with an ellipsis so it fits `width` px at `size` px. iced 0.14 text has no
-/// ellipsis, so this uses an average advance (0.56 em for the bundled font) and errs short.
+/// ellipsis, so this measures with the real advances of the bundled font
+/// ([`super::textfit`]) and cuts at a word end when that keeps most of the text.
 #[must_use]
 pub fn fit(s: &str, width: f32, size: u16) -> String {
-    // Display arithmetic on small numbers.
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-    let max = ((width / (f32::from(size) * 0.55)).floor().max(1.0)) as usize;
-    if s.chars().count() <= max {
-        s.to_owned()
-    } else {
-        let keep = max.saturating_sub(1).max(1);
-        let mut out: String = s.chars().take(keep).collect();
-        out.push('\u{2026}');
-        out
-    }
+    super::textfit::fit(s, width, f32::from(size))
+}
+
+/// Break `s` into at most `lines` lines of `width` px (see [`super::textfit::fit_lines`]).
+#[must_use]
+pub fn fit_lines(s: &str, width: f32, size: u16, lines: usize) -> String {
+    super::textfit::fit_lines(s, width, f32::from(size), lines)
 }
 
 /// A tinted icon of `size` px.
@@ -425,7 +422,7 @@ mod tests {
     fn fit_shortens_with_an_ellipsis() {
         assert_eq!(fit("short", 200.0, 14), "short");
         let s = fit("A very long title that cannot fit", 100.0, 14);
-        assert!(s.ends_with('\u{2026}') && s.chars().count() <= 13, "{s}");
+        assert!(s.ends_with('\u{2026}') && s.chars().count() <= 16, "{s}");
         assert_eq!(fit("x", 1.0, 40).chars().count(), 1);
     }
 }
