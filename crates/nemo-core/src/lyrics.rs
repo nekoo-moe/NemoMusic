@@ -238,6 +238,11 @@ pub trait LyricsProvider: Send + Sync {
     fn info(&self) -> ProviderInfo {
         ProviderInfo::OPEN
     }
+
+    /// The finest timing this provider can give for some tracks. The default is line timing.
+    fn best_granularity(&self) -> Granularity {
+        Granularity::Line
+    }
 }
 
 #[cfg(test)]

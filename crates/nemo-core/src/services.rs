@@ -11,7 +11,9 @@ use std::time::Duration;
 use crate::BoxFuture;
 use crate::account::AccountService;
 use crate::catalog::Catalog;
-use crate::lyrics::{LyricsCandidate, LyricsCredit, LyricsDoc, LyricsQuery, ProviderId};
+use crate::lyrics::{
+    Granularity, LyricsCandidate, LyricsCredit, LyricsDoc, LyricsQuery, ProviderId,
+};
 use crate::player::{PlayerCommand, PlayerEvent, PlayerSnapshot};
 use crate::stream::{ResolvedStream, StreamError};
 use crate::track::Artwork;
@@ -138,6 +140,9 @@ pub struct LyricsProviderStatus {
     pub risk_note: Option<&'static str>,
     /// Hosts it contacts.
     pub hosts: &'static [&'static str],
+    /// The finest timing this provider can give (a single track may get less). The settings
+    /// screen shows it as a tag and sorts by it.
+    pub best: Granularity,
 }
 
 /// Loading cover art failed.

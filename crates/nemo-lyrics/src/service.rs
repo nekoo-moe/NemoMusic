@@ -467,6 +467,7 @@ impl LyricsService for LyricsHub {
                     default_enabled: info.default_enabled,
                     risk_note: info.risk_note,
                     hosts: e.provider.hosts(),
+                    best: e.provider.best_granularity(),
                 }
             })
             .collect()

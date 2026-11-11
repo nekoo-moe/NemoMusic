@@ -996,6 +996,7 @@ impl LyricsService for MockLyrics {
                 default_enabled: risk.is_none(),
                 risk_note: *risk,
                 hosts: std::slice::from_ref(host),
+                best: Granularity::Line,
             })
             .collect()
     }
