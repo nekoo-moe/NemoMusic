@@ -17,7 +17,7 @@ use super::super::style::{
 use super::super::widgets::Offset;
 use super::bar::{badge, cover_art, like_button};
 use super::kit::{Card, card_view, paragraph, quick_pick, vspace};
-use super::now_playing::{footer, lyric_ink, lyrics_status, pill_button, status_text};
+use super::now_playing::{footer, lyric_line, lyrics_status, pill_button, status_text};
 use super::queue;
 use super::shell::pane_surface;
 use crate::format;
@@ -32,9 +32,12 @@ use crate::theme::{color, shape, type_scale};
 /// content keeps `full_w` and is clipped).
 pub fn view(app: &App, full_w: f32, slot: Length) -> Element<'_, Message> {
     let accent = app.accent();
-    let base = color::SURFACE_CONTAINER;
+    let base = color::surface_container();
     let top = accent.primary_container.with_alpha(0.50).over(base);
-    let bg = vertical_gradient(col(top), col(base));
+    let bg = vertical_gradient(
+        col(top.with_alpha(0.9)),
+        col(base.with_alpha(crate::scheme::PANE_ALPHA)),
+    );
     let body: Element<'_, Message> = if app.ui.snapshot.current.is_some() {
         playing(app, full_w)
     } else {
@@ -56,7 +59,7 @@ fn empty(app: &App, width: f32) -> Element<'_, Message> {
     let accent = app.accent();
     let pad = gap::LG;
     let inner = width - 2.0 * pad;
-    let dim = col(color::ON_SURFACE_VARIANT);
+    let dim = col(color::on_surface_variant());
     let mark = container(icon(Icon::Note, 28.0, col(accent.on_primary_container)))
         .width(Length::Fixed(56.0))
         .height(Length::Fixed(56.0))
@@ -65,7 +68,7 @@ fn empty(app: &App, width: f32) -> Element<'_, Message> {
         .style(move |_| container::Style {
             background: Some(col(accent.primary_container).into()),
             border: iced::Border {
-                radius: shape::LG.into(),
+                radius: shape::lg().into(),
                 ..iced::Border::default()
             },
             ..container::Style::default()
@@ -77,7 +80,7 @@ fn empty(app: &App, width: f32) -> Element<'_, Message> {
             "Nothing playing",
             type_scale::TITLE_MD,
             true,
-            col(color::ON_SURFACE)
+            col(color::on_surface())
         ),
         vspace(gap::XS),
         label(
@@ -119,7 +122,11 @@ fn empty(app: &App, width: f32) -> Element<'_, Message> {
                         title: track.title.clone(),
                         subtitle: format::artists(&track.artists),
                         shape: ArtShape::Tile,
-                        on_press: Message::PlayAt { source, index },
+                        on_press: Message::PlayAt {
+                            source: source.clone(),
+                            index,
+                        },
+                        play: Some(Message::PlayAt { source, index }),
                     },
                     // Card size is the pane width less padding, a small exact number.
                     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
@@ -169,8 +176,8 @@ fn playing(app: &App, width: f32) -> Element<'_, Message> {
     let accent = app.accent();
     let pad = gap::MD;
     let inner = width - 2.0 * pad;
-    let ink = col(color::ON_SURFACE);
-    let dim = col(color::ON_SURFACE_VARIANT);
+    let ink = col(color::on_surface());
+    let dim = col(color::on_surface_variant());
     let (w, h) = app.window_px();
     // The art may be narrower than the pane on a short window; it stays centred.
     // Pixel sizes are small exact numbers.
@@ -249,7 +256,7 @@ fn playing(app: &App, width: f32) -> Element<'_, Message> {
     };
 
     column![
-        container(cover_art(app, art, 18.0))
+        container(breathing(app, cover_art(app, art, 18.0)))
             .width(Length::Fixed(width))
             .center_x(Length::Fixed(width))
             .padding(Padding {
@@ -303,13 +310,13 @@ fn live_line(app: &App, width: f32) -> Element<'_, Message> {
     let ink = if live {
         col(app.accent().primary)
     } else {
-        col(color::ON_SURFACE_VARIANT)
+        col(color::on_surface_variant())
     };
     let lyric = label_w(fit(&text, width, st.size), st, Weight::Semibold, ink);
     let slot = container(Fx::new(lyric).passive().entrance(
         app.anim.line(),
         8.0,
-        col(color::SURFACE_CONTAINER.with_alpha(0.0)),
+        col(color::surface_container().with_alpha(0.0)),
     ))
     .height(Length::Fixed(f32::from(st.line)));
     slot.into()
@@ -329,7 +336,7 @@ fn tabs(
         let ink = if on {
             col(on_ink)
         } else {
-            col(color::ON_SURFACE_VARIANT)
+            col(color::on_surface_variant())
         };
         let b = button(
             container(label_w(t.label(), type_scale::BODY_MD, Weight::Medium, ink))
@@ -350,7 +357,7 @@ fn tabs(
     container(r.padding(gap::XS))
         .width(Length::Fixed(width))
         .style(|_| container::Style {
-            background: Some(col(color::SURFACE_CONTAINER_LOWEST.with_alpha(0.55)).into()),
+            background: Some(col(color::surface_container_lowest().with_alpha(0.55)).into()),
             border: iced::Border {
                 radius: shape::FULL.into(),
                 ..iced::Border::default()
@@ -372,7 +379,7 @@ fn lyrics_tab(app: &App, width: f32, viewport_h: f32) -> Element<'_, Message> {
                         line.text.clone(),
                         type_scale::BODY_MD,
                         false,
-                        col(color::ON_SURFACE_VARIANT),
+                        col(color::on_surface_variant()),
                     )
                     .wrapping(iced::widget::text::Wrapping::Word),
                 );
@@ -386,14 +393,9 @@ fn lyrics_tab(app: &App, width: f32, viewport_h: f32) -> Element<'_, Message> {
                 let role = LineRole::of(i, active);
                 let st = role.style_d(true);
                 c = c.push(
-                    container(label(
-                        fit(&line.text, width, st.size),
-                        st,
-                        role.semibold(),
-                        lyric_ink(role),
-                    ))
-                    .height(Length::Fixed(f32::from(st.line) + LINE_GAP))
-                    .width(Length::Fill),
+                    container(lyric_line(app, &line.text, width, st, role))
+                        .height(Length::Fixed(f32::from(st.line) + LINE_GAP))
+                        .width(Length::Fill),
                 );
             }
             let list = mouse_area(Offset::new(c, app.ui.lyric_scroll.value)).on_scroll(|delta| {
@@ -425,7 +427,9 @@ fn lyrics_tab(app: &App, width: f32, viewport_h: f32) -> Element<'_, Message> {
     column![
         container(body)
             .width(Length::Fill)
-            .height(Length::Fixed(viewport_h + 6.0))
+            .height(Length::Fixed(
+                viewport_h + 6.0 - super::now_playing::footer_extra(app)
+            ))
             .clip(true),
         footer(app, width),
     ]
@@ -438,8 +442,8 @@ fn info_tab(app: &App, width: f32) -> Element<'_, Message> {
     let Some(track) = &app.ui.snapshot.current else {
         return Space::new().into();
     };
-    let dim = col(color::ON_SURFACE_VARIANT);
-    let ink = col(color::ON_SURFACE);
+    let dim = col(color::on_surface_variant());
+    let ink = col(color::on_surface());
     let pair = |name: &'static str, value: String| -> Element<'_, Message> {
         column![
             label(name, type_scale::LABEL_MD, false, dim),
@@ -481,4 +485,13 @@ fn info_tab(app: &App, width: f32) -> Element<'_, Message> {
         ..Padding::ZERO
     });
     scroll(padded).height(Length::Fill).into()
+}
+
+/// The cover breathes with play and pause: 94% while paused, 100% while playing, riding the
+/// play button''s spring (so it overshoots a hair, like the button).
+pub fn breathing<'a>(app: &App, cover: Element<'a, Message>) -> Element<'a, Message> {
+    Fx::new(cover)
+        .passive()
+        .scale(0.94 + 0.06 * app.anim.play.value)
+        .into()
 }

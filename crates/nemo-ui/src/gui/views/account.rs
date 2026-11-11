@@ -41,13 +41,13 @@ pub fn sheet(app: &App) -> Element<'_, Message> {
         _ => copy::ACCOUNT_TITLE,
     };
     let header = row![
-        label(title, type_scale::TITLE_LG, true, col(color::ON_SURFACE)),
+        label(title, type_scale::TITLE_LG, true, col(color::on_surface())),
         Space::new().width(Length::Fill),
         icon_button(
             Icon::Close,
             22.0,
             40.0,
-            col(color::ON_SURFACE),
+            col(color::on_surface()),
             Color::TRANSPARENT,
             Some(Message::Account(AccountMsg::Close)),
         ),
@@ -57,18 +57,18 @@ pub fn sheet(app: &App) -> Element<'_, Message> {
         .padding(gap::XL)
         .width(Length::Fixed(width))
         .style(|_| container::Style {
-            background: Some(Background::Color(col(color::SURFACE_CONTAINER_HIGH))),
+            background: Some(Background::Color(col(color::surface_container_high()))),
             border: Border {
-                color: col(color::OUTLINE_VARIANT),
+                color: col(color::outline_variant()),
                 width: 1.0,
-                radius: shape::XL.into(),
+                radius: shape::xl().into(),
             },
             shadow: shadow(glass::SHADOW_OFFSET_Y, glass::SHADOW_BLUR, glass::SHADOW),
             ..container::Style::default()
         });
     let card = Fx::new(card)
         .passive()
-        .entrance(p, 16.0, col(color::SURFACE_CONTAINER_HIGH));
+        .entrance(p, 16.0, col(color::surface_container_high()));
     let scrim = mouse_area(
         container(Space::new())
             .width(Length::Fill)
@@ -104,7 +104,7 @@ fn notice_box<'a>(
             paragraph(
                 text,
                 type_scale::BODY_SM,
-                col(color::ON_SURFACE),
+                col(color::on_surface()),
                 width - 20.0 - gap::MD - 2.0 * gap::MD
             ),
         ]
@@ -115,7 +115,7 @@ fn notice_box<'a>(
     .style(move |_| container::Style {
         background: Some(Background::Color(tint)),
         border: Border {
-            radius: shape::LG.into(),
+            radius: shape::lg().into(),
             ..Border::default()
         },
         ..container::Style::default()
@@ -126,15 +126,15 @@ fn notice_box<'a>(
 fn signed_out(app: &App, service_busy: bool, width: f32) -> Element<'_, Message> {
     let acc = &app.account;
     let busy = acc.busy || service_busy;
-    let dim = col(color::ON_SURFACE_VARIANT);
+    let dim = col(color::on_surface_variant());
     let acknowledged = app.ui.settings.tos_acknowledged;
     let mut c = column![].spacing(gap::MD).width(Length::Fixed(width));
 
     if let Some(done) = &acc.notice {
         c = c.push(notice_box(
             Icon::CheckCircle,
-            col(color::SUCCESS),
-            col(color::SUCCESS.with_alpha(0.12)),
+            col(color::success()),
+            col(color::success().with_alpha(0.12)),
             done.clone(),
             width,
         ));
@@ -142,13 +142,13 @@ fn signed_out(app: &App, service_busy: bool, width: f32) -> Element<'_, Message>
     c = c.push(paragraph(
         copy::ACCOUNT_LOCAL,
         type_scale::BODY_MD,
-        col(color::ON_SURFACE),
+        col(color::on_surface()),
         width,
     ));
     c = c.push(notice_box(
         Icon::Info,
-        col(color::WARNING),
-        col(color::WARNING.with_alpha(0.10)),
+        col(color::warning()),
+        col(color::warning().with_alpha(0.10)),
         copy::ACCOUNT_TOS.to_owned(),
         width,
     ));
@@ -165,8 +165,8 @@ fn signed_out(app: &App, service_busy: bool, width: f32) -> Element<'_, Message>
     if let Some(e) = &acc.error {
         c = c.push(notice_box(
             Icon::Info,
-            col(color::ERROR),
-            col(color::ERROR.with_alpha(0.12)),
+            col(color::error()),
+            col(color::error().with_alpha(0.12)),
             e.clone(),
             width,
         ));
@@ -184,7 +184,7 @@ fn signed_out(app: &App, service_busy: bool, width: f32) -> Element<'_, Message>
                 paragraph(
                     waiting,
                     type_scale::BODY_MD,
-                    col(color::ON_SURFACE),
+                    col(color::on_surface()),
                     width - 24.0 - gap::MD
                 ),
             ]
@@ -257,15 +257,15 @@ fn cookie_field(app: &App, width: f32, enabled: bool) -> Element<'_, Message> {
     .style(move |_, status| {
         let focused = matches!(status, text_input::Status::Focused { .. });
         text_input::Style {
-            background: Background::Color(col(color::SURFACE_CONTAINER_HIGHEST)),
+            background: Background::Color(col(color::surface_container_highest())),
             border: Border {
                 width: if focused { 2.0 } else { 0.0 },
-                radius: shape::LG.into(),
+                radius: shape::lg().into(),
                 color: ring,
             },
-            icon: col(color::ON_SURFACE_VARIANT),
-            placeholder: col(color::ON_SURFACE_VARIANT),
-            value: col(color::ON_SURFACE),
+            icon: col(color::on_surface_variant()),
+            placeholder: col(color::on_surface_variant()),
+            value: col(color::on_surface()),
             selection: col(color::PRIMARY_FALLBACK.with_alpha(0.4)),
         }
     });
@@ -278,7 +278,7 @@ fn cookie_field(app: &App, width: f32, enabled: bool) -> Element<'_, Message> {
 }
 
 fn signed_in<'a>(app: &'a App, info: &AccountInfo, width: f32) -> Element<'a, Message> {
-    let dim = col(color::ON_SURFACE_VARIANT);
+    let dim = col(color::on_surface_variant());
     let acc = &app.account;
     let face: Element<'a, Message> = art(
         app,
@@ -290,7 +290,7 @@ fn signed_in<'a>(app: &'a App, info: &AccountInfo, width: f32) -> Element<'a, Me
         info.name.clone(),
         type_scale::TITLE_MD,
         Weight::Semibold,
-        col(color::ON_SURFACE)
+        col(color::on_surface())
     )]
     .spacing(gap::XS);
     if let Some(h) = &info.handle {
@@ -305,8 +305,8 @@ fn signed_in<'a>(app: &'a App, info: &AccountInfo, width: f32) -> Element<'a, Me
     if let Some(e) = &acc.error {
         c = c.push(notice_box(
             Icon::Info,
-            col(color::ERROR),
-            col(color::ERROR.with_alpha(0.12)),
+            col(color::error()),
+            col(color::error().with_alpha(0.12)),
             e.clone(),
             width,
         ));
@@ -315,7 +315,7 @@ fn signed_in<'a>(app: &'a App, info: &AccountInfo, width: f32) -> Element<'a, Me
         c = c.push(paragraph(
             copy::ACCOUNT_SIGN_OUT_CONFIRM,
             type_scale::BODY_MD,
-            col(color::ON_SURFACE),
+            col(color::on_surface()),
             width,
         ));
         c = c.push(
@@ -340,7 +340,7 @@ fn signed_in<'a>(app: &'a App, info: &AccountInfo, width: f32) -> Element<'a, Me
                     "Signing out\u{2026}",
                     type_scale::BODY_MD,
                     false,
-                    col(color::ON_SURFACE)
+                    col(color::on_surface())
                 ),
             ]
             .align_y(Alignment::Center),

@@ -308,7 +308,15 @@ impl UiState {
     pub fn with_settings(mut self, settings: UiSettings) -> Self {
         self.reduced_motion = self.motion_option || settings.reduce_motion;
         self.settings = settings;
+        self.accent = Crossfade::settled(self.idle_palette());
         self
+    }
+
+    /// The accent shown while no cover applies (nothing playing, or a cover that failed).
+    #[must_use]
+    pub fn idle_palette(&self) -> Palette {
+        let s = &self.settings;
+        crate::scheme::accent_palette(s.theme, s.base, s.accent_intensity, None)
     }
 
     /// `true` while the first-run notice covers the window.
@@ -671,6 +679,13 @@ impl UiState {
                 }
             }
             KeyAction::ToggleFrameReadout => fx.push(Effect::ToggleFrameReadout),
+            KeyAction::ToggleQueue => self.queue_open = !self.queue_open,
+            // The window handles these (they need the shell, not the reducer).
+            KeyAction::ShowShortcuts
+            | KeyAction::FullScreen
+            | KeyAction::Mini
+            | KeyAction::LikeCurrent
+            | KeyAction::Tools => {}
             KeyAction::LyricsOffsetBy(delta) => {
                 let next = (self.lyrics_offset_ms + delta).clamp(-10_000, 10_000);
                 self.set_offset(next, fx);
@@ -708,7 +723,7 @@ impl UiState {
         } else {
             self.lyrics = LyricsState::Idle;
             self.accent
-                .retarget(Palette::fallback(), self.reduced_motion);
+                .retarget(self.idle_palette(), self.reduced_motion);
         }
     }
 

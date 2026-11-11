@@ -57,6 +57,62 @@ pub const HOVER: f32 = 0.045;
 /// State layer opacity on press (M3: 10%, same correction).
 pub const PRESS: f32 = 0.06;
 
+/// Where the hover play button sits in its host.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum BadgeAnchor {
+    /// Bottom right corner, this many px from both edges (Spotify cards).
+    BottomRight(f32),
+    /// Vertically centred, this many px from the right edge (quick access tiles).
+    CenterRight(f32),
+    /// Vertically centred, this many px from the left edge (track rows).
+    CenterLeft(f32),
+    /// The centre of the host (row thumbnails).
+    Center,
+}
+
+/// A round button that fades in over its host on hover (play on a card, a row, a tile).
+pub struct Badge<'a, M> {
+    /// Diameter in px.
+    pub size: f32,
+    /// Position.
+    pub anchor: BadgeAnchor,
+    /// Disc colour.
+    pub fill: Color,
+    /// Glyph colour.
+    pub ink: Color,
+    /// The glyph.
+    pub glyph: iced::widget::svg::Handle,
+    /// Message when the disc is pressed (the host itself keeps its own press).
+    pub on_press: Box<dyn Fn() -> M + 'a>,
+}
+
+impl<M> Badge<'_, M> {
+    fn rect(&self, host: Rectangle, hover: f32) -> Rectangle {
+        let s = self.size;
+        let (x, y) = match self.anchor {
+            BadgeAnchor::BottomRight(i) => {
+                (host.x + host.width - s - i, host.y + host.height - s - i)
+            }
+            BadgeAnchor::CenterRight(i) => (
+                host.x + host.width - s - i,
+                host.y + (host.height - s) / 2.0,
+            ),
+            BadgeAnchor::CenterLeft(i) => (host.x + i, host.y + (host.height - s) / 2.0),
+            BadgeAnchor::Center => (
+                host.x + (host.width - s) / 2.0,
+                host.y + (host.height - s) / 2.0,
+            ),
+        };
+        // Slides up 6 px while it fades in.
+        Rectangle {
+            x,
+            y: y + 6.0 * (1.0 - hover),
+            width: s,
+            height: s,
+        }
+    }
+}
+
 /// Wrap `content` in an [`Fx`].
 pub fn fx<'a, M: 'a>(content: impl Into<Element<'a, M>>) -> Fx<'a, M> {
     Fx::new(content)
@@ -72,6 +128,10 @@ pub struct Fx<'a, M> {
     progress: f32,
     slide: f32,
     fade_to: Color,
+    badge: Option<Badge<'a, M>>,
+    scale: f32,
+    zoom: f32,
+    pop: f32,
 }
 
 impl<'a, M: 'a> Fx<'a, M> {
@@ -86,7 +146,39 @@ impl<'a, M: 'a> Fx<'a, M> {
             progress: 1.0,
             slide: 0.0,
             fade_to: Color::TRANSPARENT,
+            badge: None,
+            scale: 1.0,
+            zoom: 0.0,
+            pop: 0.0,
         }
+    }
+
+    /// A fixed scale around the centre of the child (the cover breathing with play and pause).
+    #[must_use]
+    pub fn scale(mut self, scale: f32) -> Self {
+        self.scale = scale;
+        self
+    }
+
+    /// Grow by this fraction on hover (0.03 is 3%).
+    #[must_use]
+    pub fn zoom(mut self, zoom: f32) -> Self {
+        self.zoom = zoom;
+        self
+    }
+
+    /// Start the entrance this fraction smaller (0.02: it grows from 98% to 100%).
+    #[must_use]
+    pub fn pop(mut self, pop: f32) -> Self {
+        self.pop = pop;
+        self
+    }
+
+    /// A play button that fades in on hover and sends its own message.
+    #[must_use]
+    pub fn badge(mut self, badge: Badge<'a, M>) -> Self {
+        self.badge = Some(badge);
+        self
     }
 
     /// Corner radius of the state layer (match the child's).
@@ -140,6 +232,7 @@ pub fn entrance<'a, M: 'a>(
     Fx::new(content)
         .passive()
         .entrance(progress, anim::SLIDE_PX, fade_to)
+        .pop(anim::POP)
         .into()
 }
 
@@ -288,6 +381,17 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for Fx<'_, M> {
                 _ => {}
             }
         }
+        if let Some(badge) = &self.badge
+            && let Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) = event
+        {
+            let state = tree.state.downcast_ref::<State>();
+            if state.hover.value > 0.3 && cursor.is_over(badge.rect(layout.bounds(), 1.0)) {
+                shell.publish((badge.on_press)());
+                shell.capture_event();
+                shell.request_redraw();
+                return;
+            }
+        }
         if let Some(child) = layout.children().next() {
             self.content.as_widget_mut().update(
                 &mut tree.children[0],
@@ -425,7 +529,15 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for Fx<'_, M> {
                 viewport,
             );
         };
-        if dy.abs() > f32::EPSILON {
+        let s = self.scale * (1.0 + self.zoom * hover) * (1.0 - self.pop * (1.0 - self.progress));
+        if (s - 1.0).abs() > 1e-4 {
+            let c = moved.center();
+            let t = iced::Transformation::translate(0.0, dy)
+                * iced::Transformation::translate(c.x, c.y)
+                * iced::Transformation::scale(s)
+                * iced::Transformation::translate(-c.x, -c.y);
+            renderer.with_transformation(t, draw_child);
+        } else if dy.abs() > f32::EPSILON {
             renderer.with_translation(Vector::new(0.0, dy), draw_child);
         } else {
             draw_child(renderer);
@@ -447,6 +559,51 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for Fx<'_, M> {
                     a: self.layer.a * alpha,
                     ..self.layer
                 },
+            );
+        }
+
+        if let Some(badge) = &self.badge
+            && hover > 0.02
+        {
+            use iced::advanced::svg::{Renderer as _, Svg};
+            let host = Rectangle {
+                y: moved.y,
+                ..bounds
+            };
+            let r = badge.rect(host, hover);
+            renderer.fill_quad(
+                renderer::Quad {
+                    bounds: r,
+                    border: Border {
+                        radius: (badge.size / 2.0).into(),
+                        ..Border::default()
+                    },
+                    shadow: Shadow {
+                        color: Color::from_rgba(0.0, 0.0, 0.0, 0.35 * hover),
+                        offset: Vector::new(0.0, 4.0),
+                        blur_radius: 12.0,
+                    },
+                    snap: false,
+                },
+                Color {
+                    a: badge.fill.a * hover,
+                    ..badge.fill
+                },
+            );
+            let g = badge.size * 0.5;
+            let glyph = Rectangle {
+                x: r.x + (r.width - g) / 2.0,
+                y: r.y + (r.height - g) / 2.0,
+                width: g,
+                height: g,
+            };
+            renderer.draw_svg(
+                Svg::new(badge.glyph.clone()).color(Color {
+                    a: badge.ink.a * hover,
+                    ..badge.ink
+                }),
+                glyph,
+                glyph,
             );
         }
 

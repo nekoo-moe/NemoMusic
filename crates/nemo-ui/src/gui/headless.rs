@@ -36,8 +36,8 @@ pub fn render_png(app: &App, size: (u32, u32), out: &Path) -> Result<(), String>
 pub fn specimen<'a>() -> iced::Element<'a, Message> {
     use crate::theme::type_scale as t;
     use iced::widget::{column, container};
-    let ink = style::col(crate::theme::color::ON_SURFACE);
-    let dim = style::col(crate::theme::color::ON_SURFACE_VARIANT);
+    let ink = style::col(crate::theme::color::on_surface());
+    let dim = style::col(crate::theme::color::on_surface_variant());
     let lines: [(crate::theme::TextStyle, bool, &str); 8] = [
         (
             t::DISPLAY_MD,
@@ -85,7 +85,7 @@ pub fn specimen<'a>() -> iced::Element<'a, Message> {
         .width(iced::Length::Fill)
         .height(iced::Length::Fill)
         .style(|_| container::Style {
-            background: Some(style::col(crate::theme::color::SURFACE_CONTAINER).into()),
+            background: Some(style::col(crate::theme::color::surface_container()).into()),
             ..container::Style::default()
         })
         .into()
@@ -191,6 +191,26 @@ pub struct Scenario {
     pub stopped: Option<bool>,
     /// Repeat mode of the player.
     pub repeat: nemo_core::player::RepeatMode,
+    /// Header content chip of Home.
+    pub content_filter: crate::explore::ContentFilter,
+    /// Library tab and layout.
+    pub lib_tab: crate::explore::LibTab,
+    /// Library list or grid.
+    pub lib_layout: crate::explore::LibLayout,
+    /// Open the tools panel.
+    pub tools: bool,
+    /// Open the shortcut sheet.
+    pub shortcuts: bool,
+    /// Open the Create playlist sheet.
+    pub create: bool,
+    /// Show the mini player.
+    pub mini: bool,
+    /// Start a 30 minute sleep timer.
+    pub sleep: bool,
+    /// Show the page of the route as still loading (skeleton).
+    pub loading_detail: bool,
+    /// Pick this lyrics provider in the switcher (index into the candidates).
+    pub lyrics_pick: Option<usize>,
 }
 
 /// Which state of the sign-in sheet a snapshot shows.
@@ -237,6 +257,16 @@ impl Default for Scenario {
             sheet: Sheet::None,
             stopped: None,
             repeat: nemo_core::player::RepeatMode::Off,
+            content_filter: crate::explore::ContentFilter::All,
+            lib_tab: crate::explore::LibTab::Overview,
+            lib_layout: crate::explore::LibLayout::List,
+            tools: false,
+            shortcuts: false,
+            create: false,
+            mini: false,
+            sleep: false,
+            loading_detail: false,
+            lyrics_pick: None,
         }
     }
 }
@@ -311,6 +341,25 @@ pub fn build_app(backend: &Backend, scenario: &Scenario) -> App {
         run(&mut app, Message::NpTab(scenario.np_tab));
     }
     app.home_filter = scenario.home_filter;
+    app.content_filter = scenario.content_filter;
+    app.lib_tab = scenario.lib_tab;
+    app.lib_layout = scenario.lib_layout;
+    app.tools_open = scenario.tools;
+    app.shortcuts_open = scenario.shortcuts;
+    if scenario.create {
+        app.create_open = true;
+        "Late night drive".clone_into(&mut app.create_name);
+    }
+    app.mini = scenario.mini;
+    if let Some(i) = scenario.lyrics_pick {
+        run(&mut app, Message::PickLyricsProvider(i));
+    }
+    if scenario.sleep {
+        run(
+            &mut app,
+            Message::Sleep(Some(crate::explore::SleepChoice::Minutes(30))),
+        );
+    }
     match scenario.sheet {
         Sheet::None => {}
         Sheet::SignIn | Sheet::SignedIn => run(&mut app, Message::Account(AccountMsg::Open)),
@@ -345,6 +394,12 @@ pub fn build_app(backend: &Backend, scenario: &Scenario) -> App {
             left_ms: 10_000.0,
             undo: false,
         });
+    }
+    if scenario.loading_detail
+        && let Some(key) = super::app::DetailKey::of(&scenario.route)
+    {
+        app.details.insert(key, super::app::DetailState::Loading);
+        app.shimmer = 0.45;
     }
     app.finish_animations();
     app

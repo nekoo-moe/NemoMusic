@@ -24,13 +24,17 @@ use nemo_core::audio::{
 };
 use nemo_core::catalog::{
     AlbumDetail, AlbumSummary, ArtistDetail, ArtistSummary, BrowseId, Catalog, CatalogError,
-    PlaylistDetail, PlaylistSummary, SearchResults, Shelf, ShelfItem,
+    Explore, FeedItem, FeedShelf, HistorySection, HomeFeed, MoodChip, PlaylistDetail,
+    PlaylistSummary, PodcastSummary, SearchResults, Shelf, ShelfItem, ShelfKind,
 };
-use nemo_core::lyrics::{Granularity, LyricLine, LyricsDoc, LyricsQuery, ProviderId};
+use nemo_core::lyrics::{
+    Granularity, LyricLine, LyricsCandidate, LyricsCredit, LyricsDoc, LyricsQuery, ProviderId,
+};
 use nemo_core::player::{PlayState, PlayerCommand, PlayerEvent, PlayerSnapshot, RepeatMode};
 use nemo_core::secret::Secret;
 use nemo_core::services::{
-    Backend, EventReceiver, ImageError, ImageSource, LyricsLookup, LyricsService, PlayerControl,
+    Backend, EventReceiver, ImageError, ImageSource, LyricsLookup, LyricsProviderStatus,
+    LyricsService, PlayerControl,
 };
 use nemo_core::track::{Artwork, Thumbnail, Track, TrackId, VideoId, pick_thumbnail};
 
@@ -395,6 +399,127 @@ impl Catalog for MockCatalog {
         })
     }
 
+    /// The richer home page of the mock: mood chips and every kind of shelf.
+    fn home_feed(&self) -> BoxFuture<'_, Result<HomeFeed, CatalogError>> {
+        Box::pin(async {
+            let chips = ["Relax", "Focus", "Energize", "Sleep", "Party"]
+                .iter()
+                .enumerate()
+                .map(|(i, t)| MoodChip {
+                    title: (*t).to_owned(),
+                    id: browse("mood", i),
+                })
+                .collect();
+            let mk_shelf = |title: &str, kind: ShelfKind, items: Vec<FeedItem>| FeedShelf {
+                title: title.to_owned(),
+                subtitle: None,
+                kind,
+                items,
+            };
+            Ok(HomeFeed {
+                chips,
+                shelves: vec![
+                    mk_shelf(
+                        "Listen again",
+                        ShelfKind::Cards,
+                        (4..10).map(|n| FeedItem::Song(track(n))).collect(),
+                    ),
+                    mk_shelf(
+                        "Mixes",
+                        ShelfKind::Cards,
+                        (0..PLAYLISTS)
+                            .map(|p| FeedItem::Playlist(playlist_summary(p)))
+                            .collect(),
+                    ),
+                    mk_shelf(
+                        "Videos",
+                        ShelfKind::Cards,
+                        (10..16).map(|n| FeedItem::Video(track(n))).collect(),
+                    ),
+                    mk_shelf(
+                        "Podcasts",
+                        ShelfKind::Cards,
+                        (0..3)
+                            .map(|n| {
+                                FeedItem::Podcast(PodcastSummary {
+                                    id: browse("podcast", n),
+                                    title: format!("{} Hour", ALBUM_TITLES[n]),
+                                    author: Some(ARTIST_NAMES[n].to_owned()),
+                                    thumbnails: thumbs(n + 5),
+                                })
+                            })
+                            .collect(),
+                    ),
+                ],
+            })
+        })
+    }
+
+    fn library_playlists(&self) -> BoxFuture<'_, Result<Vec<PlaylistSummary>, CatalogError>> {
+        Box::pin(async { Ok((0..PLAYLISTS).map(playlist_summary).collect()) })
+    }
+
+    fn liked_songs(&self) -> BoxFuture<'_, Result<Vec<Track>, CatalogError>> {
+        Box::pin(async { Ok((0..40).filter(|n| n % 3 != 1).map(track).collect()) })
+    }
+
+    fn library_albums(&self) -> BoxFuture<'_, Result<Vec<AlbumSummary>, CatalogError>> {
+        Box::pin(async { Ok((0..5).map(album_summary).collect()) })
+    }
+
+    fn library_artists(&self) -> BoxFuture<'_, Result<Vec<ArtistSummary>, CatalogError>> {
+        Box::pin(async { Ok((0..4).map(artist_summary).collect()) })
+    }
+
+    fn history(&self) -> BoxFuture<'_, Result<Vec<HistorySection>, CatalogError>> {
+        Box::pin(async {
+            Ok(vec![
+                HistorySection {
+                    title: "Today".to_owned(),
+                    tracks: (2..7).map(track).collect(),
+                },
+                HistorySection {
+                    title: "Yesterday".to_owned(),
+                    tracks: (7..13).map(track).collect(),
+                },
+            ])
+        })
+    }
+
+    fn explore(&self) -> BoxFuture<'_, Result<Explore, CatalogError>> {
+        Box::pin(async {
+            Ok(Explore {
+                new_releases: (0..8).map(album_summary).collect(),
+                charts: Vec::new(),
+                shelves: Vec::new(),
+                moods: ["Chill", "Gym", "Commute", "Romance"]
+                    .iter()
+                    .enumerate()
+                    .map(|(i, t)| MoodChip {
+                        title: (*t).to_owned(),
+                        id: browse("mood", i + 10),
+                    })
+                    .collect(),
+            })
+        })
+    }
+
+    fn mood_playlists<'a>(
+        &'a self,
+        _id: &'a BrowseId,
+    ) -> BoxFuture<'a, Result<Vec<FeedShelf>, CatalogError>> {
+        Box::pin(async {
+            Ok(vec![FeedShelf {
+                title: "Playlists".to_owned(),
+                subtitle: None,
+                kind: ShelfKind::Cards,
+                items: (0..PLAYLISTS)
+                    .map(|p| FeedItem::Playlist(playlist_summary(p)))
+                    .collect(),
+            }])
+        })
+    }
+
     /// The mock accepts every like, so the UI flow can be driven without an account.
     fn rate_song<'a>(
         &'a self,
@@ -726,7 +851,20 @@ impl PlayerControl for MockPlayer {
 #[derive(Default)]
 pub struct MockLyrics {
     offsets: Mutex<HashMap<String, i64>>,
+    chosen: Mutex<HashMap<String, ProviderId>>,
+    overrides: Mutex<HashMap<&'static str, bool>>,
 }
+
+/// Mock lyrics providers: name, risk note, hosts.
+static MOCK_SOURCES: [(&str, Option<&str>, &str); 3] = [
+    ("Mock Lyrics", None, "mock.invalid"),
+    ("Unison", None, "unison.invalid"),
+    (
+        "Mock Sidecar",
+        Some("Unofficial source; its terms may not allow this use."),
+        "sidecar.invalid",
+    ),
+];
 
 /// Index of a mock track from the lyrics query (matched by title and artist).
 fn query_index(query: &LyricsQuery) -> Option<usize> {
@@ -798,6 +936,89 @@ impl LyricsService for MockLyrics {
         if let Ok(mut m) = self.offsets.lock() {
             m.insert(track_key.to_owned(), offset_ms);
         }
+    }
+
+    fn lookup_all<'a>(&'a self, query: &'a LyricsQuery) -> BoxFuture<'a, Vec<LyricsCandidate>> {
+        let base = query_index(query).and_then(|n| {
+            lyrics_for(
+                n,
+                query
+                    .duration_ms
+                    .map_or(Duration::from_secs(180), Duration::from_millis),
+            )
+        });
+        let on = self.overrides.lock().map(|d| d.clone()).unwrap_or_default();
+        let mut out = Vec::new();
+        if let Some(doc) = base {
+            for (name, risk, _) in MOCK_SOURCES.iter().take(2) {
+                if !on.get(name).copied().unwrap_or(risk.is_none()) {
+                    continue;
+                }
+                let mut d = doc.clone();
+                d.provider = ProviderId::new(name);
+                if *name == "Unison" {
+                    d.granularity = Granularity::Word;
+                }
+                out.push(LyricsCandidate {
+                    provider: d.provider,
+                    granularity: d.granularity,
+                    score: if *name == "Unison" { 90 } else { 100 },
+                    source_note: risk.map(str::to_owned),
+                    credit: (*name == "Unison").then(unison_credit),
+                    doc: d,
+                });
+            }
+        }
+        Box::pin(async move { out })
+    }
+
+    fn choose(&self, track_key: &str, provider: ProviderId) {
+        if let Ok(mut m) = self.chosen.lock() {
+            m.insert(track_key.to_owned(), provider);
+        }
+    }
+
+    fn chosen(&self, track_key: &str) -> Option<ProviderId> {
+        self.chosen.lock().ok()?.get(track_key).copied()
+    }
+
+    fn credit(&self, _track_key: &str, provider: ProviderId) -> Option<LyricsCredit> {
+        (provider.as_str() == "Unison").then(unison_credit)
+    }
+
+    fn providers(&self) -> Vec<LyricsProviderStatus> {
+        let on = self.overrides.lock().map(|d| d.clone()).unwrap_or_default();
+        MOCK_SOURCES
+            .iter()
+            .map(|(name, risk, host)| LyricsProviderStatus {
+                id: ProviderId::new(name),
+                enabled: on.get(name).copied().unwrap_or(risk.is_none()),
+                default_enabled: risk.is_none(),
+                risk_note: *risk,
+                hosts: std::slice::from_ref(host),
+            })
+            .collect()
+    }
+
+    fn set_provider_enabled(&self, provider: ProviderId, enabled: bool) -> bool {
+        let Some((name, ..)) = MOCK_SOURCES.iter().find(|s| s.0 == provider.as_str()) else {
+            return false;
+        };
+        if let Ok(mut d) = self.overrides.lock() {
+            d.insert(name, enabled);
+        }
+        true
+    }
+}
+
+/// The credit Unison asks for.
+fn unison_credit() -> LyricsCredit {
+    LyricsCredit {
+        label: "Lyrics from Unison".to_owned(),
+        url: None,
+        by: Some("mira_k".to_owned()),
+        by_url: None,
+        note: None,
     }
 }
 
@@ -1139,6 +1360,43 @@ mod tests {
 
     fn drain(rx: &mut dyn EventReceiver) -> Vec<PlayerEvent> {
         std::iter::from_fn(|| rx.try_next()).collect()
+    }
+
+    #[test]
+    fn mock_lyrics_switcher_sources_and_credit() {
+        let l = MockLyrics::default();
+        let q = LyricsQuery::from_track(&track(0));
+        let all = ready(l.lookup_all(&q));
+        let names: Vec<_> = all.iter().map(|c| c.provider.as_str()).collect();
+        assert_eq!(names, ["Mock Lyrics", "Unison"]);
+        assert_eq!(
+            all[1].credit.as_ref().map(|c| c.label.as_str()),
+            Some("Lyrics from Unison")
+        );
+        assert!(l.credit("x", ProviderId::new("Unison")).is_some());
+        assert!(l.credit("x", ProviderId::new("Mock Lyrics")).is_none());
+        // The opt-in source starts off and can be switched on; unknown ids are refused.
+        let sidecar = ProviderId::new("Mock Sidecar");
+        assert!(
+            !l.providers()
+                .iter()
+                .find(|p| p.id == sidecar)
+                .expect("listed")
+                .enabled
+        );
+        assert!(l.set_provider_enabled(sidecar, true));
+        assert!(
+            l.providers()
+                .iter()
+                .find(|p| p.id == sidecar)
+                .expect("listed")
+                .enabled
+        );
+        assert!(!l.set_provider_enabled(ProviderId::new("Nope"), true));
+        assert!(l.set_provider_enabled(ProviderId::new("Unison"), false));
+        assert_eq!(ready(l.lookup_all(&q)).len(), 1);
+        l.choose("k", ProviderId::new("Unison"));
+        assert_eq!(l.chosen("k"), Some(ProviderId::new("Unison")));
     }
 
     #[test]

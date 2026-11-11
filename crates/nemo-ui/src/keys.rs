@@ -18,6 +18,8 @@ pub enum Key {
     Escape,
     /// F3.
     F3,
+    /// F11.
+    F11,
     /// Tab (moves the keyboard focus; the GUI handles it).
     Tab,
     /// A character key (lower case).
@@ -56,6 +58,18 @@ pub enum KeyAction {
     ToggleFrameReadout,
     /// Change the lyrics offset by this many milliseconds.
     LyricsOffsetBy(i64),
+    /// Show the keyboard shortcut sheet.
+    ShowShortcuts,
+    /// Full-screen Now Playing with big lyrics.
+    FullScreen,
+    /// Mini player.
+    Mini,
+    /// Show or hide the queue.
+    ToggleQueue,
+    /// Like or un-like the current song.
+    LikeCurrent,
+    /// Open the sleep timer and tools panel.
+    Tools,
 }
 
 /// Seek step in seconds (`Shift` uses [`SEEK_BIG_SECS`]).
@@ -74,6 +88,7 @@ pub fn map(key: Key, mods: Mods, in_text_field: bool) -> Option<KeyAction> {
     match key {
         Key::Escape => Some(KeyAction::Close),
         Key::F3 => Some(KeyAction::ToggleFrameReadout),
+        Key::F11 => Some(KeyAction::FullScreen),
         Key::Char('k') if mods.ctrl => Some(KeyAction::OpenSearch),
         Key::Char(',') if mods.ctrl => Some(KeyAction::OpenSettings),
         _ if in_text_field || mods.ctrl => None,
@@ -93,6 +108,12 @@ pub fn map(key: Key, mods: Mods, in_text_field: bool) -> Option<KeyAction> {
         Key::Char('/') => Some(KeyAction::OpenSearch),
         Key::Char('[') => Some(KeyAction::LyricsOffsetBy(-LYRICS_OFFSET_STEP_MS)),
         Key::Char(']') => Some(KeyAction::LyricsOffsetBy(LYRICS_OFFSET_STEP_MS)),
+        Key::Char('?') => Some(KeyAction::ShowShortcuts),
+        Key::Char('f') => Some(KeyAction::FullScreen),
+        Key::Char('m') => Some(KeyAction::Mini),
+        Key::Char('q') => Some(KeyAction::ToggleQueue),
+        Key::Char('l') => Some(KeyAction::LikeCurrent),
+        Key::Char('s') => Some(KeyAction::Tools),
         Key::Char(_) | Key::Tab => None,
     }
 }

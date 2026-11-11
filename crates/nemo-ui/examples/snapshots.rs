@@ -14,10 +14,12 @@ use nemo_core::catalog::BrowseId;
 use nemo_core::player::RepeatMode;
 use nemo_core::services::Backend;
 use nemo_ui::UiSettings;
+use nemo_ui::explore::{ContentFilter, LibLayout, LibTab};
 use nemo_ui::gui::app::{HomeFilter, NpTab, SettingsSection};
 use nemo_ui::gui::headless::{Scenario, Sheet, build_app, render_png, render_view_png, specimen};
 use nemo_ui::mock::{mock_backend, mock_backend_seeded, mock_backend_signed_in};
 use nemo_ui::route::Route;
+use nemo_ui::scheme::{BaseMode, ThemeChoice};
 
 /// The two window sizes the owner cares about: the maximized 1366 x 768 laptop and full HD.
 const SIZES: [(u32, u32); 2] = [(1366, 697), (1920, 1040)];
@@ -313,6 +315,220 @@ fn scenarios() -> Vec<Shot> {
                 size: compact,
                 route: Route::NowPlaying,
                 ..Scenario::default()
+            },
+        ));
+    }
+    // Themes (round 3): every surface mode and a few palettes, on Settings and on Home.
+    for size in SIZES {
+        let themed =
+            |base: BaseMode, theme: ThemeChoice, route: Route, section: SettingsSection| Scenario {
+                route,
+                size,
+                section,
+                settings: UiSettings {
+                    tos_acknowledged: true,
+                    base,
+                    theme,
+                    ..UiSettings::default()
+                },
+                ..Scenario::default()
+            };
+        for (stem, base, theme) in [
+            ("dark", BaseMode::Dark, ThemeChoice::Dynamic),
+            ("amoled", BaseMode::Amoled, ThemeChoice::Ocean),
+            ("light", BaseMode::Light, ThemeChoice::Sakura),
+            ("forest", BaseMode::Dark, ThemeChoice::Forest),
+        ] {
+            out.push(shot(
+                named(&format!("appearance-{stem}"), size),
+                themed(base, theme, Route::Settings, SettingsSection::Appearance),
+            ));
+            out.push(shot(
+                named(&format!("theme-home-{stem}"), size),
+                themed(base, theme, Route::Home, SettingsSection::Playback),
+            ));
+        }
+    }
+    // Round 3 features.
+    for size in SIZES {
+        let at = |route: Route| Scenario {
+            route,
+            size,
+            ..Scenario::default()
+        };
+        let signed = |name: String, sc: Scenario| Shot {
+            signed_in: true,
+            ..shot(name, sc)
+        };
+        out.push(shot(named("explore", size), at(Route::Explore)));
+        out.push(signed(named("library-signed-in", size), at(Route::Library)));
+        out.push(shot(named("library-signed-out", size), at(Route::Library)));
+        out.push(signed(
+            named("library-grid", size),
+            Scenario {
+                lib_layout: LibLayout::Grid,
+                ..at(Route::Library)
+            },
+        ));
+        out.push(signed(
+            named("library-playlists", size),
+            Scenario {
+                lib_tab: LibTab::Playlists,
+                ..at(Route::Library)
+            },
+        ));
+        out.push(signed(
+            named("library-songs", size),
+            Scenario {
+                lib_tab: LibTab::Songs,
+                ..at(Route::Library)
+            },
+        ));
+        out.push(shot(
+            named("library-local", size),
+            Scenario {
+                lib_tab: LibTab::Local,
+                music_folders: vec!["D:\\Music".to_owned()],
+                ..at(Route::Library)
+            },
+        ));
+        out.push(signed(
+            named("library-create", size),
+            Scenario {
+                create: true,
+                ..at(Route::Library)
+            },
+        ));
+        out.push(Shot {
+            seeded: true,
+            ..shot(named("home-quick-access", size), at(Route::Home))
+        });
+        out.push(shot(
+            named("home-videos", size),
+            Scenario {
+                content_filter: ContentFilter::Videos,
+                ..at(Route::Home)
+            },
+        ));
+        out.push(shot(
+            named("tools", size),
+            Scenario {
+                tools: true,
+                sleep: true,
+                ..at(Route::Home)
+            },
+        ));
+        out.push(shot(
+            named("shortcuts", size),
+            Scenario {
+                shortcuts: true,
+                ..at(Route::Home)
+            },
+        ));
+        out.push(shot(
+            named("menu-extended", size),
+            Scenario {
+                menu_track: Some(1),
+                ..at(Route::Home)
+            },
+        ));
+        out.push(shot(
+            named("queue-move", size),
+            Scenario {
+                np_tab: NpTab::Queue,
+                ..at(Route::Home)
+            },
+        ));
+        out.push(shot(
+            named("lyrics-switcher", size),
+            Scenario {
+                np_tab: NpTab::Lyrics,
+                ..at(Route::Home)
+            },
+        ));
+        out.push(shot(
+            named("lyrics-unison", size),
+            Scenario {
+                np_tab: NpTab::Lyrics,
+                lyrics_pick: Some(1),
+                ..at(Route::Home)
+            },
+        ));
+        out.push(shot(
+            named("settings-lyrics", size),
+            Scenario {
+                section: SettingsSection::Lyrics,
+                ..at(Route::Settings)
+            },
+        ));
+    }
+    out.push(shot(
+        "mini-420x168".to_owned(),
+        Scenario {
+            mini: true,
+            size: (420, 168),
+            ..Scenario::default()
+        },
+    ));
+    // Round 4: coloured background, daily Home, skeletons.
+    for size in SIZES {
+        let at = |route: Route| Scenario {
+            route,
+            size,
+            ..Scenario::default()
+        };
+        let signed = |name: String, sc: Scenario| Shot {
+            signed_in: true,
+            ..shot(name, sc)
+        };
+        out.push(signed(named("home-daily-signed-in", size), at(Route::Home)));
+        out.push(shot(named("home-daily-signed-out", size), at(Route::Home)));
+        // The same screen with two different songs: the whole window changes colour.
+        out.push(shot(
+            named("bg-song-a", size),
+            Scenario {
+                track: 1,
+                ..at(Route::Home)
+            },
+        ));
+        out.push(shot(
+            named("bg-song-b", size),
+            Scenario {
+                track: 9,
+                ..at(Route::Home)
+            },
+        ));
+        out.push(shot(
+            named("bg-song-c", size),
+            Scenario {
+                track: 14,
+                ..at(Route::Home)
+            },
+        ));
+        // A page colour wins while the page is open.
+        out.push(shot(
+            named("bg-page-album", size),
+            at(Route::Album(BrowseId("mock-album-4".to_owned()))),
+        ));
+        out.push(shot(
+            named("album-loading", size),
+            Scenario {
+                loading_detail: true,
+                ..at(Route::Album(BrowseId("mock-album-2".to_owned())))
+            },
+        ));
+        out.push(shot(
+            named("playlist-loading", size),
+            Scenario {
+                loading_detail: true,
+                ..at(Route::Playlist(BrowseId("mock-playlist-1".to_owned())))
+            },
+        ));
+        out.push(shot(
+            named("home-videos-feed", size),
+            Scenario {
+                content_filter: ContentFilter::Videos,
+                ..at(Route::Home)
             },
         ));
     }

@@ -15,8 +15,8 @@ use super::super::fx::{entrance, fx};
 use super::super::style::{
     animated, button_flat, col, fit, gap, icon, icon_button, label, label_w, scroll, spinner, tip,
 };
-use super::kit::{art, chip, chip_padded, pane_bg, vspace};
-use super::{bar, detail, home, library, pane, search, settings};
+use super::kit::{art, chip_padded, pane_bg, vspace};
+use super::{bar, detail, explore, home, library, pane, search, settings};
 use crate::format;
 use crate::layout;
 use crate::route::{NavEntry, Route};
@@ -41,7 +41,7 @@ pub fn pane_surface<'a>(
         .style(move |_| container::Style {
             background: Some(bg),
             border: Border {
-                radius: layout::PANE_RADIUS.into(),
+                radius: shape::scaled(layout::PANE_RADIUS).into(),
                 ..Border::default()
             },
             ..container::Style::default()
@@ -147,7 +147,7 @@ fn left_pane(app: &App, width: f32, _h: u32) -> Element<'_, Message> {
             .style(move |_| container::Style {
                 background: Some(col(accent.primary).into()),
                 border: Border {
-                    radius: shape::MD.into(),
+                    radius: shape::md().into(),
                     ..Border::default()
                 },
                 ..container::Style::default()
@@ -160,7 +160,7 @@ fn left_pane(app: &App, width: f32, _h: u32) -> Element<'_, Message> {
                     "NemoMusic",
                     type_scale::TITLE_SM,
                     true,
-                    col(color::ON_SURFACE)
+                    col(color::on_surface())
                 )
             ]
             .align_y(Alignment::Center)
@@ -177,10 +177,16 @@ fn left_pane(app: &App, width: f32, _h: u32) -> Element<'_, Message> {
     };
 
     let mut nav = column![brand, vspace(gap::SM)].spacing(gap::XS);
-    for entry in [NavEntry::Home, NavEntry::Search, NavEntry::Library] {
+    for entry in [
+        NavEntry::Home,
+        NavEntry::Explore,
+        NavEntry::Search,
+        NavEntry::Library,
+    ] {
         let on = selected == Some(entry);
         let (glyph, text) = match entry {
             NavEntry::Home => (if on { Icon::HomeFill } else { Icon::Home }, "Home"),
+            NavEntry::Explore => (Icon::Explore, "Explore"),
             NavEntry::Search => (if on { Icon::SearchFill } else { Icon::Search }, "Search"),
             _ => (
                 if on { Icon::LibraryFill } else { Icon::Library },
@@ -206,7 +212,7 @@ fn left_pane(app: &App, width: f32, _h: u32) -> Element<'_, Message> {
                     Icon::Settings,
                     24.0,
                     48.0,
-                    col(color::ON_SURFACE_VARIANT),
+                    col(color::on_surface_variant()),
                     Color::TRANSPARENT,
                     Some(Message::Ui(Event::Go(Route::Settings))),
                 ),
@@ -223,7 +229,7 @@ fn left_pane(app: &App, width: f32, _h: u32) -> Element<'_, Message> {
     pane_surface(
         c.padding(Padding::from([gap::MD, gap::MD])),
         Length::Fixed(width),
-        col(color::SURFACE_CONTAINER).into(),
+        col(color::surface_container().with_alpha(crate::scheme::PANE_ALPHA)).into(),
     )
     .into()
 }
@@ -241,7 +247,7 @@ fn nav_pill<'a>(
     let ink = if on {
         col(accent.on_secondary_container)
     } else {
-        col(color::ON_SURFACE_VARIANT)
+        col(color::on_surface_variant())
     };
     let idle = if on {
         col(accent.secondary_container)
@@ -256,7 +262,7 @@ fn nav_pill<'a>(
                 text,
                 type_scale::BODY_MD,
                 if on { Weight::Semibold } else { Weight::Medium },
-                if on { ink } else { col(color::ON_SURFACE) }
+                if on { ink } else { col(color::on_surface()) }
             )
         ]
         .align_y(Alignment::Center)
@@ -283,21 +289,32 @@ fn nav_pill<'a>(
 
 fn library_header<'a>() -> Element<'a, Message> {
     row![
-        container(icon(Icon::Library, 24.0, col(color::ON_SURFACE_VARIANT)))
+        container(icon(Icon::Library, 24.0, col(color::on_surface_variant())))
             .padding(Padding::from([0.0, gap::SM])),
         label(
             "Your library",
             type_scale::TITLE_SM,
             true,
-            col(color::ON_SURFACE)
+            col(color::on_surface())
         ),
         Space::new().width(Length::Fill),
+        tip(
+            icon_button(
+                Icon::Add,
+                20.0,
+                40.0,
+                col(color::on_surface_variant()),
+                Color::TRANSPARENT,
+                Some(Message::Create(super::super::app::CreateMsg::Open)),
+            ),
+            "Create playlist",
+        ),
         tip(
             icon_button(
                 Icon::ArrowForward,
                 20.0,
                 40.0,
-                col(color::ON_SURFACE_VARIANT),
+                col(color::on_surface_variant()),
                 Color::TRANSPARENT,
                 Some(Message::Ui(Event::Go(Route::Library))),
             ),
@@ -406,7 +423,7 @@ fn library_list<'a>(app: &'a App, width: f32, route: &Route) -> Element<'a, Mess
                 "Search for music and it shows up here.",
                 type_scale::BODY_SM,
                 false,
-                col(color::ON_SURFACE_VARIANT),
+                col(color::on_surface_variant()),
             )
             .wrapping(iced::widget::text::Wrapping::Word)
             .width(Length::Fixed(width - 2.0 * gap::MD)),
@@ -431,13 +448,13 @@ fn library_list<'a>(app: &'a App, width: f32, route: &Route) -> Element<'a, Mess
                     fit(&r.title, text_w, type_scale::BODY_MD.size),
                     type_scale::BODY_MD,
                     true,
-                    col(color::ON_SURFACE)
+                    col(color::on_surface())
                 ),
                 label(
                     fit(&r.subtitle, text_w, type_scale::BODY_SM.size),
                     type_scale::BODY_SM,
                     false,
-                    col(color::ON_SURFACE_VARIANT)
+                    col(color::on_surface_variant())
                 ),
             ]
             .width(Length::Fixed(text_w)),
@@ -454,12 +471,12 @@ fn library_list<'a>(app: &'a App, width: f32, route: &Route) -> Element<'a, Mess
         .width(Length::Fill)
         .on_press(Message::Ui(Event::Go(r.route)));
         let idle = if on {
-            col(color::SURFACE_CONTAINER_HIGH)
+            col(color::surface_container_high())
         } else {
             Color::TRANSPARENT
         };
         list = list.push(entrance(
-            animated(b, idle, shape::LG),
+            animated(b, idle, shape::lg()),
             app.anim.reveal(i.min(6)),
             pane_bg(),
         ));
@@ -486,7 +503,7 @@ fn center_pane(app: &App, center_w: u32, _w: u32, h: u32) -> Element<'_, Message
     pane_surface(
         column![top_bar(app, center_w), page],
         Length::Fill,
-        col(color::SURFACE_CONTAINER).into(),
+        col(color::surface_container().with_alpha(crate::scheme::PANE_ALPHA)).into(),
     )
     .into()
 }
@@ -517,7 +534,7 @@ fn account_button(app: &App) -> Element<'_, Message> {
         }
         state => {
             let busy = matches!(state, AccountState::SigningIn);
-            let ink = col(color::ON_SURFACE);
+            let ink = col(color::on_surface());
             let glyph: Element<'_, Message> = if busy {
                 spinner(20.0, ink, app.spin).into()
             } else {
@@ -544,7 +561,7 @@ fn account_button(app: &App) -> Element<'_, Message> {
             )
             .padding(0)
             .on_press(open);
-            animated(b, col(color::SURFACE_CONTAINER_HIGHEST), shape::FULL)
+            animated(b, col(color::surface_container_highest()), shape::FULL)
         }
     }
 }
@@ -579,9 +596,8 @@ fn initial_badge<'a>(app: &App, name: &str) -> Element<'a, Message> {
 }
 
 fn top_bar(app: &App, center_w: u32) -> Element<'_, Message> {
-    let ink = col(color::ON_SURFACE);
-    let dim = col(color::ON_SURFACE_VARIANT);
-    let accent = app.accent();
+    let ink = col(color::on_surface());
+    let dim = col(color::on_surface_variant());
     let narrow = center_w < 820;
     let mut r = row![account_button(app)]
         .spacing(gap::SM)
@@ -609,17 +625,7 @@ fn top_bar(app: &App, center_w: u32) -> Element<'_, Message> {
     }
     r = r.push(Space::new().width(gap::XS));
     if matches!(app.ui.route(), Route::Home) {
-        for f in super::super::app::HomeFilter::ALL {
-            if narrow && f == super::super::app::HomeFilter::Playlists {
-                continue;
-            }
-            r = r.push(chip(
-                f.label(),
-                app.home_filter == f,
-                accent,
-                Message::HomeFilter(f),
-            ));
-        }
+        r = r.push(super::panels::content_chips(app));
     } else if matches!(
         app.ui.route(),
         Route::Album(_) | Route::Artist(_) | Route::Playlist(_)
@@ -658,7 +664,7 @@ fn top_bar(app: &App, center_w: u32) -> Element<'_, Message> {
                 button(inner)
                     .padding(0)
                     .on_press(Message::Ui(Event::Go(Route::Search(String::new())))),
-                col(color::SURFACE_CONTAINER_HIGHEST),
+                col(color::surface_container_highest()),
                 shape::FULL,
             ),
             "Search (Ctrl+K)",
@@ -671,7 +677,7 @@ fn top_bar(app: &App, center_w: u32) -> Element<'_, Message> {
             22.0,
             40.0,
             ink,
-            col(color::SURFACE_CONTAINER_HIGHEST),
+            col(color::surface_container_highest()),
             Some(Message::Ui(Event::Go(Route::Settings))),
         ),
         "Settings",
@@ -686,7 +692,7 @@ fn top_bar(app: &App, center_w: u32) -> Element<'_, Message> {
             22.0,
             40.0,
             ink,
-            col(color::SURFACE_CONTAINER_HIGHEST),
+            col(color::surface_container_highest()),
             Some(Message::TogglePane),
         ),
         if app.pane_open {
@@ -706,6 +712,7 @@ fn top_bar(app: &App, center_w: u32) -> Element<'_, Message> {
 fn content(app: &App, cw: u32, _h: u32) -> Element<'_, Message> {
     match app.ui.route() {
         Route::Search(_) => search::view(app, cw),
+        Route::Explore => explore::view(app, cw),
         Route::Library => library::view(app, cw),
         Route::Settings => settings::view(app, cw),
         Route::Album(_) | Route::Artist(_) | Route::Playlist(_) => detail::view(app, cw),

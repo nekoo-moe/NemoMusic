@@ -8,6 +8,8 @@ use nemo_core::catalog::BrowseId;
 pub enum Route {
     /// Home feed.
     Home,
+    /// Explore: moods and genres, new releases (hook point for the catalog's explore calls).
+    Explore,
     /// Search with its query.
     Search(String),
     /// Local and saved library.
@@ -31,6 +33,8 @@ pub enum Route {
 pub enum NavEntry {
     /// Home.
     Home,
+    /// Explore.
+    Explore,
     /// Search.
     Search,
     /// Library.
@@ -43,8 +47,9 @@ pub enum NavEntry {
 
 impl NavEntry {
     /// All entries in sidebar order.
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 6] = [
         Self::Home,
+        Self::Explore,
         Self::Search,
         Self::Library,
         Self::Queue,
@@ -56,6 +61,7 @@ impl NavEntry {
     pub const fn label(self) -> &'static str {
         match self {
             Self::Home => "Home",
+            Self::Explore => "Explore",
             Self::Search => "Search",
             Self::Library => "Library",
             Self::Queue => "Queue",
@@ -68,6 +74,7 @@ impl NavEntry {
     pub fn route(self) -> Route {
         match self {
             Self::Home => Route::Home,
+            Self::Explore => Route::Explore,
             Self::Search => Route::Search(String::new()),
             Self::Library => Route::Library,
             Self::Queue => Route::Queue,
@@ -82,6 +89,7 @@ impl Route {
     pub fn entry(&self) -> Option<NavEntry> {
         match self {
             Self::Home => Some(NavEntry::Home),
+            Self::Explore => Some(NavEntry::Explore),
             Self::Search(_) => Some(NavEntry::Search),
             Self::Library | Self::Album(_) | Self::Artist(_) | Self::Playlist(_) => {
                 Some(NavEntry::Library)
@@ -97,6 +105,7 @@ impl Route {
     pub fn title(&self) -> &'static str {
         match self {
             Self::Home => "Home",
+            Self::Explore => "Explore",
             Self::Search(_) => "Search",
             Self::Library => "Library",
             Self::Queue => "Queue",

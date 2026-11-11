@@ -13,7 +13,7 @@
     clippy::manual_midpoint
 )] // colour and easing maths: short names are the standard notation, casts are of small bounded values
 
-use crate::theme::{Rgba, color, contrast_ratio};
+use crate::theme::{Neutrals, Rgba, color, contrast_ratio};
 
 /// Highest chroma of any accent role.
 pub const MAX_CHROMA: f64 = 0.14;
@@ -214,6 +214,24 @@ impl Tones {
         tertiary: 80.0,
         surface_tint: 6.0,
     };
+
+    /// AMOLED: the dark tones with a nearly black tint.
+    pub const AMOLED: Self = Self {
+        surface_tint: 3.0,
+        ..Self::DARK
+    };
+
+    /// Light scheme tones: the accent is dark enough for white text, containers are pale.
+    pub const LIGHT: Self = Self {
+        primary: 40.0,
+        on_primary: 100.0,
+        primary_container: 90.0,
+        on_primary_container: 20.0,
+        secondary_container: 90.0,
+        on_secondary_container: 20.0,
+        tertiary: 40.0,
+        surface_tint: 94.0,
+    };
 }
 
 /// Seed of a palette: hue in degrees and chroma (already clamped to [`MAX_CHROMA`]).
@@ -248,9 +266,15 @@ fn render(seed: Seed, t: &Tones) -> Palette {
 }
 
 impl Palette {
-    /// Every (name, foreground, background) pair that must reach 4.5:1.
+    /// Every (name, foreground, background) pair that must reach 4.5:1, on the dark baseline.
     #[must_use]
     pub fn text_pairs(&self) -> [(&'static str, Rgba, Rgba); 8] {
+        self.text_pairs_on(&Neutrals::DARK)
+    }
+
+    /// Every (name, foreground, background) pair that must reach 4.5:1 on the neutral set `n`.
+    #[must_use]
+    pub fn text_pairs_on(&self, n: &Neutrals) -> [(&'static str, Rgba, Rgba); 8] {
         [
             ("on-primary / primary", self.on_primary, self.primary),
             (
@@ -263,17 +287,13 @@ impl Palette {
                 self.on_secondary_container,
                 self.secondary_container,
             ),
-            ("primary / surface", self.primary, color::SURFACE),
-            ("tertiary / surface", self.tertiary, color::SURFACE),
+            ("primary / surface", self.primary, n.surface),
+            ("tertiary / surface", self.tertiary, n.surface),
             ("primary / surface-tint", self.primary, self.surface_tint),
-            (
-                "on-surface / surface-tint",
-                color::ON_SURFACE,
-                self.surface_tint,
-            ),
+            ("on-surface / surface-tint", n.on_surface, self.surface_tint),
             (
                 "on-surface-variant / surface-tint",
-                color::ON_SURFACE_VARIANT,
+                n.on_surface_variant,
                 self.surface_tint,
             ),
         ]
@@ -282,7 +302,13 @@ impl Palette {
     /// Worst contrast over [`Self::text_pairs`].
     #[must_use]
     pub fn worst_contrast(&self) -> f64 {
-        self.text_pairs()
+        self.worst_contrast_on(&Neutrals::DARK)
+    }
+
+    /// Worst contrast over [`Self::text_pairs_on`].
+    #[must_use]
+    pub fn worst_contrast_on(&self, n: &Neutrals) -> f64 {
+        self.text_pairs_on(n)
             .iter()
             .map(|(_, f, b)| contrast_ratio(*f, *b))
             .fold(f64::INFINITY, f64::min)
@@ -291,10 +317,16 @@ impl Palette {
     /// `true` when every text pair reaches 4.5:1 and `primary` reaches 3:1 as a non-text colour.
     #[must_use]
     pub fn passes(&self) -> bool {
-        self.text_pairs()
+        self.passes_on(&Neutrals::DARK)
+    }
+
+    /// [`Self::passes`] on the neutral set `n`.
+    #[must_use]
+    pub fn passes_on(&self, n: &Neutrals) -> bool {
+        self.text_pairs_on(n)
             .iter()
             .all(|(_, f, b)| contrast_ratio(*f, *b) >= TEXT_CONTRAST)
-            && contrast_ratio(self.primary, color::SURFACE) >= UI_CONTRAST
+            && contrast_ratio(self.primary, n.surface) >= UI_CONTRAST
             && contrast_ratio(self.primary, self.surface_tint) >= UI_CONTRAST
     }
 
@@ -309,6 +341,23 @@ impl Palette {
         let mut p = render(seed, &Tones::DARK);
         // The brief fixes `primary`; the other roles follow the tone rules.
         p.primary = color::PRIMARY_FALLBACK;
+        p.is_fallback = true;
+        p
+    }
+
+    /// The fallback for another surface mode: the dark fallback on dark surfaces, a tone-40
+    /// derivation of the same hue on light ones.
+    #[must_use]
+    pub fn fallback_on(n: &Neutrals) -> Self {
+        if n.surface.relative_luminance() < 0.5 {
+            return Self::fallback();
+        }
+        let lch = rgb_to_oklch(color::PRIMARY_FALLBACK);
+        let seed = Seed {
+            hue: lch.h,
+            chroma: lch.c.min(MAX_CHROMA),
+        };
+        let mut p = render(seed, &Tones::LIGHT);
         p.is_fallback = true;
         p
     }
@@ -361,6 +410,13 @@ pub fn mix_rgb(a: Rgba, b: Rgba, t: f64) -> Rgba {
 /// fails the fallback palette is returned.
 #[must_use]
 pub fn build_palette(seed: Seed, tones: Tones) -> Palette {
+    build_palette_on(seed, tones, &Neutrals::DARK)
+}
+
+/// [`build_palette`] against the neutral set `n` (dark, AMOLED or light surfaces). The fallback
+/// when a pair cannot be fixed is [`Palette::fallback_on`].
+#[must_use]
+pub fn build_palette_on(seed: Seed, tones: Tones, n: &Neutrals) -> Palette {
     let mut t = tones;
     // Two passes: moving `primary` for the surface check can change its own pair with on-primary.
     for _ in 0..2 {
@@ -410,7 +466,7 @@ pub fn build_palette(seed: Seed, tones: Tones) -> Palette {
         t.primary = fix_tone(
             t.primary,
             |tone| render(seed, &Tones { primary: tone, ..t }).primary,
-            color::SURFACE,
+            n.surface,
         );
         t.tertiary = fix_tone(
             t.tertiary,
@@ -424,11 +480,15 @@ pub fn build_palette(seed: Seed, tones: Tones) -> Palette {
                 )
                 .tertiary
             },
-            color::SURFACE,
+            n.surface,
         );
     }
     let p = render(seed, &t);
-    if p.passes() { p } else { Palette::fallback() }
+    if p.passes_on(n) {
+        p
+    } else {
+        Palette::fallback_on(n)
+    }
 }
 
 /// Move `tone` away from the background in 1-step increments until `make(tone)` reaches 4.5:1

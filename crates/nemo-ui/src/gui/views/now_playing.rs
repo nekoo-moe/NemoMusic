@@ -51,7 +51,7 @@ fn backdrop(app: &App) -> Element<'_, Message> {
                 .width(Length::Fill)
                 .height(Length::Fill)
                 .style({
-                    let scrim = col(color::SURFACE.with_alpha(c.scrim_alpha));
+                    let scrim = col(color::surface().with_alpha(c.scrim_alpha));
                     move |_| container::Style {
                         background: Some(scrim.into()),
                         ..container::Style::default()
@@ -68,7 +68,7 @@ fn close_button<'a>() -> Element<'a, Message> {
         Icon::ChevronDown,
         24.0,
         40.0,
-        col(color::ON_SURFACE),
+        col(color::on_surface()),
         Color::TRANSPARENT,
         Some(Message::Ui(Event::Back)),
     )
@@ -82,13 +82,13 @@ pub fn pill_button(text: &str, message: Message) -> Element<'_, Message> {
                 text,
                 type_scale::LABEL_MD,
                 iced::font::Weight::Medium,
-                col(color::ON_SURFACE),
+                col(color::on_surface()),
             ))
             .padding(Padding::from([gap::SM, gap::LG])),
         )
         .padding(0)
         .on_press(message),
-        col(color::ON_SURFACE.with_alpha(0.10)),
+        col(color::on_surface().with_alpha(0.10)),
         shape::FULL,
     )
 }
@@ -111,7 +111,7 @@ fn offset_controls(app: &App) -> Element<'_, Message> {
             format::offset_seconds(app.ui.lyrics_offset_ms),
             type_scale::LABEL_SM,
             false,
-            col(color::ON_SURFACE),
+            col(color::on_surface()),
         ))
         .width(Length::Fixed(64.0))
         .center_x(Length::Fixed(64.0)),
@@ -160,13 +160,13 @@ fn titles(app: &App, width: f32, centered: bool) -> Element<'_, Message> {
             fit(&title, width, ts.size),
             ts,
             true,
-            col(color::ON_SURFACE)
+            col(color::on_surface())
         ),
         label(
             fit(&artist, width, as_.size),
             as_,
             false,
-            col(color::ON_SURFACE_VARIANT)
+            col(color::on_surface_variant())
         ),
     ]
     .width(Length::Fixed(width))
@@ -183,7 +183,7 @@ fn wide(app: &App, w: u32, h: u32) -> Element<'_, Message> {
     let accent = app.accent();
 
     let left = column![
-        cover_art(app, art, shape::XL),
+        super::pane::breathing(app, cover_art(app, art, shape::xl())),
         Space::new().height(gap::XL),
         titles(app, art, false),
         Space::new().height(gap::LG),
@@ -217,7 +217,7 @@ fn compact(app: &App, w: u32, h: u32) -> Element<'_, Message> {
     let tab = |text: &'static str, which: CompactTab| {
         let on = app.compact_tab == which;
         let idle = if on {
-            col(color::SURFACE_CONTAINER_HIGH)
+            col(color::surface_container_high())
         } else {
             Color::TRANSPARENT
         };
@@ -227,9 +227,9 @@ fn compact(app: &App, w: u32, h: u32) -> Element<'_, Message> {
                 type_scale::BODY_MD,
                 on,
                 col(if on {
-                    color::ON_SURFACE
+                    color::on_surface()
                 } else {
-                    color::ON_SURFACE_VARIANT
+                    color::on_surface_variant()
                 }),
             ))
             .width(Length::Fill)
@@ -247,7 +247,7 @@ fn compact(app: &App, w: u32, h: u32) -> Element<'_, Message> {
         CompactTab::Queue => compact_queue(app, width),
     };
     let body = column![
-        cover_art(app, art, shape::XL),
+        super::pane::breathing(app, cover_art(app, art, shape::xl())),
         Space::new().height(gap::MD),
         titles(app, width, true),
         Space::new().height(gap::MD),
@@ -298,12 +298,7 @@ fn compact_lyrics(app: &App, width: f32) -> Element<'_, Message> {
             LineRole::Active => type_scale::TITLE_MD,
             _ => type_scale::BODY_MD,
         };
-        c = c.push(label(
-            fit(&line.text, width, st.size),
-            st,
-            role.semibold(),
-            lyric_ink(role),
-        ));
+        c = c.push(lyric_line(app, &line.text, width, st, role));
     }
     column![
         c,
@@ -327,7 +322,7 @@ fn compact_queue(app: &App, width: f32) -> Element<'_, Message> {
                             fit(&t.title, width * 0.55, type_scale::BODY_MD.size),
                             type_scale::BODY_MD,
                             current,
-                            col(color::ON_SURFACE),
+                            col(color::on_surface()),
                         ),
                         Space::new().width(Length::Fill),
                         label(
@@ -338,7 +333,7 @@ fn compact_queue(app: &App, width: f32) -> Element<'_, Message> {
                             ),
                             type_scale::BODY_SM,
                             false,
-                            col(color::ON_SURFACE_VARIANT),
+                            col(color::on_surface_variant()),
                         ),
                     ]
                     .align_y(Alignment::Center),
@@ -355,17 +350,67 @@ fn compact_queue(app: &App, width: f32) -> Element<'_, Message> {
                 start: i,
             }))),
             Color::TRANSPARENT,
-            shape::MD,
+            shape::md(),
         ));
     }
     scrollable(rows).height(Length::Fill).into()
 }
 
+/// One lyric line. The active line eases from the dim ink to the bright ink and gets a soft
+/// accent glow (four faint offset copies behind it) that fades in with the line change.
+pub fn lyric_line<'a>(
+    app: &App,
+    text: &str,
+    width: f32,
+    st: crate::theme::TextStyle,
+    role: LineRole,
+) -> Element<'a, Message> {
+    let shown = fit(text, width, st.size);
+    if role != LineRole::Active {
+        return label(shown, st, role.semibold(), lyric_ink(role)).into();
+    }
+    let p = app.anim.line().clamp(0.0, 1.0);
+    let dim = lyric_ink(LineRole::Other);
+    let bright = lyric_ink(LineRole::Active);
+    let mix = |a: f32, b: f32| a + (b - a) * p;
+    let ink = Color {
+        r: mix(dim.r, bright.r),
+        g: mix(dim.g, bright.g),
+        b: mix(dim.b, bright.b),
+        a: mix(dim.a, bright.a),
+    };
+    let glow = col(app.accent().primary.with_alpha(0.22 * p));
+    let mut layers: Vec<Element<'a, Message>> = Vec::new();
+    if p > 0.02 {
+        for (dx, dy) in [(0.0, 0.0), (3.0, 0.0), (0.0, 3.0), (3.0, 3.0)] {
+            layers.push(
+                container(label(shown.clone(), st, true, glow))
+                    .padding(Padding {
+                        left: dx,
+                        top: dy,
+                        ..Padding::ZERO
+                    })
+                    .into(),
+            );
+        }
+    }
+    layers.push(
+        container(label(shown, st, true, ink))
+            .padding(Padding {
+                left: 1.5,
+                top: 1.5,
+                ..Padding::ZERO
+            })
+            .into(),
+    );
+    stack(layers).width(Length::Fill).into()
+}
+
 /// Ink of a lyric line: bright when active, dimmed otherwise.
 pub fn lyric_ink(role: LineRole) -> Color {
     match role {
-        LineRole::Active => col(color::ON_SURFACE),
-        _ => col(color::ON_SURFACE_VARIANT.with_alpha(crate::cover::LYRIC_DIM_ALPHA)),
+        LineRole::Active => col(color::on_surface()),
+        _ => col(color::on_surface_variant().with_alpha(crate::cover::LYRIC_DIM_ALPHA)),
     }
 }
 
@@ -375,7 +420,7 @@ pub fn status_text(title: &str, detail: Option<String>) -> Element<'_, Message> 
         title,
         type_scale::TITLE_MD,
         true,
-        col(color::ON_SURFACE)
+        col(color::on_surface())
     )]
     .spacing(gap::XS);
     if let Some(d) = detail {
@@ -383,7 +428,7 @@ pub fn status_text(title: &str, detail: Option<String>) -> Element<'_, Message> 
             d,
             type_scale::BODY_SM,
             false,
-            col(color::ON_SURFACE_VARIANT),
+            col(color::on_surface_variant()),
         ));
     }
     container(c)
@@ -396,7 +441,7 @@ pub fn status_text(title: &str, detail: Option<String>) -> Element<'_, Message> 
 /// Loading and missing states: one calm block, centred. A missing song gets an icon, the plain
 /// sentence and the providers that were asked; nothing else is drawn under it.
 pub fn lyrics_status(app: &App, width: f32) -> Element<'_, Message> {
-    let dim = col(color::ON_SURFACE_VARIANT);
+    let dim = col(color::on_surface_variant());
     let (glyph, title, detail) = match &app.ui.lyrics {
         LyricsState::Missing(tried) => {
             let names: Vec<&str> = tried
@@ -416,7 +461,7 @@ pub fn lyrics_status(app: &App, width: f32) -> Element<'_, Message> {
     let mut c = column![
         super::super::style::icon(glyph, 32.0, dim),
         Space::new().height(gap::MD),
-        label(title, type_scale::TITLE_SM, true, col(color::ON_SURFACE)),
+        label(title, type_scale::TITLE_SM, true, col(color::on_surface())),
     ]
     .align_x(Alignment::Center);
     if let Some(d) = detail {
@@ -435,24 +480,75 @@ pub fn lyrics_status(app: &App, width: f32) -> Element<'_, Message> {
         .into()
 }
 
-/// Provider and sync state; never hidden (`design.md` section 10).
+/// Extra height the lyrics footer takes for the provider switcher, px.
+pub fn footer_extra(app: &App) -> f32 {
+    if !matches!(app.ui.lyrics, LyricsState::Ready(_)) {
+        return 0.0;
+    }
+    let switcher = if app.lyric_candidates.len() > 1 {
+        38.0
+    } else {
+        0.0
+    };
+    let credit = if app.lyric_credit.is_some() {
+        18.0
+    } else {
+        0.0
+    };
+    switcher + credit
+}
+
+/// The credit line a source asks for, for example "Lyrics from Unison \u{b7} by Someone".
+fn credit_text(app: &App) -> Option<String> {
+    let c = app.lyric_credit.as_ref()?;
+    Some(match &c.by {
+        Some(by) => format!("{} \u{b7} by {by}", c.label),
+        None => c.label.clone(),
+    })
+}
+
+/// Provider switcher, provider and sync state, and the credit; never hidden (`design.md`
+/// section 10).
 pub fn footer(app: &App, width: f32) -> Element<'_, Message> {
     // Without lyrics there is nothing to credit; the empty state names the providers instead.
     let LyricsState::Ready(doc) = &app.ui.lyrics else {
         return Space::new().height(gap::SM).into();
     };
-    container(label(
-        fit(
-            &lyrics_view::footer(Some(doc)),
-            width,
-            type_scale::LABEL_SM.size,
-        ),
-        type_scale::LABEL_SM,
-        false,
-        col(color::ON_SURFACE_VARIANT),
-    ))
-    .height(Length::Fixed(24.0))
-    .align_y(Alignment::End)
+    let dim = col(color::on_surface_variant());
+    let text = lyrics_view::footer(Some(doc));
+    let mut c = column![].width(Length::Fill);
+    if app.lyric_candidates.len() > 1 {
+        c = c.push(
+            container(super::panels::lyrics_switcher(
+                app,
+                Message::PickLyricsProvider,
+            ))
+            .height(Length::Fixed(38.0))
+            .align_y(Alignment::Center)
+            .clip(true),
+        );
+    }
+    if let Some(credit) = credit_text(app) {
+        c = c.push(
+            container(label(
+                fit(&credit, width, type_scale::LABEL_SM.size),
+                type_scale::LABEL_SM,
+                false,
+                col(color::on_surface()),
+            ))
+            .height(Length::Fixed(18.0)),
+        );
+    }
+    c.push(
+        container(label(
+            fit(&text, width, type_scale::LABEL_SM.size),
+            type_scale::LABEL_SM,
+            false,
+            dim,
+        ))
+        .height(Length::Fixed(24.0))
+        .align_y(Alignment::End),
+    )
     .into()
 }
 
@@ -468,7 +564,7 @@ fn lyrics_panel(app: &App, width: f32, viewport_h: f32) -> Element<'_, Message> 
                         line.text.clone(),
                         type_scale::TITLE_SM,
                         false,
-                        col(color::ON_SURFACE_VARIANT),
+                        col(color::on_surface_variant()),
                     )
                     .wrapping(iced::widget::text::Wrapping::Word),
                 );
@@ -482,14 +578,9 @@ fn lyrics_panel(app: &App, width: f32, viewport_h: f32) -> Element<'_, Message> 
                 let role = LineRole::of(i, active);
                 let st = role.style();
                 c = c.push(
-                    container(label(
-                        fit(&line.text, width, st.size),
-                        st,
-                        role.semibold(),
-                        lyric_ink(role),
-                    ))
-                    .height(Length::Fixed(f32::from(st.line) + LINE_GAP))
-                    .width(Length::Fill),
+                    container(lyric_line(app, &line.text, width, st, role))
+                        .height(Length::Fixed(f32::from(st.line) + LINE_GAP))
+                        .width(Length::Fill),
                 );
             }
             let list = mouse_area(Offset::new(c, app.ui.lyric_scroll.value)).on_scroll(|delta| {
@@ -521,7 +612,7 @@ fn lyrics_panel(app: &App, width: f32, viewport_h: f32) -> Element<'_, Message> 
     column![
         container(body)
             .width(Length::Fill)
-            .height(Length::Fixed(viewport_h)),
+            .height(Length::Fixed(viewport_h - footer_extra(app))),
         footer(app, width),
     ]
     .width(Length::Fixed(width))

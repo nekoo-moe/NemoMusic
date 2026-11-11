@@ -20,12 +20,12 @@ pub fn theme() -> iced::Theme {
     iced::Theme::custom(
         "NemoMusic".to_owned(),
         iced::theme::Palette {
-            background: col(color::SURFACE),
-            text: col(color::ON_SURFACE),
+            background: col(color::surface()),
+            text: col(color::on_surface()),
             primary: col(color::PRIMARY_FALLBACK),
-            success: col(color::SUCCESS),
-            warning: col(color::WARNING),
-            danger: col(color::ERROR),
+            success: col(color::success()),
+            warning: col(color::warning()),
+            danger: col(color::error()),
         },
     )
 }
@@ -95,14 +95,14 @@ pub fn tip<'a, M: 'a>(content: impl Into<Element<'a, M>>, text: &'a str) -> Elem
             text,
             crate::theme::type_scale::LABEL_SM,
             false,
-            col(color::ON_SURFACE),
+            col(color::on_surface()),
         ))
         .padding(Padding::from([gap::XS, gap::SM]))
         .style(|_| container::Style {
-            background: Some(Background::Color(col(color::SURFACE_CONTAINER_HIGH))),
+            background: Some(Background::Color(col(color::surface_container_high()))),
             border: Border {
-                radius: shape::SM.into(),
-                color: col(color::OUTLINE_VARIANT),
+                radius: shape::sm().into(),
+                color: col(color::outline_variant()),
                 width: 1.0,
             },
             ..container::Style::default()
@@ -144,7 +144,7 @@ fn state_layer(status: button::Status) -> Option<Color> {
         button::Status::Pressed => 0.10,
         _ => return None,
     };
-    Some(col(color::ON_SURFACE.with_alpha(a)))
+    Some(col(color::on_surface().with_alpha(a)))
 }
 
 /// Style for a button whose idle background is `idle` (maybe transparent), radius `radius`.
@@ -167,7 +167,7 @@ pub fn button_style(
         };
         button::Style {
             background: Some(Background::Color(bg)),
-            text_color: col(color::ON_SURFACE),
+            text_color: col(color::on_surface()),
             border: Border {
                 radius: radius.into(),
                 ..Border::default()
@@ -186,7 +186,7 @@ pub fn button_flat(
 ) -> impl Fn(&iced::Theme, button::Status) -> button::Style {
     move |_, _| button::Style {
         background: Some(Background::Color(idle)),
-        text_color: col(color::ON_SURFACE),
+        text_color: col(color::on_surface()),
         border: Border {
             radius: radius.into(),
             ..Border::default()
@@ -284,7 +284,7 @@ pub fn button_outlined(
 ) -> impl Fn(&iced::Theme, button::Status) -> button::Style {
     move |_, _| button::Style {
         background: Some(Background::Color(fill)),
-        text_color: col(color::ON_SURFACE),
+        text_color: col(color::on_surface()),
         border: Border {
             radius: radius.into(),
             width: if outline.is_some() { 1.0 } else { 0.0 },
@@ -331,7 +331,7 @@ pub fn scroll_style(
     style.vertical_rail.background = None;
     style.vertical_rail.border = Border::default();
     style.vertical_rail.scroller.background =
-        Background::Color(col(color::ON_SURFACE.with_alpha(alpha)));
+        Background::Color(col(color::on_surface().with_alpha(alpha)));
     style.vertical_rail.scroller.border = Border {
         radius: shape::FULL.into(),
         ..Border::default()
@@ -354,7 +354,7 @@ pub fn scroll<'a, M: 'a>(content: impl Into<Element<'a, M>>) -> iced::widget::Sc
 /// Glass tint colour: `surface-container` at `alpha`.
 #[must_use]
 pub fn glass_tint(alpha: f32) -> Color {
-    col(glass::TINT_BASE.with_alpha(alpha))
+    col(glass::tint_base().with_alpha(alpha))
 }
 
 /// Padding from the spacing scale: `[vertical, horizontal]`.

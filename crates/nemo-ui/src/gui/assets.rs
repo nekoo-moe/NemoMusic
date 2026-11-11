@@ -159,6 +159,56 @@ icons! {
     Expand => "open-in-full",
     /// Arrow into a door (sign in).
     Login => "login",
+    /// Sleep timer.
+    Sleep => "bedtime",
+    /// Keyboard shortcuts.
+    Keyboard => "keyboard",
+    /// Sort order.
+    Sort => "sort",
+    /// Grid view.
+    Grid => "grid-view",
+    /// List view.
+    List => "format-list-bulleted",
+    /// Radio.
+    Radio => "sensors",
+    /// Link.
+    Link => "link",
+    /// Podcasts.
+    Podcasts => "podcasts",
+    /// Videos.
+    Video => "smart-display",
+    /// Drag handle.
+    Drag => "drag-indicator",
+    /// Enter full screen.
+    FullScreen => "fullscreen",
+    /// Leave full screen.
+    FullScreenExit => "fullscreen-exit",
+    /// Mini player.
+    Mini => "picture-in-picture-alt",
+    /// Playback speed.
+    Speed => "speed",
+    /// Folder.
+    Folder => "folder",
+    /// Light theme.
+    LightMode => "light-mode",
+    /// Dark theme.
+    DarkMode => "dark-mode",
+    /// Palette.
+    Palette => "palette",
+    /// Up.
+    ArrowUp => "arrow-upward",
+    /// Down.
+    ArrowDown => "arrow-downward",
+    /// Add to playlist.
+    PlaylistAdd => "playlist-add",
+    /// Play next.
+    PlayNext => "queue-play-next",
+    /// Collapse.
+    ExpandLess => "expand-less",
+    /// Timer.
+    Timer => "timer",
+    /// Add to library.
+    LibraryAdd => "library-add",
 }
 
 impl Icon {

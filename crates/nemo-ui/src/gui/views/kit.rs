@@ -4,12 +4,12 @@
 
 use iced::font::Weight;
 use iced::widget::text::Wrapping;
-use iced::widget::{Space, button, column, container, image, row, stack};
+use iced::widget::{Space, button, column, container, image, mouse_area, row, stack};
 use iced::{Alignment, Background, Border, Color, Element, Length, Padding};
 
 use super::super::app::{App, ArtShape, ListSource, Message};
 use super::super::assets::Icon;
-use super::super::fx::{entrance, fx};
+use super::super::fx::{Badge, BadgeAnchor, entrance, fx};
 use super::super::style::{
     animated, button_flat, button_outlined, col, fit, fit_lines, gap, icon, icon_button, label,
     label_w, scroll, tip, vertical_gradient,
@@ -33,7 +33,7 @@ pub const QUICK_H: f32 = 64.0;
 /// The colour of the pane behind a page; entrances fade to it.
 #[must_use]
 pub fn pane_bg() -> Color {
-    col(color::SURFACE_CONTAINER)
+    col(color::surface_container().with_alpha(crate::scheme::PANE_ALPHA))
 }
 
 /// A scrolling page: a column `content_w` px wide, centred, with a thin scroll bar and bottom
@@ -62,7 +62,7 @@ pub fn section_title<'a>(text: impl Into<String>) -> Element<'a, Message> {
         text.into(),
         type_scale::TITLE_LG,
         true,
-        col(color::ON_SURFACE),
+        col(color::on_surface()),
     )
     .into()
 }
@@ -73,7 +73,7 @@ pub fn page_title<'a>(text: impl Into<String>) -> Element<'a, Message> {
         text.into(),
         type_scale::HEADLINE_MD,
         true,
-        col(color::ON_SURFACE),
+        col(color::on_surface()),
     )
     .into()
 }
@@ -84,7 +84,7 @@ pub fn eyebrow<'a>(text: impl Into<String>) -> Element<'a, Message> {
         text.into().to_uppercase(),
         type_scale::LABEL_SM,
         Weight::Medium,
-        col(color::ON_SURFACE_VARIANT),
+        col(color::on_surface_variant()),
     )
     .into()
 }
@@ -113,7 +113,7 @@ pub fn art_placeholder<'a>(size: f32, radius: f32, loading: bool) -> Element<'a,
     container(icon(
         Icon::Note,
         (size / 3.0).clamp(16.0, 56.0),
-        col(color::ON_SURFACE_VARIANT.with_alpha(0.7)),
+        col(color::on_surface_variant().with_alpha(0.7)),
     ))
     .width(Length::Fixed(size))
     .height(Length::Fixed(size))
@@ -121,8 +121,8 @@ pub fn art_placeholder<'a>(size: f32, radius: f32, loading: bool) -> Element<'a,
     .center_y(Length::Fixed(size))
     .style(move |_| container::Style {
         background: Some(vertical_gradient(
-            col(color::SURFACE_CONTAINER_HIGHEST),
-            col(color::SURFACE_CONTAINER_HIGH),
+            col(color::surface_container_highest()),
+            col(color::surface_container_high()),
         )),
         border: Border {
             radius: radius.into(),
@@ -165,6 +165,26 @@ pub struct Card {
     pub shape: ArtShape,
     /// Pressed.
     pub on_press: Message,
+    /// Sent by the play button that fades in on hover; none for cards that cannot play.
+    pub play: Option<Message>,
+}
+
+/// The hover play button in the cover's colours.
+pub fn play_badge<'a>(
+    app: &App,
+    size: f32,
+    anchor: BadgeAnchor,
+    message: Message,
+) -> Badge<'a, Message> {
+    let accent = app.accent();
+    Badge {
+        size,
+        anchor,
+        fill: col(accent.primary),
+        ink: col(accent.on_primary),
+        glyph: Icon::Play.handle(),
+        on_press: Box::new(move || message.clone()),
+    }
 }
 
 fn scrim_style(radius: f32) -> impl Fn(&iced::Theme) -> container::Style {
@@ -198,13 +218,13 @@ pub fn card_view<'a>(app: &App, card: Card, size: u32, stagger: usize) -> Elemen
                 fit(&card.title, px, type_scale::BODY_MD.size),
                 type_scale::BODY_MD,
                 true,
-                col(color::ON_SURFACE)
+                col(color::on_surface())
             ),
             label(
                 fit(&card.subtitle, px, type_scale::BODY_SM.size),
                 type_scale::BODY_SM,
                 false,
-                col(color::ON_SURFACE_VARIANT)
+                col(color::on_surface_variant())
             ),
         ]
         .width(Length::Fixed(px))
@@ -221,14 +241,14 @@ pub fn card_view<'a>(app: &App, card: Card, size: u32, stagger: usize) -> Elemen
         .padding(0)
         .on_press(card.on_press);
         return entrance(
-            fx(b.style(button_flat(Color::TRANSPARENT, shape::XL)))
-                .radius(shape::XL)
+            fx(b.style(button_flat(Color::TRANSPARENT, shape::xl())))
+                .radius(shape::xl())
                 .lift(4.0),
             progress,
             pane_bg(),
         );
     }
-    let ink = col(color::ON_SURFACE);
+    let ink = col(color::on_surface());
     let text = column![
         // Two lines for a long title, broken at a space; never a cut inside a word.
         label(
@@ -241,7 +261,7 @@ pub fn card_view<'a>(app: &App, card: Card, size: u32, stagger: usize) -> Elemen
             fit(&card.subtitle, px - 28.0, type_scale::BODY_SM.size),
             type_scale::BODY_SM,
             false,
-            col(color::ON_SURFACE.with_alpha(0.78))
+            col(color::on_surface().with_alpha(0.78))
         ),
     ];
     let overlay = container(text)
@@ -261,16 +281,15 @@ pub fn card_view<'a>(app: &App, card: Card, size: u32, stagger: usize) -> Elemen
     ])
     .padding(0)
     .on_press(card.on_press);
-    entrance(
-        fx(b.style(button_flat(
-            Color::TRANSPARENT,
-            super::super::app::TILE_RADIUS,
-        )))
-        .radius(super::super::app::TILE_RADIUS)
-        .lift(4.0),
-        progress,
-        pane_bg(),
-    )
+    let radius = shape::scaled(super::super::app::TILE_RADIUS);
+    let mut host = fx(b.style(button_flat(Color::TRANSPARENT, radius)))
+        .radius(radius)
+        .lift(4.0)
+        .zoom(0.025);
+    if let Some(play) = card.play {
+        host = host.badge(play_badge(app, 44.0, BadgeAnchor::BottomRight(12.0), play));
+    }
+    entrance(host, progress, pane_bg())
 }
 
 /// Cards in rows of `grid.columns`, at most `max_rows` rows. `base` is the stagger index of the
@@ -346,9 +365,9 @@ pub fn tonal_button(
 ) -> Element<'_, Message> {
     let enabled = message.is_some();
     let ink = if enabled {
-        col(color::ON_SURFACE)
+        col(color::on_surface())
     } else {
-        col(color::ON_SURFACE.with_alpha(0.38))
+        col(color::on_surface().with_alpha(0.38))
     };
     let mut content = row![].align_y(Alignment::Center);
     if let Some(g) = glyph {
@@ -366,12 +385,15 @@ pub fn tonal_button(
     match message {
         Some(m) => animated(
             b.on_press(m),
-            col(color::SURFACE_CONTAINER_HIGHEST),
+            col(color::surface_container_highest()),
             shape::FULL,
         ),
-        None => fx(b.style(button_flat(col(color::SURFACE_CONTAINER_HIGH), shape::FULL)))
-            .passive()
-            .into(),
+        None => fx(b.style(button_flat(
+            col(color::surface_container_high()),
+            shape::FULL,
+        )))
+        .passive()
+        .into(),
     }
 }
 
@@ -382,7 +404,7 @@ pub fn text_button(text: &str, message: Message) -> Element<'_, Message> {
             text,
             type_scale::BODY_MD,
             Weight::Medium,
-            col(color::ON_SURFACE),
+            col(color::on_surface()),
         ))
         .padding(Padding::from([0.0, gap::LG]))
         .height(Length::Fixed(40.0))
@@ -415,8 +437,8 @@ pub fn chip_padded(
     } else {
         (
             Color::TRANSPARENT,
-            col(color::ON_SURFACE),
-            Some(col(color::OUTLINE)),
+            col(color::on_surface()),
+            Some(col(color::outline())),
         )
     };
     let b = button(
@@ -440,7 +462,7 @@ pub fn status(
     detail: impl Into<String>,
     action: Option<(&str, Message)>,
 ) -> Element<'_, Message> {
-    let dim = col(color::ON_SURFACE_VARIANT);
+    let dim = col(color::on_surface_variant());
     let mut c = column![
         icon(glyph, 32.0, dim),
         vspace(gap::MD),
@@ -448,7 +470,7 @@ pub fn status(
             title.into(),
             type_scale::TITLE_MD,
             true,
-            col(color::ON_SURFACE)
+            col(color::on_surface())
         ),
         vspace(gap::XS),
         paragraph(detail, type_scale::BODY_MD, dim, 420.0),
@@ -481,20 +503,20 @@ pub struct RowCtx {
 /// One track row, 56 px high: art or number, title and artist, album, badge, duration, menu.
 pub fn track_row<'a>(
     app: &'a App,
-    track: &'a Track,
+    track: &Track,
     index: usize,
     ctx: &RowCtx,
 ) -> Element<'a, Message> {
     let snap = &app.ui.snapshot;
     let current = snap.current.as_ref().map(|t| &t.id) == Some(&track.id);
-    let dim = col(color::ON_SURFACE_VARIANT);
-    let ink = col(color::ON_SURFACE);
+    let dim = col(color::on_surface_variant());
+    let ink = col(color::on_surface());
     let width = ctx.width;
     let accent = app.accent();
 
     let lead: Element<'a, Message> = if ctx.numbered {
         let inner: Element<'a, Message> = if current {
-            icon(Icon::Volume, 20.0, col(accent.primary)).into()
+            eq_bars(app, col(accent.primary), 16.0)
         } else {
             label(format!("{}", index + 1), type_scale::BODY_MD, false, dim).into()
         };
@@ -560,6 +582,11 @@ pub fn track_row<'a>(
         );
     }
     line = line.push(Space::new().width(Length::Fill));
+    if current && !ctx.numbered {
+        line = line
+            .push(eq_bars(app, col(accent.primary), 16.0))
+            .push(Space::new().width(gap::MD));
+    }
     if show_badge {
         let text = if current {
             snap.signal_path
@@ -600,7 +627,7 @@ pub fn track_row<'a>(
     );
 
     let idle = if current {
-        col(color::SURFACE_CONTAINER_HIGH)
+        col(color::surface_container_high())
     } else {
         Color::TRANSPARENT
     };
@@ -617,8 +644,21 @@ pub fn track_row<'a>(
         source: ctx.source.clone(),
         index,
     });
+    let radius = shape::lg();
+    let host = fx(main.style(button_flat(idle, radius)))
+        .radius(radius)
+        .badge(play_badge(
+            app,
+            32.0,
+            BadgeAnchor::CenterLeft(if ctx.numbered { 6.0 } else { 14.0 }),
+            Message::PlayAt {
+                source: ctx.source.clone(),
+                index,
+            },
+        ));
+    let host = mouse_area(host).on_right_press(Message::Ui(Event::OpenMenu(track.clone())));
     row![
-        animated(main, idle, shape::LG),
+        host,
         tip(
             icon_button(
                 Icon::More,
@@ -659,7 +699,7 @@ pub fn quick_pick<'a>(
                 if current {
                     col(accent.primary)
                 } else {
-                    col(color::ON_SURFACE)
+                    col(color::on_surface())
                 }
             ),
             label(
@@ -670,7 +710,7 @@ pub fn quick_pick<'a>(
                 ),
                 type_scale::BODY_SM,
                 false,
-                col(color::ON_SURFACE_VARIANT)
+                col(color::on_surface_variant())
             ),
         ]
         .width(Length::Fixed(text_w)),
@@ -684,33 +724,42 @@ pub fn quick_pick<'a>(
             .align_y(Alignment::Center),
     )
     .padding(0)
-    .on_press(Message::PlayAt { source, index });
+    .on_press(Message::PlayAt {
+        source: source.clone(),
+        index,
+    });
+    let source2 = source;
     let idle = if current {
-        col(color::SURFACE_CONTAINER_HIGH)
+        col(color::surface_container_high())
     } else {
         Color::TRANSPARENT
     };
-    entrance(
-        animated(b, idle, shape::LG),
-        app.anim.reveal(stagger),
-        pane_bg(),
-    )
+    let radius = shape::lg();
+    let host = fx(b.style(button_flat(idle, radius)))
+        .radius(radius)
+        .badge(play_badge(
+            app,
+            36.0,
+            BadgeAnchor::CenterRight(12.0),
+            Message::PlayAt {
+                source: source2,
+                index,
+            },
+        ));
+    let host = mouse_area(host).on_right_press(Message::Ui(Event::OpenMenu(track.clone())));
+    entrance(host, app.anim.reveal(stagger), pane_bg())
 }
 
 /// Rows of `tracks`, at most `limit` of them, then a "Show more" button when more exist.
 pub fn track_list<'a>(
     app: &'a App,
-    tracks: &'a [Track],
+    tracks: &[Track],
     limit: usize,
     ctx: &RowCtx,
 ) -> Element<'a, Message> {
     let mut c = column![];
     for (i, t) in tracks.iter().enumerate().take(limit) {
-        c = c.push(entrance(
-            track_row(app, t, i, ctx),
-            app.anim.reveal(i.min(6)),
-            pane_bg(),
-        ));
+        c = c.push(track_row(app, t, i, ctx));
     }
     if tracks.len() > limit {
         c = c
@@ -735,10 +784,126 @@ pub fn tile<'a>(
         .style(move |_| container::Style {
             background: Some(Background::Color(col(bg))),
             border: Border {
-                radius: shape::LG.into(),
+                radius: shape::lg().into(),
                 ..Border::default()
             },
             ..container::Style::default()
         })
+        .into()
+}
+
+/// Three equaliser bars on the playing row. They move while a song plays and rest at fixed
+/// heights when paused. Purely a state indicator: it is not audio analysis.
+pub fn eq_bars<'a>(app: &App, ink: Color, h: f32) -> Element<'a, Message> {
+    let moving = app.ui.is_playing() && !app.ui.is_buffering() && !app.ui.reduced_motion;
+    let mut r = row![].spacing(2.0).align_y(Alignment::End);
+    for i in 0..3_u8 {
+        let k = f32::from(i);
+        let level = if moving {
+            0.30 + 0.70 * (app.eq_phase * (1.0 + 0.41 * k) + k * 1.9).sin().abs()
+        } else {
+            [0.40, 0.70, 0.50][usize::from(i)]
+        };
+        r = r.push(
+            container(Space::new())
+                .width(Length::Fixed(3.0))
+                .height(Length::Fixed((h * level).max(3.0)))
+                .style(move |_| container::Style {
+                    background: Some(Background::Color(ink)),
+                    border: Border {
+                        radius: 1.5.into(),
+                        ..Border::default()
+                    },
+                    ..container::Style::default()
+                }),
+        );
+    }
+    container(r)
+        .width(Length::Fixed(13.0))
+        .height(Length::Fixed(h))
+        .align_y(Alignment::End)
+        .into()
+}
+
+/// Side padding of a chip, and the gap between chips.
+pub const CHIP_SIDE: f32 = 16.0;
+/// Gap between sliding chips.
+pub const CHIP_GAP: f32 = 8.0;
+
+/// Width of a chip with this label.
+#[must_use]
+pub fn chip_width(text: &str) -> f32 {
+    super::super::textfit::width(text, 12.0).ceil() + 2.0 * CHIP_SIDE
+}
+
+/// Left edge and width of chip `selected` in a row of chips with these labels.
+#[must_use]
+pub fn chip_geometry(labels: &[&str], selected: usize) -> (f32, f32) {
+    let mut x = 0.0;
+    for (i, l) in labels.iter().enumerate() {
+        let w = chip_width(l);
+        if i == selected {
+            return (x, w);
+        }
+        x += w + CHIP_GAP;
+    }
+    (0.0, 0.0)
+}
+
+/// A row of chips with one selection pill that slides from the old chip to the new one (the
+/// pill follows two springs kept in the app, slot `slot`). `pick` maps an index to a message.
+pub fn sliding_chips<'a>(
+    app: &App,
+    labels: &[&'a str],
+    selected: usize,
+    slot: usize,
+    pick: fn(usize) -> Message,
+) -> Element<'a, Message> {
+    let accent = app.accent();
+    let (x, w) = {
+        let (sx, sw) = &app.chip_pills[slot];
+        (sx.value, sw.value)
+    };
+    let pill = container(Space::new())
+        .width(Length::Fixed(w.max(0.0)))
+        .height(Length::Fixed(32.0))
+        .style(move |_| container::Style {
+            background: Some(Background::Color(col(accent.secondary_container))),
+            border: Border {
+                radius: shape::FULL.into(),
+                ..Border::default()
+            },
+            ..container::Style::default()
+        });
+    let pill_layer = row![Space::new().width(Length::Fixed(x.max(0.0))), pill];
+    let mut chips = row![].spacing(CHIP_GAP);
+    for (i, text) in labels.iter().enumerate() {
+        let on = i == selected;
+        let (ink, outline) = if on {
+            (col(accent.on_secondary_container), None)
+        } else {
+            (col(color::on_surface()), Some(col(color::outline())))
+        };
+        let b = button(
+            container(label_w(*text, type_scale::LABEL_MD, Weight::Medium, ink))
+                .width(Length::Fixed(chip_width(text)))
+                .height(Length::Fixed(32.0))
+                .center_x(Length::Fixed(chip_width(text)))
+                .align_y(Alignment::Center),
+        )
+        .padding(0)
+        .on_press(pick(i));
+        chips = chips.push(
+            fx(b.style(button_outlined(Color::TRANSPARENT, outline, shape::FULL)))
+                .layer(ink)
+                .radius(shape::FULL),
+        );
+    }
+    // A stack takes the size of its first layer, so give it the width of the whole row.
+    let total: f32 = labels.iter().map(|t| chip_width(t)).sum::<f32>()
+        + CHIP_GAP * f32::from(u8::try_from(labels.len().saturating_sub(1)).unwrap_or(0));
+    stack![pill_layer, chips]
+        .width(Length::Fixed(total))
+        .height(Length::Fixed(32.0))
         .into()
 }

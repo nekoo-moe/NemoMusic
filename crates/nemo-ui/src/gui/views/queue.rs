@@ -16,16 +16,21 @@ use crate::theme::{color, shape, type_scale};
 /// The queue tab for a pane `width` px wide: a header with Clear, then the rows.
 pub fn tab(app: &App, width: f32) -> Element<'_, Message> {
     let snap = &app.ui.snapshot;
-    let dim = col(color::ON_SURFACE_VARIANT);
+    let dim = col(color::on_surface_variant());
     let can_clear = snap.queue.len() > 1;
     // Row text width: pane less padding, art 48, gap 12 and the two small buttons.
-    let text_w = (width - 24.0 - 48.0 - gap::MD - 2.0 * 32.0 - gap::SM).max(80.0);
+    let text_w = (width - 24.0 - 48.0 - gap::MD - 4.0 * 32.0 - gap::SM).max(80.0);
 
     let mut body = column![].spacing(0);
     if let Some(cur) = snap.queue_index.and_then(|i| snap.queue.get(i)) {
-        body = body
-            .push(section_label("Now playing"))
-            .push(item(app, cur, 0, true, text_w));
+        body = body.push(section_label("Now playing")).push(item(
+            app,
+            cur,
+            0,
+            true,
+            text_w + 4.0 * 32.0,
+            false,
+        ));
     } else {
         body = body.push(section_label("Nothing is playing"));
     }
@@ -47,14 +52,14 @@ pub fn tab(app: &App, width: f32) -> Element<'_, Message> {
     } else {
         body = body.push(section_label("Next up"));
         for (offset, t) in next.iter().enumerate().take(ROWS_STEP) {
-            body = body.push(item(app, t, start + offset, false, text_w));
+            body = body.push(item(app, t, start + offset, false, text_w, true));
         }
     }
     let earlier = snap.queue_index.unwrap_or(0).min(snap.queue.len());
     if earlier > 0 {
         body = body.push(section_label("Earlier"));
         for (i, t) in snap.queue.iter().enumerate().take(earlier).take(ROWS_STEP) {
-            body = body.push(item(app, t, i, false, text_w));
+            body = body.push(item(app, t, i, false, text_w + 2.0 * 32.0, false));
         }
     }
 
@@ -91,7 +96,7 @@ fn section_label(text: &str) -> Element<'_, Message> {
         text,
         type_scale::LABEL_MD,
         false,
-        col(color::ON_SURFACE_VARIANT),
+        col(color::on_surface_variant()),
     ))
     .padding(Padding {
         top: gap::MD,
@@ -109,8 +114,9 @@ fn item<'a>(
     index: usize,
     current: bool,
     text_w: f32,
+    movable: bool,
 ) -> Element<'a, Message> {
-    let dim = col(color::ON_SURFACE_VARIANT);
+    let dim = col(color::on_surface_variant());
     let accent = app.accent();
     let line = row![
         art(app, &t.artwork, 48, ArtShape::Thumb),
@@ -123,7 +129,7 @@ fn item<'a>(
                 if current {
                     col(accent.primary)
                 } else {
-                    col(color::ON_SURFACE)
+                    col(color::on_surface())
                 },
             ),
             label(
@@ -150,12 +156,37 @@ fn item<'a>(
     .width(Length::Fill)
     .on_press(Message::Ui(Event::Queue(QueueOp::Jump(index))));
     let idle = if current {
-        col(color::SURFACE_CONTAINER_HIGH)
+        col(color::surface_container_high())
     } else {
         Color::TRANSPARENT
     };
-    let mut r = row![animated(main, idle, shape::LG)].align_y(Alignment::Center);
+    let mut r = row![animated(main, idle, shape::lg())].align_y(Alignment::Center);
     if !current {
+        if movable {
+            r = r
+                .push(tip(
+                    icon_button(
+                        Icon::ArrowUp,
+                        18.0,
+                        32.0,
+                        dim,
+                        Color::TRANSPARENT,
+                        Some(Message::QueueMove { index, up: true }),
+                    ),
+                    "Move up",
+                ))
+                .push(tip(
+                    icon_button(
+                        Icon::ArrowDown,
+                        18.0,
+                        32.0,
+                        dim,
+                        Color::TRANSPARENT,
+                        Some(Message::QueueMove { index, up: false }),
+                    ),
+                    "Move down",
+                ));
+        }
         r = r
             .push(tip(
                 icon_button(
@@ -179,6 +210,25 @@ fn item<'a>(
                 ),
                 "Remove",
             ));
+    }
+    // Reorder animation: the moved row slides in from where it was, its neighbour from where
+    // that one was (one row = 60 px).
+    let (moved_from, moved_to) = app.queue_swap;
+    let rows = |a: usize, b: usize| {
+        f32::from(i16::try_from(a).unwrap_or(0) - i16::try_from(b).unwrap_or(0))
+    };
+    let shift = if index == moved_to && moved_from != moved_to {
+        // The moved row now sits at `moved_to` and came from `moved_from`.
+        rows(moved_from, moved_to) * 60.0 * app.queue_anim.value
+    } else if index == moved_from && moved_from != moved_to {
+        rows(moved_to, moved_from) * 60.0 * app.queue_anim.value
+    } else {
+        0.0
+    };
+    if shift.abs() > 0.2 {
+        // `Offset` shifts the content up by its value, so a row that starts below uses a
+        // negative offset.
+        return super::super::widgets::Offset::new(r, -shift).into();
     }
     r.into()
 }

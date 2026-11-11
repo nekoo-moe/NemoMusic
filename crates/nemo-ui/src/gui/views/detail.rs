@@ -4,12 +4,14 @@
 
 use std::time::Duration;
 
-use iced::widget::{Space, column, row};
+use iced::widget::{Space, column, container, row};
 use iced::{Alignment, Element, Length};
 use nemo_core::catalog::{AlbumDetail, ArtistDetail, PlaylistDetail};
 use nemo_core::track::{Artwork, Track};
 
-use super::super::app::{App, ArtShape, DetailData, DetailKey, DetailState, ListSource, Message};
+use super::super::app::{
+    App, ArtShape, DetailData, DetailKey, DetailKind, DetailState, ListSource, Message,
+};
 use super::super::assets::Icon;
 use super::super::style::{col, fit, gap, label};
 use super::kit::{
@@ -43,13 +45,7 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
         );
     }
     let body: Element<'_, Message> = match app.details.get(&key) {
-        None | Some(DetailState::Loading) => label(
-            "Loading\u{2026}",
-            type_scale::BODY_MD,
-            false,
-            col(color::ON_SURFACE_VARIANT),
-        )
-        .into(),
+        None | Some(DetailState::Loading) => skeleton_page(app, grid),
         Some(DetailState::Failed(e)) => status(
             Icon::Info,
             "This page did not load",
@@ -103,7 +99,7 @@ fn hero<'a>(app: &'a App, h: &Hero<'_>, key: &DetailKey, content_w: f32) -> Elem
     let hero_px: u32 = if content_w >= 960.0 { HERO } else { 240 };
     let text_w =
         (content_w - f32::from(u16::try_from(hero_px).unwrap_or(320)) - gap::XXL).max(240.0);
-    let dim = col(color::ON_SURFACE_VARIANT);
+    let dim = col(color::on_surface_variant());
     let source = ListSource::Detail(key.clone());
     let mut info = column![
         label(h.kind.to_uppercase(), type_scale::LABEL_SM, false, dim),
@@ -111,7 +107,7 @@ fn hero<'a>(app: &'a App, h: &Hero<'_>, key: &DetailKey, content_w: f32) -> Elem
         paragraph(
             h.title.to_owned(),
             type_scale::DISPLAY_MD,
-            col(color::ON_SURFACE),
+            col(color::on_surface()),
             text_w
         ),
     ];
@@ -120,7 +116,7 @@ fn hero<'a>(app: &'a App, h: &Hero<'_>, key: &DetailKey, content_w: f32) -> Elem
             fit(s, text_w, type_scale::TITLE_SM.size),
             type_scale::TITLE_SM,
             true,
-            col(color::ON_SURFACE),
+            col(color::on_surface()),
         ));
     }
     if let Some(m) = &h.meta {
@@ -151,7 +147,11 @@ fn hero<'a>(app: &'a App, h: &Hero<'_>, key: &DetailKey, content_w: f32) -> Elem
         ),
     ]);
     row![
-        art(app, &h.artwork, hero_px, h.shape),
+        Element::from(
+            super::super::fx::Fx::new(art(app, &h.artwork, hero_px, h.shape))
+                .passive()
+                .scale(0.86 + 0.14 * app.anim.page())
+        ),
         Space::new().width(gap::XXL),
         info.width(Length::Fixed(text_w)),
     ]
@@ -273,12 +273,105 @@ fn artist<'a>(
                     .map_or_else(|| "Album".to_owned(), |y| y.to_string()),
                 shape: ArtShape::Tile,
                 on_press: Message::Ui(Event::Go(Route::Album(al.id.clone()))),
+                play: Some(Message::PlayCollection(DetailKey {
+                    kind: DetailKind::Album,
+                    id: al.id.clone(),
+                })),
             })
             .collect();
         c = c
             .push(section_title("Albums"))
             .push(vspace(gap::MD))
             .push(card_grid(app, grid, cards, 2, 0));
+    }
+    c.into()
+}
+
+/// A shimmering block: a soft highlight sweeps across a tonal rectangle.
+pub fn skeleton_block<'a>(
+    width: Length,
+    height: f32,
+    radius: f32,
+    phase: f32,
+) -> Element<'a, Message> {
+    let base = col(color::surface_container_high());
+    let glow = col(color::surface_container_highest());
+    // The highlight centre moves from -0.3 to 1.3 across the block.
+    let c = -0.3 + 1.6 * phase;
+    let stop = |x: f32| x.clamp(0.0, 1.0);
+    let grad = iced::gradient::Linear::new(iced::Radians(std::f32::consts::FRAC_PI_2))
+        .add_stop(0.0, base)
+        .add_stop(stop(c - 0.25), base)
+        .add_stop(stop(c), glow)
+        .add_stop(stop(c + 0.25), base)
+        .add_stop(1.0, base);
+    container(Space::new())
+        .width(width)
+        .height(Length::Fixed(height))
+        .style(move |_| container::Style {
+            background: Some(iced::Background::Gradient(grad.into())),
+            border: iced::Border {
+                radius: radius.into(),
+                ..iced::Border::default()
+            },
+            ..container::Style::default()
+        })
+        .into()
+}
+
+/// The page while it loads: the hero and track rows as shimmering blocks, shown at once.
+fn skeleton_page(app: &App, grid: layout::Grid) -> Element<'_, Message> {
+    let p = app.shimmer;
+    // Content widths are small exact numbers.
+    #[allow(clippy::cast_precision_loss)]
+    let content_w = grid.content as f32;
+    let hero_px = if content_w >= 960.0 { 320.0 } else { 240.0 };
+    let text_w = (content_w - hero_px - gap::XXL).max(240.0);
+    let r = crate::theme::shape::lg();
+    let info = column![
+        skeleton_block(Length::Fixed(80.0), 14.0, 7.0, p),
+        vspace(gap::MD),
+        skeleton_block(Length::Fixed(text_w * 0.8), 40.0, 8.0, p),
+        vspace(gap::MD),
+        skeleton_block(Length::Fixed(text_w * 0.4), 18.0, 9.0, p),
+        vspace(gap::SM),
+        skeleton_block(Length::Fixed(text_w * 0.3), 14.0, 7.0, p),
+        vspace(gap::LG),
+        row![
+            skeleton_block(Length::Fixed(120.0), 48.0, crate::theme::shape::FULL, p),
+            Space::new().width(gap::MD),
+            skeleton_block(Length::Fixed(120.0), 48.0, crate::theme::shape::FULL, p),
+        ],
+    ]
+    .width(Length::Fixed(text_w));
+    let mut c = column![
+        row![
+            skeleton_block(Length::Fixed(hero_px), hero_px, r, p),
+            Space::new().width(gap::XXL),
+            info
+        ]
+        .align_y(Alignment::End),
+        vspace(gap::XL),
+    ];
+    for i in 0..7_u8 {
+        c = c.push(
+            row![
+                skeleton_block(Length::Fixed(44.0), 44.0, crate::theme::shape::sm(), p),
+                Space::new().width(gap::MD),
+                column![
+                    skeleton_block(
+                        Length::Fixed(content_w * (0.32 + 0.04 * f32::from(i % 3))),
+                        14.0,
+                        7.0,
+                        p
+                    ),
+                    vspace(gap::XS),
+                    skeleton_block(Length::Fixed(content_w * 0.18), 11.0, 6.0, p),
+                ],
+            ]
+            .align_y(Alignment::Center)
+            .height(Length::Fixed(56.0)),
+        );
     }
     c.into()
 }

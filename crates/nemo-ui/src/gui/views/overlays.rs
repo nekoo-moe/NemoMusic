@@ -18,11 +18,11 @@ use crate::signal;
 use crate::state::Event;
 use crate::theme::{color, glass, shape, type_scale};
 
-fn card_style(radius: f32) -> impl Fn(&iced::Theme) -> container::Style {
+pub(super) fn card_style(radius: f32) -> impl Fn(&iced::Theme) -> container::Style {
     move |_| container::Style {
-        background: Some(Background::Color(col(color::SURFACE_CONTAINER_HIGH))),
+        background: Some(Background::Color(col(color::surface_container_high()))),
         border: Border {
-            color: col(color::OUTLINE_VARIANT),
+            color: col(color::outline_variant()),
             width: 1.0,
             radius: radius.into(),
         },
@@ -31,7 +31,7 @@ fn card_style(radius: f32) -> impl Fn(&iced::Theme) -> container::Style {
     }
 }
 
-fn scrim<'a>(alpha: f32, on_press: Option<Message>) -> Element<'a, Message> {
+pub(super) fn scrim<'a>(alpha: f32, on_press: Option<Message>) -> Element<'a, Message> {
     let layer = container(Space::new())
         .width(Length::Fill)
         .height(Length::Fill)
@@ -47,14 +47,14 @@ fn scrim<'a>(alpha: f32, on_press: Option<Message>) -> Element<'a, Message> {
 
 /// The track menu: a modal card with Play next, Add to queue, Go to album and Go to artist.
 pub fn track_menu<'a>(app: &'a App, track: &'a Track) -> Element<'a, Message> {
-    let dim = col(color::ON_SURFACE_VARIANT);
+    let dim = col(color::on_surface_variant());
     let remote_blocked =
         !app.ui.youtube_enabled() && track.origin == nemo_core::audio::Origin::YoutubeMusic;
-    let entry = |glyph: Icon, text: &'static str, event: Option<Event>| -> Element<'a, Message> {
+    let entry = |glyph: Icon, text: &'static str, event: Option<Message>| -> Element<'a, Message> {
         let ink = if event.is_some() {
-            col(color::ON_SURFACE)
+            col(color::on_surface())
         } else {
-            col(color::DISABLED)
+            col(color::disabled())
         };
         let b = button(
             row![
@@ -69,8 +69,8 @@ pub fn track_menu<'a>(app: &'a App, track: &'a Track) -> Element<'a, Message> {
         .padding(0)
         .width(Length::Fill);
         match event {
-            Some(e) => animated(b.on_press(Message::Ui(e)), Color::TRANSPARENT, shape::MD),
-            None => b.style(button_flat(Color::TRANSPARENT, shape::MD)).into(),
+            Some(e) => animated(b.on_press(e), Color::TRANSPARENT, shape::md()),
+            None => b.style(button_flat(Color::TRANSPARENT, shape::md())).into(),
         }
     };
     let mut items = column![
@@ -82,7 +82,7 @@ pub fn track_menu<'a>(app: &'a App, track: &'a Track) -> Element<'a, Message> {
                     fit(&track.title, 190.0, type_scale::BODY_MD.size),
                     type_scale::BODY_MD,
                     true,
-                    col(color::ON_SURFACE)
+                    col(color::on_surface())
                 ),
                 label(
                     fit(
@@ -101,7 +101,7 @@ pub fn track_menu<'a>(app: &'a App, track: &'a Track) -> Element<'a, Message> {
                 Icon::Close,
                 20.0,
                 40.0,
-                col(color::ON_SURFACE),
+                col(color::on_surface()),
                 Color::TRANSPARENT,
                 Some(Message::Ui(Event::CloseMenu)),
             ),
@@ -110,29 +110,57 @@ pub fn track_menu<'a>(app: &'a App, track: &'a Track) -> Element<'a, Message> {
         .padding(Padding::from([gap::SM, gap::LG])),
         vspace(gap::XS),
         entry(
-            Icon::Next,
+            Icon::PlayNext,
             "Play next",
-            Some(Event::PlayNext(track.clone()))
+            Some(Message::Ui(Event::PlayNext(track.clone())))
         ),
         entry(
             Icon::Queue,
             "Add to queue",
-            Some(Event::Enqueue(track.clone()))
+            Some(Message::Ui(Event::Enqueue(track.clone())))
+        ),
+        entry(
+            Icon::Radio,
+            "Start radio",
+            (!remote_blocked).then(|| Message::StartRadio(track.clone())),
         ),
     ];
     items = items.push(entry(
-        Icon::Library,
+        Icon::Album,
         "Go to album",
-        (track.album.is_some() && !remote_blocked).then(|| Event::GoToAlbum(track.clone())),
+        (track.album.is_some() && !remote_blocked)
+            .then(|| Message::Ui(Event::GoToAlbum(track.clone()))),
     ));
     items = items.push(entry(
-        Icon::Note,
+        Icon::Mic,
         "Go to artist",
-        (!track.artists.is_empty() && !remote_blocked).then(|| Event::GoToArtist(track.clone())),
+        (!track.artists.is_empty() && !remote_blocked)
+            .then(|| Message::Ui(Event::GoToArtist(track.clone()))),
+    ));
+    items = items.push(entry(
+        Icon::Link,
+        "Copy link",
+        track
+            .video_id
+            .is_some()
+            .then(|| Message::CopyLink(track.clone())),
+    ));
+    let liked = app.is_liked(track);
+    items = items.push(entry(
+        if liked { Icon::HeartFill } else { Icon::Heart },
+        if liked {
+            "Remove from liked songs"
+        } else {
+            "Like"
+        },
+        track
+            .video_id
+            .is_some()
+            .then(|| Message::ToggleLike(track.clone())),
     ));
     let card = container(items.padding(Padding::from([gap::SM, gap::SM])))
         .width(Length::Fixed(320.0))
-        .style(card_style(shape::LG));
+        .style(card_style(shape::lg()));
     iced::widget::stack![
         scrim(0.4, Some(Message::Ui(Event::CloseMenu))),
         container(opaque(card))
@@ -153,7 +181,7 @@ pub fn tos_sheet(app: &App) -> Element<'_, Message> {
             "Before you start",
             type_scale::HEADLINE_MD,
             true,
-            col(color::ON_SURFACE)
+            col(color::on_surface())
         ),
         vspace(gap::LG),
     ]
@@ -163,7 +191,7 @@ pub fn tos_sheet(app: &App) -> Element<'_, Message> {
             .push(paragraph(
                 p,
                 type_scale::BODY_MD,
-                col(color::ON_SURFACE),
+                col(color::on_surface()),
                 520.0,
             ))
             .push(vspace(gap::MD));
@@ -183,23 +211,23 @@ pub fn tos_sheet(app: &App) -> Element<'_, Message> {
             );
             checkbox::Style {
                 background: Background::Color(if on {
-                    col(color::ON_SURFACE)
+                    col(color::on_surface())
                 } else {
                     Color::TRANSPARENT
                 }),
-                icon_color: col(color::SURFACE),
+                icon_color: col(color::surface()),
                 border: Border {
-                    color: col(color::ON_SURFACE_VARIANT),
+                    color: col(color::on_surface_variant()),
                     width: 2.0,
-                    radius: shape::XS.into(),
+                    radius: shape::xs().into(),
                 },
-                text_color: Some(col(color::ON_SURFACE)),
+                text_color: Some(col(color::on_surface())),
             }
         });
     let cont_ink = if checked {
         col(accent.on_primary)
     } else {
-        col(color::DISABLED)
+        col(color::disabled())
     };
     let cont = button(
         container(label("Continue", type_scale::BODY_MD, true, cont_ink))
@@ -211,7 +239,7 @@ pub fn tos_sheet(app: &App) -> Element<'_, Message> {
     let cont_idle = if checked {
         col(accent.primary)
     } else {
-        col(color::ON_SURFACE.with_alpha(0.12))
+        col(color::on_surface().with_alpha(0.12))
     };
     let cont: Element<'_, Message> = if checked {
         animated(
@@ -227,7 +255,7 @@ pub fn tos_sheet(app: &App) -> Element<'_, Message> {
             "Not now",
             type_scale::BODY_MD,
             true,
-            col(color::ON_SURFACE),
+            col(color::on_surface()),
         ))
         .padding(Padding::from([0.0, gap::XL]))
         .height(Length::Fixed(48.0))
@@ -245,11 +273,11 @@ pub fn tos_sheet(app: &App) -> Element<'_, Message> {
             "Your own music plays without this. YouTube Music waits until you continue.",
             type_scale::BODY_SM,
             false,
-            col(color::ON_SURFACE_VARIANT),
+            col(color::on_surface_variant()),
         ));
     let sheet = container(body)
         .padding(gap::XXL)
-        .style(card_style(shape::XL));
+        .style(card_style(shape::xl()));
     iced::widget::stack![
         scrim(0.72, None),
         container(opaque(sheet))
@@ -263,13 +291,13 @@ pub fn tos_sheet(app: &App) -> Element<'_, Message> {
 
 /// The signal-path popover: Source, Decode, Process, Output, Result, from the player snapshot.
 pub fn signal_popover(app: &App) -> Element<'_, Message> {
-    let dim = col(color::ON_SURFACE_VARIANT);
+    let dim = col(color::on_surface_variant());
     let mut c = column![
         label(
             "Signal path",
             type_scale::TITLE_SM,
             true,
-            col(color::ON_SURFACE)
+            col(color::on_surface())
         ),
         vspace(gap::MD),
     ]
@@ -282,7 +310,7 @@ pub fn signal_popover(app: &App) -> Element<'_, Message> {
                     .push(paragraph(
                         line.value,
                         type_scale::BODY_MD,
-                        col(color::ON_SURFACE),
+                        col(color::on_surface()),
                         400.0,
                     ))
                     .push(vspace(gap::SM));
@@ -297,15 +325,15 @@ pub fn signal_popover(app: &App) -> Element<'_, Message> {
             ));
         }
     }
-    opaque(container(c).padding(gap::LG).style(card_style(shape::LG)))
+    opaque(container(c).padding(gap::LG).style(card_style(shape::lg())))
 }
 
 /// The notice above the bar: calm, no red. A SponsorBlock skip adds an Undo button.
 pub fn toast(app: &App) -> Option<Element<'_, Message>> {
     let t = app.ui.toast.as_ref()?;
-    let ink = col(color::ON_SURFACE);
+    let ink = col(color::on_surface());
     let mut r = row![
-        icon(Icon::Info, 16.0, col(color::ON_SURFACE_VARIANT)),
+        icon(Icon::Info, 16.0, col(color::on_surface_variant())),
         Space::new().width(gap::SM),
         label(
             fit(&t.text, 420.0, type_scale::BODY_SM.size),
@@ -333,7 +361,7 @@ pub fn toast(app: &App) -> Option<Element<'_, Message>> {
         Icon::Close,
         16.0,
         32.0,
-        col(color::ON_SURFACE_VARIANT),
+        col(color::on_surface_variant()),
         Color::TRANSPARENT,
         Some(Message::Ui(Event::DismissToast)),
     ));

@@ -16,13 +16,15 @@ pub const EFFECTS_FAST: (f32, f32) = (3800.0, 1.0);
 /// The one expressive overshoot: the play button morph.
 pub const EXPRESSIVE_PLAY: (f32, f32) = (1400.0, 0.8);
 /// Length of the page entrance and of each staggered item, in ms.
-pub const ENTRANCE_MS: f32 = 320.0;
+pub const ENTRANCE_MS: f32 = 240.0;
 /// Delay between two staggered items, in ms.
-pub const STAGGER_MS: f32 = 45.0;
+pub const STAGGER_MS: f32 = 28.0;
 /// Most items that stagger (later ones appear with the last).
-pub const STAGGER_MAX: usize = 8;
+pub const STAGGER_MAX: usize = 5;
 /// Slide distance of an entrance, in px (`design.md` section 8: at most 16).
-pub const SLIDE_PX: f32 = 16.0;
+pub const SLIDE_PX: f32 = 0.0;
+/// How much smaller an entrance starts (it grows from 98% to 100%).
+pub const POP: f32 = 0.02;
 /// Length of the cover cross-fade, in ms.
 pub const COVER_FADE_MS: f32 = 400.0;
 /// Length of the live lyric line swap, in ms.

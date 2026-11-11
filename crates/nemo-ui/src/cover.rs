@@ -23,10 +23,12 @@ pub const BACKDROP_PX: u32 = 96;
 pub const BACKDROP_SIGMA: f32 = 5.0;
 
 /// A cover, analysed.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CoverData {
-    /// Accent palette.
+    /// Accent palette (dark surfaces).
     pub palette: Palette,
+    /// Seed the palette was built from, so the app can rebuild it for another theme.
+    pub seed: palette::Seed,
     /// Pre-blurred backdrop, PNG bytes (square, [`BACKDROP_PX`] wide).
     pub backdrop_png: Vec<u8>,
     /// The lightest pixel of the backdrop: the worst case behind light text.
@@ -46,6 +48,7 @@ pub fn analyze(bytes: &[u8]) -> Result<CoverData, PaletteError> {
         .thumbnail(palette::SAMPLE_PX, palette::SAMPLE_PX)
         .to_rgba8();
     let palette = palette::from_rgba(sample.width(), sample.height(), sample.as_raw())?;
+    let seed = palette::seed_from_pixels(sample.as_raw());
 
     // `cover` crop to a square first so the blurred texture has the cover's aspect (1:1).
     let (w, h) = (img.width(), img.height());
@@ -97,6 +100,7 @@ pub fn analyze(bytes: &[u8]) -> Result<CoverData, PaletteError> {
     });
     Ok(CoverData {
         palette,
+        seed,
         backdrop_png,
         backdrop_lightest: lightest,
         backdrop_strip: strip,

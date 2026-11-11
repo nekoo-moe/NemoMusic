@@ -4,7 +4,7 @@
 use iced::widget::{Space, column, container, stack, text_input};
 use iced::{Alignment, Border, Element, Length, Padding};
 
-use super::super::app::{App, ArtShape, ListSource, Message, SEARCH_ID};
+use super::super::app::{App, ArtShape, DetailKey, DetailKind, ListSource, Message, SEARCH_ID};
 use super::super::assets::Icon;
 use super::super::style::{col, gap, icon, label};
 use super::kit::{
@@ -89,6 +89,10 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
                     subtitle: format::artists(&a.artists),
                     shape: ArtShape::Tile,
                     on_press: Message::Ui(Event::Go(Route::Album(a.id.clone()))),
+                    play: Some(Message::PlayCollection(DetailKey {
+                        kind: DetailKind::Album,
+                        id: a.id.clone(),
+                    })),
                 })
                 .collect();
             c = c
@@ -107,6 +111,7 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
                     subtitle: "Artist".to_owned(),
                     shape: ArtShape::Circle,
                     on_press: Message::Ui(Event::Go(Route::Artist(a.id.clone()))),
+                    play: None,
                 })
                 .collect();
             c = c
@@ -125,6 +130,10 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
                     subtitle: p.author.clone().unwrap_or_else(|| "Playlist".to_owned()),
                     shape: ArtShape::Tile,
                     on_press: Message::Ui(Event::Go(Route::Playlist(p.id.clone()))),
+                    play: Some(Message::PlayCollection(DetailKey {
+                        kind: DetailKind::Playlist,
+                        id: p.id.clone(),
+                    })),
                 })
                 .collect();
             c = c
@@ -144,7 +153,7 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
             "Searching\u{2026}",
             type_scale::BODY_MD,
             false,
-            col(color::ON_SURFACE_VARIANT),
+            col(color::on_surface_variant()),
         ));
     }
     if results.is_some()
@@ -164,7 +173,7 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
 /// The query box: a pill, height 48, glyph on the left, "Searching" hint on the right. The pill
 /// gets a 2 px accent ring while it has focus.
 fn query_box(app: &App, width: f32) -> Element<'_, Message> {
-    let dim = col(color::ON_SURFACE_VARIANT);
+    let dim = col(color::on_surface_variant());
     let ring = col(app.accent().primary);
     let width = width.min(560.0);
     let input = text_input("Search songs, albums, artists", &app.ui.search.input)
@@ -183,15 +192,15 @@ fn query_box(app: &App, width: f32) -> Element<'_, Message> {
         .style(move |_, status| {
             let focused = matches!(status, text_input::Status::Focused { .. });
             text_input::Style {
-                background: iced::Background::Color(col(color::SURFACE_CONTAINER_HIGH)),
+                background: iced::Background::Color(col(color::surface_container_high())),
                 border: Border {
                     width: if focused { 2.0 } else { 0.0 },
                     radius: shape::FULL.into(),
                     color: ring,
                 },
-                icon: col(color::ON_SURFACE_VARIANT),
-                placeholder: col(color::ON_SURFACE_VARIANT),
-                value: col(color::ON_SURFACE),
+                icon: col(color::on_surface_variant()),
+                placeholder: col(color::on_surface_variant()),
+                value: col(color::on_surface()),
                 selection: col(color::PRIMARY_FALLBACK.with_alpha(0.4)),
             }
         });

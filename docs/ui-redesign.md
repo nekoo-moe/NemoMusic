@@ -62,12 +62,21 @@ drawn disabled with a tooltip that says so.
 All springs are `design.md` section 8 (stiffness, damping ratio): spatial fast 1400/1.0, default
 700/1.0, slow 300/1.0, effects fast 3800/1.0; the play button uses 1400/0.8 (the only overshoot).
 Non-spring fades use emphasized-decelerate `cubic-bezier(0.05,0.7,0.1,1)`.
+Round 4 (owner, 2026-11-11): the repeated "rise from the bottom" on every shelf and on scroll is
+gone (`anim::SLIDE_PX` is 0). Each motion now has one job:
 | Motion | What moves | Timing |
 |---|---|---|
-| Page transition | content fades in and slides up 16 px on every route change | 320 ms emphasized-decelerate |
-| Staggered entrance | cards and rows of a page, item i starts i x 45 ms later (max 8) | 320 ms each |
+| Page cross-fade | the new page fades in and grows from 98% to 100%, no slide | 240 ms emphasized-decelerate |
+| Entrance stagger | once per page load only, items 0 to 4, 28 ms apart; scrolling never replays it | 240 ms each |
+| Open a card | the page header cover grows from 86% to 100% with the page fade (shared-element feel) | 240 ms |
+| Background cross-fade | window and pane gradient (3 low-chroma tones of the song or the open page) | spring 150/1.0, about 0.7 s; snap on reduce motion |
+| Cover breathe | Now Playing cover rests at 94% paused, 100% playing, on the play button spring | 1400/0.8 |
+| Equaliser bars | 3 bars on the playing row in lists and the queue; still when paused or buffering | per frame while playing |
+| Active lyric line | ink eases dim to bright, a faint accent glow fades in, the line grows to the active size | 240 ms, glide spatial default |
+| Hover | cards lift 4 px with a shadow and the cover zooms 2.5% | spatial fast |
+| Chips | a selection pill slides between chips (Home filters, Library tabs) | spatial fast |
+| Queue reorder | the moved row and its neighbour slide to their new places | spatial default |
 | State layers | hover 8%, press 10% fade over every button, chip, row, card | effects fast spring (about 60 ms) |
-| Card hover lift | card rises 4 px with a soft shadow | spatial fast |
 | Play button morph | circle (paused) to rounded square (playing), radius 50% to 30% | 1400/0.8 |
 | Progress | fill follows the audio clock every frame; thumb grows on hover | per frame |
 | Cover cross-fade | old cover under the new one, in the pane and the capsule | 400 ms |
@@ -78,7 +87,8 @@ Non-spring fades use emphasized-decelerate `cubic-bezier(0.05,0.7,0.1,1)`.
 | Capsule entrance | rises and fades in when the first track starts | spatial default |
 | Sheet | sign-in sheet fades in with a 16 px rise over a scrim | 320 ms |
 Rules: reduce motion (OS or setting) snaps every value to its target and keeps progress live.
-Nothing loops except the buffering ring. An idle window subscribes to no frames: widgets ask for
+Nothing loops except the buffering ring and the equaliser bars while a song plays. An idle window
+subscribes to no frames: widgets ask for
 a redraw only while a value is still moving. F3 shows frame times.
 
 ## 5. Account
@@ -119,7 +129,25 @@ first-run notice is accepted, with a button that reopens it.
 - Every button animates (Settings, sheets, menus, toast Undo too). Tab walks the controls; the focused one gets a
   2 px accent ring, and Enter or Space presses it.
 
+## 6b. Round 4 additions (owner review 2026-11-11)
+- Background: `scheme::bg_colors` turns the seed of the playing cover (or of the open album or
+  playlist page, which wins while it is open) into three dark, low-chroma tones. The window draws
+  them as a soft gradient and the panes sit on it as tinted translucent surfaces. Fixed themes
+  keep their own seed. Text pairs are checked on the panes with `Palette::passes_on`.
+- Home: `daily.rs` builds "Your daily mix", "Because you listened to <artist>", "Rediscover",
+  "Mood of the day", "New for you", a time-of-day greeting and a hero card, seeded with the local
+  date (stable within a day). Signed out, only the hero suggestion and catalog shelves show.
+- Album and playlist pages draw a shimmer skeleton at once; the error page needs a failed call.
+- Lyrics: the footer shows a provider switcher (from `LyricsService::lookup_all`, remembered with
+  `choose`) when two or more sources answered, and the credit line ("Lyrics from Unison · by …")
+  whenever the shown lyrics carry one. Settings > Lyrics lists every provider with an on/off
+  switch, its hosts and the risk note.
+
 ## 7. Not done, said plainly
+Round 4: with the lyrics switcher and the Unison credit shown, the small pane has room for about
+3 lyric lines and the line under the active one is cut at the edge; the nav pill stays on Home
+while an album opened from Home is shown; the equaliser bars are a state indicator, not audio
+analysis; the mock lyric texts are identical for every provider.
 The last lyric line of the small pane can still be cut at its bottom edge; sliders, toggles, checkboxes and text
 fields keep iced's instant hover; the focus ring is clipped inside scroll areas and focus does not scroll a control
 into view; a song's like state is known only from the Liked songs shelf and this session.

@@ -4,12 +4,14 @@
 pub mod account;
 pub mod bar;
 pub mod detail;
+pub mod explore;
 pub mod home;
 pub mod kit;
 pub mod library;
 pub mod now_playing;
 pub mod overlays;
 pub mod pane;
+pub mod panels;
 pub mod queue;
 pub mod search;
 pub mod settings;
@@ -19,13 +21,16 @@ use iced::widget::{container, stack};
 use iced::{Alignment, Element, Length, Padding};
 
 use super::app::{App, Message};
-use super::style::{col, fill, gap, label};
+use super::style::{col, gap, label};
 use crate::layout;
 use crate::route::Route;
 use crate::theme::{color, shape, type_scale};
 
 /// The whole window.
 pub fn root(app: &App) -> Element<'_, Message> {
+    if app.mini {
+        return panels::mini_player(app);
+    }
     let (w, h) = app.window_px();
     let now_playing = matches!(app.ui.route(), Route::NowPlaying);
     let page = if now_playing {
@@ -34,7 +39,8 @@ pub fn root(app: &App) -> Element<'_, Message> {
         shell::view(app, w, h)
     };
     let mut layers: Vec<Element<'_, Message>> = vec![
-        fill(page, color::SURFACE_CONTAINER_LOWEST)
+        background(app),
+        container(page)
             .width(Length::Fill)
             .height(Length::Fill)
             .into(),
@@ -99,13 +105,13 @@ pub fn root(app: &App) -> Element<'_, Message> {
             text,
             type_scale::LABEL_SM,
             false,
-            col(color::ON_SURFACE),
+            col(color::on_surface()),
         ))
         .padding(Padding::from([gap::XS, gap::SM]))
         .style(|_| container::Style {
-            background: Some(col(color::SURFACE_CONTAINER_HIGH).into()),
+            background: Some(col(color::surface_container_high()).into()),
             border: iced::Border {
-                radius: shape::SM.into(),
+                radius: shape::sm().into(),
                 ..iced::Border::default()
             },
             ..container::Style::default()
@@ -121,6 +127,27 @@ pub fn root(app: &App) -> Element<'_, Message> {
     if let Some(track) = &app.ui.menu {
         layers.push(overlays::track_menu(app, track));
     }
+    if app.tools_open {
+        layers.push(
+            container(panels::tools_panel(app))
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .align_x(Alignment::End)
+                .align_y(Alignment::End)
+                .padding(Padding {
+                    right: gap::XL,
+                    bottom: bar_space + gap::XS,
+                    ..Padding::ZERO
+                })
+                .into(),
+        );
+    }
+    if app.create_open {
+        layers.push(panels::create_sheet(app));
+    }
+    if app.shortcuts_open {
+        layers.push(panels::shortcuts_sheet(app));
+    }
     if app.account.open {
         layers.push(account::sheet(app));
     }
@@ -128,4 +155,38 @@ pub fn root(app: &App) -> Element<'_, Message> {
         layers.push(overlays::tos_sheet(app));
     }
     stack(layers).into()
+}
+
+/// The coloured field behind the panes: a soft diagonal gradient of three dark tonal colours
+/// from the song or the page, with a vignette toward the bottom for depth. The colours
+/// cross-fade (`scheme::BgFade`), so the whole window changes colour with the song.
+fn background(app: &App) -> Element<'_, Message> {
+    let [c0, c1, c2] = app.bg_fade.current();
+    let base = color::surface_container_lowest();
+    let diag = iced::gradient::Linear::new(iced::Radians(2.35))
+        .add_stop(0.0, col(c0))
+        .add_stop(0.55, col(c1))
+        .add_stop(1.0, col(c2));
+    let vignette = iced::gradient::Linear::new(iced::Radians(super::style::DOWN))
+        .add_stop(0.0, iced::Color::TRANSPARENT)
+        .add_stop(1.0, col(base.with_alpha(0.45)));
+    iced::widget::stack![
+        container(iced::widget::Space::new())
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .style(move |_| container::Style {
+                background: Some(iced::Background::Gradient(diag.into())),
+                ..container::Style::default()
+            }),
+        container(iced::widget::Space::new())
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .style(move |_| container::Style {
+                background: Some(iced::Background::Gradient(vignette.into())),
+                ..container::Style::default()
+            }),
+    ]
+    .width(Length::Fill)
+    .height(Length::Fill)
+    .into()
 }

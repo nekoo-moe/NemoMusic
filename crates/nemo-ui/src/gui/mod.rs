@@ -15,7 +15,7 @@ pub mod textfit;
 pub mod views;
 pub mod widgets;
 
-pub use app::{App, UiOptions};
+pub use app::{AccountLibrary, App, UiHooks, UiOptions};
 
 use nemo_core::services::Backend;
 

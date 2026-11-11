@@ -90,9 +90,250 @@ pub fn contrast_ratio(a: Rgba, b: Rgba) -> f64 {
     (hi + 0.05) / (lo + 0.05)
 }
 
-/// Color roles of the neutral dark baseline (`design.md` section 2).
+/// The neutral and semantic colour roles of one surface mode (dark, AMOLED, light). The active
+/// set lives in a process-wide slot ([`color::set_active`]); views read it through the
+/// [`color`] accessor functions, so switching the mode changes every screen at the next frame.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Neutrals {
+    /// `surface`.
+    pub surface: Rgba,
+    /// `surface-container-lowest`.
+    pub lowest: Rgba,
+    /// `surface-container-low`.
+    pub low: Rgba,
+    /// `surface-container`.
+    pub container: Rgba,
+    /// `surface-container-high`.
+    pub high: Rgba,
+    /// `surface-container-highest`.
+    pub highest: Rgba,
+    /// `outline`.
+    pub outline: Rgba,
+    /// `on-surface`.
+    pub on_surface: Rgba,
+    /// `on-surface-variant`.
+    pub on_surface_variant: Rgba,
+    /// `outline-variant`.
+    pub outline_variant: Rgba,
+    /// Disabled text.
+    pub disabled: Rgba,
+    /// Semantic success.
+    pub success: Rgba,
+    /// Semantic warning.
+    pub warning: Rgba,
+    /// Semantic error.
+    pub error: Rgba,
+    /// Semantic info.
+    pub info: Rgba,
+}
+
+impl Neutrals {
+    /// The dark baseline of `design.md` section 2.
+    pub const DARK: Self = Self {
+        surface: Rgba::from_rgb_hex(0x0E_0F12),
+        lowest: Rgba::from_rgb_hex(0x09_0A0C),
+        low: Rgba::from_rgb_hex(0x12_1418),
+        container: Rgba::from_rgb_hex(0x16_181D),
+        high: Rgba::from_rgb_hex(0x1E_2128),
+        highest: Rgba::from_rgb_hex(0x27_2A32),
+        outline: Rgba::from_rgba_hex(0xFFFF_FF2E),
+        on_surface: Rgba::from_rgb_hex(0xF2_F3F5),
+        on_surface_variant: Rgba::from_rgb_hex(0xA6_ABB5),
+        outline_variant: Rgba::from_rgba_hex(0xFFFF_FF14),
+        disabled: Rgba::from_rgb_hex(0x6B_7080),
+        success: Rgba::from_rgb_hex(0x6F_CF97),
+        warning: Rgba::from_rgb_hex(0xE5_B567),
+        error: Rgba::from_rgb_hex(0xEB_7B7B),
+        info: Rgba::from_rgb_hex(0x7F_B2E5),
+    };
+
+    /// True black surfaces for OLED panels (owner request); the panes keep a faint lift so the
+    /// layout still reads.
+    pub const AMOLED: Self = Self {
+        surface: Rgba::from_rgb_hex(0x00_0000),
+        lowest: Rgba::from_rgb_hex(0x00_0000),
+        low: Rgba::from_rgb_hex(0x07_0708),
+        container: Rgba::from_rgb_hex(0x0C_0C0E),
+        high: Rgba::from_rgb_hex(0x16_1619),
+        highest: Rgba::from_rgb_hex(0x22_2226),
+        ..Self::DARK
+    };
+
+    /// Light surfaces; semantic colours are the dark-on-light variants.
+    pub const LIGHT: Self = Self {
+        surface: Rgba::from_rgb_hex(0xFA_FAFD),
+        lowest: Rgba::from_rgb_hex(0xE6_E8EE),
+        low: Rgba::from_rgb_hex(0xF4_F5F9),
+        container: Rgba::from_rgb_hex(0xF3_F4F8),
+        high: Rgba::from_rgb_hex(0xE8_EAF0),
+        highest: Rgba::from_rgb_hex(0xDD_DFE6),
+        outline: Rgba::from_rgba_hex(0x0000_002E),
+        on_surface: Rgba::from_rgb_hex(0x1A_1C20),
+        on_surface_variant: Rgba::from_rgb_hex(0x45_4A55),
+        outline_variant: Rgba::from_rgba_hex(0x0000_0014),
+        disabled: Rgba::from_rgb_hex(0x8A_8F9C),
+        success: Rgba::from_rgb_hex(0x1B_6E3F),
+        warning: Rgba::from_rgb_hex(0x80_5300),
+        error: Rgba::from_rgb_hex(0xB3_261E),
+        info: Rgba::from_rgb_hex(0x1D_5799),
+    };
+
+    /// Mix two sets (`t` 0 to 1); opaque roles mix in Oklab, the two alpha roles per channel.
+    #[must_use]
+    pub fn mix(&self, other: &Self, t: f32) -> Self {
+        let t = f64::from(t.clamp(0.0, 1.0));
+        let m = |a: Rgba, b: Rgba| crate::palette::mix_rgb(a, b, t);
+        let ma = |a: Rgba, b: Rgba| {
+            let lerp = |x: u8, y: u8| {
+                let v = f64::from(x) + (f64::from(y) - f64::from(x)) * t;
+                // A convex mix of two bytes stays in 0..=255.
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                let out = v.round() as u8;
+                out
+            };
+            Rgba {
+                r: lerp(a.r, b.r),
+                g: lerp(a.g, b.g),
+                b: lerp(a.b, b.b),
+                a: lerp(a.a, b.a),
+            }
+        };
+        Self {
+            surface: m(self.surface, other.surface),
+            lowest: m(self.lowest, other.lowest),
+            low: m(self.low, other.low),
+            container: m(self.container, other.container),
+            high: m(self.high, other.high),
+            highest: m(self.highest, other.highest),
+            outline: ma(self.outline, other.outline),
+            on_surface: m(self.on_surface, other.on_surface),
+            on_surface_variant: m(self.on_surface_variant, other.on_surface_variant),
+            outline_variant: ma(self.outline_variant, other.outline_variant),
+            disabled: m(self.disabled, other.disabled),
+            success: m(self.success, other.success),
+            warning: m(self.warning, other.warning),
+            error: m(self.error, other.error),
+            info: m(self.info, other.info),
+        }
+    }
+
+    /// Every (name, foreground, background) text pair that must reach 4.5:1.
+    #[must_use]
+    pub fn text_pairs(&self) -> Vec<(&'static str, Rgba, Rgba)> {
+        let mut out = Vec::new();
+        for bg in [self.surface, self.container, self.high, self.highest] {
+            for (name, fg) in [
+                ("on-surface", self.on_surface),
+                ("on-surface-variant", self.on_surface_variant),
+                ("success", self.success),
+                ("warning", self.warning),
+                ("error", self.error),
+                ("info", self.info),
+            ] {
+                out.push((name, fg, bg));
+            }
+        }
+        out
+    }
+}
+
+/// Color roles of the neutral dark baseline (`design.md` section 2). The constants are the dark
+/// baseline; views call the lower-case functions, which read the active mode.
 pub mod color {
-    use super::Rgba;
+    use std::sync::RwLock;
+
+    use super::{Neutrals, Rgba};
+
+    static ACTIVE: RwLock<Neutrals> = RwLock::new(Neutrals::DARK);
+
+    /// Make `n` the neutral set every view draws with.
+    pub fn set_active(n: Neutrals) {
+        if let Ok(mut g) = ACTIVE.write() {
+            *g = n;
+        }
+    }
+
+    /// The neutral set in use now.
+    #[must_use]
+    pub fn active() -> Neutrals {
+        ACTIVE.read().map_or(Neutrals::DARK, |g| *g)
+    }
+
+    /// Active `surface`.
+    #[must_use]
+    pub fn surface() -> Rgba {
+        active().surface
+    }
+    /// Active `surface-container-lowest`.
+    #[must_use]
+    pub fn surface_container_lowest() -> Rgba {
+        active().lowest
+    }
+    /// Active `surface-container-low`.
+    #[must_use]
+    pub fn surface_container_low() -> Rgba {
+        active().low
+    }
+    /// Active `surface-container`.
+    #[must_use]
+    pub fn surface_container() -> Rgba {
+        active().container
+    }
+    /// Active `surface-container-high`.
+    #[must_use]
+    pub fn surface_container_high() -> Rgba {
+        active().high
+    }
+    /// Active `surface-container-highest`.
+    #[must_use]
+    pub fn surface_container_highest() -> Rgba {
+        active().highest
+    }
+    /// Active `outline`.
+    #[must_use]
+    pub fn outline() -> Rgba {
+        active().outline
+    }
+    /// Active `on-surface`.
+    #[must_use]
+    pub fn on_surface() -> Rgba {
+        active().on_surface
+    }
+    /// Active `on-surface-variant`.
+    #[must_use]
+    pub fn on_surface_variant() -> Rgba {
+        active().on_surface_variant
+    }
+    /// Active `outline-variant`.
+    #[must_use]
+    pub fn outline_variant() -> Rgba {
+        active().outline_variant
+    }
+    /// Active disabled text colour.
+    #[must_use]
+    pub fn disabled() -> Rgba {
+        active().disabled
+    }
+    /// Active success colour.
+    #[must_use]
+    pub fn success() -> Rgba {
+        active().success
+    }
+    /// Active warning colour.
+    #[must_use]
+    pub fn warning() -> Rgba {
+        active().warning
+    }
+    /// Active error colour.
+    #[must_use]
+    pub fn error() -> Rgba {
+        active().error
+    }
+    /// Active info colour.
+    #[must_use]
+    pub fn info() -> Rgba {
+        active().info
+    }
 
     /// `surface`.
     pub const SURFACE: Rgba = Rgba::from_rgb_hex(0x0E_0F12);
@@ -162,6 +403,56 @@ pub mod shape {
     pub const XL: f32 = 28.0;
     /// `shape.full`.
     pub const FULL: f32 = 999.0;
+
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    /// Corner scale in percent (the "corner style" setting); 100 is the M3 scale.
+    static SCALE_PERCENT: AtomicU32 = AtomicU32::new(100);
+
+    /// Set the corner scale in percent (clamped to 0 to 200).
+    pub fn set_scale_percent(p: u32) {
+        SCALE_PERCENT.store(p.min(200), Ordering::Relaxed);
+    }
+
+    /// The corner scale as a factor.
+    #[must_use]
+    pub fn scale() -> f32 {
+        // At most 200, exact in f32.
+        #[allow(clippy::cast_precision_loss)]
+        let p = SCALE_PERCENT.load(Ordering::Relaxed) as f32;
+        p / 100.0
+    }
+
+    /// `shape.xs` scaled by the corner style.
+    #[must_use]
+    pub fn xs() -> f32 {
+        XS * scale()
+    }
+    /// `shape.sm` scaled by the corner style.
+    #[must_use]
+    pub fn sm() -> f32 {
+        SM * scale()
+    }
+    /// `shape.md` scaled by the corner style.
+    #[must_use]
+    pub fn md() -> f32 {
+        MD * scale()
+    }
+    /// `shape.lg` scaled by the corner style.
+    #[must_use]
+    pub fn lg() -> f32 {
+        LG * scale()
+    }
+    /// `shape.xl` scaled by the corner style.
+    #[must_use]
+    pub fn xl() -> f32 {
+        XL * scale()
+    }
+    /// Any radius scaled by the corner style (pills stay pills).
+    #[must_use]
+    pub fn scaled(r: f32) -> f32 {
+        if r >= FULL { r } else { r * scale() }
+    }
 }
 
 /// Layout numbers (`design.md` section 4).
@@ -224,6 +515,11 @@ pub mod glass {
     pub const SHADOW: Rgba = Rgba::from_rgba_hex(0x0000_0052);
     /// Glass tint base color.
     pub const TINT_BASE: Rgba = color::SURFACE_CONTAINER;
+    /// Glass tint base of the active mode.
+    #[must_use]
+    pub fn tint_base() -> Rgba {
+        color::surface_container()
+    }
     /// Edge highlight base color (white).
     pub const EDGE: Rgba = Rgba::from_rgb_hex(0xFF_FFFF);
 }

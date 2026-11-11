@@ -121,7 +121,7 @@ pub fn view(app: &App, width: f32) -> Element<'_, Message> {
             layers.push(tint_layer(glass_tint(alpha), RADIUS));
         }
         // Tonal fallback: opaque, no glass.
-        _ => layers.push(tint_layer(col(color::SURFACE_CONTAINER_HIGHEST), RADIUS)),
+        _ => layers.push(tint_layer(col(color::surface_container_highest()), RADIUS)),
     }
     layers.push(content.into());
     layers.push(edge_layer(RADIUS, glass_ok.is_some()));
@@ -151,7 +151,7 @@ fn edge_layer<'a>(radius: f32, glass_on: bool) -> Element<'a, Message> {
     let edge = if glass_on {
         glass::EDGE.with_alpha(glass::EDGE_ALPHA)
     } else {
-        color::OUTLINE_VARIANT
+        color::outline_variant()
     };
     let ring = container(Space::new())
         .width(Length::Fill)
@@ -226,7 +226,7 @@ fn track_info(app: &App, width: f32) -> Element<'_, Message> {
             fit(&track.title, text_w, type_scale::BODY_MD.size),
             type_scale::BODY_MD,
             true,
-            col(color::ON_SURFACE)
+            col(color::on_surface())
         ),
         label(
             fit(
@@ -236,12 +236,12 @@ fn track_info(app: &App, width: f32) -> Element<'_, Message> {
             ),
             type_scale::BODY_SM,
             false,
-            col(color::ON_SURFACE_VARIANT)
+            col(color::on_surface_variant())
         ),
     ];
     let b = button(
         row![
-            cover_art(app, 48.0, shape::MD),
+            cover_art(app, 48.0, shape::md()),
             Space::new().width(gap::MD),
             texts
         ]
@@ -250,15 +250,15 @@ fn track_info(app: &App, width: f32) -> Element<'_, Message> {
     .padding(0)
     .on_press(Message::OpenNowPlaying);
     tip(
-        animated(b, Color::TRANSPARENT, shape::LG),
+        animated(b, Color::TRANSPARENT, shape::lg()),
         "Show Now Playing",
     )
 }
 
 /// Shuffle, previous, play, next, repeat.
 fn controls(app: &App, accent: Palette, compact: bool) -> Element<'_, Message> {
-    let ink = col(color::ON_SURFACE);
-    let dim = col(color::ON_SURFACE_VARIANT);
+    let ink = col(color::on_surface());
+    let dim = col(color::on_surface_variant());
     let mut r = row![].spacing(gap::XS).align_y(Alignment::Center);
     if !compact {
         r = r.push(tip(
@@ -290,7 +290,7 @@ pub fn repeat_button(app: &App, target: f32) -> Element<'_, Message> {
     let (glyph, ink, bg, hint) = match mode {
         RepeatMode::Off => (
             Icon::Repeat,
-            col(color::ON_SURFACE_VARIANT),
+            col(color::on_surface_variant()),
             Color::TRANSPARENT,
             "Repeat off",
         ),
@@ -330,7 +330,7 @@ pub fn like_button<'a>(
     glyph_size: f32,
     target: f32,
 ) -> Element<'a, Message> {
-    let dim = col(color::ON_SURFACE_VARIANT);
+    let dim = col(color::on_surface_variant());
     if track.video_id.is_none() {
         return tip(
             icon_button(
@@ -376,7 +376,7 @@ pub fn like_button<'a>(
                 Icon::Heart,
                 glyph_size,
                 target,
-                col(color::ON_SURFACE),
+                col(color::on_surface()),
                 Color::TRANSPARENT,
                 message,
             ),
@@ -447,7 +447,7 @@ pub fn play_button(app: &App, accent: Palette, size: f32) -> Element<'_, Message
 
 /// Previous, play/pause, next, for the full-window Now Playing.
 pub fn transport(app: &App, accent: Palette, play_size: f32) -> Element<'_, Message> {
-    let ink = col(color::ON_SURFACE);
+    let ink = col(color::on_surface());
     row![
         prev_button(ink, 48.0),
         play_button(app, accent, play_size),
@@ -473,7 +473,7 @@ pub fn seek_row(app: &App, accent: Palette) -> Element<'_, Message> {
         (Some(f), Some(d)) => d.mul_f32(f.clamp(0.0, 1.0)),
         _ => app.ui.position,
     };
-    let dim = col(color::ON_SURFACE_VARIANT);
+    let dim = col(color::on_surface_variant());
     let time = |text: String, right: bool| {
         container(label(text, type_scale::LABEL_MD, false, dim))
             .width(Length::Fixed(40.0))
@@ -489,7 +489,7 @@ pub fn seek_row(app: &App, accent: Palette) -> Element<'_, Message> {
         .height(16.0)
         .style(slider_style(
             col(accent.primary),
-            col(color::ON_SURFACE.with_alpha(0.20)),
+            col(color::on_surface().with_alpha(0.20)),
             col(accent.primary),
             6.0,
         ));
@@ -516,7 +516,7 @@ pub fn badge(app: &App, max_w: f32) -> Element<'_, Message> {
             text,
             type_scale::LABEL_SM,
             Weight::Medium,
-            col(color::ON_SURFACE_VARIANT),
+            col(color::on_surface_variant()),
         ))
         .padding(Padding::from([4.0, gap::MD])),
     )
@@ -524,9 +524,9 @@ pub fn badge(app: &App, max_w: f32) -> Element<'_, Message> {
     .on_press(Message::Ui(Event::ToggleSignalPath));
     fx(b.style(|_, _| button::Style {
         background: None,
-        text_color: col(color::ON_SURFACE),
+        text_color: col(color::on_surface()),
         border: Border {
-            color: col(color::OUTLINE),
+            color: col(color::outline()),
             width: 1.0,
             radius: shape::FULL.into(),
         },
@@ -538,8 +538,8 @@ pub fn badge(app: &App, max_w: f32) -> Element<'_, Message> {
 }
 
 fn right(app: &App, width: f32, roomy: bool, compact: bool) -> Element<'_, Message> {
-    let ink = col(color::ON_SURFACE);
-    let dim = col(color::ON_SURFACE_VARIANT);
+    let ink = col(color::on_surface());
+    let dim = col(color::on_surface_variant());
     let volume_w = if compact { 72.0 } else { 88.0 };
     let volume = slider(0..=100_u8, app.ui.snapshot.volume_percent, |v| {
         Message::Ui(Event::Command(PlayerCommand::SetVolume(v)))
@@ -547,9 +547,9 @@ fn right(app: &App, width: f32, roomy: bool, compact: bool) -> Element<'_, Messa
     .height(16.0)
     .width(Length::Fixed(volume_w))
     .style(slider_style(
-        col(color::ON_SURFACE),
-        col(color::ON_SURFACE.with_alpha(0.20)),
-        col(color::ON_SURFACE),
+        col(color::on_surface()),
+        col(color::on_surface().with_alpha(0.20)),
+        col(color::on_surface()),
         5.0,
     ));
     let queue_on = app.pane_open && app.np_tab == super::super::app::NpTab::Queue;
@@ -560,7 +560,7 @@ fn right(app: &App, width: f32, roomy: bool, compact: bool) -> Element<'_, Messa
             40.0,
             ink,
             if queue_on {
-                col(color::ON_SURFACE.with_alpha(0.14))
+                col(color::on_surface().with_alpha(0.14))
             } else {
                 Color::TRANSPARENT
             },
@@ -582,8 +582,30 @@ fn right(app: &App, width: f32, roomy: bool, compact: bool) -> Element<'_, Messa
     if !compact && let Some(track) = &app.ui.snapshot.current {
         r = r.push(like_button(app, track, 22.0, 40.0));
     }
+    r = r.push(queue);
+    if !compact {
+        let sleeping = app.sleep.is_some();
+        r = r.push(tip(
+            icon_button(
+                if sleeping { Icon::Timer } else { Icon::Tune },
+                22.0,
+                40.0,
+                if sleeping {
+                    col(app.accent().primary)
+                } else {
+                    ink
+                },
+                if app.tools_open {
+                    col(color::on_surface().with_alpha(0.14))
+                } else {
+                    Color::TRANSPARENT
+                },
+                Some(Message::Tools(!app.tools_open)),
+            ),
+            "Sleep timer, speed and more (S)",
+        ));
+    }
     r = r
-        .push(queue)
         .push(icon(vol_icon, 22.0, dim))
         .push(Space::new().width(gap::XS))
         .push(volume);

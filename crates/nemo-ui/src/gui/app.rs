@@ -15,13 +15,13 @@ use iced::widget::image;
 use iced::{Element, Size, Subscription, Task, keyboard, stream, window};
 use nemo_core::account::{AccountError, AccountInfo, AccountState, SignOutReport};
 use nemo_core::catalog::{
-    AlbumDetail, AlbumSummary, ArtistDetail, BrowseId, PlaylistDetail, SearchResults, Shelf,
-    ShelfItem,
+    AlbumDetail, AlbumSummary, ArtistDetail, ArtistSummary, BrowseId, PlaylistDetail,
+    PlaylistSummary, SearchResults, Shelf, ShelfItem,
 };
-use nemo_core::lyrics::LyricsQuery;
+use nemo_core::lyrics::{LyricsCandidate, LyricsCredit, LyricsQuery, ProviderId};
 use nemo_core::player::{PlayerCommand, PlayerEvent};
 use nemo_core::secret::Secret;
-use nemo_core::services::{Backend, LyricsLookup, PlayerControl};
+use nemo_core::services::{Backend, LyricsLookup, LyricsProviderStatus, PlayerControl};
 use nemo_core::track::{Artwork, Track, TrackId};
 
 use super::fx;
@@ -30,17 +30,22 @@ use super::views;
 use crate::anim::Anim;
 use crate::copy;
 use crate::cover::{self, Baked, CoverData};
+use crate::daily::{self, DailyData, DailySection, DayContext};
+use crate::explore::{ContentFilter, LibLayout, LibSort, LibTab, MOODS, SleepChoice};
 use crate::frame_stats::FrameStats;
 use crate::home;
 use crate::keys::{self, Key, Mods};
 use crate::layout;
 use crate::lru::{ART_CAPACITY, Lru};
-use crate::palette::Palette;
+use crate::palette::{Palette, Seed};
 use crate::route::Route;
+use crate::scheme::{
+    self, AccentIntensity, BaseMode, BgFade, CornerStyle, SchemeFade, ThemeChoice, bg_colors,
+};
 use crate::search::DEBOUNCE_MS;
 use crate::settings::UiSettings;
-use crate::state::{Effect, Event, ResolveKind, UiState};
-use crate::theme::{layout as theme_layout, shape};
+use crate::state::{Effect, Event, LyricsState, ResolveKind, UiState};
+use crate::theme::{color, layout as theme_layout, shape};
 
 /// Widget id of the search box.
 pub const SEARCH_ID: &str = "nemo-search";
@@ -51,9 +56,73 @@ const ART_PARALLEL: usize = 6;
 /// Message of the search page while the first-run notice is not accepted.
 pub const GATE_MESSAGE: &str = "YouTube Music is waiting for you to read the notice.";
 
+/// Callbacks and data the parent wires for features the UI shows but cannot do itself. Every
+/// field is optional; a missing hook makes the matching control say so instead of pretending.
+#[derive(Clone, Default)]
+pub struct UiHooks {
+    /// "Create playlist": called with the name. Without it the button explains it is not connected.
+    pub on_create_playlist: Option<Arc<dyn Fn(String) + Send + Sync>>,
+    /// Playback speed in percent (100 is off). Without it the speed chips are disabled.
+    pub on_set_speed: Option<Arc<dyn Fn(u16) + Send + Sync>>,
+    /// Local time zone offset to UTC in minutes (for the daily sections and the greeting; the
+    /// app knows the zone, this crate has no time library). 0 means UTC.
+    pub utc_offset_minutes: i32,
+}
+
+impl std::fmt::Debug for UiHooks {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("UiHooks")
+            .field("on_create_playlist", &self.on_create_playlist.is_some())
+            .field("on_set_speed", &self.on_set_speed.is_some())
+            .field("utc_offset_minutes", &self.utc_offset_minutes)
+            .finish()
+    }
+}
+
+/// What the signed-in account has in its library. The parent can fill it with
+/// [`Message::AccountLibrary`] once the catalog has library calls; until then the Library page
+/// uses the shelves of Home.
+#[derive(Debug, Clone, Default)]
+pub struct AccountLibrary {
+    /// Playlists.
+    pub playlists: Vec<PlaylistSummary>,
+    /// Saved albums.
+    pub albums: Vec<AlbumSummary>,
+    /// Followed artists.
+    pub artists: Vec<ArtistSummary>,
+    /// Liked songs.
+    pub songs: Vec<Track>,
+}
+
+/// A running sleep timer.
+#[derive(Debug, Clone)]
+pub struct SleepState {
+    /// What was chosen.
+    pub choice: SleepChoice,
+    /// When to pause (`None` for end of song).
+    pub deadline: Option<Instant>,
+    /// The song that was playing when the timer started.
+    pub track: Option<TrackId>,
+}
+
+/// Messages of the "Create playlist" sheet.
+#[derive(Debug, Clone)]
+pub enum CreateMsg {
+    /// Open the sheet.
+    Open,
+    /// Close it.
+    Close,
+    /// The name changed.
+    Name(String),
+    /// Create.
+    Confirm,
+}
+
 /// Options for [`run`](super::run).
 #[derive(Clone)]
 pub struct UiOptions {
+    /// Hooks the parent wires (create playlist, speed, lyrics provider switcher).
+    pub hooks: UiHooks,
     /// Honour the OS "reduce motion" setting: no cross-fade, no lyric glide.
     pub reduced_motion: bool,
     /// Window size at start, logical px.
@@ -79,6 +148,7 @@ pub struct UiOptions {
 impl std::fmt::Debug for UiOptions {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("UiOptions")
+            .field("hooks", &self.hooks)
             .field("reduced_motion", &self.reduced_motion)
             .field("window_size", &self.window_size)
             .field("maximized", &self.maximized)
@@ -95,6 +165,7 @@ impl std::fmt::Debug for UiOptions {
 impl Default for UiOptions {
     fn default() -> Self {
         Self {
+            hooks: UiHooks::default(),
             reduced_motion: false,
             window_size: theme_layout::DEFAULT_WINDOW,
             maximized: false,
@@ -134,8 +205,8 @@ impl ArtShape {
     pub fn radius(self, size: f32) -> f32 {
         match self {
             Self::Circle => size / 2.0,
-            Self::Card | Self::Thumb => shape::MD,
-            Self::Row => shape::SM,
+            Self::Card | Self::Thumb => shape::md(),
+            Self::Row => shape::sm(),
             Self::Hero => 24.0,
             Self::Tile => TILE_RADIUS,
         }
@@ -305,6 +376,12 @@ pub enum ListSource {
     Home(usize),
     /// Tracks of a detail page.
     Detail(DetailKey),
+    /// Liked songs of the account.
+    Account,
+    /// Songs of daily section number `n`.
+    Daily(usize),
+    /// Music videos of the home feed.
+    Videos,
 }
 
 /// Lower area of compact Now Playing.
@@ -591,6 +668,13 @@ pub enum Message {
         /// Stored offset.
         offset_ms: i64,
     },
+    /// Every provider's lyrics for the song arrived (switcher).
+    LyricsCandidates {
+        /// Track.
+        track: TrackId,
+        /// Candidates, best first.
+        list: Arc<Vec<LyricsCandidate>>,
+    },
     /// The seek slider moved (0 to 1).
     SeekDrag(f32),
     /// The seek slider was released.
@@ -641,8 +725,84 @@ pub enum Message {
     },
     /// The user wants to add a music folder.
     AddFolder,
+    /// Header content chip (All, Music, Videos, Podcasts).
+    ContentFilter(ContentFilter),
+    /// Library tab.
+    LibTab(LibTab),
+    /// Library sort order.
+    LibSort(LibSort),
+    /// Library list or grid.
+    LibLayout(LibLayout),
+    /// Play every song of a page (loads it first when needed).
+    PlayCollection(DetailKey),
+    /// A mood tile on Explore (index into [`MOODS`]).
+    PickMood(usize),
+    /// Hook: shelves for the Explore page from the catalog.
+    ExploreLoaded(Arc<Vec<Shelf>>),
+    /// Hook: the account library from the catalog.
+    AccountLibrary(Arc<AccountLibrary>),
+    /// Open or close the tools panel (sleep timer, speed, shortcuts, window modes).
+    Tools(bool),
+    /// Open or close the shortcut sheet.
+    Shortcuts(bool),
+    /// The "Create playlist" sheet.
+    Create(CreateMsg),
+    /// Start or stop the sleep timer.
+    Sleep(Option<SleepChoice>),
+    /// One second passed (sleep timer).
+    TimerTick,
+    /// Playback speed in percent.
+    Speed(u16),
+    /// Switch the mini player on or off.
+    ToggleMini,
+    /// Switch full-screen Now Playing on or off.
+    ToggleFullScreen,
+    /// Start a radio from a song (similar songs from search).
+    StartRadio(Track),
+    /// The radio answered.
+    RadioReady {
+        /// The seed song.
+        seed: Track,
+        /// Songs to follow it.
+        tracks: Vec<Track>,
+    },
+    /// Copy the link of a song.
+    CopyLink(Track),
+    /// Move a queue entry after the current song up or down one place.
+    QueueMove {
+        /// Index in the queue.
+        index: usize,
+        /// `true` moves it earlier.
+        up: bool,
+    },
+    /// Pick lyrics provider `i` in the switcher.
+    PickLyricsProvider(usize),
+    /// Switch a lyrics source on or off (Settings).
+    SetLyricsSource(ProviderId, bool),
+    /// The cover colour of a page arrived.
+    PageSeed {
+        /// Page.
+        key: DetailKey,
+        /// Seed.
+        seed: Seed,
+    },
+    /// The account bundle arrived (library and daily data).
+    AccountData(Arc<AccountBundle>),
+    /// Open a search for this text (a mood tile).
+    SearchFor(String),
     /// Nothing.
     Noop,
+}
+
+/// What one pass over the account calls of the catalog returned.
+#[derive(Debug, Clone, Default)]
+pub struct AccountBundle {
+    /// The library sections.
+    pub library: AccountLibrary,
+    /// The inputs of the daily sections.
+    pub daily: DailyData,
+    /// Whether any account call answered.
+    pub account_answered: bool,
 }
 
 /// A cover with its analysis, built off the UI thread.
@@ -677,6 +837,8 @@ pub enum Job {
     Cover(Track),
     /// Look up lyrics.
     Lyrics(Track),
+    /// Ask every lyrics provider (for the switcher).
+    LyricsAll(Track),
     /// Open the sign-in window.
     SignIn,
     /// Sign in with a pasted cookie.
@@ -690,6 +852,18 @@ pub enum Job {
         /// `true` to like.
         liked: bool,
     },
+    /// Read the colour of a page's cover.
+    PageSeed {
+        /// Page.
+        key: DetailKey,
+        /// Its cover.
+        artwork: Artwork,
+    },
+    /// Ask the catalog for the account library, history and explore data (one call after the
+    /// other, at human pace).
+    AccountData,
+    /// Find songs like this one.
+    Radio(Track),
     /// Find the album or artist page of a track.
     Resolve {
         /// What to open.
@@ -697,6 +871,14 @@ pub enum Job {
         /// The track.
         track: Track,
     },
+}
+
+/// Size of the mini player window.
+pub const MINI_SIZE: (f32, f32) = (420.0, 168.0);
+
+/// The link of a YouTube Music song.
+fn link_of(video_id: &str) -> String {
+    format!("https://music.youtube.com/watch?v={video_id}")
 }
 
 /// Cache key of an artwork (first thumbnail address or file path).
@@ -820,6 +1002,16 @@ pub async fn run_job(job: Job, backend: Backend) -> Message {
                 offset_ms,
             }
         }
+        Job::LyricsAll(track) => {
+            let list = backend
+                .lyrics
+                .lookup_all(&LyricsQuery::from_track(&track))
+                .await;
+            Message::LyricsCandidates {
+                track: track.id,
+                list: Arc::new(list),
+            }
+        }
         Job::SignIn => Message::Account(AccountMsg::SignedIn(backend.account.sign_in().await)),
         Job::SignInCookie(cookie) => Message::Account(AccountMsg::SignedIn(
             backend.account.sign_in_with_cookie(cookie).await,
@@ -840,8 +1032,83 @@ pub async fn run_job(job: Job, backend: Backend) -> Message {
                 result,
             }
         }
+        Job::PageSeed { key, artwork } => match backend.images.image(&artwork, 96).await {
+            Ok(raw) => match ::image::load_from_memory(&raw) {
+                Ok(img) => {
+                    let small = img.thumbnail(64, 64).to_rgba8();
+                    Message::PageSeed {
+                        key,
+                        seed: crate::palette::seed_from_pixels(small.as_raw()),
+                    }
+                }
+                Err(_) => Message::Noop,
+            },
+            Err(_) => Message::Noop,
+        },
+        Job::AccountData => Message::AccountData(Arc::new(account_bundle(&backend).await)),
+        Job::Radio(seed) => {
+            let query = format!(
+                "{} {}",
+                seed.artists.first().cloned().unwrap_or_default(),
+                seed.title
+            );
+            let tracks = backend
+                .catalog
+                .search(query.trim())
+                .await
+                .map(|r| r.songs)
+                .unwrap_or_default();
+            Message::RadioReady { seed, tracks }
+        }
         Job::Resolve { kind, track } => Message::Ui(resolve(&backend, kind, &track).await),
     }
+}
+
+/// Call the account and explore parts of the catalog one after the other. Every call may fail
+/// (signed out, offline, not built): a failure just leaves that part empty.
+async fn account_bundle(backend: &Backend) -> AccountBundle {
+    use nemo_core::catalog::FeedItem;
+    let c = &backend.catalog;
+    let mut b = AccountBundle::default();
+    if let Ok(v) = c.library_playlists().await {
+        b.library.playlists = v;
+        b.account_answered = true;
+    }
+    if let Ok(v) = c.liked_songs().await {
+        b.library.songs.clone_from(&v);
+        b.daily.liked = v;
+        b.account_answered = true;
+    }
+    if let Ok(v) = c.library_albums().await {
+        b.library.albums = v;
+    }
+    if let Ok(v) = c.library_artists().await {
+        b.library.artists.clone_from(&v);
+        b.daily.followed = v;
+    }
+    if let Ok(sections) = c.history().await {
+        b.daily.history = sections.into_iter().flat_map(|s| s.tracks).collect();
+    }
+    if let Ok(e) = c.explore().await {
+        b.daily.new_releases = e.new_releases;
+        b.daily.moods = e.moods;
+    }
+    if let Ok(feed) = c.home_feed().await {
+        if b.daily.moods.is_empty() {
+            b.daily.moods = feed.chips;
+        }
+        for shelf in &feed.shelves {
+            for item in &shelf.items {
+                match item {
+                    FeedItem::Video(t) => b.daily.videos.push(t.clone()),
+                    FeedItem::Podcast(p) => b.daily.podcasts.push(p.clone()),
+                    _ => {}
+                }
+            }
+        }
+        b.daily.feed_shelves = feed.shelves;
+    }
+    b
 }
 
 /// Find the page of a track's artist or album; fall back to a search for the name.
@@ -920,6 +1187,16 @@ pub struct App {
     pub(crate) settings_section: SettingsSection,
     pub(crate) rows_limit: usize,
     pub(crate) spin: f32,
+    /// Phase of the loading shimmer, 0 to 1.
+    pub(crate) shimmer: f32,
+    /// Phase of the equaliser bars on the playing row.
+    pub(crate) eq_phase: f32,
+    /// Sliding selection pill of chip rows: x and width springs (0: Home, 1: Library tabs).
+    pub(crate) chip_pills: [(crate::motion::Spring, crate::motion::Spring); 2],
+    chip_pills_init: bool,
+    /// Queue reorder: the two rows that swapped and the offset spring (1 to 0).
+    pub(crate) queue_swap: (usize, usize),
+    pub(crate) queue_anim: crate::motion::Spring,
     pub(crate) frame_stats: FrameStats,
     pub(crate) readout: bool,
     pub(crate) music_folders: Vec<String>,
@@ -928,6 +1205,59 @@ pub struct App {
     focus_search: bool,
     last_route: Route,
     last_frame: Option<Instant>,
+    /// Animated surface colours (the theme switch).
+    pub(crate) scheme_fade: SchemeFade,
+    /// The coloured background field behind the panes, and its cross-fade.
+    pub(crate) bg_fade: BgFade,
+    /// Seeds of the album and playlist pages that were opened (their cover colour).
+    page_seeds: HashMap<DetailKey, Seed>,
+    /// Seed of the playing cover, for the Dynamic theme.
+    cover_seed: Option<Seed>,
+    /// The theme settings the screen shows right now.
+    theme_key: Option<(ThemeChoice, BaseMode, AccentIntensity, CornerStyle)>,
+    /// Header content chip on Home.
+    pub(crate) content_filter: ContentFilter,
+    /// Library tab, sort and layout.
+    pub(crate) lib_tab: LibTab,
+    pub(crate) lib_sort: LibSort,
+    pub(crate) lib_layout: LibLayout,
+    /// Account library from the parent (hook); `None` until it arrives.
+    pub(crate) account_library: Option<Arc<AccountLibrary>>,
+    /// Shelves for Explore from the parent (hook).
+    pub(crate) explore_shelves: Vec<Shelf>,
+    /// Tools panel, shortcut sheet and "Create playlist" sheet.
+    pub(crate) tools_open: bool,
+    pub(crate) shortcuts_open: bool,
+    pub(crate) create_open: bool,
+    pub(crate) create_name: String,
+    /// Sleep timer.
+    pub(crate) sleep: Option<SleepState>,
+    /// Playback speed in percent (100 is off).
+    pub(crate) speed_percent: u16,
+    /// Mini player and full-screen Now Playing.
+    pub(crate) mini: bool,
+    pub(crate) fullscreen: bool,
+    /// Window size before the mini player.
+    normal_size: Size,
+    hooks: UiHooks,
+    /// Lyrics provider switcher: every provider's answer for the playing song, best first.
+    pub(crate) lyric_candidates: Vec<LyricsCandidate>,
+    /// Index into `lyric_candidates` of the lyrics shown now.
+    pub(crate) lyric_provider: usize,
+    /// Credit the source of the shown lyrics asks for (Unison).
+    pub(crate) lyric_credit: Option<LyricsCredit>,
+    /// Providers with their on/off state, for Settings.
+    pub(crate) lyric_sources: Vec<LyricsProviderStatus>,
+    /// A page whose songs should play as soon as it has loaded.
+    pending_play: Option<DetailKey>,
+    /// Daily sections: the data, the built sections and what they were built from.
+    pub(crate) daily: DailyData,
+    pub(crate) daily_sections: Vec<DailySection>,
+    daily_requested: Option<bool>,
+    daily_key: Option<(usize, bool, u64, usize, usize)>,
+    daily_gen: usize,
+    /// The local day (seed and greeting).
+    pub(crate) day: DayContext,
 }
 
 impl App {
@@ -975,6 +1305,21 @@ impl App {
             settings_section: SettingsSection::default(),
             rows_limit: ROWS_STEP,
             spin: 0.0,
+            shimmer: 0.0,
+            eq_phase: 0.0,
+            chip_pills: [
+                (
+                    crate::motion::Spring::tuned(0.0, 1400.0, 1.0),
+                    crate::motion::Spring::tuned(0.0, 1400.0, 1.0),
+                ),
+                (
+                    crate::motion::Spring::tuned(0.0, 1400.0, 1.0),
+                    crate::motion::Spring::tuned(0.0, 1400.0, 1.0),
+                ),
+            ],
+            chip_pills_init: false,
+            queue_swap: (0, 0),
+            queue_anim: crate::motion::Spring::tuned(0.0, 700.0, 1.0),
             frame_stats: FrameStats::default(),
             readout: options.show_frame_readout,
             music_folders: options.music_folders.clone(),
@@ -983,7 +1328,50 @@ impl App {
             focus_search: false,
             last_route: options.start_route.clone(),
             last_frame: None,
+            scheme_fade: SchemeFade::settled(options.settings.base.neutrals()),
+            bg_fade: BgFade::settled(bg_colors(
+                options.settings.theme.seed(),
+                options.settings.base,
+            )),
+            page_seeds: HashMap::new(),
+            cover_seed: None,
+            theme_key: None,
+            content_filter: ContentFilter::default(),
+            lib_tab: LibTab::default(),
+            lib_sort: LibSort::default(),
+            lib_layout: LibLayout::default(),
+            account_library: None,
+            explore_shelves: Vec::new(),
+            tools_open: false,
+            shortcuts_open: false,
+            create_open: false,
+            create_name: String::new(),
+            sleep: None,
+            speed_percent: 100,
+            mini: false,
+            fullscreen: false,
+            normal_size: Size::new(options.window_size.0, options.window_size.1),
+            hooks: options.hooks.clone(),
+            lyric_candidates: Vec::new(),
+            lyric_provider: 0,
+            lyric_credit: None,
+            lyric_sources: Vec::new(),
+            pending_play: None,
+            daily: DailyData::default(),
+            daily_sections: Vec::new(),
+            daily_requested: None,
+            daily_key: None,
+            daily_gen: 0,
+            day: DayContext::from_unix(
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map_or(0, |d| d.as_secs()),
+                options.hooks.utc_offset_minutes,
+            ),
         };
+        color::set_active(app.scheme_fade.current());
+        app.lyric_sources = app.backend.lyrics.providers();
+        shape::set_scale_percent(options.settings.corner_style.percent());
         let mut jobs = Vec::new();
         // The reducer starts without a current track; feeding the snapshot requests cover and
         // lyrics.
@@ -993,6 +1381,12 @@ impl App {
         jobs.extend(app.sync_viewport());
         jobs.extend(app.after_update());
         (app, jobs)
+    }
+
+    /// `true` when the parent wired playback speed (otherwise the chips are disabled).
+    #[must_use]
+    pub fn speed_wired(&self) -> bool {
+        self.hooks.on_set_speed.is_some()
     }
 
     /// `true` when the app gave a callback for adding a music folder.
@@ -1088,6 +1482,26 @@ impl App {
                 .map(|r| r.songs.clone())
                 .unwrap_or_default(),
             ListSource::Library => self.local_tracks.clone(),
+            ListSource::Daily(n) => self
+                .daily_sections
+                .get(*n)
+                .map(|s| s.tracks.clone())
+                .unwrap_or_default(),
+            ListSource::Videos => self.daily.videos.clone(),
+            ListSource::Account => match &self.account_library {
+                Some(lib) => lib.songs.clone(),
+                None => self
+                    .home
+                    .shelves
+                    .iter()
+                    .filter(|s| s.title == "Liked songs")
+                    .flat_map(|s| s.items.iter())
+                    .filter_map(|i| match i {
+                        ShelfItem::Song(t) => Some(t.clone()),
+                        _ => None,
+                    })
+                    .collect(),
+            },
             ListSource::Recent => self.ui.recent.clone(),
             ListSource::Home(n) => self
                 .home
@@ -1122,6 +1536,8 @@ impl App {
         } else {
             layout::pane_lyrics_height(w, h)
         };
+        // The switcher and the credit line take room under the lyrics.
+        let v = (v - views::now_playing::footer_extra(self)).max(60.0);
         let mut jobs = self.dispatch(Event::LyricsDense(!full));
         jobs.extend(self.dispatch(Event::LyricsViewport(v)));
         jobs
@@ -1133,14 +1549,92 @@ impl App {
         self.account.busy || matches!(self.backend.account.state(), AccountState::SigningIn)
     }
 
+    /// `true` while the page of the route is still loading (a skeleton is drawn).
+    #[must_use]
+    pub fn detail_loading(&self) -> bool {
+        DetailKey::of(self.ui.route()).is_some_and(|k| {
+            matches!(self.details.get(&k), None | Some(DetailState::Loading))
+                && (self.ui.youtube_enabled() || k.is_local())
+        })
+    }
+
     /// `true` while anything animates; the window subscribes to frames only then.
     #[must_use]
     pub fn needs_frames(&self) -> bool {
-        self.ui.needs_frames() || self.anim.active() || self.account_busy()
+        self.ui.needs_frames()
+            || self.anim.active()
+            || self.account_busy()
+            || !self.scheme_fade.is_done()
+            || !self.bg_fade.is_done()
+            || self.detail_loading()
+            || self
+                .chip_pills
+                .iter()
+                .any(|(x, w)| !x.is_settled() || !w.is_settled())
+            || !self.queue_anim.is_settled()
     }
 
     /// Point every animation at the state it should show. Cheap; runs after every update.
+    /// Apply the theme settings when they changed: corner scale at once, surfaces and accent as
+    /// one animated cross-fade.
+    fn sync_theme(&mut self) {
+        let s = &self.ui.settings;
+        let key = (s.theme, s.base, s.accent_intensity, s.corner_style);
+        if self.theme_key == Some(key) {
+            return;
+        }
+        let first = self.theme_key.is_none();
+        self.theme_key = Some(key);
+        let (theme, base, intensity, corner) = key;
+        shape::set_scale_percent(corner.percent());
+        let reduced = self.ui.reduced_motion || first;
+        self.scheme_fade.retarget(base.neutrals(), reduced);
+        color::set_active(self.scheme_fade.current());
+        let palette = scheme::accent_palette(theme, base, intensity, self.cover_seed);
+        self.ui.accent.retarget(palette, reduced);
+    }
+
+    /// Point the background field at the colour it should have now: a fixed theme keeps its own
+    /// seed; Dynamic uses the page being viewed (album or playlist) and otherwise the song.
+    fn sync_bg(&mut self) {
+        let s = &self.ui.settings;
+        let seed = s.theme.seed().or_else(|| {
+            DetailKey::of(self.ui.route())
+                .and_then(|k| self.page_seeds.get(&k).copied())
+                .or(self.cover_seed)
+        });
+        let colors = bg_colors(seed, s.base);
+        let reduced = self.ui.reduced_motion;
+        self.bg_fade.retarget(colors, reduced);
+    }
+
+    fn sync_chips(&mut self) {
+        use super::views::kit::chip_geometry;
+        let home: Vec<&str> = ContentFilter::ALL.iter().map(|f| f.label()).collect();
+        let home_sel = ContentFilter::ALL
+            .iter()
+            .position(|f| *f == self.content_filter)
+            .unwrap_or(0);
+        let lib: Vec<&str> = LibTab::ALL.iter().map(|t| t.label()).collect();
+        let lib_sel = LibTab::ALL
+            .iter()
+            .position(|t| *t == self.lib_tab)
+            .unwrap_or(0);
+        for (slot, (labels, sel)) in [(home, home_sel), (lib, lib_sel)].into_iter().enumerate() {
+            let (x, w) = chip_geometry(&labels, sel);
+            let (sx, sw) = &mut self.chip_pills[slot];
+            sx.target = x;
+            sw.target = w;
+            if !self.chip_pills_init || self.ui.reduced_motion {
+                sx.snap(x);
+                sw.snap(w);
+            }
+        }
+        self.chip_pills_init = true;
+    }
+
     fn sync_anim(&mut self) {
+        self.sync_chips();
         // The queue flag and the pane tab stay one fact.
         if self.ui.queue_open && !(self.pane_open && self.np_tab == NpTab::Queue) {
             self.pane_open = true;
@@ -1354,6 +1848,10 @@ impl App {
             self.anim.restart_page();
             jobs.extend(self.sync_viewport());
         }
+        self.sync_theme();
+        self.refresh_daily();
+        self.sync_bg();
+        jobs.extend(self.check_sleep());
         self.sync_anim();
         jobs.extend(self.pump_loads());
         self.probe_art();
@@ -1366,6 +1864,10 @@ impl App {
         if !self.library_requested {
             self.library_requested = true;
             jobs.push(Job::Library);
+        }
+        if self.ui.youtube_enabled() && self.daily_requested != Some(self.signed_in()) {
+            self.daily_requested = Some(self.signed_in());
+            jobs.push(Job::AccountData);
         }
         if self.ui.youtube_enabled() && self.home.phase == HomePhase::Idle {
             self.home.phase = HomePhase::Loading;
@@ -1443,6 +1945,28 @@ impl App {
                 Some(keys::KeyAction::Close) if self.account.open => {
                     self.account_msg(AccountMsg::Close)
                 }
+                Some(keys::KeyAction::Close) if self.create_open => {
+                    self.create_msg(CreateMsg::Close)
+                }
+                Some(keys::KeyAction::Close) if self.shortcuts_open || self.tools_open => {
+                    self.shortcuts_open = false;
+                    self.tools_open = false;
+                    Vec::new()
+                }
+                Some(keys::KeyAction::Close) if self.mini => self.handle(Message::ToggleMini),
+                Some(keys::KeyAction::Close) if self.fullscreen => {
+                    self.handle(Message::ToggleFullScreen)
+                }
+                Some(keys::KeyAction::ShowShortcuts) => {
+                    self.handle(Message::Shortcuts(!self.shortcuts_open))
+                }
+                Some(keys::KeyAction::FullScreen) => self.handle(Message::ToggleFullScreen),
+                Some(keys::KeyAction::Mini) => self.handle(Message::ToggleMini),
+                Some(keys::KeyAction::Tools) => self.handle(Message::Tools(!self.tools_open)),
+                Some(keys::KeyAction::LikeCurrent) => match self.ui.snapshot.current.clone() {
+                    Some(t) => self.handle(Message::ToggleLike(t)),
+                    None => Vec::new(),
+                },
                 Some(action) => self.dispatch(Event::Key(action)),
                 None => Vec::new(),
             },
@@ -1468,7 +1992,6 @@ impl App {
             }
             Message::HomeFilter(filter) => {
                 self.home_filter = filter;
-                self.anim.restart_page();
                 Vec::new()
             }
             Message::LibFilter(filter) => {
@@ -1532,8 +2055,30 @@ impl App {
                     Ok(d) => DetailState::Ready(d),
                     Err(e) => DetailState::Failed(e),
                 };
-                self.details.insert(key, state);
-                Vec::new()
+                let ready = matches!(state, DetailState::Ready(_));
+                let mut jobs = Vec::new();
+                if let DetailState::Ready(d) = &state
+                    && !self.page_seeds.contains_key(&key)
+                {
+                    let artwork = match d.as_ref() {
+                        DetailData::Album(a) => Artwork::Remote(a.summary.thumbnails.clone()),
+                        DetailData::Playlist(p) => Artwork::Remote(p.summary.thumbnails.clone()),
+                        DetailData::Artist(a) => Artwork::Remote(a.summary.thumbnails.clone()),
+                    };
+                    jobs.push(Job::PageSeed {
+                        key: key.clone(),
+                        artwork,
+                    });
+                }
+                self.details.insert(key.clone(), state);
+                if self.pending_play.as_ref() == Some(&key) {
+                    self.pending_play = None;
+                    if ready {
+                        let tracks = self.tracks_of(&ListSource::Detail(key));
+                        jobs.extend(self.dispatch(Event::PlayTracks { tracks, start: 0 }));
+                    }
+                }
+                jobs
             }
             Message::Art { key, pixels } => {
                 self.art_inflight = self.art_inflight.saturating_sub(1);
@@ -1552,11 +2097,39 @@ impl App {
                 track,
                 lookup,
                 offset_ms,
-            } => self.dispatch(Event::LyricsReady {
-                track,
-                lookup: lookup.as_ref().clone(),
-                offset_ms,
-            }),
+            } => {
+                self.lyric_candidates.clear();
+                self.lyric_provider = 0;
+                self.lyric_credit = lookup
+                    .doc
+                    .as_ref()
+                    .and_then(|d| self.backend.lyrics.credit(&track.0, d.provider));
+                let current = self.ui.snapshot.current.clone();
+                let mut jobs = self.dispatch(Event::LyricsReady {
+                    track: track.clone(),
+                    lookup: lookup.as_ref().clone(),
+                    offset_ms,
+                });
+                if let Some(t) = current.filter(|t| t.id == track) {
+                    jobs.push(Job::LyricsAll(t));
+                }
+                jobs.extend(self.sync_viewport());
+                jobs
+            }
+            Message::LyricsCandidates { track, list } => {
+                let current = self.ui.snapshot.current.as_ref().map(|t| &t.id);
+                if current == Some(&track) {
+                    let shown = match &self.ui.lyrics {
+                        LyricsState::Ready(d) => Some(d.provider),
+                        _ => None,
+                    };
+                    self.lyric_provider = shown
+                        .and_then(|p| list.iter().position(|c| c.provider == p))
+                        .unwrap_or(0);
+                    self.lyric_candidates.clone_from(list.as_ref());
+                }
+                self.sync_viewport()
+            }
             Message::SeekDrag(f) => {
                 self.seek_drag = Some(f);
                 Vec::new()
@@ -1598,6 +2171,7 @@ impl App {
                 Vec::new()
             }
             Message::ToggleLike(track) => {
+                self.ui.menu = None;
                 if !self.signed_in() {
                     return self.account_msg(AccountMsg::Open);
                 }
@@ -1627,8 +2201,304 @@ impl App {
                 }
                 Vec::new()
             }
-            Message::Noop => Vec::new(),
+            Message::ContentFilter(f) => {
+                self.content_filter = f;
+                Vec::new()
+            }
+            Message::LibTab(tab) => {
+                self.lib_tab = tab;
+                self.rows_limit = ROWS_STEP;
+                Vec::new()
+            }
+            Message::LibSort(s) => {
+                self.lib_sort = s;
+                Vec::new()
+            }
+            Message::LibLayout(l) => {
+                self.lib_layout = l;
+                Vec::new()
+            }
+            Message::PlayCollection(key) => {
+                if let Some(DetailState::Ready(_)) = self.details.get(&key) {
+                    let tracks = self.tracks_of(&ListSource::Detail(key));
+                    return self.dispatch(Event::PlayTracks { tracks, start: 0 });
+                }
+                self.pending_play = Some(key.clone());
+                if self.details.contains_key(&key) {
+                    return Vec::new();
+                }
+                self.details.insert(key.clone(), DetailState::Loading);
+                vec![Job::Detail(key)]
+            }
+            Message::PickMood(i) => {
+                let mood = MOODS[i.min(MOODS.len() - 1)];
+                self.dispatch(Event::Go(Route::Search(mood.query.to_owned())))
+            }
+            Message::ExploreLoaded(shelves) => {
+                self.explore_shelves.clone_from(shelves.as_ref());
+                Vec::new()
+            }
+            Message::AccountLibrary(lib) => {
+                self.account_library = Some(lib);
+                Vec::new()
+            }
+            Message::Tools(on) => {
+                self.tools_open = on;
+                self.shortcuts_open = false;
+                Vec::new()
+            }
+            Message::Shortcuts(on) => {
+                self.shortcuts_open = on;
+                self.tools_open = false;
+                Vec::new()
+            }
+            Message::Create(msg) => self.create_msg(msg),
+            Message::Sleep(choice) => {
+                self.sleep = choice.map(|choice| SleepState {
+                    choice,
+                    deadline: choice.duration().map(|d| Instant::now() + d),
+                    track: self.ui.snapshot.current.as_ref().map(|t| t.id.clone()),
+                });
+                let text = match choice {
+                    Some(c) => format!("Sleep timer set: {}", c.label()),
+                    None => "Sleep timer off".to_owned(),
+                };
+                self.dispatch(Event::Notice(text))
+            }
+            Message::Speed(p) => {
+                if let Some(cb) = &self.hooks.on_set_speed {
+                    self.speed_percent = p;
+                    cb(p);
+                }
+                Vec::new()
+            }
+            Message::ToggleMini => {
+                self.mini = !self.mini;
+                self.fullscreen = false;
+                self.tools_open = false;
+                Vec::new()
+            }
+            Message::ToggleFullScreen => {
+                self.fullscreen = !self.fullscreen;
+                self.mini = false;
+                self.tools_open = false;
+                if self.fullscreen {
+                    self.dispatch(Event::Go(Route::NowPlaying))
+                } else {
+                    self.dispatch(Event::Back)
+                }
+            }
+            Message::StartRadio(track) => {
+                self.ui.menu = None;
+                if track.origin == nemo_core::audio::Origin::YoutubeMusic
+                    && !self.ui.youtube_enabled()
+                {
+                    return Vec::new();
+                }
+                vec![Job::Radio(track)]
+            }
+            Message::RadioReady { seed, tracks } => {
+                let mut queue = vec![seed.clone()];
+                queue.extend(tracks.into_iter().filter(|t| t.id != seed.id).take(24));
+                let n = queue.len();
+                let mut jobs = self.dispatch(Event::PlayTracks {
+                    tracks: queue,
+                    start: 0,
+                });
+                jobs.extend(self.dispatch(Event::Notice(format!(
+                    "Radio from \u{201c}{}\u{201d}: {n} songs from search results",
+                    seed.title
+                ))));
+                jobs
+            }
+            Message::CopyLink(_) => {
+                // The clipboard write is a task; `update` runs it.
+                self.ui.menu = None;
+                Vec::new()
+            }
+            Message::QueueMove { index, up } => self.queue_move(index, up),
+            Message::PickLyricsProvider(i) => {
+                let Some(track) = self.ui.snapshot.current.clone() else {
+                    return Vec::new();
+                };
+                let Some(cand) = self.lyric_candidates.get(i).cloned() else {
+                    return Vec::new();
+                };
+                self.lyric_provider = i;
+                self.backend.lyrics.choose(&track.id.0, cand.provider);
+                self.lyric_credit = cand
+                    .credit
+                    .clone()
+                    .or_else(|| self.backend.lyrics.credit(&track.id.0, cand.provider));
+                let offset_ms = self.ui.lyrics_offset_ms;
+                let mut jobs = self.dispatch(Event::LyricsReady {
+                    track: track.id,
+                    lookup: LyricsLookup {
+                        doc: Some(cand.doc),
+                        tried: Vec::new(),
+                    },
+                    offset_ms,
+                });
+                jobs.extend(self.sync_viewport());
+                jobs
+            }
+            Message::SetLyricsSource(id, on) => {
+                self.backend.lyrics.set_provider_enabled(id, on);
+                self.lyric_sources = self.backend.lyrics.providers();
+                Vec::new()
+            }
+            Message::PageSeed { key, seed } => {
+                self.page_seeds.insert(key, seed);
+                Vec::new()
+            }
+            Message::AccountData(b) => {
+                self.daily = b.daily.clone();
+                self.daily_gen += 1;
+                let lib = &b.library;
+                let any = !(lib.playlists.is_empty()
+                    && lib.albums.is_empty()
+                    && lib.artists.is_empty()
+                    && lib.songs.is_empty());
+                if self.signed_in() && any {
+                    self.account_library = Some(Arc::new(b.library.clone()));
+                }
+                Vec::new()
+            }
+            Message::SearchFor(q) => self.dispatch(Event::Go(Route::Search(q))),
+            Message::TimerTick | Message::Noop => Vec::new(),
         }
+    }
+
+    /// The "Create playlist" sheet.
+    fn create_msg(&mut self, msg: CreateMsg) -> Vec<Job> {
+        match msg {
+            CreateMsg::Open => {
+                if !self.signed_in() {
+                    return self.account_msg(AccountMsg::Open);
+                }
+                self.create_open = true;
+                self.create_name.clear();
+                self.ui.text_focused = true;
+                Vec::new()
+            }
+            CreateMsg::Close => {
+                self.create_open = false;
+                self.ui.text_focused = false;
+                Vec::new()
+            }
+            CreateMsg::Name(n) => {
+                self.create_name = n.chars().take(80).collect();
+                Vec::new()
+            }
+            CreateMsg::Confirm => {
+                let name = self.create_name.trim().to_owned();
+                if name.is_empty() {
+                    return Vec::new();
+                }
+                self.create_open = false;
+                self.ui.text_focused = false;
+                let text = if let Some(cb) = &self.hooks.on_create_playlist {
+                    cb(name.clone());
+                    format!("Creating \u{201c}{name}\u{201d}\u{2026}")
+                } else {
+                    "Creating playlists is not connected yet.".to_owned()
+                };
+                self.dispatch(Event::Notice(text))
+            }
+        }
+    }
+
+    /// Move a queue entry after the current song one place up or down. Only the entries after
+    /// the current song are rewritten, so the song keeps playing and earlier ones stay put.
+    fn queue_move(&mut self, index: usize, up: bool) -> Vec<Job> {
+        let snap = self.ui.snapshot.clone();
+        let Some(cur) = snap.queue_index else {
+            return Vec::new();
+        };
+        let first = cur + 1;
+        if index < first || index >= snap.queue.len() {
+            return Vec::new();
+        }
+        let target = if up {
+            if index == first {
+                return Vec::new();
+            }
+            index - 1
+        } else {
+            if index + 1 >= snap.queue.len() {
+                return Vec::new();
+            }
+            index + 1
+        };
+        let mut order: Vec<Track> = snap.queue[first..].to_vec();
+        order.swap(index - first, target - first);
+        self.queue_swap = (index, target);
+        self.queue_anim.snap(1.0);
+        self.queue_anim.target = 0.0;
+        if self.ui.reduced_motion {
+            self.queue_anim.snap(0.0);
+        }
+        let mut jobs = Vec::new();
+        for i in (first..snap.queue.len()).rev() {
+            jobs.extend(self.dispatch(Event::Command(PlayerCommand::RemoveAt(i))));
+        }
+        for t in order {
+            jobs.extend(self.dispatch(Event::Command(PlayerCommand::Enqueue(t))));
+        }
+        jobs
+    }
+
+    /// Rebuild the daily sections when their inputs changed.
+    fn refresh_daily(&mut self) {
+        let key = (
+            self.daily_gen,
+            self.signed_in(),
+            self.day.day,
+            self.ui.recent.len(),
+            self.home.shelves.len(),
+        );
+        if self.daily_key == Some(key) {
+            return;
+        }
+        self.daily_key = Some(key);
+        let pool: Vec<Track> = self
+            .home
+            .shelves
+            .iter()
+            .flat_map(|s| s.items.iter())
+            .filter_map(|i| match i {
+                ShelfItem::Song(t) => Some(t.clone()),
+                _ => None,
+            })
+            .collect();
+        self.daily_sections = daily::build(
+            &self.daily,
+            &self.ui.recent,
+            &pool,
+            self.signed_in(),
+            self.day,
+        );
+    }
+
+    /// Pause when the sleep timer ran out (or the song ended, for "End of song").
+    fn check_sleep(&mut self) -> Vec<Job> {
+        let Some(s) = self.sleep.clone() else {
+            return Vec::new();
+        };
+        let now_id = self.ui.snapshot.current.as_ref().map(|t| t.id.clone());
+        let due = match s.deadline {
+            Some(d) => Instant::now() >= d,
+            None => now_id != s.track,
+        };
+        if !due {
+            return Vec::new();
+        }
+        self.sleep = None;
+        let mut jobs = self.dispatch(Event::Command(PlayerCommand::Pause));
+        jobs.extend(self.dispatch(Event::Notice(
+            "Sleep timer ended. Playback paused.".to_owned(),
+        )));
+        jobs
     }
 
     fn learn_local(&mut self, r: &SearchResults) {
@@ -1644,6 +2514,20 @@ impl App {
         self.last_frame = Some(now);
         let mut jobs = Vec::new();
         self.anim.step(dt);
+        self.scheme_fade.advance(dt);
+        self.bg_fade.advance(dt);
+        for (sx, sw) in &mut self.chip_pills {
+            sx.step(dt.min(50.0) / 1000.0);
+            sw.step(dt.min(50.0) / 1000.0);
+        }
+        self.queue_anim.step(dt.min(50.0) / 1000.0);
+        if self.ui.is_playing() && !self.ui.reduced_motion {
+            self.eq_phase = (self.eq_phase + dt.min(100.0) / 170.0) % (std::f32::consts::TAU * 8.0);
+        }
+        if self.detail_loading() && !self.ui.reduced_motion {
+            self.shimmer = (self.shimmer + dt.min(100.0) / 1400.0) % 1.0;
+        }
+        color::set_active(self.scheme_fade.current());
         if (self.ui.is_buffering() || self.account_busy()) && !self.ui.reduced_motion {
             // One calm turn per 1.2 s.
             self.spin = (self.spin + dt.min(100.0) / 1200.0 * std::f32::consts::TAU)
@@ -1678,22 +2562,26 @@ impl App {
                     tint_alpha: cover::glass_tint_alpha(b.data.backdrop_lightest),
                     scrim_alpha: cover::backdrop_scrim_alpha(b.data.backdrop_lightest),
                 });
-                self.dispatch(Event::CoverReady {
-                    track,
-                    palette: b.data.palette,
-                })
+                self.cover_seed = Some(b.data.seed);
+                let palette = self.themed_palette();
+                self.dispatch(Event::CoverReady { track, palette })
             }
             Err(_) if is_current => {
                 // No cover: neutral placeholder, fallback accent.
                 self.cover = None;
                 self.prev_cover = None;
-                self.dispatch(Event::CoverReady {
-                    track,
-                    palette: Palette::fallback(),
-                })
+                self.cover_seed = None;
+                let palette = self.themed_palette();
+                self.dispatch(Event::CoverReady { track, palette })
             }
             Ok(_) | Err(_) => Vec::new(),
         }
+    }
+
+    /// The accent palette for the current theme settings and cover.
+    fn themed_palette(&self) -> Palette {
+        let s = &self.ui.settings;
+        scheme::accent_palette(s.theme, s.base, s.accent_intensity, self.cover_seed)
     }
 
     fn jobs_to_task(&self, jobs: Vec<Job>) -> Task<Message> {
@@ -1713,12 +2601,65 @@ impl App {
                 iced::widget::operation::focus_next()
             };
         }
+        let before = (self.mini, self.fullscreen);
+        let copy = match &message {
+            Message::CopyLink(t) => t.video_id.as_ref().map(|v| link_of(v.as_str())),
+            _ => None,
+        };
         let jobs = self.update_core(message);
         let mut tasks = vec![self.jobs_to_task(jobs)];
+        if let Some(url) = copy {
+            tasks.push(iced::clipboard::write(url));
+            tasks.push(Task::done(Message::Ui(Event::Notice(
+                "Link copied".to_owned(),
+            ))));
+        }
+        if before != (self.mini, self.fullscreen) {
+            tasks.push(self.window_mode_task(before));
+        }
         if std::mem::take(&mut self.focus_search) {
             tasks.push(iced::widget::operation::focus(SEARCH_ID));
         }
         Task::batch(tasks)
+    }
+
+    /// Resize and re-mode the window after the mini player or full screen was toggled.
+    fn window_mode_task(&mut self, before: (bool, bool)) -> Task<Message> {
+        let (was_mini, was_full) = before;
+        let (mini, full) = (self.mini, self.fullscreen);
+        if mini && !was_mini {
+            self.normal_size = self.window;
+        }
+        let normal = self.normal_size;
+        let min = theme_layout::MIN_WINDOW;
+        window::oldest().and_then(move |id| {
+            let mut t: Vec<Task<Message>> = Vec::new();
+            if full != was_full {
+                t.push(window::set_mode(
+                    id,
+                    if full {
+                        window::Mode::Fullscreen
+                    } else {
+                        window::Mode::Windowed
+                    },
+                ));
+            }
+            if mini != was_mini {
+                if mini {
+                    t.push(window::set_min_size(
+                        id,
+                        Some(Size::new(MINI_SIZE.0, MINI_SIZE.1)),
+                    ));
+                    t.push(window::resize(id, Size::new(MINI_SIZE.0, MINI_SIZE.1)));
+                    t.push(window::set_level(id, window::Level::AlwaysOnTop));
+                } else {
+                    t.push(window::set_level(id, window::Level::Normal));
+                    t.push(window::set_min_size(id, Some(Size::new(min.0, min.1))));
+                    t.push(window::resize(id, normal));
+                }
+            }
+            Task::batch(t)
+        })
     }
 
     /// iced `view`.
@@ -1735,6 +2676,9 @@ impl App {
             window::resize_events().map(|(_, size)| Message::Resized(size)),
             Subscription::run_with(PlayerKey(Arc::clone(&self.backend.player)), player_events),
         ];
+        if self.sleep.is_some() {
+            subs.push(Subscription::run(timer_ticks));
+        }
         if self.needs_frames() || self.readout {
             subs.push(window::frames().map(Message::Frame));
         }
@@ -1747,6 +2691,7 @@ impl App {
             self.dispatch(Event::Frame { dt_ms: 16.0 });
         }
         self.sync_anim();
+        self.bg_fade.finish();
         self.anim.finish();
     }
 
@@ -1837,6 +2782,23 @@ fn player_events(key: &PlayerKey) -> impl iced::futures::Stream<Item = Message> 
                         return;
                     }
                     thread::sleep(Duration::from_millis(50));
+                }
+            });
+        },
+    )
+}
+
+/// One tick per second while a sleep timer runs (a plain thread, like the player events).
+fn timer_ticks() -> impl iced::futures::Stream<Item = Message> {
+    stream::channel(
+        4,
+        async move |mut tx: iced::futures::channel::mpsc::Sender<Message>| {
+            thread::spawn(move || {
+                loop {
+                    thread::sleep(Duration::from_secs(1));
+                    if tx.try_send(Message::TimerTick).is_err() && tx.is_closed() {
+                        return;
+                    }
                 }
             });
         },

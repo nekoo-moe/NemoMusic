@@ -9,6 +9,8 @@
 pub mod anim;
 pub mod copy;
 pub mod cover;
+pub mod daily;
+pub mod explore;
 pub mod format;
 pub mod frame_stats;
 pub mod home;
@@ -20,6 +22,7 @@ pub mod mock;
 pub mod motion;
 pub mod palette;
 pub mod route;
+pub mod scheme;
 pub mod search;
 pub mod settings;
 pub mod signal;
