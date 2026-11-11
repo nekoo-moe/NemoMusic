@@ -2,6 +2,8 @@
 //!
 //! Supported: `[mm:ss.xx]`, `[mm:ss.xxx]`, `[mm:ss]`, several timestamps on one line, CRLF, a
 //! leading BOM, blank lines, the `[offset:+/-ms]` header and inline `<mm:ss.xx>` word tags.
+//! A word split by tags into several pieces (`<00:01.00>Hel<00:01.40>lo`) makes the doc
+//! syllable synced.
 //! `[ar:]`, `[ti:]`, `[al:]`, `[by:]`, `[length:]` and other `key:value` tags are ignored.
 //!
 //! Offset sign (LRC convention): a positive `[offset:+500]` shifts lyrics EARLIER, so
@@ -78,17 +80,20 @@ fn apply_offset(t: u64, offset: i64) -> u64 {
     }
 }
 
+/// One timed piece as `(start, end, text)`.
+type Piece = (u64, Option<u64>, String);
+
 /// One source line before the offset is applied.
 struct RawLine {
     start: u64,
     text: String,
-    words: Vec<(u64, Option<u64>, String)>,
+    words: Vec<Piece>,
+    /// Some word is split into several timed pieces.
+    split: bool,
 }
 
-/// Split inline word tags out of a line body.
-/// Returns the clean line text and the words as `(start, end, text)`.
-fn parse_body(body: &str, line_start: u64) -> (String, Vec<(u64, Option<u64>, String)>) {
-    // Each segment is the text that follows a tag; the first has no tag.
+/// Split a line body into segments: each is the text after a word tag; the first has no tag.
+fn split_segments(body: &str) -> Vec<(Option<u64>, String)> {
     let mut segs: Vec<(Option<u64>, String)> = vec![(None, String::new())];
     let mut rest = body;
     while let Some(i) = rest.find('<') {
@@ -112,38 +117,76 @@ fn parse_body(body: &str, line_start: u64) -> (String, Vec<(u64, Option<u64>, St
     if let Some(last) = segs.last_mut() {
         last.1.push_str(rest);
     }
+    segs
+}
 
+/// Add a space to the end of the last piece, unless it has one.
+fn space_after_last(words: &mut [Piece]) {
+    if let Some(last) = words.last_mut()
+        && !last.2.ends_with(' ')
+    {
+        last.2.push(' ');
+    }
+}
+
+/// Split inline word tags out of a line body.
+/// Returns the clean line text, the pieces as `(start, end, text)` and whether some word is
+/// split into several pieces. A piece keeps one trailing space when whitespace follows it in
+/// the source, so the pieces join without a separator; the last piece has none.
+fn parse_body(body: &str, line_start: u64) -> (String, Vec<Piece>, bool) {
+    let segs = split_segments(body);
     let joined: String = segs.iter().map(|s| s.1.as_str()).collect();
     let text = joined.split_whitespace().collect::<Vec<_>>().join(" ");
     if segs.len() == 1 {
-        return (text, Vec::new());
+        return (text, Vec::new(), false);
     }
 
-    let mut words: Vec<(u64, Option<u64>, String)> = Vec::new();
+    let mut words: Vec<Piece> = Vec::new();
+    let mut split = false;
     let last_index = segs.len() - 1;
     for (i, (tag, seg)) in segs.into_iter().enumerate() {
-        let word = seg.trim();
-        match tag {
-            None if !word.is_empty() => words.push((line_start, None, word.to_owned())),
-            Some(t) if !word.is_empty() => words.push((t, None, word.to_owned())),
-            // A trailing tag with no text after it closes the previous word.
-            Some(t) if i == last_index => {
-                if let Some(prev) = words.last_mut() {
-                    prev.1 = Some(t);
-                }
+        let core = seg.split_whitespace().collect::<Vec<_>>().join(" ");
+        if core.is_empty() {
+            // A trailing tag with no text after it closes the previous piece.
+            if let Some(t) = tag
+                && i == last_index
+                && let Some(prev) = words.last_mut()
+            {
+                prev.1 = Some(t);
             }
-            _ => {}
+            if !seg.is_empty() {
+                space_after_last(&mut words);
+            }
+            continue;
         }
+        if seg.starts_with(char::is_whitespace) {
+            space_after_last(&mut words);
+        }
+        if words.last().is_some_and(|w| !w.2.ends_with(' ')) {
+            split = true;
+        }
+        let piece = if seg.ends_with(char::is_whitespace) {
+            format!("{core} ")
+        } else {
+            core
+        };
+        words.push((tag.unwrap_or(line_start), None, piece));
     }
-    (text, words)
+    if let Some(last) = words.last_mut() {
+        let t = last.2.trim_end().len();
+        last.2.truncate(t);
+    }
+    (text, words, split)
 }
 
 /// Parse LRC (plain or enhanced) text into a [`LyricsDoc`].
 ///
 /// Never fails and never panics: unparseable lines are skipped, huge numbers saturate.
 /// Lines are sorted by start time; lines with equal times keep input order. Granularity is
-/// [`Granularity::Word`] when any line has inline word tags, otherwise [`Granularity::Line`].
-/// See the module docs for the offset sign.
+/// [`Granularity::Syllable`] when a word is split into several tagged pieces
+/// (`<00:01.00>Hel<00:01.40>lo`), [`Granularity::Word`] when lines have inline word tags,
+/// otherwise [`Granularity::Line`]. Piece texts keep their trailing space; join them without a
+/// separator. See the module docs for the offset sign.
 #[must_use]
 pub fn parse_lrc(text: &str, provider: ProviderId) -> LyricsDoc {
     let text = text.strip_prefix('\u{feff}').unwrap_or(text);
@@ -170,12 +213,18 @@ pub fn parse_lrc(text: &str, provider: ProviderId) -> LyricsDoc {
             rest = next;
         }
         for &start in &stamps {
-            let (text, words) = parse_body(rest, start);
-            raw.push(RawLine { start, text, words });
+            let (text, words, split) = parse_body(rest, start);
+            raw.push(RawLine {
+                start,
+                text,
+                words,
+                split,
+            });
         }
     }
 
     let offset = offset.unwrap_or(0);
+    let syllable = raw.iter().any(|r| r.split);
     let mut lines: Vec<LyricLine> = raw
         .into_iter()
         .map(|r| LyricLine {
@@ -196,7 +245,9 @@ pub fn parse_lrc(text: &str, provider: ProviderId) -> LyricsDoc {
     // Stable sort: equal times keep input order.
     lines.sort_by_key(|l| l.start_ms);
 
-    let granularity = if lines.iter().any(|l| !l.words.is_empty()) {
+    let granularity = if syllable {
+        Granularity::Syllable
+    } else if lines.iter().any(|l| !l.words.is_empty()) {
         Granularity::Word
     } else {
         Granularity::Line
@@ -356,10 +407,28 @@ mod tests {
             .collect();
         assert_eq!(
             words,
-            [(1000, "la", None), (1400, "la", None), (1800, "test", None)]
+            [
+                (1000, "la ", None),
+                (1400, "la ", None),
+                (1800, "test", None)
+            ]
         );
         assert_eq!(doc.lines[1].words.len(), 0);
         assert_eq!(doc.lines[1].text, "plain line");
+    }
+
+    #[test]
+    fn pieces_of_one_word_make_it_syllable_synced() {
+        let doc = parse_lrc("[00:01.00]<00:01.00>Hel<00:01.30>lo <00:01.80>you", P);
+        assert_eq!(doc.granularity, Granularity::Syllable);
+        let l = &doc.lines[0];
+        let texts: Vec<&str> = l.words.iter().map(|w| w.text.as_str()).collect();
+        assert_eq!(texts, ["Hel", "lo ", "you"]);
+        assert_eq!(texts.concat(), l.text);
+        // A space before the next tag also ends a word.
+        let word = parse_lrc("[00:01.00]<00:01.00>Hello<00:01.80> you", P);
+        assert_eq!(word.granularity, Granularity::Word);
+        assert_eq!(word.lines[0].words[0].text, "Hello ");
     }
 
     #[test]

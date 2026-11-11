@@ -4,10 +4,12 @@
 //! - [`plain`]: unsynced text.
 //! - [`normalize`](mod@normalize): string normalization for matching.
 //! - [`score`]: match score and wrong-match rejection.
-//! - [`pick`]: choose the best candidate.
-//! - [`ttml`]: Apple-style TTML parser (line and syllable timing).
+//! - [`pick`]: choose the best candidate (Syllable > Word > Line > Unsynced, then score, then
+//!   chain order).
+//! - [`ttml`]: Apple-style TTML parser (line, word and syllable timing).
 //! - [`lrclib`], [`local`], [`unison`], [`blapi`], [`simpmusic`], [`netease`]: providers. Open
-//!   sources are on by default; grey ones are opt-in (see each module and ADR 0002).
+//!   sources are on by default; grey ones are opt-in (see each module and ADR 0002). Each
+//!   reports its finest level through `LyricsProvider::best_granularity`.
 //! - [`http`]: shared request helpers.
 //! - [`chain`]: run providers with timeouts and a per-host limit.
 //! - [`cache`]: SQLite cache and per-track offsets.

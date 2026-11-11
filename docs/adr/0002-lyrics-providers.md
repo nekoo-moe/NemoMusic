@@ -162,3 +162,36 @@ https://www.simpmusic.org/docs/dev/lyrics-pipeline
 https://github.com/EchoMusicApp/Echo-Music (LyricsResponse.kt, SimpMusic response shape)
 https://github.com/binimum/am-lyrics (README, LyricsSources.ts)
 -->
+
+## Update 2026-11-11: syllable level, best-first order, new defaults
+
+Owner decisions (wave-lyrics brief): prefer Syllable > Word > Line > Unsynced, then match score, then chain order; turn on every provider that can give syllable or word timing; Better Lyrics API is an open source. A per-track manual pick still wins.
+
+### Levels
+- `nemo-core` has `Granularity::Syllable` above `Word`. A syllable doc stores pieces as `LyricWord`s whose `text` keeps its own trailing space; pieces of one word have none. Join piece texts without a separator.
+- TTML: a timed span with no trailing whitespace, followed in the same line by another timed span with no whitespace text between them, splits a word, so the doc is `Syllable`. Timed whole words give `Word`. Layout whitespace with a line break between spans counts as a separator. Background-vocal lines count too.
+- Enhanced LRC: `<mm:ss.xx>Hel<mm:ss.xx>lo` is a split word (`Syllable`); words with a space between them give `Word`. Word texts now keep their trailing space, matching the TTML rule.
+- Unison `syncType` (`richsync` = word or syllable, `linesync`, `plain`) never adds timing the text lacks; the parsed timing decides. A word-timed doc labelled `syllable` is marked `Syllable`.
+- `LyricsProvider::best_granularity` reports each provider's finest level; `LyricsProviderStatus::best` carries it to settings.
+
+### Provider table (replaces the verdicts above where they differ)
+| Provider | Finest level | Default | Evidence |
+|---|---|---|---|
+| Local file | Syllable | On | Enhanced LRC sidecars are parsed (above) |
+| Unison | Syllable | On | README: `richsync` TTML with syllable timing |
+| Better Lyrics API | Syllable | On (was off) | <https://lyrics-api-docs.boidu.dev/>, <https://docs.betterlyrics.org/reference/get-lyrics>, <https://docs.betterlyrics.org/docs/authentication>: free, usable in other apps, cached answers need no key; credit "Lyrics via Better Lyrics" linked to <https://better-lyrics.boidu.dev/>. No key is ever sent; `s`, `a`, `al`, `d` are always sent (album empty when unknown; no request without a duration, because it would miss the cache); 401 = not cached = no lyrics |
+| LRCLIB | Line | On | <https://lrclib.net/docs.txt> says word timing lives in `lyricsfile` YAML under `lines[].words`, but documents no field names inside a word, and the crate has no YAML parser; `syncedLyrics` is read |
+| NetEase | Line | Off (opt-in, risk note) | Two unsigned probes of `GET /api/song/lyric/v1` with `yv`/`ytv` (2026-11-11) returned `lrc`, `tlyric`, `romalrc` and no `yrc`; `yrc` needs the encrypted `eapi` endpoints, which are refused |
+| SimpMusic | Line | Off (opt-in, risk note) | SimpMusic's own client (<https://github.com/maxrave-dev/core>) shows the read is unsigned and `richSyncLyrics` is enhanced LRC, but one probe (2026-11-11) got HTTP 403 "This API is only available to SimpMusic clients". Posing as that app would bypass an access control, so it is not read |
+| YouTube Music timed lyrics | Line | n/a | No YTM lyrics provider exists in `nemo-ytm` yet; when it is added it reports `Line` |
+
+### Not added or still rejected
+- KuGou and QQ via `api.betterlyrics.org` (`/kugou/getLyrics`, `/qq/getLyrics`): KuGou is line-level only (would be a line-only grey source, so off), and the docs name QQ's format "QRC, word-level" without describing it. Not built until the response format is documented.
+- BiniLyrics: its site gets Apple Music credentials from a token service at run time (`binimum/bini-lyrics-website` README); no public token-free API. Rejected under the account-token rule.
+- Musixmatch, the Better Lyrics extension backend (Turnstile), direct QQ/KuGou endpoints and any Apple Music token source stay rejected. No request signing is ever faked.
+
+### Defaults and stored choices
+On/off is stored in `provider_setting` only when the user flips a switch. With no stored row, `ProviderInfo::default_enabled` decides at each start, so the new defaults reach users who never touched a switch, and a user's own choice is kept.
+
+### Order
+`lookup` and `lookup_all` rank by level, then score, then chain order (`pick_best`, `sort_candidates`). A local-file hit still ends `lookup` before any network request (privacy rule above); `lookup_all` lists every answer.

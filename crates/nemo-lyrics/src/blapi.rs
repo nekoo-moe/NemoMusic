@@ -1,18 +1,23 @@
-//! Better Lyrics API provider (opt-in, default off).
+//! Better Lyrics API provider (open source, default on).
 //!
 //! `GET https://api.betterlyrics.org/getLyrics?s=&a=&al=&d=` returns `{ttml, score?}` with TTML
-//! syllable timing (docs: <https://docs.betterlyrics.org/reference/get-lyrics>, read
-//! 2026-11-11). Uncached queries need an `X-API-Key`; the README of
-//! <https://github.com/better-lyrics/api> says that key is exclusive to the Better Lyrics
-//! extension and must not be asked for. NemoMusic therefore sends no key and only gets what
-//! the service already has cached (a 401 means "not cached" and is treated as no lyrics).
-//! The data comes from lrc.red and an unnamed upstream provider (unverified), and no terms for
-//! other apps are published, so the provider is a grey source and stays off until the user turns it on (ADR 0002).
+//! syllable or line timing. Facts read 2026-11-11 from <https://lyrics-api-docs.boidu.dev/>,
+//! <https://docs.betterlyrics.org/reference/get-lyrics> and
+//! <https://docs.betterlyrics.org/docs/authentication>:
+//! - The API is free and may be used in other apps; it asks for a link to Better Lyrics
+//!   (<https://better-lyrics.boidu.dev/>), shown as the credit "Lyrics via Better Lyrics".
+//! - Cached answers need no key. A cache miss needs an `X-API-Key`, which is not issued now;
+//!   NemoMusic never sends or asks for a key, so a 401 means "not cached" and is no lyrics.
+//! - All four parameters must be sent: the cache key includes album and duration (whole
+//!   seconds). Without a known duration the query would miss the cache, so it is not sent.
+//! - 404 is a cached "no lyrics"; 429 and 503 (cache-only mode) carry `Retry-After`.
+//!
+//! The doc level comes from the TTML: syllable pieces give [`Granularity::Syllable`].
 
 use nemo_core::BoxFuture;
 use nemo_core::lyrics::{
-    CreditedDoc, LyricsCredit, LyricsDoc, LyricsError, LyricsProvider, LyricsQuery, ProviderId,
-    ProviderInfo,
+    CreditedDoc, Granularity, LyricsCredit, LyricsDoc, LyricsError, LyricsProvider, LyricsQuery,
+    ProviderId, ProviderInfo,
 };
 use serde::Deserialize;
 
@@ -22,9 +27,11 @@ use crate::ttml::parse_ttml;
 /// Provider id shown in the UI.
 pub const BETTER_LYRICS_ID: ProviderId = ProviderId::new("Better Lyrics");
 
+/// Page the credit links to, as the API docs ask.
+pub const CREDIT_URL: &str = "https://better-lyrics.boidu.dev/";
+
 const URL: &str = "https://api.betterlyrics.org/getLyrics";
 const HOSTS: &[&str] = &["api.betterlyrics.org"];
-const RISK: &str = "Third-party lyrics cache read without a key; its upstream source is unnamed and no terms for other apps are published, so it may stop at any time.";
 
 #[derive(Debug, Deserialize)]
 struct Answer {
@@ -42,7 +49,37 @@ pub fn parse_response(body: &str) -> Result<Option<LyricsDoc>, LyricsError> {
     Ok((!doc.lines.is_empty()).then_some(doc))
 }
 
-/// Lyrics from the Better Lyrics API (cache only, no key).
+/// The four query parameters (`s`, `a`, `al`, `d`), or `None` when title, artist or duration
+/// is unknown. A missing album is sent empty.
+#[must_use]
+pub fn query_params(query: &LyricsQuery) -> Option<[(&'static str, String); 4]> {
+    let title = query.title.trim();
+    let artist = query.artists.first().map(|a| a.trim())?;
+    let secs = duration_secs(query.duration_ms)?;
+    if title.is_empty() || artist.is_empty() {
+        return None;
+    }
+    Some([
+        ("s", title.to_owned()),
+        ("a", artist.to_owned()),
+        ("al", query.album.as_deref().unwrap_or("").trim().to_owned()),
+        ("d", secs.to_string()),
+    ])
+}
+
+/// The credit Better Lyrics asks for.
+#[must_use]
+pub fn credit() -> LyricsCredit {
+    LyricsCredit {
+        label: "Lyrics via Better Lyrics".to_owned(),
+        url: Some(CREDIT_URL.to_owned()),
+        by: None,
+        by_url: None,
+        note: None,
+    }
+}
+
+/// Lyrics from the Better Lyrics API (cached answers, no key).
 #[derive(Debug, Clone)]
 pub struct BetterLyricsProvider {
     client: reqwest::Client,
@@ -60,21 +97,14 @@ impl BetterLyricsProvider {
     }
 
     async fn lookup(&self, query: &LyricsQuery) -> Result<Option<LyricsDoc>, LyricsError> {
-        let Some(artist) = query.artists.first() else {
+        let Some(params) = query_params(query) else {
             return Ok(None);
         };
-        let duration = duration_secs(query.duration_ms).map(|d| d.to_string());
-        let mut params: Vec<(&str, &str)> = vec![("s", &query.title), ("a", artist)];
-        if let Some(album) = &query.album {
-            params.push(("al", album));
-        }
-        if let Some(d) = &duration {
-            params.push(("d", d));
-        }
-        let (status, body) = send_text(self.client.get(url_with(URL, &params)?)).await?;
+        let pairs: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
+        let (status, body) = send_text(self.client.get(url_with(URL, &pairs)?)).await?;
         match status {
             200..=299 => parse_response(&body),
-            // 401: not cached and we hold no key. 404/422: nothing for this track.
+            // 401: not cached and we hold no key. 404: a cached "no lyrics". 422: no title.
             401 | 403 | 404 | 422 => Ok(None),
             other => Err(LyricsError::Network(format!("HTTP status {other}"))),
         }
@@ -101,49 +131,86 @@ impl LyricsProvider for BetterLyricsProvider {
         &'a self,
         query: &'a LyricsQuery,
     ) -> BoxFuture<'a, Result<Option<CreditedDoc>, LyricsError>> {
-        Box::pin(async move {
-            Ok(self.lookup(query).await?.map(|doc| {
-                let credit = LyricsCredit {
-                    label: "Lyrics via Better Lyrics".to_owned(),
-                    url: Some("https://betterlyrics.org".to_owned()),
-                    by: None,
-                    by_url: None,
-                    note: Some(RISK.to_owned()),
-                };
-                (doc, Some(credit))
-            }))
-        })
+        Box::pin(async move { Ok(self.lookup(query).await?.map(|doc| (doc, Some(credit())))) })
     }
 
     fn info(&self) -> ProviderInfo {
-        ProviderInfo::opt_in(RISK)
+        ProviderInfo::OPEN
+    }
+
+    /// The API serves TTML with syllable pieces.
+    fn best_granularity(&self) -> Granularity {
+        Granularity::Syllable
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use nemo_core::lyrics::Granularity;
-
     use super::*;
 
+    fn query() -> LyricsQuery {
+        LyricsQuery {
+            title: "Test Song".into(),
+            artists: vec!["Test Artist".into(), "Other".into()],
+            album: Some("Test Album".into()),
+            duration_ms: Some(154_400),
+            ytm_video_id: None,
+            local_path: None,
+        }
+    }
+
     #[test]
-    fn ttml_answer_parses() {
-        let body = serde_json::json!({
+    fn ttml_answers_parse_with_their_level() {
+        let word = serde_json::json!({
             "ttml": r#"<tt><body><div><p begin="1.0" end="2.0"><span begin="1.0" end="2.0">word</span></p></div></body></tt>"#,
             "score": 0.97
         })
         .to_string();
-        let doc = parse_response(&body).expect("parses").expect("lyrics");
+        let doc = parse_response(&word).expect("parses").expect("lyrics");
         assert_eq!(doc.granularity, Granularity::Word);
         assert_eq!(doc.provider, BETTER_LYRICS_ID);
+        let syllable = serde_json::json!({
+            "ttml": r#"<tt><body><div><p begin="1.0" end="2.0"><span begin="1.0" end="1.5">wo</span><span begin="1.5" end="2.0">rd</span></p></div></body></tt>"#
+        })
+        .to_string();
+        let doc = parse_response(&syllable).expect("parses").expect("lyrics");
+        assert_eq!(doc.granularity, Granularity::Syllable);
         assert_eq!(parse_response(r#"{"ttml":""}"#), Ok(None));
         assert!(parse_response("x").is_err());
     }
 
     #[test]
-    fn provider_is_opt_in() {
+    fn all_four_parameters_are_sent() {
+        let p = query_params(&query()).expect("params");
+        let got: Vec<(&str, &str)> = p.iter().map(|(k, v)| (*k, v.as_str())).collect();
+        assert_eq!(
+            got,
+            [
+                ("s", "Test Song"),
+                ("a", "Test Artist"),
+                ("al", "Test Album"),
+                ("d", "154")
+            ]
+        );
+        let mut no_album = query();
+        no_album.album = None;
+        assert_eq!(query_params(&no_album).expect("params")[2].1, "");
+        let mut no_duration = query();
+        no_duration.duration_ms = None;
+        assert!(query_params(&no_duration).is_none());
+        let mut no_artist = query();
+        no_artist.artists.clear();
+        assert!(query_params(&no_artist).is_none());
+    }
+
+    #[test]
+    fn provider_is_open_syllable_and_credited() {
         let p = BetterLyricsProvider::new().expect("client");
-        assert!(!p.info().default_enabled && p.info().risk_note.is_some());
+        assert!(p.info().default_enabled && p.info().risk_note.is_none());
+        assert_eq!(p.best_granularity(), Granularity::Syllable);
         assert_eq!(p.hosts(), ["api.betterlyrics.org"]);
+        let c = credit();
+        assert_eq!(c.label, "Lyrics via Better Lyrics");
+        assert_eq!(c.url.as_deref(), Some("https://better-lyrics.boidu.dev/"));
     }
 }

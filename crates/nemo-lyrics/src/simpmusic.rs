@@ -1,13 +1,18 @@
-//! `SimpMusic` Lyrics provider (opt-in, default off).
+//! `SimpMusic` Lyrics provider (opt-in, default off, line timing).
 //!
-//! `GET https://api-lyrics.simpmusic.org/v1/<videoId>` returns `{type, data[{id, videoId,
-//! songTitle, artistName, albumName, durationSeconds, syncedLyrics, plainLyric,
-//! richSyncLyrics, vote}]}`. The shape comes from the model code of a third-party client of
-//! this API (Echo-Music `LyricsResponse.kt`); `SimpMusic`'s own docs
-//! (<https://www.simpmusic.org/docs/dev/lyrics-pipeline>) name the source but publish no
-//! endpoint reference or terms for other apps. `richSyncLyrics` has an undocumented format and
-//! is not read. Because the contract and terms are unverified, the provider is opt-in.
-//! It needs a YouTube video id and returns nothing for local files.
+//! `GET https://api-lyrics.simpmusic.org/v1/<videoId>` returns `{success, error?, data[{id,
+//! videoId, songTitle, artistName, albumName, durationSeconds, plainLyric, syncedLyrics,
+//! richSyncLyrics, vote, ...}]}`. The shape and the read request (unsigned; only writes carry an
+//! HMAC) were checked on 2026-11-11 in `SimpMusic`'s own open-source client
+//! (<https://github.com/maxrave-dev/core>, `service/lyricsService`: `SimpMusicLyrics.kt`,
+//! `LyricsResponse.kt`, `LrcTextParser.kt`). There `richSyncLyrics` is LRC lines with inline
+//! `<mm:ss.xx>` word tags, which [`parse_lrc`] could read.
+//!
+//! It is not read, and the provider stays at line timing and off: a probe on 2026-11-11 with
+//! NemoMusic's own `User-Agent` got HTTP 403 "This API is only available to `SimpMusic`
+//! clients". Getting past that would mean posing as the `SimpMusic` app, which NemoMusic does
+//! not do. Until the API is opened to other apps, this provider finds nothing and reports
+//! "unavailable". It needs a YouTube video id and returns nothing for local files.
 
 use nemo_core::BoxFuture;
 use nemo_core::lyrics::{
@@ -24,12 +29,12 @@ pub const SIMPMUSIC_ID: ProviderId = ProviderId::new("SimpMusic");
 
 const BASE_URL: &str = "https://api-lyrics.simpmusic.org/v1/";
 const HOSTS: &[&str] = &["api-lyrics.simpmusic.org"];
-const RISK: &str = "Community database of the SimpMusic app; its API terms for other apps are not published and the request shape is unverified.";
+const RISK: &str = "Community database of the SimpMusic app; it answers only SimpMusic's own app (HTTP 403 to others) and publishes no terms for other apps.";
 
 #[derive(Debug, Deserialize)]
 struct Answer {
     #[serde(default)]
-    data: Vec<Entry>,
+    data: Option<Vec<Entry>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -87,6 +92,7 @@ pub fn parse_response(body: &str) -> Result<Option<LyricsDoc>, LyricsError> {
     let mut docs: Vec<(i64, LyricsDoc)> = a
         .data
         .iter()
+        .flatten()
         .filter_map(|e| Some((e.vote.unwrap_or(0), entry_to_doc(e)?)))
         .collect();
     // Best granularity first, then votes. The sort is stable, so ties keep server order.
@@ -185,12 +191,17 @@ mod tests {
     #[test]
     fn empty_and_broken_answers() {
         assert_eq!(parse_response(r#"{"type":"success","data":[]}"#), Ok(None));
+        assert_eq!(
+            parse_response(r#"{"success":false,"data":null,"error":{"code":403}}"#),
+            Ok(None)
+        );
         assert!(parse_response("[").is_err());
     }
 
     #[test]
-    fn provider_is_opt_in() {
+    fn provider_is_opt_in_at_line_level() {
         let p = SimpMusicProvider::new().expect("client");
         assert!(!p.info().default_enabled && p.info().risk_note.is_some());
+        assert_eq!(p.best_granularity(), Granularity::Line);
     }
 }

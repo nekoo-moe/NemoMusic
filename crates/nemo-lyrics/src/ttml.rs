@@ -3,11 +3,16 @@
 //! Supported (checked against the structure Better Lyrics and Unison document; fixtures are
 //! synthetic):
 //! - `<p begin end ttm:agent>` is a line. `<span begin end>` inside it is a timed word or
-//!   syllable. Timed spans make the document [`Granularity::Word`]; a syllable is a
-//!   [`LyricWord`], so a word split in two syllables gives two words.
-//! - A word's `text` keeps a trailing space when the source has one (a space text node between
-//!   spans, or a space at the end of the span). Join word texts without a separator.
-//!   Whitespace-only text that contains a line break is layout and is ignored.
+//!   syllable; each becomes one [`LyricWord`] (a piece).
+//! - Level: [`Granularity::Syllable`] when some line splits a word into several timed pieces,
+//!   that is a timed span with no trailing whitespace followed in the same line by another timed
+//!   span with no whitespace text between them (`<span>Hel</span><span>lo</span>`). Timed
+//!   whole words give [`Granularity::Word`], timed lines only [`Granularity::Line`], no times
+//!   [`Granularity::Unsynced`].
+//! - A piece's `text` keeps a trailing space when the source has one (a space text node between
+//!   spans, or a space at the end of the span). Join piece texts without a separator.
+//!   Whitespace-only text that contains a line break is layout: it adds no space, but it still
+//!   separates two spans, so it never makes them pieces of one word.
 //! - `<span ttm:role="x-bg">` is background vocals. It becomes its own line right after the main
 //!   line, flagged in [`TtmlLineMeta::background`].
 //! - `<ttm:agent xml:id>` in the head and `ttm:agent` on a `<p>` give singers ([`TtmlDoc::agents`],
@@ -309,6 +314,8 @@ struct RawWord {
     start: u64,
     end: Option<u64>,
     text: String,
+    /// Layout whitespace (with a line break) followed this span.
+    gap: bool,
 }
 
 /// One side of a `<p>`: the main vocals or the background vocals.
@@ -328,6 +335,9 @@ impl Side {
         }
         let layout_only = text.trim().is_empty() && text.contains(['\n', '\r']);
         if layout_only {
+            if let Some(last) = self.words.last_mut() {
+                last.gap = true;
+            }
             return;
         }
         if text.trim().is_empty() {
@@ -364,30 +374,47 @@ struct Line {
     end: Option<u64>,
     text: String,
     words: Vec<LyricWord>,
+    /// Some word is split into several timed pieces.
+    split: bool,
     meta: TtmlLineMeta,
 }
 
-/// Collapse spaces inside words and move whitespace to the end of the previous word.
-fn tidy_words(raw: Vec<RawWord>) -> Vec<LyricWord> {
+/// Add a space to the end of the last piece, unless it has one.
+fn space_after_last(out: &mut [LyricWord]) {
+    if let Some(last) = out.last_mut()
+        && !last.text.ends_with(' ')
+    {
+        last.text.push(' ');
+    }
+}
+
+/// Collapse spaces inside pieces and move whitespace to the end of the previous piece. Also
+/// says whether some word is split into several pieces: a piece with no trailing space, no
+/// layout gap after it, and another piece right behind it.
+fn tidy_words(raw: Vec<RawWord>) -> (Vec<LyricWord>, bool) {
     let mut out: Vec<LyricWord> = Vec::new();
+    let mut split = false;
+    // A layout gap follows the last piece pushed (or a skipped empty span after it).
+    let mut gap = false;
     for w in raw {
         let lead = w.text.starts_with(char::is_whitespace);
         let trail = w.text.ends_with(char::is_whitespace);
         let core = w.text.split_whitespace().collect::<Vec<_>>().join(" ");
-        let space_before = |out: &mut Vec<LyricWord>| {
-            if let Some(last) = out.last_mut()
-                && !last.text.ends_with(' ')
-            {
-                last.text.push(' ');
-            }
-        };
         if core.is_empty() {
-            space_before(&mut out);
+            space_after_last(&mut out);
+            gap |= w.gap;
             continue;
         }
         if lead {
-            space_before(&mut out);
+            space_after_last(&mut out);
         }
+        if let Some(last) = out.last()
+            && !last.text.ends_with(' ')
+            && !gap
+        {
+            split = true;
+        }
+        gap = w.gap;
         out.push(LyricWord {
             start_ms: w.start,
             end_ms: w.end,
@@ -398,7 +425,7 @@ fn tidy_words(raw: Vec<RawWord>) -> Vec<LyricWord> {
         let t = last.text.trim_end().len();
         last.text.truncate(t);
     }
-    out
+    (out, split)
 }
 
 fn finish_side(
@@ -407,7 +434,7 @@ fn finish_side(
     fallback_end: Option<u64>,
     meta: TtmlLineMeta,
 ) -> Option<Line> {
-    let words = tidy_words(side.words);
+    let (words, split) = tidy_words(side.words);
     let text = if words.is_empty() {
         side.plain.split_whitespace().collect::<Vec<_>>().join(" ")
     } else {
@@ -430,6 +457,7 @@ fn finish_side(
         end,
         text,
         words,
+        split,
         meta,
     })
 }
@@ -522,6 +550,7 @@ impl Parser {
                 start,
                 end,
                 text: String::new(),
+                gap: false,
             });
             word = Some(side.words.len() - 1);
         }
@@ -620,7 +649,9 @@ pub fn parse_ttml_detailed(text: &str, provider: ProviderId) -> TtmlDoc {
         lines.sort_by_key(|l| l.start);
     }
     let any_words = lines.iter().any(|l| !l.words.is_empty());
-    let granularity = if any_words {
+    let granularity = if lines.iter().any(|l| l.split) {
+        Granularity::Syllable
+    } else if any_words {
         Granularity::Word
     } else if lines.iter().any(|l| l.start.is_some()) {
         Granularity::Line
@@ -678,9 +709,9 @@ mod tests {
 </div></body></tt>"#;
 
     #[test]
-    fn syllables_become_words() {
+    fn split_words_make_the_doc_syllable_synced() {
         let t = parse_ttml_detailed(SYLLABLE, P);
-        assert_eq!(t.doc.granularity, Granularity::Word);
+        assert_eq!(t.doc.granularity, Granularity::Syllable);
         let texts: Vec<&str> = t.doc.lines.iter().map(|l| l.text.as_str()).collect();
         assert_eq!(texts, ["Hello you", "(ooh)", "Hi & bye"]);
         let first = &t.doc.lines[0];

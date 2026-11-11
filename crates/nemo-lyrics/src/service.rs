@@ -285,10 +285,13 @@ impl std::fmt::Debug for LyricsHub {
 
 impl LyricsHub {
     /// Build the hub. The default chain is: local file, then `providers` in the order given
-    /// (the app adds the YouTube Music provider here), then Unison, LRCLIB, and the opt-in
-    /// providers (Better Lyrics API, `SimpMusic`, `NetEase`), which stay off until the user turns
-    /// them on. A provider's on/off state is read from the cache database, so the user's
-    /// choice survives restarts; with no choice stored, [`LyricsProvider::info`] decides.
+    /// (the app adds the YouTube Music provider here), then Unison, LRCLIB, Better Lyrics API,
+    /// and the opt-in providers (`SimpMusic`, `NetEase`), which stay off until the user turns
+    /// them on. Every syllable- or word-capable source is on by default (owner decision
+    /// 2026-11-11). A provider's on/off state is read from the cache database only when the
+    /// user stored a choice, so the user's choice survives restarts and a changed default
+    /// reaches users who never touched the switch; with no choice stored,
+    /// [`LyricsProvider::info`] decides.
     ///
     /// The cache lives in `data_dir`. Work runs on `handle`.
     ///
@@ -861,19 +864,20 @@ mod tests {
         let state = |hub: &LyricsHub| {
             hub.providers()
                 .into_iter()
-                .map(|p| (p.id.as_str(), p.enabled))
+                .map(|p| (p.id.as_str(), p.enabled, p.best))
                 .collect::<Vec<_>>()
         };
-        // Open sources on, grey sources off, each grey one with a risk note.
+        // With no stored choice: syllable- and word-capable sources on, line-only grey sources
+        // off, each grey one with a risk note.
         assert_eq!(
             state(&hub),
             [
-                ("Local file", true),
-                ("Unison", true),
-                ("LRCLIB", true),
-                ("Better Lyrics", false),
-                ("SimpMusic", false),
-                ("NetEase", false),
+                ("Local file", true, Granularity::Syllable),
+                ("Unison", true, Granularity::Syllable),
+                ("LRCLIB", true, Granularity::Line),
+                ("Better Lyrics", true, Granularity::Syllable),
+                ("SimpMusic", false, Granularity::Line),
+                ("NetEase", false, Granularity::Line),
             ]
         );
         for p in hub.providers() {
@@ -884,6 +888,7 @@ mod tests {
                 p.id.as_str()
             );
             assert!(p.id == LOCAL_ID || !p.hosts.is_empty());
+            assert!(p.default_enabled || p.best <= Granularity::Line);
         }
         assert!(hub.set_provider_enabled(ProviderId::new("NetEase"), true));
         assert!(hub.set_provider_enabled(ProviderId::new("Unison"), false));
@@ -892,7 +897,10 @@ mod tests {
 
         let again = LyricsHub::new(&dir, Handle::current(), Vec::new()).expect("hub");
         let now = state(&again);
-        assert!(now.contains(&("NetEase", true)) && now.contains(&("Unison", false)));
+        assert!(now.contains(&("NetEase", true, Granularity::Line)));
+        assert!(now.contains(&("Unison", false, Granularity::Syllable)));
+        // A provider the user never touched follows the current default.
+        assert!(now.contains(&("Better Lyrics", true, Granularity::Syllable)));
         drop(again);
         let _ = std::fs::remove_dir_all(&dir);
     }

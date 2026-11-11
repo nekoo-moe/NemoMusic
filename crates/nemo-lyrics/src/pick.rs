@@ -13,8 +13,8 @@ pub struct Candidate {
     pub chain_order: usize,
 }
 
-/// Pick the best candidate: best granularity (Word > Line > Unsynced), then higher score, then
-/// lower chain order. If all three tie, the earliest in `candidates` wins. Pure and
+/// Pick the best candidate: best granularity (Syllable > Word > Line > Unsynced), then higher
+/// score, then lower chain order. If all three tie, the earliest in `candidates` wins. Pure and
 /// deterministic. `None` for an empty slice.
 #[must_use]
 pub fn pick_best(candidates: &[Candidate]) -> Option<&Candidate> {
@@ -60,6 +60,23 @@ mod tests {
             cand(Granularity::Unsynced, 100, 1, "plain"),
         ];
         assert_eq!(name(pick_best(&c)), "word");
+    }
+
+    #[test]
+    fn syllable_beats_word_line_and_score() {
+        let c = [
+            cand(Granularity::Word, 100, 0, "word"),
+            cand(Granularity::Line, 100, 1, "line"),
+            cand(Granularity::Syllable, 70, 3, "syllable"),
+            cand(Granularity::Unsynced, 100, 2, "plain"),
+        ];
+        assert_eq!(name(pick_best(&c)), "syllable");
+        let tie = [
+            cand(Granularity::Syllable, 80, 4, "late"),
+            cand(Granularity::Syllable, 90, 5, "better"),
+            cand(Granularity::Syllable, 90, 1, "early"),
+        ];
+        assert_eq!(name(pick_best(&tie)), "early");
     }
 
     #[test]

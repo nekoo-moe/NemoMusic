@@ -3,10 +3,13 @@
 //! `NetEase` has no public API for third-party apps. This provider uses the two long-standing
 //! unauthenticated web endpoints that community tools use: `POST /api/search/get/` (form
 //! `s`, `type=1`, `limit`, `offset`) and `GET /api/song/lyric?id=&lv=-1&kv=-1&tv=-1`. No key,
-//! cookie, token or request signing is used, and none is faked. Only the plain line LRC is read:
-//! the word-timed `yrc` format needs signed requests, which this provider will not make.
-//! Whether this use fits `NetEase`'s terms is unverified, so it stays off until the user turns
-//! it on (ADR 0002).
+//! cookie, token or request signing is used, and none is faked. Only the plain line LRC is read,
+//! so the provider reports line timing. The word-timed `yrc` format is not available without
+//! signing: two probes on 2026-11-11 of the unsigned `GET /api/song/lyric/v1` with
+//! `yv`/`ytv` set (`-1`, then `0`) answered `lrc`, `tlyric` and `romalrc` but no `yrc`;
+//! community tools get `yrc` only through the encrypted `eapi` endpoints, which this provider
+//! will not use. Whether this use fits `NetEase`'s terms is unverified, so it stays off until
+//! the user turns it on (ADR 0002).
 
 use std::time::Duration;
 
@@ -286,6 +289,7 @@ mod tests {
         let p = NeteaseProvider::new().expect("client");
         assert!(!p.info().default_enabled);
         assert!(p.info().risk_note.is_some());
+        assert_eq!(p.best_granularity(), Granularity::Line);
         assert_eq!(p.hosts(), ["music.163.com"]);
     }
 }

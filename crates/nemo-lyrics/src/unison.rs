@@ -3,7 +3,8 @@
 //! Facts from <https://github.com/better-lyrics/unison> (README read 2026-11-11): reading needs
 //! no key or signature; `GET /lyrics?v=<videoId>` or `?song=&artist=&album=&duration=` returns
 //! `{success, data{id, videoId, song, artist, album, lyrics, format, syncType, confidence,
-//! submitter{keyId, displayName}}}`; `format` is `ttml`, `lrc` or `plain`; 404 means none;
+//! submitter{keyId, displayName}}}`; `format` is `ttml`, `lrc` or `plain`; `syncType` is
+//! `richsync` (word or syllable timing), `linesync` or `plain`; 404 means none;
 //! 503 `LOOKUP_PENDING` carries `Retry-After`. The API is free for apps that credit Unison
 //! and the submitter (deadline for apps: 7 February 2027), so every doc comes with a
 //! [`LyricsCredit`]. We send an identifying `User-Agent` as the README asks and cache locally
@@ -11,8 +12,8 @@
 
 use nemo_core::BoxFuture;
 use nemo_core::lyrics::{
-    CreditedDoc, LyricsCredit, LyricsDoc, LyricsError, LyricsProvider, LyricsQuery, MatchedMeta,
-    ProviderId, ProviderInfo,
+    CreditedDoc, Granularity, LyricsCredit, LyricsDoc, LyricsError, LyricsProvider, LyricsQuery,
+    MatchedMeta, ProviderId, ProviderInfo,
 };
 use serde::Deserialize;
 
@@ -66,6 +67,19 @@ fn safe_id(id: &str) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
 }
 
+/// The level of a parsed answer, given its `syncType`. The timing in the lyrics decides:
+/// `richsync` (word or syllable timing, per the README) and `linesync` keep what the parser
+/// found, and a label never adds timing the text does not have. The one upgrade is a
+/// word-timed doc labelled `syllable`, which is treated as syllable synced.
+fn level_for(parsed: Granularity, sync_type: Option<&str>) -> Granularity {
+    match sync_type.map(str::trim) {
+        Some(s) if s.eq_ignore_ascii_case("syllable") && parsed == Granularity::Word => {
+            Granularity::Syllable
+        }
+        _ => parsed,
+    }
+}
+
 /// Parse a `/lyrics` answer. `Ok(None)` when it holds no usable lyrics.
 ///
 /// # Errors
@@ -89,6 +103,7 @@ pub fn parse_response(body: &str) -> Result<Option<CreditedDoc>, LyricsError> {
     if doc.lines.is_empty() {
         return Ok(None);
     }
+    doc.granularity = level_for(doc.granularity, data.sync_type.as_deref());
     doc.matched = Some(MatchedMeta {
         title: data.song.unwrap_or_default(),
         artists: data
@@ -201,12 +216,15 @@ impl LyricsProvider for UnisonProvider {
     fn info(&self) -> ProviderInfo {
         ProviderInfo::OPEN
     }
+
+    /// Unison serves TTML `richsync` lyrics with syllable pieces.
+    fn best_granularity(&self) -> Granularity {
+        Granularity::Syllable
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use nemo_core::lyrics::Granularity;
-
     use super::*;
 
     // Synthetic bodies in the documented shape. Not real lyrics.
@@ -250,6 +268,39 @@ mod tests {
             credit.note.as_deref(),
             Some("community confidence: low, sync: richsync")
         );
+    }
+
+    #[test]
+    fn syllable_ttml_and_sync_labels() {
+        let ttml = r#"<tt><body><div><p begin="1.0" end="2.0"><span begin="1.0" end="1.4">Hel</span><span begin="1.4" end="2.0">lo</span></p></div></body></tt>"#;
+        let (doc, _) = parse_response(&body("ttml", ttml))
+            .expect("parses")
+            .expect("has lyrics");
+        assert_eq!(doc.granularity, Granularity::Syllable);
+        assert_eq!(
+            level_for(Granularity::Word, Some("syllable")),
+            Granularity::Syllable
+        );
+        assert_eq!(
+            level_for(Granularity::Word, Some("richsync")),
+            Granularity::Word
+        );
+        // A label never invents timing.
+        assert_eq!(
+            level_for(Granularity::Line, Some("syllable")),
+            Granularity::Line
+        );
+        assert_eq!(
+            level_for(Granularity::Line, Some("linesync")),
+            Granularity::Line
+        );
+        assert_eq!(
+            level_for(Granularity::Unsynced, None),
+            Granularity::Unsynced
+        );
+        let p = UnisonProvider::new().expect("client");
+        assert_eq!(p.best_granularity(), Granularity::Syllable);
+        assert!(p.info().default_enabled);
     }
 
     #[test]

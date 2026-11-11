@@ -30,9 +30,10 @@ These are the only hosts NemoMusic contacts. Adding a host needs owner approval.
 | `www.youtube.com` | Stream lookup by `yt-dlp` | When a YouTube track plays |
 | `*.googlevideo.com` | The audio stream itself | When a YouTube track plays |
 | `i.ytimg.com`, `*.ggpht.com`, `*.googleusercontent.com` | Cover art and artist pictures | When covers are shown |
-| `lrclib.net` | Synced lyrics | When lyrics are shown |
-| `unison.betterlyrics.org` | Community lyrics (Unison), credited in the lyrics view | When lyrics are shown |
-| `api.betterlyrics.org`, `music.163.com`, `api-lyrics.simpmusic.org` | Extra lyrics sources, grey area | Only if you switch the source on in settings (off by default) |
+| `lrclib.net` | Synced lyrics (line timing) | When lyrics are shown |
+| `unison.betterlyrics.org` | Community lyrics (Unison), syllable timing, credited in the lyrics view | When lyrics are shown |
+| `api.betterlyrics.org` | Better Lyrics API, syllable timing, cached answers only (no key), credited in the lyrics view | When lyrics are shown (on by default, can be switched off in settings) |
+| `music.163.com`, `api-lyrics.simpmusic.org` | Extra lyrics sources, grey area, line timing | Only if you switch the source on in settings (off by default) |
 | `sponsor.ajay.app` | SponsorBlock segments (only a 4-character hash prefix is sent) | Only when SponsorBlock is on |
 | `accounts.google.com`, `*.gstatic.com` | Google sign-in page | Only while you sign in (not built yet) |
 
@@ -55,7 +56,7 @@ cargo test --workspace
 
 ## Credits
 
-- Lyrics: [LRCLIB](https://lrclib.net) and YouTube Music. The provider name is shown with every lyric.
+- Lyrics: [Unison](https://unison.betterlyrics.org) and the [Better Lyrics](https://better-lyrics.boidu.dev/) API (syllable timing), [LRCLIB](https://lrclib.net), and your own `.lrc` files; NetEase and SimpMusic only if you switch them on. The best timed result is picked automatically (syllable, then word, then line). The provider name is shown with every lyric.
 - Skip data: [SponsorBlock](https://sponsor.ajay.app) by Ajay Ramachandran, [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/), fetched live.
 
 ## License

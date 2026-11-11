@@ -1,7 +1,8 @@
 //! Local lyrics provider: a sidecar `.lrc` file, then lyrics embedded in the audio file's tags.
 //!
 //! Order (first hit wins):
-//! 1. `<same stem>.lrc` next to the audio file (plain or enhanced LRC).
+//! 1. `<same stem>.lrc` next to the audio file (plain or enhanced LRC; enhanced word tags give
+//!    word or syllable timing).
 //! 2. Synced `ID3v2` `SYLT` frames in MP3 files (millisecond timestamps only; frame-based
 //!    timestamps cannot be converted without the stream and are skipped). lofty 0.25.5 has a typed
 //!    `SynchronizedTextFrame` but hands `SYLT` out as a binary frame, so it is parsed here.
@@ -49,6 +50,11 @@ impl LyricsProvider for LocalProvider {
 
     fn hosts(&self) -> &'static [&'static str] {
         &[]
+    }
+
+    /// A sidecar in enhanced LRC can split words into timed pieces.
+    fn best_granularity(&self) -> Granularity {
+        Granularity::Syllable
     }
 
     fn fetch<'a>(
@@ -385,5 +391,6 @@ mod tests {
         assert_eq!(rt.block_on(p.fetch(&q)), Ok(None));
         assert_eq!(p.id().as_str(), "Local file");
         assert_eq!(p.hosts().len(), 0);
+        assert_eq!(p.best_granularity(), Granularity::Syllable);
     }
 }
