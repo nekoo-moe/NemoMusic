@@ -36,6 +36,10 @@ pub enum Granularity {
     Line,
     /// One timestamp per word.
     Word,
+    /// One timestamp per syllable: a word may be split into several timed pieces. The pieces
+    /// are stored as [`LyricWord`]s whose `text` keeps its own whitespace, so pieces of one word
+    /// have no space between them. The best level; pickers prefer it over [`Self::Word`].
+    Syllable,
 }
 
 /// What to look up.
@@ -242,6 +246,7 @@ mod tests {
 
     #[test]
     fn word_is_better_than_line_is_better_than_unsynced() {
+        assert!(Granularity::Syllable > Granularity::Word);
         assert!(Granularity::Word > Granularity::Line);
         assert!(Granularity::Line > Granularity::Unsynced);
         assert_eq!(

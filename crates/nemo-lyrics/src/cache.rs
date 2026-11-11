@@ -95,6 +95,7 @@ enum GranularityRec {
     Unsynced,
     Line,
     Word,
+    Syllable,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -134,6 +135,7 @@ impl From<Granularity> for GranularityRec {
             Granularity::Unsynced => Self::Unsynced,
             Granularity::Line => Self::Line,
             Granularity::Word => Self::Word,
+            Granularity::Syllable => Self::Syllable,
         }
     }
 }
@@ -144,6 +146,7 @@ impl From<GranularityRec> for Granularity {
             GranularityRec::Unsynced => Self::Unsynced,
             GranularityRec::Line => Self::Line,
             GranularityRec::Word => Self::Word,
+            GranularityRec::Syllable => Self::Syllable,
         }
     }
 }
@@ -153,6 +156,7 @@ fn granularity_name(g: Granularity) -> &'static str {
         Granularity::Unsynced => "unsynced",
         Granularity::Line => "line",
         Granularity::Word => "word",
+        Granularity::Syllable => "syllable",
     }
 }
 

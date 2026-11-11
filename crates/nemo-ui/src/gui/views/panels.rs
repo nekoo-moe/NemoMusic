@@ -424,6 +424,7 @@ pub fn lyrics_switcher(app: &App, on_pick: fn(usize) -> Message) -> Element<'_, 
         let kind = match cand.granularity {
             Granularity::Line => "line",
             Granularity::Word => "word",
+            Granularity::Syllable => "syllable",
             Granularity::Unsynced => "text",
         };
         let ink = if on {
