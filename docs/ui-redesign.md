@@ -138,12 +138,53 @@ first-run notice is accepted, with a button that reopens it.
   "Mood of the day", "New for you", a time-of-day greeting and a hero card, seeded with the local
   date (stable within a day). Signed out, only the hero suggestion and catalog shelves show.
 - Album and playlist pages draw a shimmer skeleton at once; the error page needs a failed call.
-- Lyrics: the footer shows a provider switcher (from `LyricsService::lookup_all`, remembered with
-  `choose`) when two or more sources answered, and the credit line ("Lyrics from Unison · by …")
-  whenever the shown lyrics carry one. Settings > Lyrics lists every provider with an on/off
-  switch, its hosts and the risk note.
+- Lyrics: the footer showed a provider switcher (from `LyricsService::lookup_all`, remembered
+  with `choose`) when two or more sources answered; replaced in the lyrics wave (6c) by the
+  Tools panel section. The credit line ("Lyrics from Unison · by …") shows whenever the shown
+  lyrics carry one. Settings > Lyrics lists every provider with an on/off switch, its hosts and
+  the risk note.
+
+## 6c. Lyrics and song canvas wave (owner review 2026-11-11)
+- Wrapping: lyric lines wrap (`Wrapping::WordOrGlyph`) in the right pane, the full screen and the
+  compact layout, and the live line of the pane wraps too; nothing in a lyric line is cut with an
+  ellipsis. `textfit::rows` counts the wrapped rows with the bundled font's advances; every row is
+  that tall, and the reducer anchors the scroll on the same counts (`LyricsRows`). A line taller
+  than the room under the 35% anchor moves up until its last row shows.
+- Line change: the list glides on `spatial.default` (700/1.0, settles in about 250 ms); the old
+  and the new active line cross-fade size, line height and ink over 240 ms
+  (emphasized-decelerate). Reduced motion jumps. Manual scroll pause and the `Back to current
+  line` pill are unchanged.
+- Per-piece highlight (owner request, extends `design.md` section 10): for syllable- and
+  word-timed lyrics the active line is rich text with one span per timed piece. Sung pieces are
+  `on-surface` at 0.9; the piece being sung fades from the "coming" opacity to 1.0 over its own
+  duration (at least 100 ms) instead of a fixed `effects.fast` step; pieces still to come stay
+  at the "coming" opacity. Pieces of one word join without a separator. No bounce, no wipe.
+  Line-timed lyrics keep the line highlight and its accent glow (piece-timed lines get no glow,
+  it tinted the coming pieces).
+- Lines around the active one use `on-surface` at the "coming" opacity (0.55 dark and AMOLED,
+  0.72 light) instead of `on-surface-variant` at 0.72: the latter fails 4.5:1 on a coloured
+  canvas and on light surfaces.
+- Sources: no chip row under the lyrics. The best source is shown by itself (`lookup_all` is
+  best first); the footer keeps `Lyrics: <provider> · <level>` (`Syllable synced`, `Word
+  synced`, `Synced`, `Not synced`) and the credit (Unison submitter; "Lyrics via Better Lyrics"
+  with its link host), both wrapped, never cut. The Tools panel has a "Lyrics source" section:
+  `Best (auto)` (calls `clear_choice`) and every candidate with a level tag; the chosen row is
+  filled, the shown one has a check; rows are 40 px buttons in the Tab order. The panel scrolls
+  when it is taller than the window. Settings > Lyrics sorts sources by their `best` level
+  (stable, chain order within a level) with a level tag.
+- Song canvas: the cover worker tones the pre-blurred cover per base mode (`crate::canvas`):
+  hue kept, chroma x1.7 (x1.2 light) capped at 0.10 (0.045 light), lightness squeezed into
+  0.19-0.34 (Dark), 0.12-0.30 (AMOLED) or 0.90-0.96 (Light). A grey cover stays grey. The full
+  screen draws the toned texture (no scrim needed; tests check every text ink on every pixel
+  at 4.5:1 over black, white, grey, saturated, yellow and noisy covers); the right pane draws
+  five top-to-bottom stops of it as a gradient, because tiny-skia cannot round-clip images.
+  Both cross-fade with the cover in 400 ms, are static and work with every theme, AMOLED
+  included. Tier Low only: no live blur.
 
 ## 7. Not done, said plainly
+Lyrics wave: the credit link is shown as text (the app has no "open link" action yet); the
+wrapped-row count measures with the widest bundled weight, so a line can get one spare row;
+the canvas follows a base-mode switch at once while the neutrals cross-fade.
 Round 4: with the lyrics switcher and the Unison credit shown, the small pane has room for about
 3 lyric lines and the line under the active one is cut at the edge; the nav pill stays on Home
 while an album opened from Home is shown; the equaliser bars are a state indicator, not audio

@@ -65,6 +65,48 @@ impl LineRole {
     pub fn semibold(self) -> bool {
         self == Self::Active
     }
+
+    /// Index of this role in a [`LineRows`] entry.
+    #[must_use]
+    pub const fn slot(self) -> usize {
+        match self {
+            Self::Active => 0,
+            Self::Neighbor => 1,
+            Self::Other => 2,
+        }
+    }
+}
+
+/// Wrapped row counts of one lyric line in each role's type size: `[active, neighbor, other]`
+/// (index with [`LineRole::slot`]). Measured by the GUI with the real font advances.
+pub type LineRows = [u8; 3];
+
+/// Height in px of a line of `role` that wraps onto `rows` rows.
+#[must_use]
+pub fn wrapped_height(role: LineRole, dense: bool, rows: u8) -> f32 {
+    f32::from(role.style_d(dense).line) * f32::from(rows.max(1)) + LINE_GAP
+}
+
+/// Text for the sync level in the footer (wave-lyrics criterion 9).
+#[must_use]
+pub const fn level_text(g: Granularity) -> &'static str {
+    match g {
+        Granularity::Syllable => "Syllable synced",
+        Granularity::Word => "Word synced",
+        Granularity::Line => "Synced",
+        Granularity::Unsynced => "Not synced",
+    }
+}
+
+/// Short level tag for source lists (Tools panel, Settings).
+#[must_use]
+pub const fn level_tag(g: Granularity) -> &'static str {
+    match g {
+        Granularity::Syllable => "Syllable",
+        Granularity::Word => "Word",
+        Granularity::Line => "Line",
+        Granularity::Unsynced => "Unsynced",
+    }
 }
 
 /// Index of the active line for a playback position, or `None` before the first line, for
@@ -111,17 +153,35 @@ pub fn scroll_target(active: Option<usize>, viewport_h: f32) -> f32 {
 /// [`scroll_target`] for the dense (right pane) or roomy (full window) lyrics.
 #[must_use]
 pub fn scroll_target_d(active: Option<usize>, viewport_h: f32, dense: bool) -> f32 {
+    scroll_target_rows(active, viewport_h, dense, &[])
+}
+
+/// [`scroll_target_d`] with the wrapped row counts of every line (`rows[i]` for line `i`; a
+/// missing entry counts as one row), so a long line that wraps keeps the anchor right.
+#[must_use]
+pub fn scroll_target_rows(
+    active: Option<usize>,
+    viewport_h: f32,
+    dense: bool,
+    rows: &[LineRows],
+) -> f32 {
     let Some(a) = active else {
         return 0.0;
     };
-    let above: f32 = (0..a)
-        .map(|i| row_height_d(LineRole::of(i, Some(a)), dense))
-        .sum();
-    let raw = (above - ANCHOR * viewport_h).max(0.0);
+    let height = |i: usize| {
+        let role = LineRole::of(i, Some(a));
+        wrapped_height(role, dense, rows.get(i).map_or(1, |r| r[role.slot()]))
+    };
+    let above: f32 = (0..a).map(height).sum();
+    // The anchor puts the line's top at 35%; a line that wraps onto more rows than fit below
+    // the anchor moves up so its last row stays in view (its top never leaves the view).
+    let fit = (above + height(a) - viewport_h).max(0.0);
+    let raw = (above - ANCHOR * viewport_h).max(fit).min(above).max(0.0);
     if !dense {
         return raw;
     }
-    // The small pane rests on a row edge, so no half-cut line shows at its top.
+    // The small pane rests on a row edge, so no half-cut line shows at its top; when the
+    // active line needs more room, the next edge down is used instead.
     let mut edge = 0.0;
     let mut acc = 0.0;
     for i in 0..=a {
@@ -129,12 +189,16 @@ pub fn scroll_target_d(active: Option<usize>, viewport_h: f32, dense: bool) -> f
             break;
         }
         edge = acc;
-        acc += row_height_d(LineRole::of(i, Some(a)), dense);
+        acc += height(i);
+    }
+    if edge + 0.5 < fit {
+        edge = acc.min(above);
     }
     edge
 }
 
-/// Footer text: `Lyrics: <provider> . Synced` (design.md section 10). Never hidden.
+/// Footer text: `Lyrics: <provider> . <level>` (design.md section 10, wave-lyrics criterion 9).
+/// Never hidden.
 #[must_use]
 pub fn footer(doc: Option<&LyricsDoc>) -> String {
     match doc {
@@ -142,12 +206,7 @@ pub fn footer(doc: Option<&LyricsDoc>) -> String {
         Some(d) => {
             let name = d.provider.as_str();
             let name = if name.is_empty() { "Unknown" } else { name };
-            let sync = if d.granularity == Granularity::Unsynced {
-                "Not synced"
-            } else {
-                "Synced"
-            };
-            format!("Lyrics: {name} \u{b7} {sync}")
+            format!("Lyrics: {name} \u{b7} {}", level_text(d.granularity))
         }
     }
 }
@@ -228,6 +287,30 @@ mod tests {
     }
 
     #[test]
+    fn wrapped_lines_move_the_anchor_by_their_real_height() {
+        let one = scroll_target(Some(20), 600.0);
+        let mut rows = vec![[1_u8, 1, 1]; 30];
+        rows[5] = [3, 2, 2];
+        let wrapped = scroll_target_rows(Some(20), 600.0, false, &rows);
+        let extra = f32::from(LineRole::Other.style().line);
+        assert!((wrapped - one - extra).abs() < 1e-3, "{wrapped} vs {one}");
+        // Rows of the active line itself do not move its top.
+        rows[20] = [4, 4, 4];
+        assert!((scroll_target_rows(Some(20), 600.0, false, &rows) - wrapped).abs() < 1e-3);
+        // A line too tall for the room under the anchor moves up until its last row shows.
+        let mut tall = vec![[1_u8, 1, 1]; 4];
+        tall[2] = [3, 3, 3];
+        let vh = 140.0;
+        let off = scroll_target_rows(Some(2), vh, true, &tall);
+        let above: f32 = (0..2)
+            .map(|i| wrapped_height(LineRole::of(i, Some(2)), true, 1))
+            .sum();
+        let bottom = above + wrapped_height(LineRole::Active, true, 3);
+        assert!(bottom - off <= vh + 1e-3, "{off}: bottom {bottom}");
+        assert!(off <= above + 1e-3);
+    }
+
+    #[test]
     fn footer_shows_provider_and_sync_state() {
         let synced = doc(&[Some(0)], Granularity::Line);
         assert_eq!(footer(Some(&synced)), "Lyrics: Mock \u{b7} Synced");
@@ -237,5 +320,8 @@ mod tests {
         let mut unnamed = synced;
         unnamed.provider = ProviderId::new("");
         assert_eq!(footer(Some(&unnamed)), "Lyrics: Unknown \u{b7} Synced");
+        let syl = doc(&[Some(0)], Granularity::Syllable);
+        assert_eq!(footer(Some(&syl)), "Lyrics: Mock \u{b7} Syllable synced");
+        assert_eq!(level_text(Granularity::Word), "Word synced");
     }
 }

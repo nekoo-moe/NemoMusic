@@ -1,25 +1,26 @@
 //! Panels that float above the window: the tools panel (sleep timer, playback speed, window
-//! modes), the keyboard shortcut sheet, the "Create playlist" sheet, the mini player, and the
-//! lyrics provider switcher. All are opaque (`surface-container-high`); the capsule stays the
-//! only glass layer.
+//! modes, and the lyrics source), the keyboard shortcut sheet, the "Create playlist" sheet and
+//! the mini player. All are opaque (`surface-container-high`); the capsule stays the only glass
+//! layer.
 
 use std::time::Instant;
 
 use iced::font::Weight;
 use iced::widget::{Space, button, column, container, opaque, row, text_input};
 use iced::{Alignment, Background, Border, Color, Element, Length, Padding};
-use nemo_core::lyrics::Granularity;
 
 use super::super::app::{App, CreateMsg, MINI_SIZE, Message};
 use super::super::assets::{Icon, font};
 use super::super::fx::fx;
 use super::super::style::{
-    animated, button_flat, button_outlined, col, fit, gap, icon, icon_button, label, label_w, tip,
+    animated, button_flat, button_outlined, col, fit, gap, icon, icon_button, label, label_w,
+    scroll, tip,
 };
 use super::bar;
 use super::kit::{paragraph, text_button, tonal_button, vspace};
 use super::overlays::{card_style, scrim};
 use crate::explore::{SHORTCUTS, SPEEDS, SleepChoice, timer_left};
+use crate::layout;
 use crate::theme::{color, shape, type_scale};
 
 /// A thin section label.
@@ -136,6 +137,8 @@ pub fn tools_panel(app: &App) -> Element<'_, Message> {
         "Speed is on: the audio is resampled and is not bit-perfect."
     };
 
+    // Room for the scrollbar at the right.
+    let inner = w - 2.0 * gap::LG - gap::MD;
     let body = column![
         row![
             label(
@@ -156,6 +159,15 @@ pub fn tools_panel(app: &App) -> Element<'_, Message> {
         ]
         .align_y(Alignment::Center),
         vspace(gap::SM),
+    ]
+    .width(Length::Fixed(inner));
+    let lyrics: Element<'_, Message> = match super::settings_lyrics::tools_section(app, inner) {
+        Some(section) => column![section, vspace(gap::LG)].into(),
+        None => Space::new().into(),
+    };
+    let body = column![
+        body,
+        lyrics,
         heading("Sleep timer"),
         vspace(gap::SM),
         sleep_col,
@@ -166,7 +178,7 @@ pub fn tools_panel(app: &App) -> Element<'_, Message> {
         vspace(gap::SM),
         speed_row,
         vspace(gap::SM),
-        paragraph(speed_note, type_scale::BODY_SM, dim, w - 2.0 * gap::LG),
+        paragraph(speed_note, type_scale::BODY_SM, dim, inner),
         vspace(gap::LG),
         action(
             Icon::FullScreen,
@@ -182,12 +194,24 @@ pub fn tools_panel(app: &App) -> Element<'_, Message> {
             Message::Shortcuts(true)
         ),
     ]
-    .width(Length::Fixed(w - 2.0 * gap::LG));
+    .width(Length::Fixed(inner));
+    // The panel never grows past the window: it scrolls above the capsule instead.
+    let (_, h) = app.window_px();
+    // Window and layout numbers are small, exact in f32.
+    #[allow(clippy::cast_precision_loss)]
+    let room = h as f32
+        - (layout::CAPSULE_HEIGHT + layout::CAPSULE_MARGIN + layout::PANE_GAP) as f32
+        - gap::XS
+        - gap::XL;
     opaque(
-        container(body)
-            .padding(gap::LG)
-            .width(Length::Fixed(w))
-            .style(card_style(shape::xl())),
+        container(scroll(container(body).padding(Padding {
+            right: gap::MD,
+            ..Padding::ZERO
+        })))
+        .padding(gap::LG)
+        .width(Length::Fixed(w))
+        .max_height(room.max(240.0))
+        .style(card_style(shape::xl())),
     )
 }
 
@@ -410,61 +434,6 @@ pub fn create_sheet(app: &App) -> Element<'_, Message> {
         .center_y(Length::Fill),
     ]
     .into()
-}
-
-/// A lyrics provider switcher: one chip per provider that has lyrics for the song, the timing
-/// granularity under its name, and `on_pick` carrying the index.
-pub fn lyrics_switcher(app: &App, on_pick: fn(usize) -> Message) -> Element<'_, Message> {
-    let accent = app.accent();
-    let selected = app.lyric_provider;
-    let mut r = row![].spacing(gap::SM).align_y(Alignment::Center);
-    for (i, cand) in app.lyric_candidates.iter().enumerate() {
-        let name = cand.provider.as_str();
-        let on = i == selected;
-        let kind = match cand.granularity {
-            Granularity::Line => "line",
-            Granularity::Word => "word",
-            Granularity::Syllable => "syllable",
-            Granularity::Unsynced => "text",
-        };
-        let ink = if on {
-            col(accent.on_secondary_container)
-        } else {
-            col(color::on_surface())
-        };
-        let b = button(
-            container(
-                row![
-                    label_w(
-                        fit(name, 96.0, type_scale::LABEL_MD.size),
-                        type_scale::LABEL_MD,
-                        Weight::Medium,
-                        ink
-                    ),
-                    Space::new().width(gap::XS),
-                    label(kind, type_scale::LABEL_SM, false, ink.scale_alpha(0.72)),
-                ]
-                .align_y(Alignment::Center),
-            )
-            .padding(Padding::from([0.0, gap::MD]))
-            .height(Length::Fixed(32.0))
-            .align_y(Alignment::Center),
-        )
-        .padding(0)
-        .on_press(on_pick(i));
-        let (fill, outline) = if on {
-            (col(accent.secondary_container), None)
-        } else {
-            (Color::TRANSPARENT, Some(col(color::outline())))
-        };
-        r = r.push(tip(
-            fx(b.style(button_outlined(fill, outline, shape::FULL)))
-                .layer(ink)
-                .radius(shape::FULL),
-            "Lyrics source",
-        ));
-    }
-    r.into()
 }
 
 /// The mini player: cover, title, artist, previous, play, next and a way back.

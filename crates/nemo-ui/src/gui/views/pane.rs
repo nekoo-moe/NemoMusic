@@ -2,8 +2,8 @@
 //! lyric line and the tabs Lyrics, Queue and Info. The background takes the cover's colour.
 
 use iced::font::Weight;
-use iced::widget::{Space, button, column, container, mouse_area, row, stack};
-use iced::{Alignment, Color, Element, Length, Padding, mouse};
+use iced::widget::{Space, button, column, container, row};
+use iced::{Alignment, Color, Element, Length, Padding};
 use nemo_core::catalog::ShelfItem;
 use nemo_core::lyrics::Granularity;
 use nemo_core::track::Track;
@@ -12,17 +12,15 @@ use super::super::app::{App, ArtShape, ListSource, Message, NpTab};
 use super::super::assets::Icon;
 use super::super::fx::{Fx, fx};
 use super::super::style::{
-    button_flat, col, fit, gap, icon, icon_button, label, label_w, scroll, tip, vertical_gradient,
+    button_flat, col, fit, gap, icon, icon_button, label, label_w, scroll, tip,
 };
-use super::super::widgets::Offset;
 use super::bar::{badge, cover_art, like_button};
 use super::kit::{Card, card_view, paragraph, quick_pick, vspace};
-use super::now_playing::{footer, lyric_line, lyrics_status, pill_button, status_text};
+use super::lyrics;
 use super::queue;
 use super::shell::pane_surface;
 use crate::format;
 use crate::layout;
-use crate::lyrics_view::{LINE_GAP, LineRole};
 use crate::route::Route;
 use crate::signal;
 use crate::state::{Event, LyricsState};
@@ -31,13 +29,7 @@ use crate::theme::{color, shape, type_scale};
 /// The pane, `full_w` px wide when open; `slot` is its current width while it animates (the
 /// content keeps `full_w` and is clipped).
 pub fn view(app: &App, full_w: f32, slot: Length) -> Element<'_, Message> {
-    let accent = app.accent();
-    let base = color::surface_container();
-    let top = accent.primary_container.with_alpha(0.50).over(base);
-    let bg = vertical_gradient(
-        col(top.with_alpha(0.9)),
-        col(base.with_alpha(crate::scheme::PANE_ALPHA)),
-    );
+    let bg = super::backdrop::pane_background(app);
     let body: Element<'_, Message> = if app.ui.snapshot.current.is_some() {
         playing(app, full_w)
     } else {
@@ -312,14 +304,20 @@ fn live_line(app: &App, width: f32) -> Element<'_, Message> {
     } else {
         col(color::on_surface_variant())
     };
-    let lyric = label_w(fit(&text, width, st.size), st, Weight::Semibold, ink);
+    // The line wraps instead of being cut (wave-lyrics criterion 6); the slot grows with it.
+    let rows = super::super::textfit::rows(&text, width, f32::from(st.size));
+    let lyric = label_w(text, st, Weight::Semibold, ink)
+        .wrapping(iced::widget::text::Wrapping::WordOrGlyph)
+        .width(Length::Fixed(width));
     let slot = container(Fx::new(lyric).passive().entrance(
         app.anim.line(),
         8.0,
         col(color::surface_container().with_alpha(0.0)),
-    ))
-    .height(Length::Fixed(f32::from(st.line)));
-    slot.into()
+    ));
+    // Row counts are tiny, exact in f32.
+    #[allow(clippy::cast_precision_loss)]
+    let h = rows as f32 * f32::from(st.line);
+    slot.height(Length::Fixed(h)).into()
 }
 
 /// The segmented tab switch.
@@ -367,71 +365,16 @@ fn tabs(
         .into()
 }
 
-/// Lyrics in the dense sizes with the spring glide, the provider footer and the offset pills.
+/// Lyrics in the dense sizes with the spring glide and the provider footer.
 fn lyrics_tab(app: &App, width: f32, viewport_h: f32) -> Element<'_, Message> {
-    let body: Element<'_, Message> = match &app.ui.lyrics {
-        LyricsState::Ready(doc) if doc.instrumental => status_text("Instrumental", None),
-        LyricsState::Ready(doc) if doc.granularity == Granularity::Unsynced => {
-            let mut c = column![].spacing(gap::SM).width(Length::Fill);
-            for line in &doc.lines {
-                c = c.push(
-                    label(
-                        line.text.clone(),
-                        type_scale::BODY_MD,
-                        false,
-                        col(color::on_surface_variant()),
-                    )
-                    .wrapping(iced::widget::text::Wrapping::Word),
-                );
-            }
-            scroll(c).height(Length::Fill).into()
-        }
-        LyricsState::Ready(doc) => {
-            let active = app.ui.active_lyric();
-            let mut c = column![].width(Length::Fill);
-            for (i, line) in doc.lines.iter().enumerate() {
-                let role = LineRole::of(i, active);
-                let st = role.style_d(true);
-                c = c.push(
-                    container(lyric_line(app, &line.text, width, st, role))
-                        .height(Length::Fixed(f32::from(st.line) + LINE_GAP))
-                        .width(Length::Fill),
-                );
-            }
-            let list = mouse_area(Offset::new(c, app.ui.lyric_scroll.value)).on_scroll(|delta| {
-                let px = match delta {
-                    mouse::ScrollDelta::Lines { y, .. } => -y * 48.0,
-                    mouse::ScrollDelta::Pixels { y, .. } => -y,
-                };
-                Message::Ui(Event::LyricsScrolled(px))
-            });
-            let mut layers: Vec<Element<'_, Message>> = vec![list.into()];
-            if !app.ui.lyrics_following() {
-                layers.push(
-                    container(pill_button(
-                        "Back to current line",
-                        Message::Ui(Event::LyricsFollow),
-                    ))
-                    .width(Length::Fill)
-                    .height(Length::Fill)
-                    .align_y(Alignment::End)
-                    .center_x(Length::Fill)
-                    .padding(gap::SM)
-                    .into(),
-                );
-            }
-            stack(layers).into()
-        }
-        _ => lyrics_status(app, width),
-    };
     column![
-        container(body)
+        container(lyrics::body(app, width, true))
             .width(Length::Fill)
             .height(Length::Fixed(
-                viewport_h + 6.0 - super::now_playing::footer_extra(app)
+                viewport_h + 6.0 - lyrics::footer_extra(app, width)
             ))
             .clip(true),
-        footer(app, width),
+        lyrics::footer(app, width),
     ]
     .width(Length::Fixed(width))
     .into()

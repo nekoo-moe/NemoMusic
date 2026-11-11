@@ -36,6 +36,8 @@ pub struct CoverData {
     /// Average colour of the left, middle and right thirds of the blurred backdrop: the glass
     /// bar paints these as a gradient (a 3-sample version of the pre-blurred texture).
     pub backdrop_strip: [Rgba; 3],
+    /// The song-coloured canvas for the Now Playing pane and the full-screen Now Playing.
+    pub canvas: crate::canvas::Canvas,
 }
 
 /// Decode `bytes`, derive the palette and the blurred backdrop.
@@ -104,6 +106,7 @@ pub fn analyze(bytes: &[u8]) -> Result<CoverData, PaletteError> {
         backdrop_png,
         backdrop_lightest: lightest,
         backdrop_strip: strip,
+        canvas: crate::canvas::build(blurred.as_raw(), BACKDROP_PX),
     })
 }
 

@@ -275,6 +275,43 @@ pub struct CoverView {
     pub tint_alpha: Option<f32>,
     /// Scrim alpha over the Now Playing backdrop.
     pub scrim_alpha: f32,
+    /// The song-coloured canvas behind the pane and the full-screen Now Playing.
+    pub canvas: CanvasView,
+}
+
+/// The canvas of one cover, ready to draw: a texture and pane gradient stops per base mode.
+#[derive(Debug, Clone)]
+pub struct CanvasView {
+    /// Textures in [`crate::canvas::MODES`] order.
+    pub textures: [image::Handle; 3],
+    /// Gradient stops in the same order.
+    pub stops: [[crate::theme::Rgba; crate::canvas::STOPS]; 3],
+}
+
+impl CanvasView {
+    /// Upload-ready handles of an analysed canvas (raw RGBA, nothing decodes on the UI thread).
+    #[must_use]
+    pub fn new(c: &crate::canvas::Canvas) -> Self {
+        Self {
+            textures: c
+                .textures
+                .clone()
+                .map(|px| image::Handle::from_rgba(c.px, c.px, px)),
+            stops: c.stops,
+        }
+    }
+
+    /// Texture for a base mode.
+    #[must_use]
+    pub fn texture(&self, base: BaseMode) -> image::Handle {
+        self.textures[crate::canvas::mode_index(base)].clone()
+    }
+
+    /// Gradient stops for a base mode.
+    #[must_use]
+    pub fn stops(&self, base: BaseMode) -> [crate::theme::Rgba; crate::canvas::STOPS] {
+        self.stops[crate::canvas::mode_index(base)]
+    }
 }
 
 /// Progress of the Home shelves.
@@ -777,6 +814,8 @@ pub enum Message {
     },
     /// Pick lyrics provider `i` in the switcher.
     PickLyricsProvider(usize),
+    /// Forget the per-song pick and show the best source again (Tools panel).
+    LyricsAuto,
     /// Switch a lyrics source on or off (Settings).
     SetLyricsSource(ProviderId, bool),
     /// The cover colour of a page arrived.
@@ -1182,6 +1221,8 @@ pub struct App {
     /// Likes the user changed in this session (over what the Liked songs shelf says).
     likes: HashMap<TrackId, bool>,
     last_line: Option<usize>,
+    /// The active lyric line before the last change (the lines cross-fade from it).
+    pub(crate) prev_line: Option<usize>,
     pub(crate) seek_drag: Option<f32>,
     pub(crate) compact_tab: CompactTab,
     pub(crate) settings_section: SettingsSection,
@@ -1244,6 +1285,8 @@ pub struct App {
     pub(crate) lyric_candidates: Vec<LyricsCandidate>,
     /// Index into `lyric_candidates` of the lyrics shown now.
     pub(crate) lyric_provider: usize,
+    /// `true` while the user's own pick of source is stored for this song (else: best, auto).
+    pub(crate) lyric_pinned: bool,
     /// Credit the source of the shown lyrics asks for (Unison).
     pub(crate) lyric_credit: Option<LyricsCredit>,
     /// Providers with their on/off state, for Settings.
@@ -1300,6 +1343,7 @@ impl App {
             account: AccountUi::default(),
             likes: HashMap::new(),
             last_line: None,
+            prev_line: None,
             seek_drag: None,
             compact_tab: CompactTab::default(),
             settings_section: SettingsSection::default(),
@@ -1354,6 +1398,7 @@ impl App {
             hooks: options.hooks.clone(),
             lyric_candidates: Vec::new(),
             lyric_provider: 0,
+            lyric_pinned: false,
             lyric_credit: None,
             lyric_sources: Vec::new(),
             pending_play: None,
@@ -1528,6 +1573,26 @@ impl App {
         }
     }
 
+    /// Width of the lyrics column on the current screen: the wide full-screen column or the
+    /// right pane less its padding.
+    pub(crate) fn lyrics_width(&self) -> f32 {
+        let (w, h) = self.window_px();
+        let px = if matches!(self.ui.route(), Route::NowPlaying) {
+            let art = layout::now_playing_art(w, h);
+            layout::lyrics_column_width(w, art)
+        } else {
+            layout::right_width(w)
+        };
+        // Pane and column widths are small, exact in f32.
+        #[allow(clippy::cast_precision_loss)]
+        let px = px as f32;
+        if matches!(self.ui.route(), Route::NowPlaying) {
+            px
+        } else {
+            px - 2.0 * style::gap::MD
+        }
+    }
+
     fn sync_viewport(&mut self) -> Vec<Job> {
         let (w, h) = self.window_px();
         let full = matches!(self.ui.route(), Route::NowPlaying);
@@ -1536,10 +1601,16 @@ impl App {
         } else {
             layout::pane_lyrics_height(w, h)
         };
-        // The switcher and the credit line take room under the lyrics.
-        let v = (v - views::now_playing::footer_extra(self)).max(60.0);
+        let width = self.lyrics_width();
+        // The credit line and wrapped footer rows take room under the lyrics.
+        let v = (v - views::lyrics::footer_extra(self, width)).max(60.0);
+        let rows = match &self.ui.lyrics {
+            LyricsState::Ready(doc) => views::lyrics::line_rows(doc, width, !full),
+            _ => Vec::new(),
+        };
         let mut jobs = self.dispatch(Event::LyricsDense(!full));
         jobs.extend(self.dispatch(Event::LyricsViewport(v)));
+        jobs.extend(self.dispatch(Event::LyricsRows(rows)));
         jobs
     }
 
@@ -1656,6 +1727,7 @@ impl App {
         }
         let line = self.ui.active_lyric();
         if line != self.last_line {
+            self.prev_line = self.last_line;
             self.last_line = line;
             self.anim.restart_line();
         }
@@ -2100,6 +2172,7 @@ impl App {
             } => {
                 self.lyric_candidates.clear();
                 self.lyric_provider = 0;
+                self.lyric_pinned = self.backend.lyrics.chosen(&track.0).is_some();
                 self.lyric_credit = lookup
                     .doc
                     .as_ref()
@@ -2317,31 +2390,8 @@ impl App {
                 Vec::new()
             }
             Message::QueueMove { index, up } => self.queue_move(index, up),
-            Message::PickLyricsProvider(i) => {
-                let Some(track) = self.ui.snapshot.current.clone() else {
-                    return Vec::new();
-                };
-                let Some(cand) = self.lyric_candidates.get(i).cloned() else {
-                    return Vec::new();
-                };
-                self.lyric_provider = i;
-                self.backend.lyrics.choose(&track.id.0, cand.provider);
-                self.lyric_credit = cand
-                    .credit
-                    .clone()
-                    .or_else(|| self.backend.lyrics.credit(&track.id.0, cand.provider));
-                let offset_ms = self.ui.lyrics_offset_ms;
-                let mut jobs = self.dispatch(Event::LyricsReady {
-                    track: track.id,
-                    lookup: LyricsLookup {
-                        doc: Some(cand.doc),
-                        tried: Vec::new(),
-                    },
-                    offset_ms,
-                });
-                jobs.extend(self.sync_viewport());
-                jobs
-            }
+            Message::PickLyricsProvider(i) => self.show_lyrics_candidate(i, true),
+            Message::LyricsAuto => self.show_lyrics_candidate(0, false),
             Message::SetLyricsSource(id, on) => {
                 self.backend.lyrics.set_provider_enabled(id, on);
                 self.lyric_sources = self.backend.lyrics.providers();
@@ -2545,6 +2595,42 @@ impl App {
         jobs
     }
 
+    /// Show lyrics candidate `i`. `remember` stores it as the user's pick for the song;
+    /// otherwise the stored pick is cleared, so the best source (candidate 0) wins again.
+    fn show_lyrics_candidate(&mut self, i: usize, remember: bool) -> Vec<Job> {
+        let Some(track) = self.ui.snapshot.current.clone() else {
+            return Vec::new();
+        };
+        if remember {
+            let Some(cand) = self.lyric_candidates.get(i) else {
+                return Vec::new();
+            };
+            self.backend.lyrics.choose(&track.id.0, cand.provider);
+        } else {
+            self.backend.lyrics.clear_choice(&track.id.0);
+        }
+        self.lyric_pinned = remember;
+        let Some(cand) = self.lyric_candidates.get(i).cloned() else {
+            return self.sync_viewport();
+        };
+        self.lyric_provider = i;
+        self.lyric_credit = cand
+            .credit
+            .clone()
+            .or_else(|| self.backend.lyrics.credit(&track.id.0, cand.provider));
+        let offset_ms = self.ui.lyrics_offset_ms;
+        let mut jobs = self.dispatch(Event::LyricsReady {
+            track: track.id,
+            lookup: LyricsLookup {
+                doc: Some(cand.doc),
+                tried: Vec::new(),
+            },
+            offset_ms,
+        });
+        jobs.extend(self.sync_viewport());
+        jobs
+    }
+
     fn on_cover(&mut self, track: TrackId, built: Result<Arc<CoverBuilt>, String>) -> Vec<Job> {
         let is_current = self.ui.snapshot.current.as_ref().map(|t| &t.id) == Some(&track);
         match built {
@@ -2561,6 +2647,7 @@ impl App {
                     backdrop: image::Handle::from_bytes(b.data.backdrop_png.clone()),
                     tint_alpha: cover::glass_tint_alpha(b.data.backdrop_lightest),
                     scrim_alpha: cover::backdrop_scrim_alpha(b.data.backdrop_lightest),
+                    canvas: CanvasView::new(&b.data.canvas),
                 });
                 self.cover_seed = Some(b.data.seed);
                 let palette = self.themed_palette();

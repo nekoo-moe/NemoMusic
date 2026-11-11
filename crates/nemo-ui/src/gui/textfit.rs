@@ -232,9 +232,67 @@ pub fn fit_lines(s: &str, max_w: f32, size: f32, lines: usize) -> String {
     out.join("\n")
 }
 
+/// Number of rows `s` takes when wrapped to `max_w` px at `size` px the way iced's
+/// `Wrapping::WordOrGlyph` does: at spaces, and inside a word that is wider than a row. Forced
+/// line breaks (`\n`) start a new row. Always at least 1. The measure is the widest weight, so
+/// the count is never lower than what is drawn.
+#[must_use]
+pub fn rows(s: &str, max_w: f32, size: f32) -> usize {
+    let max_w = max_w.max(1.0);
+    let space = width(" ", size);
+    s.split('\n')
+        .map(|para| {
+            let mut rows = 1;
+            let mut used = 0.0_f32;
+            for word in para.split_whitespace() {
+                let w = width(word, size);
+                let need = if used > 0.0 { used + space + w } else { w };
+                if need <= max_w {
+                    used = need;
+                    continue;
+                }
+                if used > 0.0 {
+                    rows += 1;
+                }
+                used = 0.0;
+                if w <= max_w {
+                    used = w;
+                    continue;
+                }
+                // A word wider than a row breaks between glyphs.
+                for c in word.chars() {
+                    let cw = width(c.encode_utf8(&mut [0; 4]), size);
+                    if used + cw > max_w && used > 0.0 {
+                        rows += 1;
+                        used = 0.0;
+                    }
+                    used += cw;
+                }
+            }
+            rows
+        })
+        .sum::<usize>()
+        .max(1)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rows_wrap_at_spaces_and_break_long_words() {
+        assert_eq!(rows("", 100.0, 16.0), 1);
+        assert_eq!(rows("short", 200.0, 16.0), 1);
+        let line = "và tâm hồn tôi là một bản nhạc chưa bao giờ được hát hết";
+        let one = width(line, 20.0);
+        let n = rows(line, one / 2.0 + 1.0, 20.0);
+        assert!((2..=3).contains(&n), "{n}");
+        assert_eq!(rows(line, one + 1.0, 20.0), 1);
+        // A word wider than the row breaks between glyphs.
+        let long = "Supercalifragilisticexpialidocious";
+        assert!(rows(long, width(long, 14.0) / 3.0, 14.0) >= 3);
+        assert_eq!(rows("a\nb", 100.0, 14.0), 2);
+    }
 
     #[test]
     fn measured_width_is_real_and_scales_with_size() {

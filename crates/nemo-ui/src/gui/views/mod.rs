@@ -2,12 +2,14 @@
 //! the content router in [`shell`] matches on [`Route`], so a new screen adds one arm.
 
 pub mod account;
+pub mod backdrop;
 pub mod bar;
 pub mod detail;
 pub mod explore;
 pub mod home;
 pub mod kit;
 pub mod library;
+pub mod lyrics;
 pub mod now_playing;
 pub mod overlays;
 pub mod pane;
@@ -15,6 +17,7 @@ pub mod panels;
 pub mod queue;
 pub mod search;
 pub mod settings;
+pub mod settings_lyrics;
 pub mod shell;
 
 use iced::widget::{container, stack};

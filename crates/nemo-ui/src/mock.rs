@@ -27,18 +27,14 @@ use nemo_core::catalog::{
     Explore, FeedItem, FeedShelf, HistorySection, HomeFeed, MoodChip, PlaylistDetail,
     PlaylistSummary, PodcastSummary, SearchResults, Shelf, ShelfItem, ShelfKind,
 };
-use nemo_core::lyrics::{
-    Granularity, LyricLine, LyricsCandidate, LyricsCredit, LyricsDoc, LyricsQuery, ProviderId,
-};
 use nemo_core::player::{PlayState, PlayerCommand, PlayerEvent, PlayerSnapshot, RepeatMode};
 use nemo_core::secret::Secret;
-use nemo_core::services::{
-    Backend, EventReceiver, ImageError, ImageSource, LyricsLookup, LyricsProviderStatus,
-    LyricsService, PlayerControl,
-};
+use nemo_core::services::{Backend, EventReceiver, ImageError, ImageSource, PlayerControl};
 use nemo_core::track::{Artwork, Thumbnail, Track, TrackId, VideoId, pick_thumbnail};
 
 use crate::palette::{Oklch, oklch_to_rgb};
+
+pub use crate::mock_lyrics::{MockLyrics, lyrics_for};
 
 /// Number of generated tracks.
 pub const TRACKS: usize = 40;
@@ -109,18 +105,19 @@ const PLAYLIST_TITLES: [&str; PLAYLISTS] = [
     "Road Trip Echoes",
 ];
 
-const LYRIC_PHRASES: [&str; 16] = [
+/// Invented lyric lines; two are long, so wrapping shows in every snapshot.
+pub(crate) const LYRIC_PHRASES: [&str; 16] = [
     "la la test line",
     "na na not a real lyric",
     "this line was made up",
-    "humming in the mock room",
+    "và tâm hồn tôi là một bản nhạc chưa ai hát hết, dù đêm nay rất dài",
     "counting clocks that do not tick",
     "oh, the fake chorus starts",
     "we are only test data",
     "la la la, still synthetic",
     "pretend the music is loud",
     "nothing here is copyrighted",
-    "hold the note for the demo",
+    "hold the note for the demo while the long invented chorus keeps on going",
     "and the bridge goes nowhere",
     "da da dee, placeholder",
     "sing along to nothing",
@@ -846,183 +843,6 @@ impl PlayerControl for MockPlayer {
     }
 }
 
-/// Fake lyrics: most tracks have line-synced lyrics, every 7th is unsynced and every 11th has
-/// none. All text is invented.
-#[derive(Default)]
-pub struct MockLyrics {
-    offsets: Mutex<HashMap<String, i64>>,
-    chosen: Mutex<HashMap<String, ProviderId>>,
-    overrides: Mutex<HashMap<&'static str, bool>>,
-}
-
-/// Mock lyrics providers: name, risk note, hosts.
-static MOCK_SOURCES: [(&str, Option<&str>, &str); 3] = [
-    ("Mock Lyrics", None, "mock.invalid"),
-    ("Unison", None, "unison.invalid"),
-    (
-        "Mock Sidecar",
-        Some("Unofficial source; its terms may not allow this use."),
-        "sidecar.invalid",
-    ),
-];
-
-/// Index of a mock track from the lyrics query (matched by title and artist).
-fn query_index(query: &LyricsQuery) -> Option<usize> {
-    (0..TRACKS).find(|n| {
-        let t = track(*n);
-        t.title == query.title && t.artists == query.artists
-    })
-}
-
-/// Synthetic lyrics for mock track `n`: one line every 4 s from 0:08.
-#[must_use]
-pub fn lyrics_for(n: usize, duration: Duration) -> Option<LyricsDoc> {
-    if n % 11 == 5 {
-        return None;
-    }
-    let unsynced = n % 7 == 3;
-    let count = usize::try_from(duration.as_secs().saturating_sub(12) / 4).unwrap_or(0);
-    let lines = (0..count)
-        .map(|i| LyricLine {
-            start_ms: (!unsynced).then(|| 8_000 + 4_000 * i as u64),
-            end_ms: None,
-            text: LYRIC_PHRASES[(i + n) % LYRIC_PHRASES.len()].to_owned(),
-            words: Vec::new(),
-        })
-        .collect();
-    Some(LyricsDoc {
-        lines,
-        granularity: if unsynced {
-            Granularity::Unsynced
-        } else {
-            Granularity::Line
-        },
-        provider: ProviderId::new(LYRICS_PROVIDER),
-        matched: None,
-        instrumental: false,
-    })
-}
-
-impl LyricsService for MockLyrics {
-    fn lookup<'a>(&'a self, query: &'a LyricsQuery) -> BoxFuture<'a, LyricsLookup> {
-        let doc = query_index(query).and_then(|n| {
-            lyrics_for(
-                n,
-                query
-                    .duration_ms
-                    .map_or(Duration::from_secs(180), Duration::from_millis),
-            )
-        });
-        Box::pin(async move {
-            LyricsLookup {
-                doc,
-                tried: vec![
-                    ProviderId::new(LYRICS_PROVIDER),
-                    ProviderId::new("Mock Sidecar"),
-                ],
-            }
-        })
-    }
-
-    fn offset_ms(&self, track_key: &str) -> i64 {
-        self.offsets
-            .lock()
-            .ok()
-            .and_then(|m| m.get(track_key).copied())
-            .unwrap_or(0)
-    }
-
-    fn set_offset_ms(&self, track_key: &str, offset_ms: i64) {
-        if let Ok(mut m) = self.offsets.lock() {
-            m.insert(track_key.to_owned(), offset_ms);
-        }
-    }
-
-    fn lookup_all<'a>(&'a self, query: &'a LyricsQuery) -> BoxFuture<'a, Vec<LyricsCandidate>> {
-        let base = query_index(query).and_then(|n| {
-            lyrics_for(
-                n,
-                query
-                    .duration_ms
-                    .map_or(Duration::from_secs(180), Duration::from_millis),
-            )
-        });
-        let on = self.overrides.lock().map(|d| d.clone()).unwrap_or_default();
-        let mut out = Vec::new();
-        if let Some(doc) = base {
-            for (name, risk, _) in MOCK_SOURCES.iter().take(2) {
-                if !on.get(name).copied().unwrap_or(risk.is_none()) {
-                    continue;
-                }
-                let mut d = doc.clone();
-                d.provider = ProviderId::new(name);
-                if *name == "Unison" {
-                    d.granularity = Granularity::Word;
-                }
-                out.push(LyricsCandidate {
-                    provider: d.provider,
-                    granularity: d.granularity,
-                    score: if *name == "Unison" { 90 } else { 100 },
-                    source_note: risk.map(str::to_owned),
-                    credit: (*name == "Unison").then(unison_credit),
-                    doc: d,
-                });
-            }
-        }
-        Box::pin(async move { out })
-    }
-
-    fn choose(&self, track_key: &str, provider: ProviderId) {
-        if let Ok(mut m) = self.chosen.lock() {
-            m.insert(track_key.to_owned(), provider);
-        }
-    }
-
-    fn chosen(&self, track_key: &str) -> Option<ProviderId> {
-        self.chosen.lock().ok()?.get(track_key).copied()
-    }
-
-    fn credit(&self, _track_key: &str, provider: ProviderId) -> Option<LyricsCredit> {
-        (provider.as_str() == "Unison").then(unison_credit)
-    }
-
-    fn providers(&self) -> Vec<LyricsProviderStatus> {
-        let on = self.overrides.lock().map(|d| d.clone()).unwrap_or_default();
-        MOCK_SOURCES
-            .iter()
-            .map(|(name, risk, host)| LyricsProviderStatus {
-                id: ProviderId::new(name),
-                enabled: on.get(name).copied().unwrap_or(risk.is_none()),
-                default_enabled: risk.is_none(),
-                risk_note: *risk,
-                hosts: std::slice::from_ref(host),
-                best: Granularity::Line,
-            })
-            .collect()
-    }
-
-    fn set_provider_enabled(&self, provider: ProviderId, enabled: bool) -> bool {
-        let Some((name, ..)) = MOCK_SOURCES.iter().find(|s| s.0 == provider.as_str()) else {
-            return false;
-        };
-        if let Ok(mut d) = self.overrides.lock() {
-            d.insert(name, enabled);
-        }
-        true
-    }
-}
-
-/// The credit Unison asks for.
-fn unison_credit() -> LyricsCredit {
-    LyricsCredit {
-        label: "Lyrics from Unison".to_owned(),
-        url: None,
-        by: Some("mira_k".to_owned()),
-        by_url: None,
-        note: None,
-    }
-}
-
 /// Cover bytes by (cover index, size).
 type CoverCache = HashMap<(usize, u32), Arc<Vec<u8>>>;
 
@@ -1364,43 +1184,6 @@ mod tests {
     }
 
     #[test]
-    fn mock_lyrics_switcher_sources_and_credit() {
-        let l = MockLyrics::default();
-        let q = LyricsQuery::from_track(&track(0));
-        let all = ready(l.lookup_all(&q));
-        let names: Vec<_> = all.iter().map(|c| c.provider.as_str()).collect();
-        assert_eq!(names, ["Mock Lyrics", "Unison"]);
-        assert_eq!(
-            all[1].credit.as_ref().map(|c| c.label.as_str()),
-            Some("Lyrics from Unison")
-        );
-        assert!(l.credit("x", ProviderId::new("Unison")).is_some());
-        assert!(l.credit("x", ProviderId::new("Mock Lyrics")).is_none());
-        // The opt-in source starts off and can be switched on; unknown ids are refused.
-        let sidecar = ProviderId::new("Mock Sidecar");
-        assert!(
-            !l.providers()
-                .iter()
-                .find(|p| p.id == sidecar)
-                .expect("listed")
-                .enabled
-        );
-        assert!(l.set_provider_enabled(sidecar, true));
-        assert!(
-            l.providers()
-                .iter()
-                .find(|p| p.id == sidecar)
-                .expect("listed")
-                .enabled
-        );
-        assert!(!l.set_provider_enabled(ProviderId::new("Nope"), true));
-        assert!(l.set_provider_enabled(ProviderId::new("Unison"), false));
-        assert_eq!(ready(l.lookup_all(&q)).len(), 1);
-        l.choose("k", ProviderId::new("Unison"));
-        assert_eq!(l.chosen("k"), Some(ProviderId::new("Unison")));
-    }
-
-    #[test]
     fn catalog_has_forty_tracks_ten_albums_eight_artists() {
         let r = ready(MockCatalog.search("")).expect("ok");
         assert_eq!(r.songs.len(), 40);
@@ -1482,23 +1265,6 @@ mod tests {
         assert_eq!(p.source.badge(), "FLAC 96\u{2009}kHz / 24-bit");
         assert!(p.is_bit_perfect());
         assert!(!signal_path(&yt).is_bit_perfect());
-    }
-
-    #[test]
-    fn lyrics_are_synced_unsynced_or_missing() {
-        let lyrics = MockLyrics::default();
-        let q = |n| LyricsQuery::from_track(&track(n));
-        let synced = ready(lyrics.lookup(&q(0))).doc.expect("synced");
-        assert_eq!(synced.granularity, Granularity::Line);
-        assert!(synced.lines.len() > 20 && synced.lines[0].start_ms == Some(8_000));
-        let unsynced = ready(lyrics.lookup(&q(3))).doc.expect("unsynced");
-        assert_eq!(unsynced.granularity, Granularity::Unsynced);
-        assert!(unsynced.lines.iter().all(|l| l.start_ms.is_none()));
-        let none = ready(lyrics.lookup(&q(5)));
-        assert!(none.doc.is_none() && !none.tried.is_empty());
-        assert_eq!(lyrics.offset_ms("k"), 0);
-        lyrics.set_offset_ms("k", -300);
-        assert_eq!(lyrics.offset_ms("k"), -300);
     }
 
     #[test]

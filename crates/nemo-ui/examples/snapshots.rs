@@ -6,7 +6,10 @@
 //! ```
 //!
 //! Images are 2x scale (2732 x 1394 for a 1366 x 697 window). Pass names as arguments to render
-//! only those (for example `home-1366x697`).
+//! only those (for example `home-1366x697`). Set `NEMO_SNAPSHOT_DIR` to write somewhere else.
+
+#[path = "snapshots/wave_lyrics.rs"]
+mod wave_lyrics;
 
 use std::path::PathBuf;
 
@@ -532,6 +535,7 @@ fn scenarios() -> Vec<Shot> {
             },
         ));
     }
+    out.extend(wave_lyrics::shots());
     out
 }
 
@@ -541,7 +545,10 @@ fn main() {
         std::process::exit(2);
     }
     let only: Vec<String> = std::env::args().skip(1).collect();
-    let out_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../docs/ui/snapshots");
+    let out_dir = std::env::var_os("NEMO_SNAPSHOT_DIR").map_or_else(
+        || PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../docs/ui/snapshots"),
+        PathBuf::from,
+    );
     if only.is_empty() || only.iter().any(|n| n == "specimen-vietnamese") {
         let path = out_dir.join("specimen-vietnamese.png");
         match render_view_png(specimen(), (1100, 420), &path) {

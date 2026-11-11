@@ -140,7 +140,10 @@ fn switch<'a>(on: bool, change: fn(bool) -> SettingChange) -> Element<'a, Messag
 }
 
 /// Like [`switch`], with any message.
-fn switch_with<'a>(on: bool, msg: impl Fn(bool) -> Message + 'a) -> Element<'a, Message> {
+pub(super) fn switch_with<'a>(
+    on: bool,
+    msg: impl Fn(bool) -> Message + 'a,
+) -> Element<'a, Message> {
     row![
         label(
             if on { "On" } else { "Off" },
@@ -285,40 +288,17 @@ fn lyrics(app: &App, width: f32) -> Vec<Element<'_, Message>> {
     } else {
         "\u{2014}".to_owned()
     };
-    vec![
-        setting_row(
-            width,
-            "Timing offset",
-            Some(
-                "Set per song on Now Playing, from -10.0 to +10.0 s in 50 ms steps. Press [ and ] while a song plays. Shown here: the current song."
-                    .to_owned(),
-            ),
-            label(offset, type_scale::BODY_MD, false, col(color::on_surface())).into(),
+    let mut rows = vec![setting_row(
+        width,
+        "Timing offset",
+        Some(
+            "Set per song on Now Playing, from -10.0 to +10.0 s in 50 ms steps. Press [ and ] while a song plays. Shown here: the current song."
+                .to_owned(),
         ),
-    ]
-    .into_iter()
-    .chain(app.lyric_sources.iter().map(|s| {
-        let id = s.id;
-        let mut helper = format!(
-            "Asks {}. {}",
-            s.hosts.join(", "),
-            if s.default_enabled {
-                "On by default."
-            } else {
-                "Off until you turn it on."
-            }
-        );
-        if let Some(risk) = s.risk_note {
-            helper = format!("{helper} Risk: {risk}");
-        }
-        setting_row(
-            width,
-            id.as_str(),
-            Some(helper),
-            switch_with(s.enabled, move |v| Message::SetLyricsSource(id, v)),
-        )
-    }))
-    .collect()
+        label(offset, type_scale::BODY_MD, false, col(color::on_surface())).into(),
+    )];
+    rows.extend(super::settings_lyrics::sources(app, width));
+    rows
 }
 
 fn library(app: &App, width: f32) -> Vec<Element<'_, Message>> {

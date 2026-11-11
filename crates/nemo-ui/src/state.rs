@@ -125,6 +125,8 @@ pub enum Event {
     LyricsViewport(f32),
     /// The lyrics are shown dense (right pane) or roomy (full window).
     LyricsDense(bool),
+    /// Wrapped row counts of every lyric line at the current column width (one entry per line).
+    LyricsRows(Vec<lyrics_view::LineRows>),
     /// A text field gained or lost focus.
     TextFocus(bool),
     /// Reset the lyrics offset to zero.
@@ -247,6 +249,8 @@ pub struct UiState {
     pub lyric_viewport_h: f32,
     /// Lyrics are drawn dense (right pane sizes) instead of roomy (full window sizes).
     pub lyric_dense: bool,
+    /// Wrapped row counts of the lyric lines, so scroll anchoring uses the real heights.
+    pub lyric_rows: Vec<lyrics_view::LineRows>,
     /// Text field focused.
     pub text_focused: bool,
     /// Honour reduced motion (the OS option or the setting).
@@ -288,6 +292,7 @@ impl UiState {
             follow_pause_ms: 0.0,
             lyric_viewport_h: 480.0,
             lyric_dense: false,
+            lyric_rows: Vec::new(),
             text_focused: false,
             reduced_motion,
             settings: UiSettings::default(),
@@ -420,6 +425,7 @@ impl UiState {
                     };
                     self.lyrics_offset_ms = offset_ms;
                     self.last_active = None;
+                    self.lyric_rows.clear();
                     self.lyric_scroll.snap(0.0);
                     self.retarget_scroll();
                     self.lyric_scroll.snap(self.lyric_scroll.target);
@@ -451,6 +457,13 @@ impl UiState {
             Event::LyricsDense(dense) => {
                 if self.lyric_dense != dense {
                     self.lyric_dense = dense;
+                    self.retarget_scroll();
+                    self.lyric_scroll.snap(self.lyric_scroll.target);
+                }
+            }
+            Event::LyricsRows(rows) => {
+                if self.lyric_rows != rows {
+                    self.lyric_rows = rows;
                     self.retarget_scroll();
                     self.lyric_scroll.snap(self.lyric_scroll.target);
                 }
@@ -752,8 +765,12 @@ impl UiState {
     fn retarget_scroll(&mut self) {
         let active = self.active_lyric();
         self.last_active = active;
-        self.lyric_scroll.target =
-            lyrics_view::scroll_target_d(active, self.lyric_viewport_h, self.lyric_dense);
+        self.lyric_scroll.target = lyrics_view::scroll_target_rows(
+            active,
+            self.lyric_viewport_h,
+            self.lyric_dense,
+            &self.lyric_rows,
+        );
     }
 }
 

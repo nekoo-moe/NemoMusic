@@ -7,6 +7,7 @@
 #![allow(clippy::struct_excessive_bools)] // settings, UI state and the app are bundles of independent flags
 
 pub mod anim;
+pub mod canvas;
 pub mod copy;
 pub mod cover;
 pub mod daily;
@@ -17,8 +18,10 @@ pub mod home;
 pub mod keys;
 pub mod layout;
 pub mod lru;
+pub mod lyric_pieces;
 pub mod lyrics_view;
 pub mod mock;
+pub mod mock_lyrics;
 pub mod motion;
 pub mod palette;
 pub mod route;
