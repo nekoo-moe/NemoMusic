@@ -10,10 +10,12 @@ use std::sync::Arc;
 use nemo_core::BoxFuture;
 use nemo_core::account::{AccountError, AccountInfo};
 use nemo_core::catalog::{
-    AlbumDetail, ArtistDetail, BrowseId, Catalog, CatalogError, PlaylistDetail, SearchResults,
-    Shelf, ShelfItem,
+    AlbumDetail, AlbumSummary, ArtistDetail, ArtistSummary, BrowseId, Catalog, CatalogError,
+    Explore, FeedShelf, HistorySection, HomeFeed, PlaylistDetail, PlaylistSummary, PodcastDetail,
+    SearchResults, Shelf, ShelfItem,
 };
 use nemo_core::secret::Secret;
+use nemo_core::track::Track;
 use tokio::runtime::Handle;
 use tokio::sync::OnceCell;
 use ytmapi_rs::YtMusic;
@@ -23,17 +25,16 @@ use ytmapi_rs::common::{AlbumID, ArtistChannelID, PlaylistID, YoutubeID};
 use ytmapi_rs::error::ErrorKind;
 
 use crate::catalog::{
-    RawPlaylist, SearchParts, adapt, map_album_page, map_artist_page, map_error, map_playlist,
-    map_playlist_page, map_search, map_song, valid_browse_id,
+    SearchParts, adapt, map_album_page, map_artist_page, map_error, map_playlist_page, map_search,
+    valid_browse_id,
 };
-use crate::home_feed::{AccountMenuQuery, HomeQuery, parse_account, parse_home};
+use crate::home_feed::{AccountMenuQuery, legacy_shelves, parse_account};
+use crate::pages;
 
 /// Longest search text sent, in characters.
 const MAX_QUERY_CHARS: usize = 200;
 /// Most liked songs shown on the home page.
 const MAX_LIKED: usize = 50;
-/// Playlist id of the "liked music" list.
-const LIKED_PLAYLIST: &str = "LM";
 
 /// Turn what the user pasted, or what the sign-in window returned, into one cookie header.
 ///
@@ -184,6 +185,11 @@ impl Inner {
 
     async fn playlist(&self, id: BrowseId) -> Result<PlaylistDetail, CatalogError> {
         let api = self.api().await?;
+        // Raw page first: it opens private playlists and the liked-music list. The typed
+        // parser of ytmapi-rs stays as the fallback for layouts the raw reader does not know.
+        if let Ok(detail) = pages::playlist(api, &id).await {
+            return Ok(detail);
+        }
         let bare = id.0.strip_prefix("VL").unwrap_or(&id.0).to_owned();
         let details = api
             .get_playlist_details(PlaylistID::from_raw(bare.clone()))
@@ -210,53 +216,46 @@ impl Inner {
             .map_err(map_error)
     }
 
-    /// Home feed, then the account's playlists and liked songs. Only the home request must
-    /// work; the library shelves are added when they load.
+    /// The old flat home contract: the home feed, then the account's playlists and liked songs.
+    /// Only the feed or one library list must work; the rest is added when it loads.
     async fn home(&self) -> Result<Vec<Shelf>, CatalogError> {
         let api = self.api().await?;
-        let feed = api
-            .raw_json_query::<HomeQuery>(&HomeQuery)
-            .await
-            .map_err(map_error);
-        let (playlists, liked) = tokio::join!(
-            api.get_library_playlists(),
-            api.get_playlist_tracks(PlaylistID::from_raw(LIKED_PLAYLIST)),
-        );
-        let mut shelves = feed.as_ref().map(|f| parse_home(f)).unwrap_or_default();
-
+        let feed = pages::home_feed(api).await;
+        let mut shelves = feed.as_ref().map(legacy_shelves).unwrap_or_default();
+        let playlists = pages::library_playlists(api, 1).await;
+        let liked = pages::liked_songs(api, 1).await;
         let mine: Vec<ShelfItem> = playlists
-            .unwrap_or_default()
-            .iter()
-            .filter_map(|p| {
-                map_playlist(&RawPlaylist {
-                    id: p.playlist_id.get_raw().to_owned(),
-                    title: p.title.clone(),
-                    author: Some(p.author.clone()),
-                    thumbnails: adapt::thumbs(&p.thumbnails),
-                })
-            })
-            .map(ShelfItem::Playlist)
-            .collect();
+            .as_ref()
+            .map(|list| list.iter().cloned().map(ShelfItem::Playlist).collect())
+            .unwrap_or_default();
         if !mine.is_empty() {
             shelves.push(Shelf {
                 title: "Your playlists".to_owned(),
                 items: mine,
             });
         }
-        let liked: Vec<ShelfItem> = adapt::playlist_items(&liked.unwrap_or_default())
-            .iter()
-            .filter_map(map_song)
-            .take(MAX_LIKED)
-            .map(ShelfItem::Song)
-            .collect();
-        if !liked.is_empty() {
+        let songs: Vec<ShelfItem> = liked
+            .as_ref()
+            .map(|tracks| {
+                tracks
+                    .iter()
+                    .take(MAX_LIKED)
+                    .cloned()
+                    .map(ShelfItem::Song)
+                    .collect()
+            })
+            .unwrap_or_default();
+        if !songs.is_empty() {
             shelves.push(Shelf {
                 title: "Liked songs".to_owned(),
-                items: liked,
+                items: songs,
             });
         }
         if shelves.is_empty() {
-            return feed.map(|_| Vec::new());
+            // Nothing loaded: report why instead of an empty home.
+            return feed
+                .map(|_| Vec::new())
+                .or_else(|e| playlists.map(|_| Vec::new()).map_err(|_| e));
         }
         Ok(shelves)
     }
@@ -282,6 +281,17 @@ impl SessionCatalog {
         }
     }
 
+    /// Development aid for `tests/diagnose_account.rs`: asks the pages through the catalog layer
+    /// and returns counts and error labels only (never titles, ids or URLs).
+    pub async fn diagnose(&self) -> crate::diagnostics::Diagnosis {
+        let inner = Arc::clone(&self.inner);
+        self.run(async move {
+            let api = inner.api().await?;
+            Ok(crate::diagnostics::account_report(api).await)
+        })
+        .await
+        .unwrap_or_else(|_| crate::diagnostics::Diagnosis::failed("could not connect"))
+    }
     fn run<T, F>(&self, work: F) -> BoxFuture<'static, Result<T, CatalogError>>
     where
         T: Send + 'static,
@@ -349,6 +359,61 @@ impl Catalog for SessionCatalog {
     fn home(&self) -> BoxFuture<'_, Result<Vec<Shelf>, CatalogError>> {
         let inner = Arc::clone(&self.inner);
         self.run(async move { inner.home().await })
+    }
+
+    fn home_feed(&self) -> BoxFuture<'_, Result<HomeFeed, CatalogError>> {
+        let inner = Arc::clone(&self.inner);
+        self.run(async move { pages::home_feed(inner.api().await?).await })
+    }
+
+    fn library_playlists(&self) -> BoxFuture<'_, Result<Vec<PlaylistSummary>, CatalogError>> {
+        let inner = Arc::clone(&self.inner);
+        self.run(
+            async move { pages::library_playlists(inner.api().await?, pages::LIST_PAGES).await },
+        )
+    }
+
+    fn liked_songs(&self) -> BoxFuture<'_, Result<Vec<Track>, CatalogError>> {
+        let inner = Arc::clone(&self.inner);
+        self.run(async move { pages::liked_songs(inner.api().await?, pages::PLAYLIST_PAGES).await })
+    }
+
+    fn library_albums(&self) -> BoxFuture<'_, Result<Vec<AlbumSummary>, CatalogError>> {
+        let inner = Arc::clone(&self.inner);
+        self.run(async move { pages::library_albums(inner.api().await?).await })
+    }
+
+    fn library_artists(&self) -> BoxFuture<'_, Result<Vec<ArtistSummary>, CatalogError>> {
+        let inner = Arc::clone(&self.inner);
+        self.run(async move { pages::library_artists(inner.api().await?).await })
+    }
+
+    fn history(&self) -> BoxFuture<'_, Result<Vec<HistorySection>, CatalogError>> {
+        let inner = Arc::clone(&self.inner);
+        self.run(async move { pages::history(inner.api().await?).await })
+    }
+
+    fn explore(&self) -> BoxFuture<'_, Result<Explore, CatalogError>> {
+        let inner = Arc::clone(&self.inner);
+        self.run(async move { pages::explore(inner.api().await?).await })
+    }
+
+    fn mood_playlists<'a>(
+        &'a self,
+        id: &'a BrowseId,
+    ) -> BoxFuture<'a, Result<Vec<FeedShelf>, CatalogError>> {
+        let inner = Arc::clone(&self.inner);
+        let id = id.clone();
+        self.run(async move { pages::mood_playlists(inner.api().await?, &id).await })
+    }
+
+    fn podcast<'a>(
+        &'a self,
+        id: &'a BrowseId,
+    ) -> BoxFuture<'a, Result<PodcastDetail, CatalogError>> {
+        let inner = Arc::clone(&self.inner);
+        let id = id.clone();
+        self.run(async move { pages::podcast(inner.api().await?, &id).await })
     }
 
     fn rate_song<'a>(

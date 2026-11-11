@@ -13,11 +13,12 @@ use std::time::Duration;
 use nemo_core::BoxFuture;
 use nemo_core::account::{AccountError, AccountInfo, AccountService, AccountState, SignOutReport};
 use nemo_core::catalog::{
-    AlbumDetail, ArtistDetail, BrowseId, Catalog, CatalogError, PlaylistDetail, SearchResults,
-    Shelf,
+    AlbumDetail, AlbumSummary, ArtistDetail, ArtistSummary, BrowseId, Catalog, CatalogError,
+    Explore, FeedShelf, HistorySection, HomeFeed, PlaylistDetail, PlaylistSummary, PodcastDetail,
+    SearchResults, Shelf,
 };
 use nemo_core::secret::Secret;
-use nemo_core::track::Thumbnail;
+use nemo_core::track::{Thumbnail, Track};
 use serde_json::{Value, json};
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
@@ -438,6 +439,56 @@ impl Catalog for AccountCatalog {
         Box::pin(async move { catalog.home().await })
     }
 
+    fn home_feed(&self) -> BoxFuture<'_, Result<HomeFeed, CatalogError>> {
+        let catalog = self.current();
+        Box::pin(async move { catalog.home_feed().await })
+    }
+
+    fn library_playlists(&self) -> BoxFuture<'_, Result<Vec<PlaylistSummary>, CatalogError>> {
+        let catalog = self.current();
+        Box::pin(async move { catalog.library_playlists().await })
+    }
+
+    fn liked_songs(&self) -> BoxFuture<'_, Result<Vec<Track>, CatalogError>> {
+        let catalog = self.current();
+        Box::pin(async move { catalog.liked_songs().await })
+    }
+
+    fn library_albums(&self) -> BoxFuture<'_, Result<Vec<AlbumSummary>, CatalogError>> {
+        let catalog = self.current();
+        Box::pin(async move { catalog.library_albums().await })
+    }
+
+    fn library_artists(&self) -> BoxFuture<'_, Result<Vec<ArtistSummary>, CatalogError>> {
+        let catalog = self.current();
+        Box::pin(async move { catalog.library_artists().await })
+    }
+
+    fn history(&self) -> BoxFuture<'_, Result<Vec<HistorySection>, CatalogError>> {
+        let catalog = self.current();
+        Box::pin(async move { catalog.history().await })
+    }
+
+    fn explore(&self) -> BoxFuture<'_, Result<Explore, CatalogError>> {
+        let catalog = self.current();
+        Box::pin(async move { catalog.explore().await })
+    }
+
+    fn mood_playlists<'a>(
+        &'a self,
+        id: &'a BrowseId,
+    ) -> BoxFuture<'a, Result<Vec<FeedShelf>, CatalogError>> {
+        let catalog = self.current();
+        Box::pin(async move { catalog.mood_playlists(id).await })
+    }
+
+    fn podcast<'a>(
+        &'a self,
+        id: &'a BrowseId,
+    ) -> BoxFuture<'a, Result<PodcastDetail, CatalogError>> {
+        let catalog = self.current();
+        Box::pin(async move { catalog.podcast(id).await })
+    }
     fn rate_song<'a>(
         &'a self,
         video_id: &'a nemo_core::track::VideoId,
@@ -484,6 +535,14 @@ mod tests {
             Box::pin(async { Err(CatalogError::NotFound) })
         }
         fn home(&self) -> BoxFuture<'_, Result<Vec<Shelf>, CatalogError>> {
+            let label = self.0;
+            Box::pin(async move { Err(CatalogError::Unavailable(label.to_owned())) })
+        }
+        fn explore(&self) -> BoxFuture<'_, Result<Explore, CatalogError>> {
+            let label = self.0;
+            Box::pin(async move { Err(CatalogError::Unavailable(label.to_owned())) })
+        }
+        fn liked_songs(&self) -> BoxFuture<'_, Result<Vec<Track>, CatalogError>> {
             let label = self.0;
             Box::pin(async move { Err(CatalogError::Unavailable(label.to_owned())) })
         }
@@ -775,6 +834,31 @@ mod tests {
         // Signing out twice is harmless.
         let again = f.runtime.block_on(f.account.sign_out()).expect("again");
         assert_eq!(again, SignOutReport::default());
+    }
+
+    #[test]
+    fn the_new_pages_follow_the_active_session_too() {
+        let slot: SessionSlot = Arc::default();
+        let catalog = AccountCatalog::new(Arc::new(FakeCatalog("anonymous")), slot.clone());
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .expect("runtime");
+        let label = |r: Result<Explore, CatalogError>| match r {
+            Err(CatalogError::Unavailable(label)) => label,
+            other => format!("{other:?}"),
+        };
+        assert_eq!(label(rt.block_on(catalog.explore())), "anonymous");
+        *slot.write().expect("lock") = Some(Arc::new(FakeCatalog("signed-in")));
+        assert_eq!(label(rt.block_on(catalog.explore())), "signed-in");
+        assert_eq!(
+            rt.block_on(catalog.liked_songs()),
+            Err(CatalogError::Unavailable("signed-in".to_owned()))
+        );
+        // A page the fake does not implement keeps the trait default.
+        assert_eq!(
+            rt.block_on(catalog.history()),
+            Err(CatalogError::Unavailable("history".to_owned()))
+        );
     }
 
     #[test]

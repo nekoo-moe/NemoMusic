@@ -10,9 +10,13 @@
 pub mod account;
 pub mod catalog;
 pub mod credentials;
+pub mod diagnostics;
+pub(crate) mod feeds;
 pub mod home_feed;
 pub mod http;
 pub mod images;
+pub(crate) mod pages;
+pub mod raw;
 pub mod session;
 pub mod sponsorblock;
 pub mod stream;

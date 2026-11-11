@@ -17,7 +17,7 @@ use nemo_core::BoxFuture;
 use nemo_core::audio::Origin;
 use nemo_core::catalog::{
     AlbumDetail, AlbumSummary, ArtistDetail, ArtistSummary, BrowseId, Catalog, CatalogError,
-    PlaylistDetail, PlaylistSummary, SearchResults,
+    Explore, FeedShelf, HomeFeed, PlaylistDetail, PlaylistSummary, PodcastDetail, SearchResults,
 };
 use nemo_core::track::{Artwork, Thumbnail, Track, TrackId, VideoId};
 use tokio::runtime::Handle;
@@ -26,6 +26,8 @@ use ytmapi_rs::YtMusic;
 use ytmapi_rs::auth::noauth::NoAuthToken;
 use ytmapi_rs::common::{AlbumID, ArtistChannelID, PlaylistID, YoutubeID};
 use ytmapi_rs::error::ErrorKind;
+
+use crate::pages;
 
 /// Longest search text sent, in characters.
 const MAX_QUERY_CHARS: usize = 200;
@@ -699,6 +701,34 @@ impl Catalog for YtmCatalog {
             }
             Err(e) => Box::pin(async move { Err(e) }),
         }
+    }
+
+    fn home_feed(&self) -> BoxFuture<'_, Result<HomeFeed, CatalogError>> {
+        let inner = Arc::clone(&self.inner);
+        self.run(async move { pages::home_feed(inner.api().await?).await })
+    }
+
+    fn explore(&self) -> BoxFuture<'_, Result<Explore, CatalogError>> {
+        let inner = Arc::clone(&self.inner);
+        self.run(async move { pages::explore(inner.api().await?).await })
+    }
+
+    fn mood_playlists<'a>(
+        &'a self,
+        id: &'a BrowseId,
+    ) -> BoxFuture<'a, Result<Vec<FeedShelf>, CatalogError>> {
+        let inner = Arc::clone(&self.inner);
+        let id = id.clone();
+        self.run(async move { pages::mood_playlists(inner.api().await?, &id).await })
+    }
+
+    fn podcast<'a>(
+        &'a self,
+        id: &'a BrowseId,
+    ) -> BoxFuture<'a, Result<PodcastDetail, CatalogError>> {
+        let inner = Arc::clone(&self.inner);
+        let id = id.clone();
+        self.run(async move { pages::podcast(inner.api().await?, &id).await })
     }
 }
 

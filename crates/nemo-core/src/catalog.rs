@@ -115,6 +115,130 @@ pub struct Shelf {
     pub items: Vec<ShelfItem>,
 }
 
+/// A mood, genre or activity the user can open, such as a chip above the home feed.
+///
+/// `id` is opaque: pass it to [`Catalog::mood_playlists`] unchanged.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MoodChip {
+    /// Label as YouTube Music shows it.
+    pub title: String,
+    /// Id for [`Catalog::mood_playlists`].
+    pub id: BrowseId,
+}
+
+/// A podcast show in a list.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PodcastSummary {
+    /// Id for [`Catalog::podcast`].
+    pub id: BrowseId,
+    /// Show title.
+    pub title: String,
+    /// Host or channel name, if shown.
+    pub author: Option<String>,
+    /// Cover sizes.
+    pub thumbnails: Vec<Thumbnail>,
+}
+
+/// One podcast episode. It plays like a song: `track.video_id` goes to the stream resolver.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EpisodeSummary {
+    /// The playable item. `artists` holds the show name when known.
+    pub track: Track,
+    /// Short description, if shown.
+    pub description: Option<String>,
+    /// Publication date as YouTube Music writes it (for example `Jan 5, 2026`), if shown.
+    pub published: Option<String>,
+}
+
+/// A podcast page.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PodcastDetail {
+    /// Header data.
+    pub summary: PodcastSummary,
+    /// About the show, if any.
+    pub description: Option<String>,
+    /// Episodes, newest first as the source gives them.
+    pub episodes: Vec<EpisodeSummary>,
+}
+
+/// One entry of a [`FeedShelf`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FeedItem {
+    /// A song (audio track).
+    Song(Track),
+    /// A music video (official video or user upload). It plays through the same stream path as
+    /// a song; the variant tells the UI to show a video-shaped card.
+    Video(Track),
+    /// An album, single or EP.
+    Album(AlbumSummary),
+    /// An artist.
+    Artist(ArtistSummary),
+    /// A playlist, mix or radio.
+    Playlist(PlaylistSummary),
+    /// A podcast show.
+    Podcast(PodcastSummary),
+    /// A podcast episode.
+    Episode(EpisodeSummary),
+    /// A mood or genre tile.
+    Mood(MoodChip),
+}
+
+/// How the UI should lay out a [`FeedShelf`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ShelfKind {
+    /// A horizontal row of cover cards.
+    #[default]
+    Cards,
+    /// A compact list of song rows (Quick picks, charts).
+    QuickPicks,
+    /// A wrap of text chips or tiles ([`FeedItem::Mood`]).
+    Chips,
+}
+
+/// A titled row of a feed page.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FeedShelf {
+    /// Shelf title.
+    pub title: String,
+    /// Small line above the title, for example the account name on "Listen again".
+    pub subtitle: Option<String>,
+    /// Layout hint.
+    pub kind: ShelfKind,
+    /// Items in display order.
+    pub items: Vec<FeedItem>,
+}
+
+/// The home page: mood chips and shelves.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct HomeFeed {
+    /// Mood chips shown above the shelves (relax, focus, ...). May be empty.
+    pub chips: Vec<MoodChip>,
+    /// Shelves in display order: Listen again, Quick picks, mixes, videos, podcasts, ...
+    pub shelves: Vec<FeedShelf>,
+}
+
+/// The Explore page.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Explore {
+    /// New albums and singles.
+    pub new_releases: Vec<AlbumSummary>,
+    /// Chart shelves (top songs, trending, top artists), when YouTube Music answers them.
+    pub charts: Vec<FeedShelf>,
+    /// Every other shelf of the page, for example new music videos.
+    pub shelves: Vec<FeedShelf>,
+    /// The mood and genre tiles.
+    pub moods: Vec<MoodChip>,
+}
+
+/// One day or period of listening history.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HistorySection {
+    /// Period label as YouTube Music writes it ("Today", "Yesterday", ...).
+    pub title: String,
+    /// Tracks, most recent first.
+    pub tracks: Vec<Track>,
+}
+
 /// A catalog request failed.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum CatalogError {
@@ -154,6 +278,62 @@ pub trait Catalog: Send + Sync {
         Box::pin(async { Err(CatalogError::Unavailable("home feed".to_owned())) })
     }
 
+    /// The richer home page: mood chips, video and podcast shelves, shelf subtitles. Optional:
+    /// the default says it is not available.
+    fn home_feed(&self) -> BoxFuture<'_, Result<HomeFeed, CatalogError>> {
+        Box::pin(async { Err(CatalogError::Unavailable("home feed".to_owned())) })
+    }
+
+    /// The account's playlists (the "Liked music" auto playlist first when present). Needs a
+    /// signed-in session; the default says it is not available.
+    fn library_playlists(&self) -> BoxFuture<'_, Result<Vec<PlaylistSummary>, CatalogError>> {
+        Box::pin(async { Err(CatalogError::Unavailable("library playlists".to_owned())) })
+    }
+
+    /// The songs the account liked, most recent first. Needs a signed-in session.
+    fn liked_songs(&self) -> BoxFuture<'_, Result<Vec<Track>, CatalogError>> {
+        Box::pin(async { Err(CatalogError::Unavailable("liked songs".to_owned())) })
+    }
+
+    /// Albums saved in the account's library. Needs a signed-in session.
+    fn library_albums(&self) -> BoxFuture<'_, Result<Vec<AlbumSummary>, CatalogError>> {
+        Box::pin(async { Err(CatalogError::Unavailable("library albums".to_owned())) })
+    }
+
+    /// Artists saved in the account's library. Needs a signed-in session.
+    fn library_artists(&self) -> BoxFuture<'_, Result<Vec<ArtistSummary>, CatalogError>> {
+        Box::pin(async { Err(CatalogError::Unavailable("library artists".to_owned())) })
+    }
+
+    /// Listening history of the account, newest period first. Needs a signed-in session.
+    fn history(&self) -> BoxFuture<'_, Result<Vec<HistorySection>, CatalogError>> {
+        Box::pin(async { Err(CatalogError::Unavailable("history".to_owned())) })
+    }
+
+    /// New releases, charts and moods. Works without an account.
+    fn explore(&self) -> BoxFuture<'_, Result<Explore, CatalogError>> {
+        Box::pin(async { Err(CatalogError::Unavailable("explore".to_owned())) })
+    }
+
+    /// The playlist shelves of a mood or genre (`id` from a [`MoodChip`]). Works without an
+    /// account.
+    fn mood_playlists<'a>(
+        &'a self,
+        id: &'a BrowseId,
+    ) -> BoxFuture<'a, Result<Vec<FeedShelf>, CatalogError>> {
+        let _ = id;
+        Box::pin(async { Err(CatalogError::Unavailable("mood playlists".to_owned())) })
+    }
+
+    /// Load a podcast page with its episodes.
+    fn podcast<'a>(
+        &'a self,
+        id: &'a BrowseId,
+    ) -> BoxFuture<'a, Result<PodcastDetail, CatalogError>> {
+        let _ = id;
+        Box::pin(async { Err(CatalogError::Unavailable("podcasts".to_owned())) })
+    }
+
     /// Like (`liked = true`) or remove the like of a song. Needs a signed-in session: the
     /// default, and every anonymous catalog, says it is not available.
     fn rate_song<'a>(
@@ -167,5 +347,80 @@ pub trait Catalog: Send + Sync {
                 "likes need a signed-in account".to_owned(),
             ))
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A catalog that implements only the required methods.
+    struct Bare;
+
+    impl Catalog for Bare {
+        fn search<'a>(&'a self, _: &'a str) -> BoxFuture<'a, Result<SearchResults, CatalogError>> {
+            Box::pin(async { Ok(SearchResults::default()) })
+        }
+        fn album<'a>(
+            &'a self,
+            _: &'a BrowseId,
+        ) -> BoxFuture<'a, Result<AlbumDetail, CatalogError>> {
+            Box::pin(async { Err(CatalogError::NotFound) })
+        }
+        fn artist<'a>(
+            &'a self,
+            _: &'a BrowseId,
+        ) -> BoxFuture<'a, Result<ArtistDetail, CatalogError>> {
+            Box::pin(async { Err(CatalogError::NotFound) })
+        }
+        fn playlist<'a>(
+            &'a self,
+            _: &'a BrowseId,
+        ) -> BoxFuture<'a, Result<PlaylistDetail, CatalogError>> {
+            Box::pin(async { Err(CatalogError::NotFound) })
+        }
+    }
+
+    fn ready<T>(mut future: BoxFuture<'_, T>) -> T {
+        use std::task::{Context, Poll, Waker};
+        match future
+            .as_mut()
+            .poll(&mut Context::from_waker(Waker::noop()))
+        {
+            Poll::Ready(value) => value,
+            Poll::Pending => panic!("default catalog methods answer at once"),
+        }
+    }
+
+    fn unavailable<T>(what: &str) -> Result<T, CatalogError> {
+        Err(CatalogError::Unavailable(what.to_owned()))
+    }
+
+    #[test]
+    fn every_added_page_defaults_to_unavailable() {
+        let id = BrowseId("x".to_owned());
+        assert_eq!(ready(Bare.home_feed()), unavailable("home feed"));
+        assert_eq!(
+            ready(Bare.library_playlists()),
+            unavailable("library playlists")
+        );
+        assert_eq!(ready(Bare.liked_songs()), unavailable("liked songs"));
+        assert_eq!(ready(Bare.library_albums()), unavailable("library albums"));
+        assert_eq!(
+            ready(Bare.library_artists()),
+            unavailable("library artists")
+        );
+        assert_eq!(ready(Bare.history()), unavailable("history"));
+        assert_eq!(ready(Bare.explore()), unavailable("explore"));
+        assert_eq!(
+            ready(Bare.mood_playlists(&id)),
+            unavailable("mood playlists")
+        );
+        assert_eq!(ready(Bare.podcast(&id)), unavailable("podcasts"));
+    }
+
+    #[test]
+    fn shelf_kind_defaults_to_cards() {
+        assert_eq!(ShelfKind::default(), ShelfKind::Cards);
     }
 }
