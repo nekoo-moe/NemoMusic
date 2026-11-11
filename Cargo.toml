@@ -1,0 +1,54 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2024"
+# MSRV policy (code.md): latest stable minus 2 releases. Stable was 1.99.1 on 2026-11-10.
+rust-version = "1.97"
+publish = false
+repository = "https://github.com/nekoo-moe/NemoMusic"
+
+# Shared, exact-version dependencies. Crate-specific dependencies (audio, UI, network)
+# are declared in the owning crate's Cargo.toml with exact `=` pins (tech.md).
+[workspace.dependencies]
+thiserror = "2.0.21"
+tracing = "0.1.44"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+sha2 = "0.11.1"
+proptest = "1.12.0"
+criterion = { version = "0.8.2", default-features = false }
+
+nemo-core = { path = "crates/nemo-core" }
+nemo-audio = { path = "crates/nemo-audio" }
+nemo-library = { path = "crates/nemo-library" }
+nemo-ytm = { path = "crates/nemo-ytm" }
+nemo-lyrics = { path = "crates/nemo-lyrics" }
+nemo-ui = { path = "crates/nemo-ui" }
+
+# Debug builds still need real-time DSP: an unoptimised 256-tap sinc runs only ~1.4x real time.
+[profile.dev.package.rubato]
+opt-level = 3
+
+[profile.dev.package."symphonia-core"]
+opt-level = 3
+
+[profile.dev.package."symphonia-bundle-flac"]
+opt-level = 3
+
+[profile.dev.package."symphonia-codec-aac"]
+opt-level = 3
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+cargo = { level = "warn", priority = -1 }
+perf = { level = "warn", priority = -1 }
+# Duplicate transitive versions come from third-party crates; we cannot fix them.
+multiple_crate_versions = "allow"

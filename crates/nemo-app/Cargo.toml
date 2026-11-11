@@ -1,0 +1,25 @@
+[package]
+name = "nemo-app"
+description = "NemoMusic application binary: wiring, config, logging and startup."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+nemo-core.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber = { version = "=0.3.23", default-features = false, features = ["fmt", "std"] }
+serde.workspace = true
+serde_json.workspace = true
+nemo-audio.workspace = true
+nemo-ytm.workspace = true
+nemo-lyrics.workspace = true
+nemo-library.workspace = true
+tokio = { version = "=1.54.1", default-features = false, features = ["rt-multi-thread", "time"] }
+nemo-ui = { workspace = true, features = ["gui"] }

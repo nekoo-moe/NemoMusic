@@ -1,0 +1,108 @@
+---
+inclusion: always
+---
+
+# NemoMusic: Product
+
+Related files: tech.md, structure.md, code.md, design.md, coc.md, workflow.md (same folder). This file owns the "what and why" only.
+
+## Vision
+NemoMusic is a desktop music player in Rust that treats the signal path with respect and the screen as something worth looking at. It plays the YouTube Music catalog and local files through an untouched, bit-perfect output path. It should feel like a quiet room, not a feed.
+
+## Target user
+- Listens at a desk for hours (work, study, writing) on a good DAC, headphones or speakers.
+- Cares about the output chain (exclusive/bit-perfect output, no resampling) and about UI craft.
+- Wants fewer notifications, fewer recommendations, fewer decisions.
+- Starts on Windows. Linux and macOS users come later.
+
+## Product principles (in priority order; use them to settle arguments)
+1. Sound first. Any feature that alters samples by default (EQ, normalization, resampling, DSP) is off by default and visibly shown when on. Sound quality wins over visual polish and features.
+2. Art first. Cover art, typography, motion and spacing are product features, not decoration. When two designs work equally, ship the more beautiful one.
+3. Honest quality labels. Show what is actually playing (codec, bitrate, sample rate, bit depth). Never overstate. See "Quality badge rule".
+4. Calm by default. No autoplay surprises, no popups, no badges for engagement, no animation that loops without purpose. Calm beats clever.
+5. Privacy. No telemetry by default. Credentials and tokens stay local, stored in the OS credential store. No data leaves the machine except requests to the listed third-party services (see "Local only").
+6. Keyboard and focus friendly. Every core action works without a mouse. Playback never stops because the UI is busy.
+7. Say the risk out loud. Where the product depends on something fragile or legally gray, the docs and UI say so.
+
+## Local only (owner decision, 2026-11-10)
+- NemoMusic runs entirely on the user's computer. The project owns and runs NO server: no backend, relay, account service or telemetry endpoint.
+- The user signs in with a Google account. All library and account data comes from YouTube Music and that account, and is stored locally.
+- Third-party public services are allowed (YouTube Music, lyrics providers, SponsorBlock). Every host the app contacts must be listed in the README ("network egress list"). Adding a host needs owner approval.
+- Sign-out wipes all local credentials and cached account data.
+
+## What "lossless" means here
+- YouTube Music serves lossy audio only (up to about 256 kbps AAC or Opus on Premium High). It has no lossless tier.
+- For YouTube Music, "lossless" in NemoMusic means a bit-perfect output path: the decoded stream is delivered to the device without added processing. The source stays lossy.
+- True lossless applies only to local FLAC, ALAC and WAV files.
+
+## Scope
+### MVP
+- Windows 10/11 desktop app.
+- Playback from YouTube Music: search, album/artist/playlist views, queue, play/pause/seek/next/prev.
+- Bit-perfect output on Windows (WASAPI exclusive), device picker, no resampling when the device supports the stream rate.
+- Quality badge and a signal-path view (source codec, decode, output device and format).
+- Gapless playback where the source allows it.
+- Large cover art, calm theme, light and dark.
+- Keyboard shortcuts and media-key support.
+- Google sign-in; library, likes, playlists and history from the signed-in account (method: ADR `docs/adr/0001-youtube-music-auth.md`).
+- Time-synced lyrics from several open providers with a fallback chain (ADR `docs/adr/0002-lyrics-providers.md`).
+- Ad blocking and SponsorBlock, each with an on/off switch (ADR `docs/adr/0003-adblock-sponsorblock.md`).
+- UI in the Material + Liquid Glass design language (`design.md`).
+
+### Later
+- Local file library (FLAC, ALAC, WAV, others) with true-lossless badge. (MVP inclusion is an open decision.)
+- Linux (PipeWire/ALSA) and macOS (CoreAudio) output.
+- Optional opt-in DSP (EQ, ReplayGain) with clear on/off state.
+- Offline cache of audio (open decision, see below).
+- Focus/session features (timers, quiet mode).
+
+### Explicit non-goals
+- Claiming or simulating lossless for YouTube streams (no upsampling, no "enhanced" labels).
+- Social features, feeds, sharing, comments, ads.
+- Mobile apps and a web version.
+- Audio ripping or bulk downloading tools.
+- Streaming services other than YouTube Music in MVP.
+- Telemetry or analytics enabled by default.
+- Any server run by the project.
+
+## Quality bar: "done" means
+Audio:
+- Bit-perfect path verified by a test that compares the samples sent to the output with the decoded samples (no change in bits) for at least one local WAV and one decoded stream.
+- No audible glitches over a 1-hour playback test on the reference machine; no underruns logged.
+- Track change, seek and device change never produce clicks or pops.
+- The quality badge matches the real stream info in every tested case.
+Look:
+- Every screen has been reviewed at 100%, 150% and 200% DPI and at the minimum window size.
+- Contrast is at least WCAG AA for text; focus is visible; reduced-motion setting is honored.
+- Motion is 60 fps on the reference machine with no dropped audio.
+- A named reviewer (see coc.md and workflow.md) signs off on the visual result, not only the code.
+
+## Quality badge rule (honest labeling)
+- The badge is built from measured stream facts: codec, bitrate (or "unknown"), sample rate, bit depth, and whether the output path is bit-perfect.
+- A YouTube stream must show a lossy badge such as "AAC 256 kbps" or "Opus ~160 kbps". The word "Lossless" must never appear on it, nor "Hi-Res", "HD audio" or similar.
+- "Bit-perfect output" may be shown as a separate path indicator and must not be merged into the source badge.
+- "Lossless" is allowed only when the source file is FLAC, ALAC, WAV or another lossless codec and the path is bit-perfect.
+- If the facts are unknown, show "Unknown", never a guess.
+- Changing badge logic needs a test for each case above.
+
+## Risks (do not hide)
+- Access to YouTube Music is unofficial (no public API for third-party players) and may breach YouTube's Terms of Service. Accounts could be limited, and access could break without notice.
+- Owner decision 2026-11-10: this risk is accepted, including ad blocking and SponsorBlock. Ad blocking means the app does not request or play ads. It also means less income for artists and rights holders, and it may get an account restricted.
+- README and first-run screen must state this plainly.
+- NemoMusic must not bypass DRM or Premium audio-quality limits.
+
+## Open decisions for the owner (agents must not decide these)
+1. Is offline caching of YouTube audio allowed at all, and if yes, how long and where?
+2. Is the local-files mode part of MVP or later?
+3. Login: DECIDED, Google account, local only. STILL OPEN: the technical method (embedded sign-in, OAuth, cookie import). See ADR 0001.
+4. Name and branding: is "NemoMusic" final? Logo, icon, palette direction.
+5. License of the project (the repo has a LICENSE file; confirm it is the intended one) and policy for third-party dependencies.
+6. Terms of Service risk: ACCEPTED by the owner (2026-11-10). STILL OPEN: the exact notice text shown to users.
+7. Minimum supported Windows version and reference test hardware (DAC, headphones).
+8. Distribution: installer, portable zip, or store; auto-update yes or no.
+9. SponsorBlock data is CC BY-NC-SA 4.0 (ADR 0003). NemoMusic must stay non-commercial while it uses that data. Confirm.
+10. Pass the signed-in cookies to `yt-dlp` so Premium accounts get Premium audio quality? ADR 0001 says no by default (account-restriction risk), so a signed-in Premium user gets the anonymous stream quality until you decide.
+11. Approve opt-in NetEase and QQ lyrics (unofficial, ToS unverified) and the hosts `lrclib.net` and `sponsor.ajay.app` for the egress list (ADR 0002, 0003).
+12. Ad blocking and SponsorBlock default OFF with a first-run choice (ADRs recommend this, matching the no-pre-checked-consent rule). Confirm.
+
+<!-- Source for the "YouTube Music is lossy, max 256 kbps AAC/Opus" claim: https://support.google.com/youtubemusic/answer/9076559 (corroborated by https://www.tunecable.com/youtube-music-tip/youtube-music-lossless.html) -->

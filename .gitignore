@@ -1,0 +1,16 @@
+# Build output
+/target
+**/target/
+
+# Secrets and account data (coc.md: never in git)
+.env
+.env.*
+*.cookie
+*cookies*.txt
+ytdlp-cookie.txt
+account.db
+account.db-*
+
+# Logs and editor leftovers
+*.log
+*.pdb

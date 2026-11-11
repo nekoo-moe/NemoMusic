@@ -1,0 +1,36 @@
+[package]
+name = "nemo-ytm"
+description = "YouTube Music client: sign-in, stream resolver, SponsorBlock and timed lyrics."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+nemo-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+# Runtime pieces: process spawn and timeout (yt-dlp), `sync` for the lazy catalog client, `macros` for `join!`.
+tokio = { version = "=1.54.1", default-features = false, features = ["process", "time", "rt", "io-util", "sync", "macros"] }
+# HTTP: Windows-native TLS (SChannel), so no cmake or NASM is needed. Blocking client for the stream reader,
+# async client (run on the app runtime) for SponsorBlock and cover art.
+reqwest = { version = "=0.13.5", default-features = false, features = ["blocking", "native-tls"] }
+# Anonymous YouTube Music catalog (NoAuth token). `native-tls` matches the reqwest backend above.
+ytmapi-rs = { version = "=0.3.4", default-features = false, features = ["native-tls", "simplified-queries"] }
+
+# Windows Credential Manager (tech.md, Credential store row). `keyring-core` is the store API,
+# `windows-native-keyring-store` the Windows backend.
+keyring-core = { version = "=1.0.1", default-features = false }
+windows-native-keyring-store = { version = "=1.1.0", default-features = false }
+
+[dev-dependencies]
+nemo-audio.workspace = true
+proptest.workspace = true
+tokio = { version = "=1.54.1", default-features = false, features = ["rt-multi-thread", "time", "macros"] }
