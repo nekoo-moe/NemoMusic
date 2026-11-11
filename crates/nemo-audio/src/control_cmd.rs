@@ -14,6 +14,8 @@ use crate::render::gain_for_percent;
 
 /// Past this position, Previous restarts the current track instead of going back.
 const RESTART_AFTER: Duration = Duration::from_secs(3);
+/// Upcoming queue entries whose streams are resolved ahead of time.
+pub(crate) const WARM_AHEAD: usize = 2;
 
 impl Core {
     // ---- commands ------------------------------------------------------------------------
@@ -238,12 +240,14 @@ impl Core {
         }
     }
 
-    /// Start opening the next track while the current one plays.
+    /// Start opening the next track while the current one plays, and hint the resolver about
+    /// the [`WARM_AHEAD`] entries after the current one so their streams are resolved early.
     pub fn prefetch_next(&mut self) {
         let loaded = self.cur.as_ref().is_some_and(|c| c.loaded);
         if !loaded || self.following.is_some() {
             return;
         }
+        self.warm_ahead();
         let Some(i) = self.next_entry_index() else {
             self.next = None;
             return;
@@ -272,5 +276,31 @@ impl Core {
             opener: Arc::clone(&self.deps.opener),
         };
         spawn_prepare(deps, self.tx.clone(), token, track);
+    }
+
+    /// Queue indices of the entries that play after the current one, in order, at most
+    /// [`WARM_AHEAD`], skipping failed ones (wraps with repeat All).
+    pub fn upcoming(&self) -> Vec<usize> {
+        let Some(current) = self.index else {
+            return Vec::new();
+        };
+        let ok = |i: &usize| *i != current && !self.failed.contains(&self.queue[*i].id);
+        let order: Vec<usize> = match self.repeat {
+            RepeatMode::One => Vec::new(),
+            RepeatMode::Off => (current + 1..self.queue.len()).collect(),
+            RepeatMode::All => (current + 1..self.queue.len()).chain(0..current).collect(),
+        };
+        order.into_iter().filter(ok).take(WARM_AHEAD).collect()
+    }
+
+    /// Tell the resolver which YouTube tracks come next. Returns at once.
+    fn warm_ahead(&self) {
+        for i in self.upcoming() {
+            if let Some(video) = &self.queue[i].track.video_id
+                && self.queue[i].track.local_path.is_none()
+            {
+                self.deps.resolver.warm(video);
+            }
+        }
     }
 }

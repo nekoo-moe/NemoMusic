@@ -56,6 +56,14 @@ pub struct Settings {
     pub output_device: Option<String>,
     /// Path to `yt-dlp`; `None` searches the usual places.
     pub yt_dlp_path: Option<PathBuf>,
+    /// Theme accent source, stored as its menu label (empty = default).
+    pub theme: String,
+    /// Surface mode label (Dark, AMOLED, Light; empty = default).
+    pub base_mode: String,
+    /// Accent strength label (empty = default).
+    pub accent_intensity: String,
+    /// Corner style label (empty = default).
+    pub corner_style: String,
 }
 
 impl Default for Settings {
@@ -71,6 +79,10 @@ impl Default for Settings {
             reduce_motion: false,
             output_device: None,
             yt_dlp_path: None,
+            theme: String::new(),
+            base_mode: String::new(),
+            accent_intensity: String::new(),
+            corner_style: String::new(),
         }
     }
 }

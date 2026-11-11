@@ -578,11 +578,14 @@ impl Inner {
 
     async fn album(&self, id: BrowseId) -> Result<AlbumDetail, CatalogError> {
         let api = self.api().await?;
-        let page = api
-            .get_album(AlbumID::from_raw(id.0.clone()))
-            .await
-            .map_err(map_error)?;
-        map_album_page(&adapt::album_page(&page), &id).ok_or(CatalogError::NotFound)
+        if id.0.starts_with("MPRE")
+            && let Ok(page) = api.get_album(AlbumID::from_raw(id.0.clone())).await
+            && let Some(detail) = map_album_page(&adapt::album_page(&page), &id)
+        {
+            return Ok(detail);
+        }
+        // Playlist-style album ids (`OLAK5uy...`) and layouts the typed parser rejects.
+        pages::album(api, &id).await
     }
 
     async fn artist(&self, id: BrowseId) -> Result<ArtistDetail, CatalogError> {
@@ -596,18 +599,28 @@ impl Inner {
 
     async fn playlist(&self, id: BrowseId) -> Result<PlaylistDetail, CatalogError> {
         let api = self.api().await?;
-        // Browse ids of playlists start with `VL`; the playlist queries want the bare id.
+        // Raw page first: the typed parser of ytmapi-rs 0.3.4 rejects the current playlist
+        // layout for every id kind (checked 2026-11-11: PL, OLAK5uy, RDCLAK), which was the
+        // "unexpected answer" error on playlists opened from Home. It stays as the fallback.
+        let raw = pages::playlist(api, &id).await;
+        if raw.is_ok() {
+            return raw;
+        }
         let bare = id.0.strip_prefix("VL").unwrap_or(&id.0).to_owned();
-        let details = api
-            .get_playlist_details(PlaylistID::from_raw(bare.clone()))
-            .await
-            .map_err(map_error)?;
-        let items = api
-            .get_playlist_tracks(PlaylistID::from_raw(bare))
-            .await
-            .map_err(map_error)?;
-        map_playlist_page(&adapt::playlist_page(&details, &items), &id)
-            .ok_or(CatalogError::NotFound)
+        let typed = async {
+            let details = api
+                .get_playlist_details(PlaylistID::from_raw(bare.clone()))
+                .await
+                .map_err(map_error)?;
+            let items = api
+                .get_playlist_tracks(PlaylistID::from_raw(bare))
+                .await
+                .map_err(map_error)?;
+            map_playlist_page(&adapt::playlist_page(&details, &items), &id)
+                .ok_or(CatalogError::NotFound)
+        };
+        // Report the raw path's error: it names the real cause (network, not found).
+        typed.await.or(raw)
     }
 }
 
@@ -637,6 +650,17 @@ impl YtmCatalog {
             }),
             handle,
         }
+    }
+
+    /// Development aid: describe the raw browse page of `browse_id`; shapes and counts only.
+    pub async fn diagnose_browse(&self, browse_id: String) -> String {
+        let inner = Arc::clone(&self.inner);
+        self.run(async move {
+            let api = inner.api().await?;
+            Ok(crate::diagnostics::browse_report(api, &browse_id).await)
+        })
+        .await
+        .unwrap_or_else(|e| format!("could not connect ({e})"))
     }
 
     fn run<T, F>(&self, work: F) -> BoxFuture<'static, Result<T, CatalogError>>

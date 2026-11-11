@@ -15,12 +15,15 @@ pub(crate) mod feeds;
 pub mod home_feed;
 pub mod http;
 pub mod images;
+pub mod innertube;
 pub(crate) mod pages;
 pub mod raw;
+pub mod resolver;
 pub mod session;
 pub mod sponsorblock;
 pub mod stream;
 pub mod ytdlp;
+pub(crate) mod ytdlp_install;
 
 #[cfg(test)]
 #[allow(

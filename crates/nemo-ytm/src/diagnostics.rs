@@ -226,6 +226,50 @@ pub(crate) async fn account_report<A: AuthToken>(api: &YtMusic<A>) -> Diagnosis 
     }
 }
 
+/// The kind of a playlist or album id, by prefix (`VL` stripped). Safe to print: it names the
+/// kind, never the id.
+#[must_use]
+pub fn id_kind(id: &str) -> &'static str {
+    let bare = id.strip_prefix("VL").unwrap_or(id);
+    let kinds: [(&str, &str); 12] = [
+        ("MPREb", "album MPREb"),
+        ("OLAK5uy", "album playlist OLAK5uy"),
+        ("RDCLAK", "curated radio RDCLAK"),
+        ("RDAMPL", "playlist radio RDAMPL"),
+        ("RDAMVM", "song radio RDAMVM"),
+        ("RDTMAK", "mix RDTMAK"),
+        ("RDAO", "artist radio RDAO"),
+        ("RDEM", "artist mix RDEM"),
+        ("RD", "other mix RD"),
+        ("PL", "playlist PL"),
+        ("LM", "liked music LM"),
+        ("SE", "episodes SE"),
+    ];
+    kinds
+        .iter()
+        .find(|(prefix, _)| bare.starts_with(prefix))
+        .map_or("other", |(_, kind)| kind)
+}
+
+/// Ask the raw browse page of `id` (as `playlist()` does) and describe it: the error label or
+/// the shape, whether a header was read, how many rows parsed. No titles, ids or URLs.
+pub(crate) async fn browse_report<A: AuthToken>(api: &YtMusic<A>, browse_id: &str) -> String {
+    match pages::fetch(api, &crate::raw::BrowseQuery::page(browse_id)).await {
+        Ok(json) => {
+            let header = crate::feeds::parse_playlist_header(&json);
+            let rows = crate::feeds::parse_song_rows(&json);
+            format!(
+                "raw browse: header {}, {} rows, more {}, {}",
+                header.title.is_some(),
+                rows.items.len(),
+                rows.next.is_some(),
+                shape_summary(&json)
+            )
+        }
+        Err(e) => format!("raw browse: error ({e})"),
+    }
+}
+
 /// Keys whose subtree is noise for layout work (menus, tracking, accessibility text).
 const SKIPPED: [&str; 12] = [
     "menu",
@@ -324,6 +368,26 @@ pub fn outlines_of(root: &Value, key: &str, depth: usize, limit: usize) -> Vec<S
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn id_kinds_cover_home_and_explore_ids() {
+        for (id, kind) in [
+            ("MPREb_x", "album MPREb"),
+            ("VLOLAK5uy_x", "album playlist OLAK5uy"),
+            ("OLAK5uy_x", "album playlist OLAK5uy"),
+            ("VLRDCLAK5uy_x", "curated radio RDCLAK"),
+            ("RDAMPLPLx", "playlist radio RDAMPL"),
+            ("VLRDAMVMabc", "song radio RDAMVM"),
+            ("RDTMAKx", "mix RDTMAK"),
+            ("RDEMx", "artist mix RDEM"),
+            ("RDMMx", "other mix RD"),
+            ("VLPLx", "playlist PL"),
+            ("VLLM", "liked music LM"),
+            ("FEx", "other"),
+        ] {
+            assert_eq!(id_kind(id), kind, "{id}");
+        }
+    }
 
     #[test]
     fn skeleton_hides_text_but_keeps_layout() {

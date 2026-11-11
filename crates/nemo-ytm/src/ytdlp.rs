@@ -7,10 +7,13 @@
 //! `audio_channels`, `url`, `format_id`. The `expire` URL parameter is a YouTube convention
 //! that the README does not document; it is optional here.
 
+use std::collections::HashSet;
 use std::ffi::{OsStr, OsString};
+use std::future::Future;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use nemo_core::BoxFuture;
@@ -22,6 +25,8 @@ use serde_json::Value;
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tokio::runtime::Handle;
+
+pub use crate::ytdlp_install::{InstallError, install_onedir};
 
 /// How long one `yt-dlp` run may take.
 pub const RESOLVE_TIMEOUT: Duration = Duration::from_secs(20);
@@ -37,9 +42,14 @@ pub const MAX_STDERR_BYTES: u64 = 64 * 1024;
 /// Folder name winget uses for the `yt-dlp.yt-dlp` package under `...\WinGet\Packages`.
 const WINGET_PACKAGE_DIR: &str = "yt-dlp.yt-dlp_Microsoft.Winget.Source_8wekyb3d8bbwe";
 
+/// Folder (under the app's `bin`) of the unpacked official "onedir" Windows build.
+pub const ONEDIR_DIR: &str = "yt-dlp";
+
 /// Find the `yt-dlp` executable.
 ///
-/// Order: every directory on `PATH`, then `%LOCALAPPDATA%\Microsoft\WinGet\Links\yt-dlp.exe`
+/// Order: the unpacked onedir build `%LOCALAPPDATA%\NemoMusic\bin\yt-dlp\yt-dlp.exe` (see
+/// [`crate::ytdlp::install_onedir`]; it starts in well under a second because it does not unpack itself
+/// on every run, unlike the one-file `yt-dlp.exe`), then every directory on `PATH`, then `%LOCALAPPDATA%\Microsoft\WinGet\Links\yt-dlp.exe`
 /// (where winget puts command links), then `%LOCALAPPDATA%\NemoMusic\bin\yt-dlp.exe` (a copy the
 /// app downloads), then the winget package folder itself (a fresh install is there before the
 /// `Links` shim and `PATH` are refreshed). Returns `None` when none exists.
@@ -64,6 +74,12 @@ fn locate_in(
     } else {
         "yt-dlp"
     };
+    let onedir = local_app_data.map(|base| {
+        base.join("NemoMusic")
+            .join("bin")
+            .join(ONEDIR_DIR)
+            .join(name)
+    });
     let on_path = path_var
         .into_iter()
         .flat_map(std::env::split_paths)
@@ -85,7 +101,11 @@ fn locate_in(
                 .join(name),
         ]
     });
-    on_path.chain(known).find(|candidate| is_file(candidate))
+    onedir
+        .into_iter()
+        .chain(on_path)
+        .chain(known)
+        .find(|candidate| is_file(candidate))
 }
 
 /// Decide what a failed `yt-dlp` run means from the start of its stderr.
@@ -155,6 +175,23 @@ fn classify_stderr(stderr: &str) -> StreamError {
 /// cannot start an option either.
 #[must_use]
 pub fn args(video: &VideoId) -> Vec<OsString> {
+    build_args(video, None)
+}
+
+/// Extractor arguments of the fast first try: one player client, no watch page, no player
+/// configs. The owner's plan named `android_vr`, but yt-dlp 2026.10.26 drops every
+/// `android_vr` format without a PO token ("Requested format is not available", measured
+/// 2026-11-11), so the fast try uses `visionos`, one of yt-dlp's default clients
+/// (3.7 s with the onedir build, against 10-13 s for the full extraction).
+pub const FAST_EXTRACTOR_ARGS: &str = "youtube:player_client=visionos;player_skip=webpage,configs";
+
+/// Like [`args`], with [`FAST_EXTRACTOR_ARGS`]. Still `--ignore-config` and no cookies.
+#[must_use]
+pub fn fast_args(video: &VideoId) -> Vec<OsString> {
+    build_args(video, Some(FAST_EXTRACTOR_ARGS))
+}
+
+fn build_args(video: &VideoId, extractor_args: Option<&str>) -> Vec<OsString> {
     let mut list: Vec<OsString> = [
         "--ignore-config",
         "--dump-single-json",
@@ -162,11 +199,15 @@ pub fn args(video: &VideoId) -> Vec<OsString> {
         "--no-warnings",
         "--format",
         "bestaudio",
-        "--",
     ]
     .iter()
     .map(OsString::from)
     .collect();
+    if let Some(extra) = extractor_args {
+        list.push(OsString::from("--extractor-args"));
+        list.push(OsString::from(extra));
+    }
+    list.push(OsString::from("--"));
     list.push(OsString::from(format!(
         "https://music.youtube.com/watch?v={}",
         video.as_str()
@@ -189,7 +230,7 @@ fn codec_of(acodec: &str) -> Codec {
 }
 
 /// `expire=<unix seconds>` from the URL query, if present and numeric.
-fn expiry(url: &str) -> Option<SystemTime> {
+pub(crate) fn expiry(url: &str) -> Option<SystemTime> {
     let query = url.split_once('?')?.1;
     let query = query.split('#').next()?;
     let secs = query
@@ -307,11 +348,17 @@ pub fn parse_with(json: &str, allowed: Option<&[Codec]>) -> Result<ResolvedStrea
 }
 
 /// Resolves streams by running `yt-dlp` as a subprocess, without a shell.
+///
+/// Each resolve first runs with [`fast_args`]; when that fails (or a stream it gave could not
+/// be opened, see [`StreamResolver::stream_failed`]) the full extraction ([`args`]) is used.
 #[derive(Debug, Clone)]
 pub struct YtDlpResolver {
     program: PathBuf,
     allowed: Option<Vec<Codec>>,
     handle: Option<Handle>,
+    fast: bool,
+    /// Videos whose fast-path stream could not be opened: full extraction only.
+    slow_only: Arc<Mutex<HashSet<String>>>,
 }
 
 /// Everything one resolve run needs, owned, so it can run as a spawned task.
@@ -319,6 +366,7 @@ pub struct YtDlpResolver {
 struct Job {
     program: PathBuf,
     allowed: Option<Vec<Codec>>,
+    fast: bool,
 }
 
 impl YtDlpResolver {
@@ -335,7 +383,16 @@ impl YtDlpResolver {
             program: program.into(),
             allowed: None,
             handle: None,
+            fast: true,
+            slow_only: Arc::default(),
         }
+    }
+
+    /// Try [`fast_args`] first (the default) or go straight to the full extraction.
+    #[must_use]
+    pub fn with_fast_args(mut self, fast: bool) -> Self {
+        self.fast = fast;
+        self
     }
 
     /// Only pick formats whose codec the audio engine can decode (default: every codec).
@@ -363,7 +420,19 @@ impl YtDlpResolver {
         Job {
             program: self.program.clone(),
             allowed: self.allowed.clone(),
+            fast: self.fast,
         }
+    }
+
+    fn job_for(&self, video: &VideoId) -> Job {
+        let mut job = self.job();
+        job.fast = job.fast
+            && !self
+                .slow_only
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .contains(video.as_str());
+        job
     }
 }
 
@@ -379,10 +448,30 @@ async fn read_stderr(mut stderr: tokio::process::ChildStderr) -> String {
 }
 
 impl Job {
+    /// Fast arguments first, the full extraction when they fail.
     async fn run(self, video: VideoId) -> Result<ResolvedStream, StreamError> {
+        if self.fast {
+            match Self::timed(self.run_with(fast_args(&video))).await {
+                Err(StreamError::ResolverMissing) => return Err(StreamError::ResolverMissing),
+                Ok(stream) => return Ok(stream),
+                Err(e) => tracing::debug!(error = %e, "fast yt-dlp run failed, retrying"),
+            }
+        }
+        Self::timed(self.run_with(args(&video))).await
+    }
+
+    async fn timed(
+        run: impl Future<Output = Result<ResolvedStream, StreamError>>,
+    ) -> Result<ResolvedStream, StreamError> {
+        tokio::time::timeout(RESOLVE_TIMEOUT, run)
+            .await
+            .unwrap_or_else(|_| Err(StreamError::Network("resolver timed out".to_owned())))
+    }
+
+    async fn run_with(&self, arguments: Vec<OsString>) -> Result<ResolvedStream, StreamError> {
         let mut command = Command::new(&self.program);
         command
-            .args(args(&video))
+            .args(arguments)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -442,13 +531,9 @@ impl StreamResolver for YtDlpResolver {
         &'a self,
         video: &'a VideoId,
     ) -> BoxFuture<'a, Result<ResolvedStream, StreamError>> {
-        let job = self.job();
+        let job = self.job_for(video);
         let video = video.clone();
-        let timed = async move {
-            tokio::time::timeout(RESOLVE_TIMEOUT, job.run(video))
-                .await
-                .unwrap_or_else(|_| Err(StreamError::Network("resolver timed out".to_owned())))
-        };
+        let timed = job.run(video);
         match &self.handle {
             // Spawned on the app runtime; the returned future only awaits the join handle.
             Some(handle) => {
@@ -462,11 +547,64 @@ impl StreamResolver for YtDlpResolver {
             None => Box::pin(timed),
         }
     }
+
+    fn stream_failed(&self, video: &VideoId) {
+        if self.fast {
+            let mut set = self
+                .slow_only
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            if set.len() >= 256 {
+                set.clear();
+            }
+            set.insert(video.as_str().to_owned());
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fast_args_keep_ignore_config_and_add_one_client() {
+        let a = fast_args(&vid("abcdefghijk"));
+        let text: Vec<String> = a.iter().map(|s| s.to_string_lossy().into_owned()).collect();
+        assert_eq!(text[0], "--ignore-config");
+        let at = text
+            .iter()
+            .position(|s| s == "--extractor-args")
+            .expect("has extractor args");
+        assert_eq!(text[at + 1], FAST_EXTRACTOR_ARGS);
+        assert!(
+            !text
+                .iter()
+                .any(|s| s.to_ascii_lowercase().contains("cookie"))
+        );
+        let sep = text.iter().position(|s| s == "--").expect("has --");
+        assert_eq!(sep, text.len() - 2);
+        assert!(
+            !args(&vid("abcdefghijk"))
+                .iter()
+                .any(|s| s == "--extractor-args")
+        );
+    }
+
+    #[test]
+    fn a_failed_open_sends_the_video_to_the_full_extraction() {
+        let resolver = YtDlpResolver::with_program("x");
+        let v = vid("abcdefghijk");
+        assert!(resolver.job_for(&v).fast);
+        resolver.stream_failed(&v);
+        assert!(!resolver.job_for(&v).fast);
+        assert!(resolver.job_for(&vid("bbbbbbbbbbb")).fast);
+        assert!(
+            !YtDlpResolver::with_program("x")
+                .with_fast_args(false)
+                .job_for(&v)
+                .fast
+        );
+    }
 
     fn vid(s: &str) -> VideoId {
         VideoId::parse(s).expect("test id is valid")
@@ -749,6 +887,16 @@ mod tests {
         let path_var = std::env::join_paths(["bin0", "bin1"]).expect("joins");
 
         let all = |p: &Path| p == on_path || p == winget || p == nemo;
+        let onedir = local
+            .join("NemoMusic")
+            .join("bin")
+            .join(ONEDIR_DIR)
+            .join(name);
+        let with_onedir = |p: &Path| all(p) || p == onedir;
+        assert_eq!(
+            locate_in(Some(&path_var), Some(&local), &with_onedir),
+            Some(onedir.clone())
+        );
         assert_eq!(
             locate_in(Some(&path_var), Some(&local), &all),
             Some(on_path.clone())

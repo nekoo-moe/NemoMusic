@@ -99,7 +99,29 @@ fn prepare(deps: &PrepareDeps, track: &Track) -> Result<Prepared, String> {
         return Err("this track has no playable source".into());
     };
     let stream = block_on(deps.resolver.resolve(video)).map_err(|e| describe(&e))?;
-    let source: Box<dyn ByteSource> = deps.opener.open(&stream).map_err(|e| describe(&e))?;
+    let source: Box<dyn ByteSource> = match deps.opener.open(&stream) {
+        Ok(source) => source,
+        Err(StreamError::NotAvailable | StreamError::Network(_)) => {
+            // A stale or refused URL (HTTP 403, 404/410, connection reset): tell the resolver,
+            // which drops its cached answer or switches method for this video, and try once more.
+            deps.resolver.stream_failed(video);
+            let stream = block_on(deps.resolver.resolve(video)).map_err(|e| describe(&e))?;
+            let source = deps.opener.open(&stream).map_err(|e| {
+                deps.resolver.stream_failed(video);
+                describe(&e)
+            })?;
+            return finish_stream(source, &stream);
+        }
+        Err(e) => return Err(describe(&e)),
+    };
+    finish_stream(source, &stream)
+}
+
+/// Probe an opened YouTube stream and describe it for the signal path.
+fn finish_stream(
+    source: Box<dyn ByteSource>,
+    stream: &nemo_core::stream::ResolvedStream,
+) -> Result<Prepared, String> {
     let decoder = StreamDecoder::open(source, None).map_err(|e| describe_decode(&e))?;
     let probed = decoder.info();
     let codec = if probed.codec == Codec::Unknown {

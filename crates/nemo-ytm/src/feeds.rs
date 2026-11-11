@@ -29,6 +29,8 @@ const MAX_SHELVES: usize = 24;
 const MAX_ITEMS: usize = 60;
 /// Longest `params` blob accepted in a mood id.
 const MAX_PARAMS: usize = 512;
+/// Most tracks kept from a watch playlist (a radio can be endless).
+const MAX_WATCH_TRACKS: usize = 200;
 
 const GREY_OUT: &str = "MUSIC_ITEM_RENDERER_DISPLAY_POLICY_GREY_OUT";
 
@@ -790,6 +792,7 @@ pub(crate) fn parse_song_rows(json: &str) -> Page<Track> {
 pub(crate) struct PlaylistHeader {
     pub title: Option<String>,
     pub author: Option<String>,
+    pub year: Option<u16>,
     pub thumbnails: Vec<Thumbnail>,
 }
 
@@ -810,11 +813,52 @@ pub(crate) fn parse_playlist_header(json: &str) -> PlaylistHeader {
             let sub = Runs::from_value(header.get("subtitle"));
             sub.artists.first().cloned()
         });
+    let year = Runs::from_value(header.get("subtitle"))
+        .year_text()
+        .and_then(|t| parse_year(&t));
     PlaylistHeader {
         title: header.get("title").and_then(text_of),
         author,
+        year,
         thumbnails: item_thumbnails(header),
     }
+}
+
+/// Tracks of a watch playlist (`next` answer): radios and mixes that have no browse page
+/// (`RDAMVM...`, artist radios). Unplayable entries are dropped.
+pub(crate) fn parse_watch_playlist(json: &str) -> Vec<Track> {
+    let Some(root) = parse_root(json) else {
+        return Vec::new();
+    };
+    let Some(contents) = find_key(&root, "playlistPanelRenderer")
+        .and_then(|p| p.get("contents"))
+        .and_then(Value::as_array)
+    else {
+        return Vec::new();
+    };
+    contents
+        .iter()
+        .filter_map(|entry| {
+            entry.get("playlistPanelVideoRenderer").or_else(|| {
+                entry.pointer(
+                    "/playlistPanelVideoWrapperRenderer/primaryRenderer/playlistPanelVideoRenderer",
+                )
+            })
+        })
+        .filter(|v| v.get("unplayableText").is_none())
+        .filter_map(|v| {
+            let byline = Runs::from_value(v.get("longBylineText"));
+            map_song(&RawSong {
+                video_id: v.get("videoId")?.as_str()?.to_owned(),
+                title: v.get("title").and_then(text_of)?,
+                artists: byline.artist_names(),
+                album: byline.album.clone(),
+                duration: v.get("lengthText").and_then(text_of),
+                thumbnails: v.get("thumbnail").map(thumbnails_of).unwrap_or_default(),
+            })
+        })
+        .take(MAX_WATCH_TRACKS)
+        .collect()
 }
 
 /// The listening history, one section per period.
@@ -1353,6 +1397,108 @@ mod tests {
         assert_eq!(header.author.as_deref(), Some("Owner"));
         assert_eq!(header.thumbnails.len(), 1);
         assert_eq!(parse_playlist_header("{}"), PlaylistHeader::default());
+    }
+
+    /// A browse page as playlists of every kind come back on 2026-11-11 (`PL`, `OLAK5uy`,
+    /// `RDCLAK`, `RDTMAK`): two-column layout, responsive header, playlist shelf.
+    fn playlist_page(rows: Vec<Value>) -> Value {
+        json!({
+            "contents": { "twoColumnBrowseResultsRenderer": {
+                "tabs": [ { "tabRenderer": { "content": { "sectionListRenderer": { "contents": [
+                    { "musicResponsiveHeaderRenderer": {
+                        "title": runs(&["Curated Radio"]),
+                        "straplineTextOne": runs(&["YouTube Music"]),
+                        "subtitle": runs(&["Playlist", " • ", "2026"]),
+                        "thumbnail": thumbs("https://img.invalid/p")
+                    } }
+                ] } } } } ],
+                "secondaryContents": { "sectionListRenderer": { "contents": [
+                    { "musicPlaylistShelfRenderer": { "contents": rows } }
+                ] } }
+            } }
+        })
+    }
+
+    #[test]
+    fn every_playlist_kind_reads_header_and_rows() {
+        let page = playlist_page(vec![
+            row("One", ID, "Artist One", Some("Album X"), "3:45"),
+            row("Two", ID2, "Artist Two", None, "2:00"),
+        ])
+        .to_string();
+        let header = parse_playlist_header(&page);
+        assert_eq!(header.title.as_deref(), Some("Curated Radio"));
+        assert_eq!(header.author.as_deref(), Some("YouTube Music"));
+        assert_eq!(header.year, Some(2026));
+        let rows = parse_song_rows(&page);
+        assert_eq!(rows.items.len(), 2);
+        assert_eq!(rows.items[1].artists, vec!["Artist Two".to_owned()]);
+    }
+
+    #[test]
+    fn an_album_page_keeps_rows_without_artists() {
+        let bare = json!({ "musicResponsiveListItemRenderer": {
+            "flexColumns": [ { "musicResponsiveListItemFlexColumnRenderer": {
+                "text": runs(&["Track"]) } } ],
+            "fixedColumns": [ { "musicResponsiveListItemFixedColumnRenderer": {
+                "text": runs(&["4:01"]) } } ],
+            "playlistItemData": { "videoId": ID }
+        } });
+        let page = json!({ "contents": { "twoColumnBrowseResultsRenderer": {
+            "tabs": [ { "tabRenderer": { "content": { "sectionListRenderer": { "contents": [
+                { "musicResponsiveHeaderRenderer": {
+                    "title": runs(&["Album"]),
+                    "straplineTextOne": { "runs": [ link("The Band", "UCsynthetic3") ] },
+                    "subtitle": runs(&["Album", " • ", "2019"])
+                } } ] } } } } ],
+            "secondaryContents": { "sectionListRenderer": { "contents": [
+                { "musicShelfRenderer": { "contents": [ bare ] } } ] } }
+        } } })
+        .to_string();
+        let rows = parse_song_rows(&page);
+        assert_eq!(rows.items.len(), 1);
+        assert!(rows.items[0].artists.is_empty());
+        let header = parse_playlist_header(&page);
+        assert_eq!(header.author.as_deref(), Some("The Band"));
+        assert_eq!(header.year, Some(2019));
+    }
+
+    #[test]
+    fn a_watch_playlist_lists_radio_tracks() {
+        let video = |id: &str, title: &str| {
+            json!({ "playlistPanelVideoRenderer": {
+                "videoId": id,
+                "title": runs(&[title]),
+                "longBylineText": { "runs": [
+                    link("Artist One", "UCsynthetic1"), { "text": " • " },
+                    link("Album X", "MPREbsynthetic1"), { "text": " • " }, { "text": "2020" }
+                ] },
+                "lengthText": runs(&["3:21"]),
+                "thumbnail": thumbs("https://img.invalid/w")
+            } })
+        };
+        let mut gone = video(ID2, "Gone");
+        gone["playlistPanelVideoRenderer"]["unplayableText"] = runs(&["Not available"]);
+        let wrapped = json!({ "playlistPanelVideoWrapperRenderer": { "primaryRenderer":
+            video("ccccccccccc", "Wrapped") } });
+        let answer = json!({ "contents": { "singleColumnMusicWatchNextResultsRenderer": {
+            "tabbedRenderer": { "watchNextTabbedResultsRenderer": { "tabs": [ { "tabRenderer": {
+                "content": { "musicQueueRenderer": { "content": { "playlistPanelRenderer": {
+                    "contents": [ video(ID, "First"), gone, wrapped,
+                        json!({ "automixPreviewVideoRenderer": {} }) ]
+                } } } }
+            } } ] } }
+        } } })
+        .to_string();
+        let tracks = parse_watch_playlist(&answer);
+        assert_eq!(tracks.len(), 2);
+        assert_eq!(tracks[0].title, "First");
+        assert_eq!(tracks[0].artists, vec!["Artist One".to_owned()]);
+        assert_eq!(tracks[0].album.as_deref(), Some("Album X"));
+        assert_eq!(tracks[0].duration, Some(Duration::from_secs(201)));
+        assert_eq!(tracks[1].title, "Wrapped");
+        assert!(parse_watch_playlist("{}").is_empty());
+        assert!(parse_watch_playlist("not json").is_empty());
     }
 
     #[test]

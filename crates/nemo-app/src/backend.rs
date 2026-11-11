@@ -18,6 +18,7 @@ use nemo_ytm::account::{
 use nemo_ytm::catalog::YtmCatalog;
 use nemo_ytm::credentials::WindowsStore;
 use nemo_ytm::images::ImageCache;
+use nemo_ytm::resolver::default_chain;
 use nemo_ytm::session::YtmSessionBackend;
 use nemo_ytm::sponsorblock::{ReqwestHttp, SponsorBlockSource};
 use nemo_ytm::stream::HttpStreamOpener;
@@ -71,12 +72,14 @@ pub fn build(
 
     let program = settings.yt_dlp_path.clone().or_else(locate_yt_dlp);
     if program.is_none() {
-        tracing::warn!("yt-dlp not found; YouTube Music playback will report it");
+        tracing::warn!("yt-dlp not found; YouTube Music playback will use the native path only");
     }
-    let resolver = program
+    let ytdlp = program
         .map_or_else(YtDlpResolver::new, YtDlpResolver::with_program)
         .with_allowed_codecs(supported_stream_codecs())
         .with_handle(handle.clone());
+    // Cache -> native player request -> yt-dlp (fast arguments, then the full extraction).
+    let resolver = default_chain(ytdlp, supported_stream_codecs(), handle);
 
     let segments: Option<Arc<dyn SegmentSource>> = match ReqwestHttp::new(handle.clone()) {
         Ok(http) => Some(Arc::new(SponsorBlockSource::new(http))),
@@ -87,7 +90,7 @@ pub fn build(
     };
 
     let player = Player::spawn(PlayerDeps {
-        resolver: Arc::new(resolver),
+        resolver,
         opener: Arc::new(HttpStreamOpener::default()),
         segments,
         sink_factory: Arc::new(CpalSinkFactory::new(settings.output_device.clone())),

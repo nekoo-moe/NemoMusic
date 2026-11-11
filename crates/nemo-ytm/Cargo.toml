@@ -16,6 +16,7 @@ serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
+tracing.workspace = true
 # Runtime pieces: process spawn and timeout (yt-dlp), `sync` for the lazy catalog client, `macros` for `join!`.
 tokio = { version = "=1.54.1", default-features = false, features = ["process", "time", "rt", "io-util", "sync", "macros"] }
 # HTTP: Windows-native TLS (SChannel), so no cmake or NASM is needed. Blocking client for the stream reader,
@@ -30,5 +31,6 @@ keyring-core = { version = "=1.0.1", default-features = false }
 windows-native-keyring-store = { version = "=1.1.0", default-features = false }
 
 [dev-dependencies]
+nemo-audio.workspace = true
 proptest.workspace = true
 tokio = { version = "=1.54.1", default-features = false, features = ["rt-multi-thread", "time", "macros"] }

@@ -5,9 +5,18 @@ use std::path::PathBuf;
 use std::sync::mpsc::{Sender, channel};
 use std::sync::{Arc, Mutex};
 
+use nemo_ui::scheme::{AccentIntensity, BaseMode, CornerStyle, ThemeChoice};
 use nemo_ui::{GlassTier as UiGlass, UiOptions, UiSettings};
 
 use crate::config::{GlassTier, Settings};
+
+/// Find the menu entry whose label matches; unknown or empty text gives the default.
+fn by_label<T: Copy + Default>(all: &[T], label: fn(T) -> &'static str, stored: &str) -> T {
+    all.iter()
+        .copied()
+        .find(|v| label(*v) == stored)
+        .unwrap_or_default()
+}
 
 /// The UI view of the stored settings.
 pub fn to_ui(s: &Settings) -> UiSettings {
@@ -22,6 +31,14 @@ pub fn to_ui(s: &Settings) -> UiSettings {
         reduce_motion: s.reduce_motion,
         reduce_transparency: s.reduce_transparency,
         tos_acknowledged: s.tos_acknowledged,
+        theme: by_label(&ThemeChoice::ALL, ThemeChoice::label, &s.theme),
+        base: by_label(&BaseMode::ALL, BaseMode::label, &s.base_mode),
+        accent_intensity: by_label(
+            &AccentIntensity::ALL,
+            AccentIntensity::label,
+            &s.accent_intensity,
+        ),
+        corner_style: by_label(&CornerStyle::ALL, CornerStyle::label, &s.corner_style),
     }
 }
 
@@ -37,6 +54,12 @@ pub fn apply_ui(s: &mut Settings, ui: &UiSettings) {
     s.reduce_motion = ui.reduce_motion;
     s.reduce_transparency = ui.reduce_transparency;
     s.tos_acknowledged = ui.tos_acknowledged;
+    ui.theme.label().clone_into(&mut s.theme);
+    ui.base.label().clone_into(&mut s.base_mode);
+    ui.accent_intensity
+        .label()
+        .clone_into(&mut s.accent_intensity);
+    ui.corner_style.label().clone_into(&mut s.corner_style);
 }
 
 /// Start the saver thread and build the UI options. The callback only sends on a channel, so

@@ -3248,6 +3248,7 @@ name = "nemo-ytm"
 version = "0.0.1"
 dependencies = [
  "keyring-core",
+ "nemo-audio",
  "nemo-core",
  "proptest",
  "reqwest",
@@ -3256,6 +3257,7 @@ dependencies = [
  "sha2 0.11.1",
  "thiserror 2.0.21",
  "tokio",
+ "tracing",
  "windows-native-keyring-store",
  "ytmapi-rs",
 ]

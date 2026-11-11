@@ -101,6 +101,56 @@ impl PostQuery for BrowseQuery {
     }
 }
 
+/// A `next` request for a watch playlist: radios and mixes without a browse page. Body as in
+/// `ytmusicapi` `mixins/watch.py` (`get_watch_playlist`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WatchQuery {
+    playlist_id: String,
+}
+
+impl WatchQuery {
+    /// The watch playlist `playlist_id` (no `VL` prefix).
+    #[must_use]
+    pub fn playlist(playlist_id: &str) -> Self {
+        Self {
+            playlist_id: playlist_id.to_owned(),
+        }
+    }
+}
+
+impl ParseFrom<WatchQuery> for Unparsed {
+    fn parse_from(_: ProcessedResult<WatchQuery>) -> ytmapi_rs::Result<Self> {
+        Ok(Self)
+    }
+}
+
+impl<A: AuthToken> Query<A> for WatchQuery {
+    type Output = Unparsed;
+    type Method = PostMethod;
+}
+
+impl PostQuery for WatchQuery {
+    fn header(&self) -> Map<String, Value> {
+        let mut map = Map::new();
+        map.insert("playlistId".to_owned(), json!(self.playlist_id));
+        map.insert("enablePersistentPlaylistPanel".to_owned(), json!(true));
+        map.insert("isAudioOnly".to_owned(), json!(true));
+        map.insert(
+            "tunerSettingValue".to_owned(),
+            json!("AUTOMIX_SETTING_NORMAL"),
+        );
+        map
+    }
+
+    fn params(&self) -> Vec<(&str, Cow<'_, str>)> {
+        Vec::new()
+    }
+
+    fn path(&self) -> &'static str {
+        "next"
+    }
+}
+
 /// A short, fixed label for a `ytmapi-rs` error. It never contains a response body, a URL or a
 /// header, so it is safe to show and to log.
 #[must_use]

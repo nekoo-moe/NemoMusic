@@ -42,4 +42,13 @@ pub trait StreamResolver: Send + Sync {
         &'a self,
         video: &'a VideoId,
     ) -> BoxFuture<'a, Result<ResolvedStream, StreamError>>;
+
+    /// Hint: `video` will probably be played soon (the next queue entries). A caching resolver
+    /// may resolve it in the background. Must return at once. Default: does nothing.
+    fn warm(&self, _video: &VideoId) {}
+
+    /// The stream last returned for `video` could not be opened (for example HTTP 403). A
+    /// resolver may drop a cached answer or switch to another method for this video. Must
+    /// return at once. Default: does nothing.
+    fn stream_failed(&self, _video: &VideoId) {}
 }

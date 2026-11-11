@@ -7,9 +7,11 @@ use std::sync::Arc;
 
 use nemo_core::BoxFuture;
 use nemo_core::catalog::{
-    AlbumDetail, ArtistDetail, BrowseId, Catalog, CatalogError, PlaylistDetail, SearchResults,
-    Shelf,
+    AlbumDetail, AlbumSummary, ArtistDetail, ArtistSummary, BrowseId, Catalog, CatalogError,
+    Explore, FeedShelf, HistorySection, HomeFeed, PlaylistDetail, PlaylistSummary, PodcastDetail,
+    SearchResults, Shelf,
 };
+use nemo_core::track::Track;
 
 /// Local and remote catalogs behind one [`Catalog`].
 pub struct MergedCatalog {
@@ -93,6 +95,47 @@ impl Catalog for MergedCatalog {
         self.remote.home()
     }
 
+    fn home_feed(&self) -> BoxFuture<'_, Result<HomeFeed, CatalogError>> {
+        self.remote.home_feed()
+    }
+
+    fn library_playlists(&self) -> BoxFuture<'_, Result<Vec<PlaylistSummary>, CatalogError>> {
+        self.remote.library_playlists()
+    }
+
+    fn liked_songs(&self) -> BoxFuture<'_, Result<Vec<Track>, CatalogError>> {
+        self.remote.liked_songs()
+    }
+
+    fn library_albums(&self) -> BoxFuture<'_, Result<Vec<AlbumSummary>, CatalogError>> {
+        self.remote.library_albums()
+    }
+
+    fn library_artists(&self) -> BoxFuture<'_, Result<Vec<ArtistSummary>, CatalogError>> {
+        self.remote.library_artists()
+    }
+
+    fn history(&self) -> BoxFuture<'_, Result<Vec<HistorySection>, CatalogError>> {
+        self.remote.history()
+    }
+
+    fn explore(&self) -> BoxFuture<'_, Result<Explore, CatalogError>> {
+        self.remote.explore()
+    }
+
+    fn mood_playlists<'a>(
+        &'a self,
+        id: &'a BrowseId,
+    ) -> BoxFuture<'a, Result<Vec<FeedShelf>, CatalogError>> {
+        self.remote.mood_playlists(id)
+    }
+
+    fn podcast<'a>(
+        &'a self,
+        id: &'a BrowseId,
+    ) -> BoxFuture<'a, Result<PodcastDetail, CatalogError>> {
+        self.remote.podcast(id)
+    }
     fn rate_song<'a>(
         &'a self,
         video_id: &'a nemo_core::track::VideoId,
@@ -105,7 +148,6 @@ impl Catalog for MergedCatalog {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nemo_core::catalog::{AlbumSummary, ArtistSummary};
 
     fn results(names: &[&str]) -> SearchResults {
         SearchResults {
@@ -174,6 +216,17 @@ mod tests {
         ) -> BoxFuture<'a, Result<PlaylistDetail, CatalogError>> {
             Box::pin(async { Err(CatalogError::NotFound) })
         }
+        fn library_playlists(&self) -> BoxFuture<'_, Result<Vec<PlaylistSummary>, CatalogError>> {
+            let title = self.0.to_owned();
+            Box::pin(async move {
+                Ok(vec![PlaylistSummary {
+                    id: BrowseId("VLPLx".to_owned()),
+                    title,
+                    author: None,
+                    thumbnails: Vec::new(),
+                }])
+            })
+        }
     }
 
     #[test]
@@ -189,6 +242,22 @@ mod tests {
         };
         assert_eq!(title("local-album:x"), "local");
         assert_eq!(title("MPREb_abc"), "remote");
+    }
+
+    #[test]
+    fn account_pages_come_from_the_remote_catalog_only() {
+        let m = MergedCatalog::new(
+            Arc::new(Fixed("local")),
+            Arc::new(Fixed("remote")),
+            "local-album:",
+        );
+        let lists = poll_ready(m.library_playlists()).expect("lists");
+        assert_eq!(lists[0].title, "remote");
+        // A source that does not know the page leaves it unavailable.
+        assert_eq!(
+            poll_ready(m.history()),
+            Err(CatalogError::Unavailable("history".to_owned()))
+        );
     }
 
     /// Poll a future that is ready at once (these test catalogs never wait).

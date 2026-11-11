@@ -28,6 +28,10 @@ use crate::http::{https_redirects, is_https};
 pub const MAX_CHUNK_BYTES: u64 = 10 * 1024 * 1024;
 /// Smallest window fetched per request, in bytes.
 pub const READ_AHEAD_BYTES: u64 = 1024 * 1024;
+/// Size of the first request when a stream is opened, in bytes. Smaller than the read-ahead
+/// so the container header (an `.m4a` keeps it at the start) and the first seconds of audio
+/// arrive sooner; about 16 s of a 128 kbps stream.
+pub const FIRST_WINDOW_BYTES: u64 = 256 * 1024;
 /// Extra attempts after the first one.
 pub const MAX_RETRIES: u32 = 2;
 /// Connect timeout and total timeout of one request.
@@ -172,7 +176,7 @@ impl HttpStream {
             buf_start: 0,
         };
         stream
-            .fetch(0, READ_AHEAD_BYTES)
+            .fetch_window(0, FIRST_WINDOW_BYTES)
             .map_err(FetchError::into_stream_error)?;
         if stream.buf.is_empty() {
             return Err(StreamError::Network("empty stream".to_owned()));
@@ -250,7 +254,12 @@ impl HttpStream {
 
     /// Fill the buffer with a window that starts at `start` and covers a read of `want` bytes.
     fn fetch(&mut self, start: u64, want: u64) -> Result<(), FetchError> {
-        let mut end = start.saturating_add(window(want));
+        self.fetch_window(start, window(want))
+    }
+
+    /// Fill the buffer with `size` bytes from `start` (fewer at the end of the resource).
+    fn fetch_window(&mut self, start: u64, size: u64) -> Result<(), FetchError> {
+        let mut end = start.saturating_add(size.clamp(1, MAX_CHUNK_BYTES));
         if let Some(len) = self.len {
             end = end.min(len);
         }

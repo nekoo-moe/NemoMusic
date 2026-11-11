@@ -167,11 +167,14 @@ impl Inner {
 
     async fn album(&self, id: BrowseId) -> Result<AlbumDetail, CatalogError> {
         let api = self.api().await?;
-        let page = api
-            .get_album(AlbumID::from_raw(id.0.clone()))
-            .await
-            .map_err(map_error)?;
-        map_album_page(&adapt::album_page(&page), &id).ok_or(CatalogError::NotFound)
+        if id.0.starts_with("MPRE")
+            && let Ok(page) = api.get_album(AlbumID::from_raw(id.0.clone())).await
+            && let Some(detail) = map_album_page(&adapt::album_page(&page), &id)
+        {
+            return Ok(detail);
+        }
+        // Playlist-style album ids (`OLAK5uy...`) and layouts the typed parser rejects.
+        pages::album(api, &id).await
     }
 
     async fn artist(&self, id: BrowseId) -> Result<ArtistDetail, CatalogError> {
@@ -187,20 +190,25 @@ impl Inner {
         let api = self.api().await?;
         // Raw page first: it opens private playlists and the liked-music list. The typed
         // parser of ytmapi-rs stays as the fallback for layouts the raw reader does not know.
-        if let Ok(detail) = pages::playlist(api, &id).await {
-            return Ok(detail);
+        let raw = pages::playlist(api, &id).await;
+        if raw.is_ok() {
+            return raw;
         }
         let bare = id.0.strip_prefix("VL").unwrap_or(&id.0).to_owned();
-        let details = api
-            .get_playlist_details(PlaylistID::from_raw(bare.clone()))
-            .await
-            .map_err(map_error)?;
-        let items = api
-            .get_playlist_tracks(PlaylistID::from_raw(bare))
-            .await
-            .map_err(map_error)?;
-        map_playlist_page(&adapt::playlist_page(&details, &items), &id)
-            .ok_or(CatalogError::NotFound)
+        let typed = async {
+            let details = api
+                .get_playlist_details(PlaylistID::from_raw(bare.clone()))
+                .await
+                .map_err(map_error)?;
+            let items = api
+                .get_playlist_tracks(PlaylistID::from_raw(bare))
+                .await
+                .map_err(map_error)?;
+            map_playlist_page(&adapt::playlist_page(&details, &items), &id)
+                .ok_or(CatalogError::NotFound)
+        };
+        // Report the raw path's error: it names the real cause (network, not found).
+        typed.await.or(raw)
     }
 
     /// Like or un-like a song with this account.
@@ -292,6 +300,18 @@ impl SessionCatalog {
         .await
         .unwrap_or_else(|_| crate::diagnostics::Diagnosis::failed("could not connect"))
     }
+    /// Development aid: describe the raw browse page of `browse_id` (see
+    /// [`crate::diagnostics::id_kind`]); shapes and counts only.
+    pub async fn diagnose_browse(&self, browse_id: String) -> String {
+        let inner = Arc::clone(&self.inner);
+        self.run(async move {
+            let api = inner.api().await?;
+            Ok(crate::diagnostics::browse_report(api, &browse_id).await)
+        })
+        .await
+        .unwrap_or_else(|e| format!("could not connect ({e})"))
+    }
+
     fn run<T, F>(&self, work: F) -> BoxFuture<'static, Result<T, CatalogError>>
     where
         T: Send + 'static,
