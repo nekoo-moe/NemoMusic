@@ -31,6 +31,8 @@ These are the only hosts NemoMusic contacts. Adding a host needs owner approval.
 | `*.googlevideo.com` | The audio stream itself | When a YouTube track plays |
 | `i.ytimg.com`, `*.ggpht.com`, `*.googleusercontent.com` | Cover art and artist pictures | When covers are shown |
 | `lrclib.net` | Synced lyrics | When lyrics are shown |
+| `unison.betterlyrics.org` | Community lyrics (Unison), credited in the lyrics view | When lyrics are shown |
+| `api.betterlyrics.org`, `music.163.com`, `api-lyrics.simpmusic.org` | Extra lyrics sources, grey area | Only if you switch the source on in settings (off by default) |
 | `sponsor.ajay.app` | SponsorBlock segments (only a 4-character hash prefix is sent) | Only when SponsorBlock is on |
 | `accounts.google.com`, `*.gstatic.com` | Google sign-in page | Only while you sign in (not built yet) |
 

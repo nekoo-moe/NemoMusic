@@ -16,7 +16,9 @@ use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 use std::time::Duration;
 
-use nemo_core::lyrics::{LyricsDoc, LyricsError, LyricsProvider, LyricsQuery, ProviderId};
+use nemo_core::lyrics::{
+    CreditedDoc, LyricsCredit, LyricsDoc, LyricsError, LyricsProvider, LyricsQuery, ProviderId,
+};
 use nemo_core::services::LyricsLookup;
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
@@ -78,6 +80,7 @@ impl Default for ChainOptions {
 
 /// What one provider contributed.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(clippy::large_enum_variant)] // A few short-lived values per lookup; boxing buys nothing.
 pub enum Outcome {
     /// An accepted result.
     Hit {
@@ -85,6 +88,8 @@ pub enum Outcome {
         doc: LyricsDoc,
         /// Match score, 0 to 100.
         score: u8,
+        /// Credit the source asks for.
+        credit: Option<LyricsCredit>,
     },
     /// The provider has no lyrics for the track.
     Miss,
@@ -129,13 +134,9 @@ impl ChainResult {
 }
 
 /// Judge one provider answer.
-fn judge(
-    query: &LyricsQuery,
-    chain_order: usize,
-    answer: Result<Option<LyricsDoc>, LyricsError>,
-) -> (Outcome, Option<Candidate>) {
-    let doc = match answer {
-        Ok(Some(doc)) => doc,
+fn judge(query: &LyricsQuery, chain_order: usize, answer: Answer) -> (Outcome, Option<Candidate>) {
+    let (doc, credit) = match answer {
+        Ok(Some(found)) => found,
         Ok(None) => return (Outcome::Miss, None),
         Err(e) => return (Outcome::Error(e), None),
     };
@@ -154,10 +155,10 @@ fn judge(
         score,
         chain_order,
     };
-    (Outcome::Hit { doc, score }, Some(candidate))
+    (Outcome::Hit { doc, score, credit }, Some(candidate))
 }
 
-type Answer = Result<Option<LyricsDoc>, LyricsError>;
+type Answer = Result<Option<CreditedDoc>, LyricsError>;
 
 /// Fetch with a timeout; the timeout also covers waiting for the host permits.
 async fn fetch_limited(
@@ -178,7 +179,7 @@ async fn fetch_limited(
                 }
             }
         }
-        provider.fetch(&query).await
+        provider.fetch_credited(&query).await
     };
     timeout(limit, work).await.ok()
 }
@@ -285,6 +286,27 @@ pub async fn run_chain(
     options: ChainOptions,
     prior: &[Candidate],
 ) -> ChainResult {
+    run_inner(entries, query, options, prior, true).await
+}
+
+/// Like [`run_chain`], but a local hit does not end the run: every enabled provider is asked and
+/// every acceptable answer is reported (for the provider picker). est is still the pick.
+pub async fn run_chain_all(
+    entries: &[ChainEntry],
+    query: &LyricsQuery,
+    options: ChainOptions,
+    prior: &[Candidate],
+) -> ChainResult {
+    run_inner(entries, query, options, prior, false).await
+}
+
+async fn run_inner(
+    entries: &[ChainEntry],
+    query: &LyricsQuery,
+    options: ChainOptions,
+    prior: &[Candidate],
+    stop_on_local: bool,
+) -> ChainResult {
     let deadline = Instant::now() + options.global_budget;
     let active: Vec<(usize, &ChainEntry)> = entries
         .iter()
@@ -294,6 +316,7 @@ pub async fn run_chain(
     let tried: Vec<ProviderId> = active.iter().map(|(_, e)| e.provider.id()).collect();
     let mut reports: Vec<(usize, ProviderReport)> = Vec::new();
     let shared_query = Arc::new(query.clone());
+    let mut local_hits: Vec<Candidate> = Vec::new();
 
     // Stage 1: local providers, one after another, no network.
     for &(order, entry) in active.iter().filter(|(_, e)| e.provider.id() == LOCAL_ID) {
@@ -312,9 +335,10 @@ pub async fn run_chain(
             None => (Outcome::TimedOut, None),
         };
         reports.extend(report(entries, order, outcome));
-        if candidate.is_some() {
+        if candidate.is_some() && stop_on_local {
             return finish(candidate, tried, reports);
         }
+        local_hits.extend(candidate);
     }
 
     // Stage 2: remote providers in parallel, one request per host.
@@ -328,6 +352,7 @@ pub async fn run_chain(
     reports.extend(remote_reports);
 
     let mut candidates: Vec<Candidate> = prior.to_vec();
+    candidates.extend(local_hits);
     candidates.extend(fresh);
     let best = pick_best(&candidates).cloned();
     finish(best, tried, reports)
@@ -353,6 +378,8 @@ mod tests {
     use nemo_core::lyrics::{Granularity, LyricLine, MatchedMeta};
 
     use super::*;
+
+    type Answer = Result<Option<LyricsDoc>, LyricsError>;
 
     /// A provider that waits, then answers. Counts calls and concurrent calls.
     struct Fake {

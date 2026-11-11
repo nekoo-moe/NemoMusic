@@ -11,7 +11,7 @@ use std::time::Duration;
 use crate::BoxFuture;
 use crate::account::AccountService;
 use crate::catalog::Catalog;
-use crate::lyrics::{LyricsDoc, LyricsQuery, ProviderId};
+use crate::lyrics::{LyricsCandidate, LyricsCredit, LyricsDoc, LyricsQuery, ProviderId};
 use crate::player::{PlayerCommand, PlayerEvent, PlayerSnapshot};
 use crate::stream::{ResolvedStream, StreamError};
 use crate::track::Artwork;
@@ -73,6 +73,71 @@ pub trait LyricsService: Send + Sync {
 
     /// Store the user's timing offset for a track.
     fn set_offset_ms(&self, track_key: &str, offset_ms: i64);
+
+    /// Every provider's result for the track, best first (granularity, then score, then chain
+    /// order). Use it for the "rotate providers" picker. Providers that have nothing do not
+    /// appear. The default wraps [`lookup`](Self::lookup) into at most one candidate.
+    fn lookup_all<'a>(&'a self, query: &'a LyricsQuery) -> BoxFuture<'a, Vec<LyricsCandidate>> {
+        Box::pin(async move {
+            self.lookup(query)
+                .await
+                .doc
+                .map(|doc| LyricsCandidate {
+                    provider: doc.provider,
+                    granularity: doc.granularity,
+                    score: 100,
+                    source_note: None,
+                    credit: None,
+                    doc,
+                })
+                .into_iter()
+                .collect()
+        })
+    }
+
+    /// Remember the user's pick of provider for a track. [`lookup`](Self::lookup) returns that
+    /// provider's lyrics first from now on. The default does nothing.
+    fn choose(&self, _track_key: &str, _provider: ProviderId) {}
+
+    /// The remembered pick for a track, if any. The default has none.
+    fn chosen(&self, _track_key: &str) -> Option<ProviderId> {
+        None
+    }
+
+    /// Forget the remembered pick, so the best result wins again. The default does nothing.
+    fn clear_choice(&self, _track_key: &str) {}
+
+    /// The credit the source of the lyrics asks for (Unison must be credited). `None` when the
+    /// source asks for none or nothing is cached. Reads the local cache only.
+    fn credit(&self, _track_key: &str, _provider: ProviderId) -> Option<LyricsCredit> {
+        None
+    }
+
+    /// The providers in chain order with their on/off state. The default lists none.
+    fn providers(&self) -> Vec<LyricsProviderStatus> {
+        Vec::new()
+    }
+
+    /// Switch a provider on or off; the choice is stored. Returns false for an unknown id.
+    /// The default does nothing.
+    fn set_provider_enabled(&self, _provider: ProviderId, _enabled: bool) -> bool {
+        false
+    }
+}
+
+/// A lyrics provider as the settings screen shows it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LyricsProviderStatus {
+    /// Name shown in the UI.
+    pub id: ProviderId,
+    /// Whether it is asked now.
+    pub enabled: bool,
+    /// Whether it is on before the user changes anything.
+    pub default_enabled: bool,
+    /// One-line risk note for opt-in sources.
+    pub risk_note: Option<&'static str>,
+    /// Hosts it contacts.
+    pub hosts: &'static [&'static str],
 }
 
 /// Loading cover art failed.

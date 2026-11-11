@@ -114,3 +114,51 @@ https://github.com/p2o51/lyrics-fetcher/blob/main/SKILL.md (NetEase, QQ, LRCLIB 
 https://github.com/jitwxs/163MusicLyrics
 https://github.com/Wilooper/Lyrica and https://github.com/TharukRenuja/SyncLRC (aggregators)
 -->
+
+## Addendum 2026-11-11: Better Lyrics sources, Unison, provider rotation
+
+Owner request: the Better Lyrics browser extension (GPL-3.0, <https://github.com/better-lyrics/better-lyrics>) offers many providers and lets the user rotate between them, plus a community feed called Unison with TTML syllable-synced lyrics. This section records what its source shows, what we built and what we refused. Facts were read on 2026-11-11 from the repos and docs named in the sources; anything not read is marked `unverified`.
+
+### What Better Lyrics uses
+Its default order (README "Available providers") is: Better Lyrics (syllable), Unison, Spicy Lyrics, BiniLyrics, Better Lyrics Portato and Legato (derived), Musixmatch (word and line), YouTube captions, LRCLib, YouTube plain. Most of these are not called directly. The extension calls its own backend (`lyrics.api.dacubeking.com`, `POST /v2/lyrics`, an event stream) after a Cloudflare Turnstile challenge, and that backend relays Unison, Musixmatch, LRCLIB, KuGou, QQ, GoLyrics, BiniLyrics and Spicy. Unison and the public `api.betterlyrics.org` are separate hosts.
+
+### Provider table
+| Provider | Host and endpoint | Format and sync | Key | Terms and licence | Decision |
+|---|---|---|---|---|---|
+| Unison (Better Lyrics community) | `unison.betterlyrics.org` `GET /lyrics?v=` or `?song=&artist=&album=&duration=` | TTML (`richsync`, syllable), LRC, plain; `confidence` low/medium/high | None to read | Free for apps that credit "Lyrics from Unison" and the submitter, linked; apps have until 2027-02-07. Code AGPL-3.0, data dump ODbL-1.0. Asks for an identifying User-Agent and `ETag` caching | Built, default ON, credit shown via `LyricsCredit` |
+| LRCLIB | `lrclib.net` | LRC, plain | None | See above | Existing, default ON |
+| YTM timed lyrics | `music.youtube.com` | line, ms | Session | See above | In `nemo-ytm`, default ON |
+| Better Lyrics API (public) | `api.betterlyrics.org` `GET /getLyrics?s=&a=&al=&d=` | TTML syllable; JSON `{ttml, score}` | Uncached queries need `X-API-Key`; the key is "exclusive to Better Lyrics" and must not be requested | Source is lrc.red plus an unnamed upstream provider (whether that is Apple Music is unverified); no terms for other apps | Built, default OFF (cache-only without a key, risk note) |
+| SimpMusic Lyrics | `api-lyrics.simpmusic.org` `GET /v1/<videoId>` | LRC, plain; `richSyncLyrics` format unverified, not read | None known | No published terms for other apps; contract read from a third-party client's model code | Built, default OFF. A real request from this client got HTTP 403, so it reports "unavailable" until verified |
+| NetEase Cloud Music | `music.163.com` `POST /api/search/get/`, `GET /api/song/lyric` | line LRC (`yrc` word format not read: needs signed requests) | None | No public API; terms unverified | Built, default OFF, risk note |
+| Better Lyrics backend | `lyrics.api.dacubeking.com` | TTML, relays several sources | Turnstile token plus keys | Built for the extension only | Rejected: it is gated against third-party clients, and a Turnstile solve would be evasion |
+| Musixmatch (as relayed by Better Lyrics) | via the backend | word (richsync), line | Unofficial token in the extension's backend | Closed and licensed | Rejected: unofficial token scraping (coc.md) |
+| Spicy Lyrics | `spicylyrics.org` | syllable, line | Unverified | Relays lyrics from a major streaming service; internals unread | Rejected: private endpoint of another service, relayed by a third party |
+| BiniLyrics / lrc.red | `lyrics.binimum.org` redirects to `lrc.red` | TTML (Apple Music-style, per its README) | Unverified | Contract and terms not read | Not built. Revisit once its API docs are read; it would be grey (OFF) |
+| QQ Music (direct) | `c.y.qq.com` | line LRC, encrypted `qrc` word format | Needs a spoofed `Referer` | Unofficial | Rejected: a faked Referer and a decrypted private format circumvent access control |
+| KuGou, GoLyrics | via the Better Lyrics backend only | LRC | n/a | Unofficial | Rejected: no direct public API found |
+| Genius, Spotify, Apple, Musixmatch (direct) | see the table above | | | | Rejected as before |
+
+Grey providers are off until the user switches them on in settings. The choice is stored in the lyrics database (`provider_setting`), so it survives restarts. Each carries a one-line risk note in `ProviderInfo::risk_note`.
+
+### TTML parser
+`nemo_lyrics::ttml` reads Apple-style TTML: `<p begin end>` lines, `<span begin end>` syllables and words, background vocals (`ttm:role="x-bg"`) as separate flagged lines, singers (`ttm:agent`) with a duet check, translation and romanization spans skipped. Syllable timing maps to `Granularity::Word`; a syllable is one `LyricWord`. Pretty-printed layout whitespace is ignored. A real Unison answer parsed to 16 lines and 102 words in the smoke run.
+
+### Rotation and credit
+- `LyricsService::lookup_all` asks every enabled provider (per-host limit 1, 4 s each, 6 s total, same as the chain) and returns all acceptable results, best first.
+- `LyricsService::choose` stores the user's pick per track in SQLite (`lyrics_choice`). `lookup` returns the picked provider's lyrics first when they are cached or arrive in the same run. The pick survives "refetch" and cache clearing, like offsets; `clear_choice` removes it.
+- `LyricsService::credit` returns the credit a source asks for (`lyrics_credit`). The UI must show Unison's credit with its lyrics and never label them as another provider's.
+
+### Consequences
+- New hosts for the README egress list: `unison.betterlyrics.org` (default), `api.betterlyrics.org`, `music.163.com`, `api-lyrics.simpmusic.org` (the last three only after the user opts in). Owner approval needed for these hosts (tech.md, product.md).
+- Unison's attribution deadline is 2027-02-07; the UI must render the credit before then.
+- Open: SimpMusic 403, BiniLyrics contract, NetEase `yrc`, and whether the owner accepts the three grey sources.
+
+<!-- Sources (addendum):
+https://github.com/better-lyrics/better-lyrics (README provider table, src/modules/lyrics/providers, src/core/constants.ts)
+https://github.com/better-lyrics/api and https://docs.betterlyrics.org/reference/get-lyrics
+https://github.com/better-lyrics/unison (README: endpoints, attribution, licences)
+https://www.simpmusic.org/docs/dev/lyrics-pipeline
+https://github.com/EchoMusicApp/Echo-Music (LyricsResponse.kt, SimpMusic response shape)
+https://github.com/binimum/am-lyrics (README, LyricsSources.ts)
+-->

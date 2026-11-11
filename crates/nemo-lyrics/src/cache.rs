@@ -13,7 +13,9 @@ use std::path::Path;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use nemo_core::lyrics::{Granularity, LyricLine, LyricWord, LyricsDoc, MatchedMeta, ProviderId};
+use nemo_core::lyrics::{
+    Granularity, LyricLine, LyricWord, LyricsCredit, LyricsDoc, MatchedMeta, ProviderId,
+};
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 
@@ -273,6 +275,24 @@ impl LyricsCache {
              CREATE TABLE IF NOT EXISTS lyrics_offset (
                  track_key TEXT PRIMARY KEY NOT NULL,
                  offset_ms INTEGER NOT NULL
+             );
+             CREATE TABLE IF NOT EXISTS lyrics_choice (
+                 track_key TEXT PRIMARY KEY NOT NULL,
+                 provider  TEXT NOT NULL
+             );
+             CREATE TABLE IF NOT EXISTS lyrics_credit (
+                 track_key TEXT NOT NULL,
+                 provider  TEXT NOT NULL,
+                 label     TEXT NOT NULL,
+                 url       TEXT,
+                 by_name   TEXT,
+                 by_url    TEXT,
+                 note      TEXT,
+                 PRIMARY KEY (track_key, provider)
+             );
+             CREATE TABLE IF NOT EXISTS provider_setting (
+                 provider TEXT PRIMARY KEY NOT NULL,
+                 enabled  INTEGER NOT NULL
              );",
         )?;
         Ok(Self {
@@ -414,8 +434,13 @@ impl LyricsCache {
     /// # Errors
     /// [`CacheError`] on database errors.
     pub fn remove_track(&self, track_key: &str) -> Result<(), CacheError> {
-        self.lock().execute(
+        let conn = self.lock();
+        conn.execute(
             "DELETE FROM lyrics_cache WHERE track_key = ?1",
+            params![track_key],
+        )?;
+        conn.execute(
+            "DELETE FROM lyrics_credit WHERE track_key = ?1",
             params![track_key],
         )?;
         Ok(())
@@ -426,8 +451,136 @@ impl LyricsCache {
     /// # Errors
     /// [`CacheError`] on database errors.
     pub fn clear(&self) -> Result<(), CacheError> {
-        self.lock().execute("DELETE FROM lyrics_cache", [])?;
+        let conn = self.lock();
+        conn.execute("DELETE FROM lyrics_cache", [])?;
+        conn.execute("DELETE FROM lyrics_credit", [])?;
         Ok(())
+    }
+
+    /// Store the credit a source asks for next to the lyrics it returned.
+    ///
+    /// # Errors
+    /// [`CacheError`] on database errors.
+    pub fn put_credit(
+        &self,
+        track_key: &str,
+        provider: ProviderId,
+        credit: &LyricsCredit,
+    ) -> Result<(), CacheError> {
+        self.lock().execute(
+            "INSERT OR REPLACE INTO lyrics_credit
+                 (track_key, provider, label, url, by_name, by_url, note)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![
+                track_key,
+                provider.as_str(),
+                credit.label,
+                credit.url,
+                credit.by,
+                credit.by_url,
+                credit.note
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// The stored credit for a track and provider, if any.
+    ///
+    /// # Errors
+    /// [`CacheError`] on database errors.
+    pub fn credit(
+        &self,
+        track_key: &str,
+        provider: ProviderId,
+    ) -> Result<Option<LyricsCredit>, CacheError> {
+        Ok(self
+            .lock()
+            .query_row(
+                "SELECT label, url, by_name, by_url, note FROM lyrics_credit
+                 WHERE track_key = ?1 AND provider = ?2",
+                params![track_key, provider.as_str()],
+                |r| {
+                    Ok(LyricsCredit {
+                        label: r.get(0)?,
+                        url: r.get(1)?,
+                        by: r.get(2)?,
+                        by_url: r.get(3)?,
+                        note: r.get(4)?,
+                    })
+                },
+            )
+            .optional()?)
+    }
+
+    /// Remember the user's pick of provider for a track. It is a user setting: refetching and
+    /// clearing the cache keep it, like offsets.
+    ///
+    /// # Errors
+    /// [`CacheError`] on database errors.
+    pub fn set_choice(&self, track_key: &str, provider: ProviderId) -> Result<(), CacheError> {
+        self.lock().execute(
+            "INSERT OR REPLACE INTO lyrics_choice (track_key, provider) VALUES (?1, ?2)",
+            params![track_key, provider.as_str()],
+        )?;
+        Ok(())
+    }
+
+    /// The provider name the user picked for a track, if any.
+    ///
+    /// # Errors
+    /// [`CacheError`] on database errors.
+    pub fn choice(&self, track_key: &str) -> Result<Option<String>, CacheError> {
+        Ok(self
+            .lock()
+            .query_row(
+                "SELECT provider FROM lyrics_choice WHERE track_key = ?1",
+                params![track_key],
+                |r| r.get::<_, String>(0),
+            )
+            .optional()?)
+    }
+
+    /// Forget the user's pick for a track.
+    ///
+    /// # Errors
+    /// [`CacheError`] on database errors.
+    pub fn clear_choice(&self, track_key: &str) -> Result<(), CacheError> {
+        self.lock().execute(
+            "DELETE FROM lyrics_choice WHERE track_key = ?1",
+            params![track_key],
+        )?;
+        Ok(())
+    }
+
+    /// Store whether the user switched a provider on or off.
+    ///
+    /// # Errors
+    /// [`CacheError`] on database errors.
+    pub fn set_provider_enabled(
+        &self,
+        provider: ProviderId,
+        enabled: bool,
+    ) -> Result<(), CacheError> {
+        self.lock().execute(
+            "INSERT OR REPLACE INTO provider_setting (provider, enabled) VALUES (?1, ?2)",
+            params![provider.as_str(), enabled],
+        )?;
+        Ok(())
+    }
+
+    /// What the user chose for a provider, None if they never changed it.
+    ///
+    /// # Errors
+    /// [`CacheError`] on database errors.
+    pub fn provider_enabled(&self, provider: ProviderId) -> Result<Option<bool>, CacheError> {
+        Ok(self
+            .lock()
+            .query_row(
+                "SELECT enabled FROM provider_setting WHERE provider = ?1",
+                params![provider.as_str()],
+                |r| r.get::<_, bool>(0),
+            )
+            .optional()?)
     }
 
     /// The stored offset for a track in milliseconds (0 when none).

@@ -144,6 +144,70 @@ pub enum LyricsError {
     Unavailable(String),
 }
 
+/// Credit a source asks apps to show next to its lyrics (for example Unison and the submitter).
+/// The UI shows `label` (linked to `url` when present) and, when present, `by` (linked to
+/// `by_url`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LyricsCredit {
+    /// Text such as "Lyrics from Unison".
+    pub label: String,
+    /// Page of the source for this lyric.
+    pub url: Option<String>,
+    /// Who submitted the lyric, if the source says.
+    pub by: Option<String>,
+    /// Profile page of the submitter.
+    pub by_url: Option<String>,
+    /// Extra detail for the picker, for example community confidence: low.
+    pub note: Option<String>,
+}
+
+/// Static facts about a provider, for the settings screen.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ProviderInfo {
+    /// Whether the provider is on until the user turns it off. Grey-area sources are `false`.
+    pub default_enabled: bool,
+    /// One-line risk note shown next to an opt-in provider. `None` for open sources.
+    pub risk_note: Option<&'static str>,
+}
+
+impl ProviderInfo {
+    /// An open source that is on by default.
+    pub const OPEN: Self = Self {
+        default_enabled: true,
+        risk_note: None,
+    };
+
+    /// A grey-area source: off until the user opts in, with a risk note.
+    #[must_use]
+    pub const fn opt_in(risk_note: &'static str) -> Self {
+        Self {
+            default_enabled: false,
+            risk_note: Some(risk_note),
+        }
+    }
+}
+
+/// A lyrics document with the credit its source asks for.
+pub type CreditedDoc = (LyricsDoc, Option<LyricsCredit>);
+
+/// One provider's answer for a track, for the "rotate providers" picker.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LyricsCandidate {
+    /// Which provider produced it (also `doc.provider`).
+    pub provider: ProviderId,
+    /// Timing precision (also `doc.granularity`).
+    pub granularity: Granularity,
+    /// Match score, 0 to 100.
+    pub score: u8,
+    /// Short note shown with the provider name, for example "community confidence: low" or a
+    /// risk note for an opt-in source. `None` when there is nothing to add.
+    pub source_note: Option<String>,
+    /// Credit the source asks for, if any.
+    pub credit: Option<LyricsCredit>,
+    /// The lyrics.
+    pub doc: LyricsDoc,
+}
+
 /// A source of lyrics.
 pub trait LyricsProvider: Send + Sync {
     /// Stable name, shown in the UI.
@@ -157,6 +221,19 @@ pub trait LyricsProvider: Send + Sync {
         &'a self,
         query: &'a LyricsQuery,
     ) -> BoxFuture<'a, Result<Option<LyricsDoc>, LyricsError>>;
+
+    /// Like [`fetch`](Self::fetch), plus the credit the source asks for. The default has none.
+    fn fetch_credited<'a>(
+        &'a self,
+        query: &'a LyricsQuery,
+    ) -> BoxFuture<'a, Result<Option<CreditedDoc>, LyricsError>> {
+        Box::pin(async move { Ok(self.fetch(query).await?.map(|doc| (doc, None))) })
+    }
+
+    /// Default on or off, and the risk note. The default is an open source that is on.
+    fn info(&self) -> ProviderInfo {
+        ProviderInfo::OPEN
+    }
 }
 
 #[cfg(test)]
