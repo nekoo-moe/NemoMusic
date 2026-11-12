@@ -13,7 +13,7 @@ NemoMusic is a desktop music player in Rust that treats the signal path with res
 - Listens at a desk for hours (work, study, writing) on a good DAC, headphones or speakers.
 - Cares about the output chain (exclusive/bit-perfect output, no resampling) and about UI craft.
 - Wants fewer notifications, fewer recommendations, fewer decisions.
-- Starts on Windows. Linux and macOS users come later.
+- Windows and Linux. macOS users come later.
 
 ## Product principles (in priority order; use them to settle arguments)
 1. Sound first. Any feature that alters samples by default (EQ, normalization, resampling, DSP) is off by default and visibly shown when on. Sound quality wins over visual polish and features.
@@ -37,7 +37,7 @@ NemoMusic is a desktop music player in Rust that treats the signal path with res
 
 ## Scope
 ### MVP
-- Windows 10/11 desktop app.
+- Windows 10/11 and Linux (x86_64) desktop app. Linux plays in shared mode through ALSA/PipeWire for now (owner, 2026-11-12).
 - Playback from YouTube Music: search, album/artist/playlist views, queue, play/pause/seek/next/prev.
 - Bit-perfect output on Windows (WASAPI exclusive), device picker, no resampling when the device supports the stream rate.
 - Quality badge and a signal-path view (source codec, decode, output device and format).
@@ -51,7 +51,7 @@ NemoMusic is a desktop music player in Rust that treats the signal path with res
 
 ### Later
 - Local file library (FLAC, ALAC, WAV, others) with true-lossless badge. (MVP inclusion is an open decision.)
-- Linux (PipeWire/ALSA) and macOS (CoreAudio) output.
+- Linux bit-perfect output (direct ALSA `hw:` device) and macOS (CoreAudio) output.
 - Optional opt-in DSP (EQ, ReplayGain) with clear on/off state.
 - Offline cache of audio (open decision, see below).
 - Focus/session features (timers, quiet mode).

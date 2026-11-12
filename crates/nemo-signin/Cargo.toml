@@ -15,3 +15,8 @@ serde_json.workspace = true
 # WebView2 window (Windows) and its event loop. Pinned exactly (tech.md, Sign-in window).
 wry = { version = "=0.57.2", default-features = false }
 tao = { version = "=0.37.2" }
+
+# Linux: the webview is WebKitGTK (`os-webview`). It is attached to tao's GTK box, so the
+# `x11` feature is not needed and the window works on X11 and Wayland.
+[target.'cfg(target_os = "linux")'.dependencies]
+wry = { version = "=0.57.2", default-features = false, features = ["os-webview"] }

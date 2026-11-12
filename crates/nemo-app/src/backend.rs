@@ -16,7 +16,7 @@ use nemo_ytm::account::{
     AccountCatalog, AccountConfig, GoogleAccount, SessionSlot, default_helper_path,
 };
 use nemo_ytm::catalog::YtmCatalog;
-use nemo_ytm::credentials::WindowsStore;
+use nemo_ytm::credentials::PlatformStore;
 use nemo_ytm::images::ImageCache;
 use nemo_ytm::resolver::default_chain;
 use nemo_ytm::session::YtmSessionBackend;
@@ -115,16 +115,17 @@ pub fn build(
     })
 }
 
-/// The Google account service, or `NoAccount` when Credential Manager or the helper is missing.
+/// The Google account service, or `NoAccount` when the OS credential store or the helper is missing.
 fn build_account(paths: &AppPaths, handle: &Handle, slot: &SessionSlot) -> Arc<dyn AccountService> {
-    let store = match WindowsStore::new() {
+    let store = match PlatformStore::new() {
         Ok(store) => store,
         Err(err) => {
             tracing::warn!(error = %err, "sign-in disabled");
             return Arc::new(NoAccount);
         }
     };
-    let helper = default_helper_path().unwrap_or_else(|| paths.bin.join("nemo-signin.exe"));
+    let helper =
+        default_helper_path().unwrap_or_else(|| paths.bin.join(nemo_ytm::account::HELPER_NAME));
     let config = AccountConfig {
         helper,
         webview_dir: paths.webview.clone(),

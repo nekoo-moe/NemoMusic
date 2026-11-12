@@ -1,7 +1,8 @@
 //! Google account sign-in for YouTube Music (ADR 0001).
 //!
-//! Everything stays on this computer: the session lives in Windows Credential Manager, and the
-//! account data the app fetches is cached locally. Implementations never log cookies, tokens,
+//! Everything stays on this computer: the session lives in the OS credential store (Windows
+//! Credential Manager or the Linux Secret Service), and the account data the app fetches is
+//! cached locally. Implementations never log cookies, tokens,
 //! e-mail addresses or account ids.
 
 use crate::BoxFuture;
@@ -46,7 +47,7 @@ pub enum AccountError {
     /// The sign-in helper or WebView2 runtime is missing.
     #[error("the sign-in window is not available: {0}")]
     Unavailable(String),
-    /// Windows Credential Manager failed.
+    /// The OS credential store failed.
     #[error("cannot store the sign-in on this computer: {0}")]
     Storage(String),
     /// The network request failed.
@@ -57,7 +58,7 @@ pub enum AccountError {
 /// What sign-out removed, for the confirmation message.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SignOutReport {
-    /// Credential Manager entries removed.
+    /// OS credential store entries removed.
     pub credentials_removed: usize,
     /// Cache files and folders removed.
     pub files_removed: usize,

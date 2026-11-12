@@ -1,7 +1,8 @@
 //! Where `NemoMusic` keeps its local data (`product.md`, Local only).
 //!
 //! Everything lives under one root so that sign-out and "clear all data" can remove it in one
-//! place. On Windows the root is `%LOCALAPPDATA%\NemoMusic` (not roaming, see ADR 0001).
+//! place. On Windows the root is `%LOCALAPPDATA%\NemoMusic` (not roaming, see ADR 0001); on
+//! Linux it is `$XDG_DATA_HOME/NemoMusic` or `~/.local/share/NemoMusic`.
 
 use std::path::{Path, PathBuf};
 
@@ -31,7 +32,9 @@ pub struct AppPaths {
 
 /// No data directory could be found for this user.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-#[error("no local data folder is set for this user (LOCALAPPDATA is missing)")]
+#[error(
+    "no local data folder is set for this user (LOCALAPPDATA, or XDG_DATA_HOME and HOME, are missing)"
+)]
 pub struct NoDataDir;
 
 impl AppPaths {
