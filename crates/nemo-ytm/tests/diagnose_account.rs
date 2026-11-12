@@ -19,7 +19,7 @@ use nemo_core::catalog::{Catalog, FeedItem};
 use nemo_core::secret::Secret;
 use nemo_core::stream::StreamResolver;
 use nemo_ytm::account::{AccountConfig, GoogleAccount, SessionSlot};
-use nemo_ytm::credentials::WindowsStore;
+use nemo_ytm::credentials::PlatformStore;
 use nemo_ytm::diagnostics::Diagnosis;
 use nemo_ytm::session::{SessionBackend, SessionCatalog};
 use nemo_ytm::ytdlp::YtDlpResolver;
@@ -68,7 +68,7 @@ fn describe_the_account_pages() {
             webview_dir: scratch.join("webview"),
             cache_file: cache,
         },
-        Arc::new(WindowsStore::new().expect("credential store")),
+        Arc::new(PlatformStore::new().expect("credential store")),
         Arc::new(Capture {
             handle: runtime.handle().clone(),
             caught: Arc::clone(&caught),

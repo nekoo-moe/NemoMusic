@@ -11,7 +11,7 @@
 
 **NemoMusic** (or *Nimomyūjikku*) is a calm desktop music player for long listening sessions, written in Rust. It plays the YouTube Music catalog and your own files through an untouched output path, and it treats cover art, type and motion as part of the music.
 
-Status: early development (Windows first).
+Status: early development. Runs on Windows 10/11 and Linux (x86_64).
 
 ## What "lossless" means here
 
@@ -27,7 +27,7 @@ Status: early development (Windows first).
 
 ## Local only
 
-NemoMusic runs entirely on your computer. The project runs no server and collects no telemetry. Sign-in data is kept in Windows Credential Manager. Your library, history and caches stay in `%LOCALAPPDATA%\NemoMusic`. Signing out deletes them.
+NemoMusic runs entirely on your computer. The project runs no server and collects no telemetry. Sign-in data is kept in the OS credential store: Windows Credential Manager, or the Secret Service keyring on Linux (GNOME Keyring, KWallet). It is never written to a file. Your library, history and caches stay in `%LOCALAPPDATA%\NemoMusic` on Windows and `$XDG_DATA_HOME/NemoMusic` (usually `~/.local/share/NemoMusic`) on Linux. Signing out deletes them.
 
 ### Network egress list
 
@@ -48,14 +48,37 @@ These are the only hosts NemoMusic contacts. Adding a host needs owner approval.
 
 ## Build and run
 
-Needs Rust (pinned in `rust-toolchain.toml`), Visual Studio Build Tools with the C++ workload, and [yt-dlp](https://github.com/yt-dlp/yt-dlp) on `PATH` for YouTube playback.
+Needs Rust (pinned in `rust-toolchain.toml`) and [yt-dlp](https://github.com/yt-dlp/yt-dlp) on `PATH` for YouTube playback. Build `nemo-signin` too: the app looks for it next to `nemo-app`.
+
+### Windows
+
+Also needs Visual Studio Build Tools with the C++ workload.
 
 ```powershell
 winget install --id yt-dlp.yt-dlp -e --scope user
+cargo build -p nemo-signin --release
 cargo run -p nemo-app --release
 ```
 
-Checks:
+### Linux
+
+Tested on Linux Mint 22.3 (Ubuntu 24.04 base), X11. Needs these system packages (Debian and Ubuntu names):
+
+```bash
+sudo apt install -y pkg-config libasound2-dev libgtk-3-dev libwebkit2gtk-4.1-dev \
+  libsoup-3.0-dev libxdo-dev libssl-dev
+sudo apt install -y yt-dlp   # or: pipx install yt-dlp
+cargo build -p nemo-signin --release
+cargo run -p nemo-app --release
+```
+
+Linux notes:
+
+- Sign-in needs a running Secret Service (GNOME Keyring or KWallet). Without one, sign-in is off and nothing is saved.
+- The sign-in window is WebKitGTK. Google may refuse it; "Paste cookie instead" still works.
+- Sound goes through ALSA, so PipeWire or PulseAudio may resample. The signal-path view shows this as shared mode, never as bit-perfect. A direct exclusive path is planned later.
+
+Checks (same on both systems):
 
 ```powershell
 cargo fmt --all -- --check

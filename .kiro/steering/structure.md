@@ -32,7 +32,7 @@ NemoMusic/
 - nemo-audio: symphonia decode, Opus decode, device enumeration, WASAPI and cpal output, optional ASIO, rubato, gapless queue, volume, signal-path report. Real-time code lives only here.
 - nemo-library: SQLite schema and migrations, folder scan, lofty tag read/write, cover art extraction, search over the local catalog.
 - nemo-ytm: `ytmapi-rs` catalog calls, `yt-dlp` stream resolver, Google sign-in and credential handling, account data fetch, SponsorBlock `SegmentSource`, the YTM timed-lyrics provider, rate limiting. Returns `nemo-core` types. Owns the ToS risk notice text.
-- nemo-signin: small binary that opens Google's sign-in page in a WebView2 window (wry + tao), waits until YouTube Music is reached, and writes the session cookies to its stdout pipe for `nemo-ytm`. No other logic. Depends on no `nemo-*` crate. Shipped next to `nemo-app.exe`.
+- nemo-signin: small binary that opens Google's sign-in page in a webview window (wry + tao; WebView2 on Windows, WebKitGTK on Linux), waits until YouTube Music is reached, and writes the session cookies to its stdout pipe for `nemo-ytm`. No other logic. Depends on no `nemo-*` crate. Shipped next to `nemo-app` (`nemo-app.exe` on Windows).
 - nemo-lyrics: other `LyricsProvider` implementations (LRCLIB and more), LRC and enhanced-LRC parsers, match scoring, fallback chain. The `LyricsProvider` and `SegmentSource` traits live in `nemo-core`. Depends only on `nemo-core`.
 - nemo-ui: all iced code, theme, fonts, widgets, animations. Talks to the player only through `PlayerCommand` and `PlayerEvent`.
 - nemo-app: `main`, config file, tracing setup, crate wiring, packaging metadata. No business logic.

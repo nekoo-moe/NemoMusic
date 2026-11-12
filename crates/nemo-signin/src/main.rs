@@ -1,11 +1,12 @@
-//! `nemo-signin`: shows Google's sign-in page for YouTube Music in a `WebView2` window and hands
-//! the session cookies to `nemo-ytm` through its stdout pipe.
+//! `nemo-signin`: shows Google's sign-in page for YouTube Music in a webview window (`WebView2`
+//! on Windows, `WebKitGTK` on Linux) and hands the session cookies to `nemo-ytm` through its
+//! stdout pipe.
 //!
-//! Usage: `nemo-signin --data-dir <folder>`. The folder is this window's own `WebView2` profile;
+//! Usage: `nemo-signin --data-dir <folder>`. The folder is this window's own webview profile;
 //! `nemo-ytm` deletes it on sign-out.
 //!
 //! Exit codes: 0 signed in (one JSON line `{"cookie":"a=b; c=d"}` on stdout), 2 the user closed
-//! the window (nothing printed), 3 the `WebView2` runtime or the window is not available,
+//! the window (nothing printed), 3 the webview runtime or the window is not available,
 //! 64 bad arguments. Cookies are never written to stderr, logs or files.
 
 #![windows_subsystem = "windows"]
@@ -19,7 +20,7 @@ use tao::dpi::LogicalSize;
 use tao::event::{Event, WindowEvent};
 use tao::event_loop::{ControlFlow, EventLoopBuilder};
 use tao::window::WindowBuilder;
-use wry::{PageLoadEvent, WebContext, WebViewBuilder};
+use wry::{PageLoadEvent, WebContext, WebView, WebViewBuilder};
 
 const EXIT_CANCELLED: i32 = 2;
 const EXIT_UNAVAILABLE: i32 = 3;
@@ -47,6 +48,24 @@ fn main() {
     std::process::exit(run(data_dir));
 }
 
+/// Put the webview into the window. Windows: the native window handle (`WebView2`).
+#[cfg(not(target_os = "linux"))]
+fn attach(builder: WebViewBuilder<'_>, window: &tao::window::Window) -> wry::Result<WebView> {
+    builder.build(window)
+}
+
+/// Put the webview into the window. Linux: tao's default GTK box (`WebKitGTK`), which works on
+/// both X11 and Wayland.
+#[cfg(target_os = "linux")]
+fn attach(builder: WebViewBuilder<'_>, window: &tao::window::Window) -> wry::Result<WebView> {
+    use tao::platform::unix::WindowExtUnix;
+    use wry::WebViewBuilderExtUnix;
+    let vbox = window
+        .default_vbox()
+        .ok_or(wry::Error::UnsupportedWindowHandle)?;
+    builder.build_gtk(vbox)
+}
+
 /// Run the window. Returns the process exit code; on success the cookie line is already written.
 fn run(data_dir: PathBuf) -> i32 {
     if std::fs::create_dir_all(&data_dir).is_err() {
@@ -63,19 +82,19 @@ fn run(data_dir: PathBuf) -> i32 {
     };
 
     let mut context = WebContext::new(Some(data_dir));
-    // The user agent stays WebView2's own: Google checks it, and a spoofed one is what gets
+    // The user agent stays the webview's own: Google checks it, and a spoofed one is what gets
     // embedded sign-in blocked.
-    let built = WebViewBuilder::new_with_web_context(&mut context)
+    let builder = WebViewBuilder::new_with_web_context(&mut context)
         .with_url(cookies::SIGN_IN_URL)
         .with_navigation_handler(|url| cookies::is_allowed_navigation(&url))
         .with_on_page_load_handler(move |event, url| {
             if matches!(event, PageLoadEvent::Finished) {
                 // The loop owns the webview; cookies are read there, on the UI thread.
+                // Ignored on purpose: a send only fails when the loop has already ended.
                 let _ = proxy.send_event(Message::Loaded(url));
             }
-        })
-        .build(&window);
-    let Ok(webview) = built else {
+        });
+    let Ok(webview) = attach(builder, &window) else {
         return EXIT_UNAVAILABLE;
     };
 

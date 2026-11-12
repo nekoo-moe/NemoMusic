@@ -22,6 +22,11 @@ iced = { version = "=0.14.0", optional = true, default-features = false, feature
 # Headless rendering for snapshot PNGs (same project as iced; tiny-skia renderer, no GPU).
 iced_test = { version = "=0.14.0", optional = true, default-features = false }
 
+# Linux needs a window backend; `default-features = false` above turns both off.
+# Cargo unifies these features with the entry above when `gui` is on.
+[target.'cfg(target_os = "linux")'.dependencies]
+iced = { version = "=0.14.0", optional = true, default-features = false, features = ["x11", "wayland"] }
+
 [[example]]
 name = "glass_spike"
 required-features = ["gui"]

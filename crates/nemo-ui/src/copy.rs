@@ -1,11 +1,68 @@
 //! Fixed wording from `design.md` section 12, ADR 0001 (first-run notice) and the README.
 //! Kept in one place so the tests can check it word for word.
+//!
+//! The credential store and data folder differ per platform, so the sentences that name them
+//! are built with the `store!`, `data_dir!` and `this_machine!` macros. The Windows text is the
+//! `design.md` wording.
+
+/// Name of the OS credential store, as the user sees it.
+#[cfg(windows)]
+macro_rules! store {
+    () => {
+        "Windows Credential Manager"
+    };
+}
+/// Name of the OS credential store, as the user sees it.
+#[cfg(not(windows))]
+macro_rules! store {
+    () => {
+        "the system keyring"
+    };
+}
+/// The app data folder, as the user sees it.
+#[cfg(windows)]
+macro_rules! data_dir {
+    () => {
+        "%LOCALAPPDATA%\\NemoMusic"
+    };
+}
+/// The app data folder, as the user sees it.
+#[cfg(not(windows))]
+macro_rules! data_dir {
+    () => {
+        "$XDG_DATA_HOME/NemoMusic (usually ~/.local/share/NemoMusic)"
+    };
+}
+
+/// How the first-run notice names this computer (the ADR text says "this PC" on Windows).
+#[cfg(windows)]
+macro_rules! this_machine {
+    () => {
+        "this PC"
+    };
+}
+/// How the first-run notice names this computer.
+#[cfg(not(windows))]
+macro_rules! this_machine {
+    () => {
+        "this computer"
+    };
+}
+
+/// Name of the OS credential store, as the user sees it.
+pub const CREDENTIAL_STORE: &str = store!();
 
 /// First-run notice, ADR 0001 (draft approved by the owner for this build), in the paragraphs
 /// the sheet shows. Joined with a space they are the ADR text.
 pub const TOS_NOTICE: [&str; 3] = [
     "NemoMusic is not made, approved or supported by Google or YouTube. It uses YouTube Music through unofficial means, which may break the YouTube Terms of Service. Google could limit or suspend the account you sign in with, and access can stop working without notice. Use at your own risk, and consider an account you can afford to lose.",
-    "NemoMusic runs only on your computer and has no servers: your sign-in is kept in Windows Credential Manager and your library is stored on this PC. Signing out deletes both.",
+    concat!(
+        "NemoMusic runs only on your computer and has no servers: your sign-in is kept in ",
+        store!(),
+        " and your library is stored on ",
+        this_machine!(),
+        ". Signing out deletes both."
+    ),
     "Ad blocking and SponsorBlock can reduce income for artists; both can be switched off in Settings. YouTube Music audio is lossy.",
 ];
 /// Label of the notice checkbox (not pre-checked).
@@ -53,7 +110,13 @@ pub const EGRESS: [(&str, &str); 7] = [
     ),
 ];
 /// Where local data lives (README).
-pub const PRIVACY_DATA: &str = "Your library, history and caches stay in %LOCALAPPDATA%\\NemoMusic. Sign-in data is kept in Windows Credential Manager.";
+pub const PRIVACY_DATA: &str = concat!(
+    "Your library, history and caches stay in ",
+    data_dir!(),
+    ". Sign-in data is kept in ",
+    store!(),
+    "."
+);
 
 /// About: licence line.
 pub const ABOUT_LICENSE: &str = "NemoMusic is free software under the GPL-3.0 licence. The bundled font is Google Sans Flex (SIL Open Font License 1.1); the icons are Material Symbols Rounded (Apache License 2.0).";
@@ -73,7 +136,11 @@ pub const LIBRARY_EMPTY_HELP: &str = "Add a music folder in Settings, under Libr
 /// Sign-in sheet: title when signed out.
 pub const ACCOUNT_TITLE: &str = "Sign in to YouTube Music";
 /// Sign-in sheet: where everything lives (`design.md` section 11, word for word).
-pub const ACCOUNT_LOCAL: &str = "Everything stays on this computer. NemoMusic has no server. Your sign-in and library data are stored here, in Windows Credential Manager.";
+pub const ACCOUNT_LOCAL: &str = concat!(
+    "Everything stays on this computer. NemoMusic has no server. Your sign-in and library data are stored here, in ",
+    store!(),
+    "."
+);
 /// Sign-in sheet: the Terms of Service notice (`design.md` section 11, word for word).
 pub const ACCOUNT_TOS: &str = "NemoMusic uses YouTube Music without an official API. This may break YouTube's Terms of Service and your account could be restricted.";
 /// Sign-in sheet: primary button.
@@ -83,7 +150,11 @@ pub const ACCOUNT_PASTE: &str = "Paste cookie instead";
 /// Sign-in sheet: back from the fallback.
 pub const ACCOUNT_USE_WINDOW: &str = "Use the sign-in window instead";
 /// Sign-in sheet: help under the cookie field.
-pub const ACCOUNT_COOKIE_HELP: &str = "Copy the cookie header of a signed-in music.youtube.com request from your own browser. It is hidden while you type, kept in Windows Credential Manager, and never shown again.";
+pub const ACCOUNT_COOKIE_HELP: &str = concat!(
+    "Copy the cookie header of a signed-in music.youtube.com request from your own browser. It is hidden while you type, kept in ",
+    store!(),
+    ", and never shown again."
+);
 /// Sign-in sheet: placeholder of the masked field.
 pub const ACCOUNT_COOKIE_PLACEHOLDER: &str = "Paste the cookie here";
 /// Sign-in sheet: waiting for the sign-in window.
@@ -109,7 +180,7 @@ pub fn account_error(error: &nemo_core::account::AccountError) -> String {
         E::Blocked => "Google would not show its sign-in page in this window. Use \u{201c}Paste cookie instead\u{201d} below.".to_owned(),
         E::Rejected => "YouTube Music did not accept this sign-in. If you pasted a cookie, check that you copied all of it from a browser where you are signed in.".to_owned(),
         E::Unavailable(_) => "The sign-in window cannot open on this computer. Use \u{201c}Paste cookie instead\u{201d} below.".to_owned(),
-        E::Storage(_) => "NemoMusic could not save the sign-in in Windows Credential Manager, so you are still signed out.".to_owned(),
+        E::Storage(_) => concat!("NemoMusic could not save the sign-in in ", store!(), ", so you are still signed out.").to_owned(),
         E::Network(_) => "The network request failed. Check your connection and try again.".to_owned(),
     }
 }
@@ -142,6 +213,12 @@ mod tests {
     #[test]
     fn account_wording_matches_design_section_11() {
         assert!(ACCOUNT_LOCAL.starts_with("Everything stays on this computer."));
+        #[cfg(windows)]
+        assert_eq!(
+            ACCOUNT_LOCAL,
+            "Everything stays on this computer. NemoMusic has no server. Your sign-in and library data are stored here, in Windows Credential Manager."
+        );
+        assert!(ACCOUNT_LOCAL.ends_with(concat!(store!(), ".")));
         assert!(ACCOUNT_TOS.contains("could be restricted"));
         assert_eq!(
             ACCOUNT_SIGN_OUT_CONFIRM,

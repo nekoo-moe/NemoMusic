@@ -18,6 +18,11 @@ use std::time::Instant;
 use nemo_ytm::ytdlp::{ONEDIR_DIR, install_onedir, locate_yt_dlp};
 
 fn main() -> ExitCode {
+    // The onedir asset is a Windows build. On Linux, install yt-dlp from the distro or pip.
+    if !cfg!(windows) {
+        eprintln!("this installs the Windows build only; on Linux use your package manager");
+        return ExitCode::FAILURE;
+    }
     let target = std::env::args().nth(1).map(PathBuf::from).or_else(|| {
         std::env::var_os("LOCALAPPDATA").map(|base| {
             PathBuf::from(base)

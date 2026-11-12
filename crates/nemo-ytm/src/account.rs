@@ -1,9 +1,9 @@
 //! Google account sign-in for YouTube Music (ADR 0001), all on this computer.
 //!
-//! Two ways in: the `nemo-signin` helper (Google's own page in a `WebView2` window, which hands
+//! Two ways in: the `nemo-signin` helper (Google's own page in a webview window, which hands
 //! back the session cookies) and a cookie the user pastes. Either way the cookie is checked
-//! against YouTube Music, stored in Windows Credential Manager and used for the account-aware
-//! catalog. The cookie is never passed to `yt-dlp`, never logged, and never written to a file.
+//! against YouTube Music, stored in the OS credential store (Windows Credential Manager, or the
+//! Secret Service on Linux) and used for the account-aware catalog. The cookie is never passed to `yt-dlp`, never logged, and never written to a file.
 //! Messages never contain cookies, names or ids.
 
 use std::path::{Path, PathBuf};
@@ -30,7 +30,17 @@ use crate::session::{SessionBackend, normalize_cookie};
 /// How long the sign-in window may stay open.
 pub const SIGN_IN_TIMEOUT: Duration = Duration::from_mins(10);
 /// File name of the sign-in helper.
+#[cfg(windows)]
 pub const HELPER_NAME: &str = "nemo-signin.exe";
+/// File name of the sign-in helper.
+#[cfg(not(windows))]
+pub const HELPER_NAME: &str = "nemo-signin";
+/// What the user is told when the helper reports that its webview cannot start (exit code 3).
+#[cfg(windows)]
+pub const WEBVIEW_MISSING: &str = "the WebView2 runtime is missing";
+/// What the user is told when the helper reports that its webview cannot start (exit code 3).
+#[cfg(not(windows))]
+pub const WEBVIEW_MISSING: &str = "the WebKitGTK webview is not available";
 /// Most bytes read from the helper's stdout.
 const MAX_HELPER_OUTPUT: u64 = 64 * 1024;
 
@@ -43,7 +53,7 @@ pub type SessionSlot = Arc<RwLock<Option<Arc<dyn Catalog>>>>;
 pub struct AccountConfig {
     /// The sign-in helper program.
     pub helper: PathBuf,
-    /// The helper's own `WebView2` profile folder. Deleted on sign-out.
+    /// The helper's own webview profile folder. Deleted on sign-out.
     pub webview_dir: PathBuf,
     /// The cached account header (name, avatar). Deleted on sign-out.
     pub cache_file: PathBuf,
@@ -158,9 +168,7 @@ async fn run_helper(
             AccountError::Unavailable("the sign-in helper gave no session".to_owned())
         }),
         Some(2) => Err(AccountError::Cancelled),
-        Some(3) => Err(AccountError::Unavailable(
-            "the WebView2 runtime is missing".to_owned(),
-        )),
+        Some(3) => Err(AccountError::Unavailable(WEBVIEW_MISSING.to_owned())),
         _ => Err(AccountError::Unavailable(
             "the sign-in window failed".to_owned(),
         )),
@@ -252,7 +260,7 @@ impl Shared {
     }
 }
 
-/// Google account sign-in backed by Windows Credential Manager.
+/// Google account sign-in backed by the OS credential store.
 pub struct GoogleAccount {
     shared: Arc<Shared>,
     handle: Handle,
@@ -588,6 +596,31 @@ mod tests {
         }
     }
 
+    /// A fake helper that prints `stdout` (one line) and exits with `code`.
+    fn helper_script(stdout: Option<&str>, code: i32) -> String {
+        if cfg!(windows) {
+            let echo = stdout
+                .map(|line| format!("@echo {line}\r\n"))
+                .unwrap_or_default();
+            format!("{echo}@exit /b {code}\r\n")
+        } else {
+            let echo = stdout
+                .map(|line| format!("printf '%s\\n' '{line}'\n"))
+                .unwrap_or_default();
+            format!("#!/bin/sh\n{echo}exit {code}\n")
+        }
+    }
+
+    /// Write the helper script; on Unix also mark it executable.
+    fn write_script(path: &Path, script: &str) {
+        std::fs::write(path, script).expect("script");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).expect("chmod");
+        }
+    }
+
     fn fixture(
         name: &str,
         result: Result<AccountInfo, AccountError>,
@@ -597,9 +630,13 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("nemo-ytm-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("dir");
-        let helper_path = dir.join("helper.cmd");
+        let helper_path = dir.join(if cfg!(windows) {
+            "helper.cmd"
+        } else {
+            "helper.sh"
+        });
         if let Some(script) = helper {
-            std::fs::write(&helper_path, script).expect("script");
+            write_script(&helper_path, script);
         }
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(2)
@@ -648,15 +685,10 @@ mod tests {
         assert_eq!(format!("{ok:?}"), "[redacted]");
     }
 
-    #[cfg(windows)]
     #[test]
     fn sign_in_with_a_helper_stores_the_session() {
-        let f = fixture(
-            "flow",
-            Ok(info()),
-            Some("@echo {\"cookie\":\"SAPISID=synthetic; a=b\"}\r\n@exit /b 0\r\n"),
-            None,
-        );
+        let script = helper_script(Some("{\"cookie\":\"SAPISID=synthetic; a=b\"}"), 0);
+        let f = fixture("flow", Ok(info()), Some(&script), None);
         assert_eq!(f.account.state(), AccountState::SignedOut);
         let got = f.runtime.block_on(f.account.sign_in()).expect("sign in");
         assert_eq!(got, info());
@@ -671,25 +703,23 @@ mod tests {
         );
     }
 
-    #[cfg(windows)]
     #[test]
     fn closing_the_window_cancels_and_keeps_the_old_state() {
-        let f = fixture("cancel", Ok(info()), Some("@exit /b 2\r\n"), None);
+        let f = fixture("cancel", Ok(info()), Some(&helper_script(None, 2)), None);
         let err = f.runtime.block_on(f.account.sign_in()).expect_err("cancel");
         assert_eq!(err, AccountError::Cancelled);
         assert_eq!(f.account.state(), AccountState::SignedOut);
         assert!(f.store.entries.lock().expect("lock").is_empty());
     }
 
-    #[cfg(windows)]
     #[test]
     fn a_missing_webview_runtime_is_reported() {
-        let f = fixture("runtime", Ok(info()), Some("@exit /b 3\r\n"), None);
+        let f = fixture("runtime", Ok(info()), Some(&helper_script(None, 3)), None);
         let err = f
             .runtime
             .block_on(f.account.sign_in())
             .expect_err("missing");
-        assert!(matches!(err, AccountError::Unavailable(m) if m.contains("WebView2")));
+        assert_eq!(err, AccountError::Unavailable(WEBVIEW_MISSING.to_owned()));
     }
 
     #[test]
