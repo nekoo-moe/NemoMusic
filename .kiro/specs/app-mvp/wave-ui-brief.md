@@ -8,7 +8,7 @@ A previous agent was cut off. About 100 files in `crates/nemo-ui` are already ed
 You own `crates/nemo-ui/**`, `docs/ui/**`, `docs/ui-redesign.md`. Do not touch `nemo-ytm`, `nemo-audio`, `nemo-lyrics` (another agent works on load speed there).
 
 ## Owner feedback (2026-11-11)
-Screens: `C:\Users\heiznerd nguyen\.kiro\crew\uploads\4d1b94b9183f4aa3933feaf6d4343178_pasted-image-20261111-123232651.png`, `57b08d5f34bf4616b6fdb8bd217f8018_pasted-image-20261111-123630660.png`, `28d369bf763442d3ab4868ddea75c6a2_pasted-image-20261111-123635195.png`.
+Screens: three owner screenshots from 2026-11-11 (not stored in the repo).
 
 1. **Whole-app background colour.** Window background and all panes take the colour of the song now playing, or of the album/playlist page being viewed (page colour wins while it is open). Use `palette.rs`. Soft multi-stop gradient (2-3 tonal colours, dark, low chroma), AA contrast kept for every text pair. Cross-fade with a spring (about 600-900 ms) when song or page changes. Panes become tinted translucent surfaces. Reduce-motion: instant swap. Theme "Dynamic" uses this; fixed palettes keep their own.
 2. **Motion with accents.** The owner says the app only has a repeated "rise from bottom" animation. Remove the repeated rise on shelves and scroll. Build a deliberate system: shared-element feel when opening a card (cover grows into the header), play button morph, now-playing cover breathe/scale on play/pause, equalizer bars on the playing row, lyric line spring with scale and glow on the active line, background cross-fade, hover lift with shadow and slight cover zoom, page cross-fade with scale 0.98 to 1, chips with a sliding selection pill, queue reorder animation. Entrance stagger once per page load, short and subtle. Document the list in `docs/ui-redesign.md`.
@@ -18,7 +18,7 @@ Screens: `C:\Users\heiznerd nguyen\.kiro\crew\uploads\4d1b94b9183f4aa3933feaf6d4
 
 ## Verify
 `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets -- -D warnings`; `cargo clippy -p nemo-ui --all-targets --features gui -- -D warnings`; `cargo test --workspace`.
-Headless snapshots, plus the live mock window driven with `C:\Users\heiznerd nguyen\.kiro\crew\scratch\runtime-7da3415e\drive.ps1` (if missing, write your own). Open every PNG. At least 3 rounds. Include before and after shots of the coloured background across a song change. Measure F3 frame times.
+Headless snapshots, plus the live mock window driven by an input script (the one used in that wave was a scratch file, not in the repo: write your own). Open every PNG. At least 3 rounds. Include before and after shots of the coloured background across a song change. Measure F3 frame times.
 
 ## Report
 Max 50 lines: what changed per item, snapshot paths, frame times, flaws left.
