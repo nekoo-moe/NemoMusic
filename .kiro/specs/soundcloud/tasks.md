@@ -38,7 +38,7 @@ Cross-spec ids written `<spec>#?` name the task in that spec that adds the ADR 0
   - Checks: table tests from the design (64 kbps Opus beats 128 kbps MP3, Opus not playable, encrypted dropped, preview last, missing bitrate playable, tie rules); proptest that the result index is always in range.
   - Steering: ADR 0004 Decision 4 rows 9 to 12 already list these items; add `UrlResolver::list` to row 11 if the text still lacks it.
 
-- [ ] 5. Add `Backend.soundcloud`
+- [x] 5. Add `Backend.soundcloud`
   - Crate and files: `nemo-core` (touches nemo-core/src/services.rs), `nemo-app` and `nemo-ui` mock backends set `None`.
   - Does: `Backend.soundcloud: Option<Arc<dyn Catalog>>`, `None` by default, so the UI shows no SoundCloud entry until the app builds one.
   - _Requirements: 2_

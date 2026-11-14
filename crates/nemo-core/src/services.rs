@@ -210,4 +210,7 @@ pub struct Backend {
     /// OS notifications. [`NoNotifier`](crate::notify::NoNotifier) until the app builds the real
     /// notifier.
     pub notifier: Arc<dyn OsNotifier>,
+    /// The SoundCloud catalog of public tracks. `None` until the app builds it (the opt-in
+    /// switch is on and confirmed), so the UI shows no SoundCloud entry.
+    pub soundcloud: Option<Arc<dyn Catalog>>,
 }
