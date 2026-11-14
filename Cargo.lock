@@ -3716,6 +3716,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "nemo-spotify"
+version = "0.0.1"
+dependencies = [
+ "nemo-core",
+]
+
+[[package]]
 name = "nemo-ui"
 version = "0.0.1"
 dependencies = [
