@@ -6,6 +6,7 @@
 pub mod account;
 pub mod audio;
 pub mod catalog;
+pub mod library;
 pub mod lyrics;
 pub mod player;
 pub mod secret;

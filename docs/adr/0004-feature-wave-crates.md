@@ -41,7 +41,7 @@ New crates, each depending on `nemo-core` and its own third-party crates only:
 A design may merge two of these or add a module elsewhere if it says why. A design that needs a crate-to-crate edge other than "depends on `nemo-core`" must stop and raise it.
 
 ## Decision 2: shared traits in `nemo-core`
-`nemo-core` files are shared. Each design names the traits and types it adds, signatures only. At implementation time only one task at a time edits a given `nemo-core` file, and the task that adds a trait lands before the tasks that use it. Expected additions: `SecretStore`, a URL resolver for `yt-dlp`, a new `Origin` value for SoundCloud, a translator, an animated-art source, a play-log and stats service, a downloads service, a remote-playback service (Cast and rooms), a recognizer, and video frames. The 17 designs fixed the complete list; it is Decision 4 below.
+`nemo-core` files are shared. Each design names the traits and types it adds, signatures only. At implementation time only one task at a time edits a given `nemo-core` file, and the task that adds a trait lands before the tasks that use it. Expected additions: `SecretStore`, a URL resolver for `yt-dlp`, a new `Origin` value for SoundCloud, a translator, an animated-art source, a play-log and stats service, a downloads service, a remote-playback service (Cast and rooms), a recognizer, video frames, and `library.rs` (local playback, `ReplayGain` and loudness types; local-library). The 17 designs fixed the complete list; it is Decision 4 below.
 
 ## Decision 3: rules every design follows
 - Storage: one SQLite file per owning crate (as `nemo-lyrics` does now), under the app data folder, with migrations. No shared database.
@@ -160,6 +160,7 @@ All crates proposed in the 17 designs and in the two new pieces build on the wor
 
 ## Consequences
 - `nemo-ytm` loses its credential module to `nemo-secrets` and `nemo-core`; its sign-in flow is otherwise unchanged.
+- Folder watching (Decision 1, `nemo-library` row) is not built: the library loads from SQLite at start, then rescans in the background and on demand (local-library design, "Departure"; `notify` is CC0-1.0 and its 9.0 line is a release candidate).
 - The crate count grows from 8 to 18. Each new crate is small and testable alone.
 - Apple Music animated covers are Later (now-playing-styles criterion 22). No code or trait variant exists for them; `AnimatedArtSource` can take one later.
 - `nemo-app` gets more wiring. If it passes 500 lines per file, it splits as `code.md` asks.

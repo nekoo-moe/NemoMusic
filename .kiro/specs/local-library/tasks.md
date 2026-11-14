@@ -2,7 +2,7 @@
 
 Cross-spec ids written `<spec>#?` name the owner's task by its ADR 0004 Decision 4 row; replace `?` with the task number once that spec's `tasks.md` has landed. Tasks 1, 2, 3, 6 and 7 are groundwork other specs depend on (rows 14, 15, 16).
 
-- [ ] 1. Add the local playback types to `nemo-core`
+- [x] 1. Add the local playback types to `nemo-core`
   - Crate and files: `nemo-core`: `src/library.rs` (new), `src/lib.rs`. Touches nemo-core/src/library.rs.
   - Does: Adds `TrackSpan`, `ReplayGainMode`, `ReplayGainValues`, `LocalPlayback`, `LocalTrackLookup`, `Loudness`, `LoudnessMeter` and `LoudnessError`, signatures as in the design, with rustdoc. `LocalTrackLookup` is documented as "prepare thread only, never the audio callback". No I/O.
   - _Requirements: none (groundwork)_
