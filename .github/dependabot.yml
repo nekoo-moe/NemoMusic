@@ -1,0 +1,43 @@
+# Dependabot version updates (owner request, 2026-11-14). Every pull request runs the full CI.
+# Rules for these pull requests:
+# - tech.md pins exact versions. When a bump changes a version that tech.md names, update that
+#   row in the same pull request.
+# - A bump of an audio-path crate (symphonia, cpal, wasapi, rubato, rtrb) can change what is heard,
+#   so it needs the owner (workflow.md section 8) and the bit-exact test.
+# - The Rust toolchain is not bumped here: rust-toolchain.toml pins the MSRV, which follows
+#   code.md's "latest stable minus 2" policy by hand.
+# - New releases wait 7 days before Dependabot proposes them (cooldown), so a bad release can be
+#   pulled before it reaches this repository.
+version: 2
+updates:
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "build(repo)"
+    cooldown:
+      default-days: 7
+    groups:
+      # All patch releases in one pull request; minor and major releases one crate each.
+      cargo-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "patch"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "ci(repo)"
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        patterns:
+          - "*"
