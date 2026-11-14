@@ -6,7 +6,9 @@ use std::sync::mpsc::{Sender, channel};
 use std::sync::{Arc, Mutex};
 
 use nemo_ui::scheme::{AccentIntensity, BaseMode, CornerStyle, ThemeChoice};
-use nemo_ui::{GlassTier as UiGlass, UiOptions, UiSettings};
+use nemo_ui::{
+    AnimatedCoverSettings, GlassTier as UiGlass, NowPlayingStyle, UiOptions, UiSettings,
+};
 
 use crate::config::{GlassTier, Settings};
 
@@ -39,6 +41,14 @@ pub fn to_ui(s: &Settings) -> UiSettings {
             &s.accent_intensity,
         ),
         corner_style: by_label(&CornerStyle::ALL, CornerStyle::label, &s.corner_style),
+        now_playing_style: by_label(
+            &NowPlayingStyle::ALL,
+            NowPlayingStyle::label,
+            &s.now_playing_style,
+        ),
+        animated_covers: AnimatedCoverSettings {
+            spotify_canvas: s.animated_covers.spotify_canvas,
+        },
     }
 }
 
@@ -60,6 +70,10 @@ pub fn apply_ui(s: &mut Settings, ui: &UiSettings) {
         .label()
         .clone_into(&mut s.accent_intensity);
     ui.corner_style.label().clone_into(&mut s.corner_style);
+    ui.now_playing_style
+        .label()
+        .clone_into(&mut s.now_playing_style);
+    s.animated_covers.spotify_canvas = ui.animated_covers.spotify_canvas;
 }
 
 /// Start the saver thread and build the UI options. The callback only sends on a channel, so
@@ -137,6 +151,33 @@ mod tests {
         assert_eq!(s.output_device.as_deref(), Some("DAC"));
         assert_eq!(s.music_folders, [PathBuf::from("C:/Music")]);
         assert_eq!(to_ui(&s).glass_tier, UiGlass::Off);
+    }
+
+    #[test]
+    fn now_playing_style_and_canvas_switch_round_trip() {
+        let mut s = Settings::default();
+        assert_eq!(to_ui(&s).now_playing_style, NowPlayingStyle::M3Expressive);
+        assert!(!to_ui(&s).animated_covers.spotify_canvas);
+        for style in NowPlayingStyle::ALL {
+            let ui = UiSettings {
+                now_playing_style: style,
+                animated_covers: AnimatedCoverSettings {
+                    spotify_canvas: true,
+                },
+                ..to_ui(&s)
+            };
+            apply_ui(&mut s, &ui);
+            assert_eq!(to_ui(&s), ui);
+        }
+    }
+
+    #[test]
+    fn unknown_style_label_falls_back_to_m3() {
+        let s = Settings {
+            now_playing_style: "Winamp".into(),
+            ..Settings::default()
+        };
+        assert_eq!(to_ui(&s).now_playing_style, NowPlayingStyle::M3Expressive);
     }
 
     #[test]

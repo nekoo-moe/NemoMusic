@@ -7,7 +7,7 @@ use nemo_core::catalog::{
 use nemo_core::track::Track;
 
 use super::*;
-use crate::credentials::fake::MemoryStore;
+use nemo_core::secret_store::MemoryStore;
 
 const COOKIE: &str = "SAPISID=synthetic; other=1";
 
@@ -185,13 +185,7 @@ fn sign_in_with_a_helper_stores_the_session() {
     assert_eq!(got, info());
     assert_eq!(f.account.state(), AccountState::SignedIn(info()));
     assert!(f.slot.read().expect("lock").is_some());
-    assert!(
-        f.store
-            .entries
-            .lock()
-            .expect("lock")
-            .contains_key("session-0")
-    );
+    assert!(f.store.get("session-0").expect("get").is_some());
 }
 
 #[test]
@@ -200,7 +194,7 @@ fn closing_the_window_cancels_and_keeps_the_old_state() {
     let err = f.runtime.block_on(f.account.sign_in()).expect_err("cancel");
     assert_eq!(err, AccountError::Cancelled);
     assert_eq!(f.account.state(), AccountState::SignedOut);
-    assert!(f.store.entries.lock().expect("lock").is_empty());
+    assert!(f.store.is_empty());
 }
 
 #[test]
@@ -250,7 +244,7 @@ fn a_rejected_cookie_stores_nothing() {
         )
         .expect_err("rejected");
     assert_eq!(err, AccountError::Rejected);
-    assert!(f.store.entries.lock().expect("lock").is_empty());
+    assert!(f.store.is_empty());
     assert!(f.slot.read().expect("lock").is_none());
     assert_eq!(f.account.state(), AccountState::SignedOut);
 }
@@ -329,7 +323,7 @@ fn a_rejected_saved_session_is_wiped() {
         std::thread::sleep(Duration::from_millis(20));
     }
     assert_eq!(f.account.state(), AccountState::SignedOut);
-    assert!(f.store.entries.lock().expect("lock").is_empty());
+    assert!(f.store.is_empty());
     assert!(f.slot.read().expect("lock").is_none());
 }
 
@@ -347,7 +341,7 @@ fn sign_out_wipes_credentials_folders_and_session() {
     assert_eq!(report.credentials_removed, 2);
     assert_eq!(report.files_removed, 2);
     assert!(!report.ended_remotely);
-    assert!(f.store.entries.lock().expect("lock").is_empty());
+    assert!(f.store.is_empty());
     assert!(!f.dir.join("webview").exists());
     assert!(!f.dir.join("account").join("account.json").exists());
     assert!(f.slot.read().expect("lock").is_none());

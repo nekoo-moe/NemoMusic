@@ -19,7 +19,7 @@ Cross-spec ids written `<spec>#?` name the owner's task by its ADR 0004 Decision
   - Wave: 0
   - Checks: the existing lyrics tests pass unchanged.
 
-- [ ] 3. Add `AppPaths.offline`
+- [x] 3. Add `AppPaths.offline`
   - Crate and files: `nemo-app`: `src/paths.rs`.
   - Does: Adds `offline` (`<root>/offline`) to `AppPaths`, inside the app's private data folder.
   - _Requirements: none (groundwork)_

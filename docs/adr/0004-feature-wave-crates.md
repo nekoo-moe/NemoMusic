@@ -16,7 +16,7 @@ Existing crates take what is clearly theirs:
 | Crate | Takes |
 |---|---|
 | `nemo-core` | New shared types and traits only (see Decision 2). No I/O. |
-| `nemo-audio` | Effects chain (EQ, delay, reverb, ReplayGain gain), crossfade mixer, device switching, WASAPI exclusive sink, a file `ByteSource` for local and cached files, more decoders (ALAC and Vorbis through `symphonia` features, Opus through a decoder crate). |
+| `nemo-audio` | Effects chain (EQ, delay, reverb, ReplayGain gain), crossfade mixer, device switching, WASAPI exclusive sink, a file `ByteSource` for local and cached files, more decoders (ALAC and Vorbis through `symphonia` features, Opus through a decoder crate), the parked mode for Cast and rooms (`Park` and `Unpark`). |
 | `nemo-library` | The SQLite library, folder watching, local playlists and M3U, CUE sheets, tag editing, stored ReplayGain values. |
 | `nemo-ytm` | Offline cache (downloads and index), dislike and playlist edits, several accounts, Premium session for `yt-dlp`, audio-language choice, YouTube search, live streams, comments, Return YouTube Dislike, YouTube captions as a `LyricsProvider`, and a generic `yt-dlp` URL resolver behind a `nemo-core` trait. |
 | `nemo-lyrics` | Own lyrics, romanization, the translation hook (calls a `nemo-core` trait, never an AI crate). |

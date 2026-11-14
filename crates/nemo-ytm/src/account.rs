@@ -14,13 +14,14 @@ use nemo_core::BoxFuture;
 use nemo_core::account::{AccountError, AccountInfo, AccountService, AccountState, SignOutReport};
 use nemo_core::catalog::Catalog;
 use nemo_core::secret::Secret;
+use nemo_core::secret_store::SecretStore;
 use nemo_core::track::Thumbnail;
 use serde_json::{Value, json};
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tokio::runtime::Handle;
 
-use crate::credentials::{SecretStore, Vault};
+use crate::credentials::Vault;
 use crate::session::{SessionBackend, normalize_cookie};
 
 mod catalog;
@@ -254,6 +255,7 @@ impl Shared {
                 credentials_removed,
                 files_removed,
                 ended_remotely: false,
+                ..SignOutReport::default()
             }),
             Err(err) => Err(AccountError::Storage(err.0.to_owned())),
         }

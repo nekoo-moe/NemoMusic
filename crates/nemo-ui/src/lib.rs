@@ -39,7 +39,7 @@ pub mod signal;
 pub mod state;
 pub mod theme;
 
-pub use settings::{GlassTier, UiSettings};
+pub use settings::{AnimatedCoverSettings, GlassTier, NowPlayingStyle, UiSettings};
 
 #[cfg(feature = "gui")]
 pub mod gui;
