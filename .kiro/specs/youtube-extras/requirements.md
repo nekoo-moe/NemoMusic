@@ -74,11 +74,12 @@ Decided by the owner on 2026-11-14:
 - The external chart site is dropped: its criteria and question are removed and it sits in Out of Scope.
 - Return YouTube Dislike's terms are confirmed in the design (attribution link, rate limits). The innertube calls for comments (read, post, reply, like) and for searching all of YouTube are checked in the design.
 
+Decided (owner, 2026-11-14): reading comments ships first. Posting, replying and liking (criterion 14) come in a later task, still opt-in and signed-in only.
+
 Still open:
 
-1. Account risk of posting comments through the web innertube client. The design explains the calls; the owner decides whether posting ships in the first version or after a trial period.
-2. Whether `yt-dlp` today returns a live stream the decoder can play (the design needs a spike with a real live URL).
-3. Whether `yt-dlp` returns a non-empty caption file today without a PO token (criterion 35), and which id carries the captions of a song: the audio id or the music-video id (the design asks the spike to list three songs).
+1. Whether `yt-dlp` today returns a live stream the decoder can play (the design needs a spike with a real live URL).
+2. Whether `yt-dlp` returns a non-empty caption file today without a PO token (criterion 35), and which id carries the captions of a song: the audio id or the music-video id (the design asks the spike to list three songs).
 
 <!-- Sources:
 - Repo: .kiro/steering/product.md, coc.md; crates/nemo-ytm/src/catalog.rs, feeds.rs, innertube.rs, stream.rs; crates/nemo-core/src/catalog.rs (SearchResults); docs/adr/0004-feature-wave-crates.md

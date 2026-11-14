@@ -27,7 +27,7 @@ The user can add their own timed lyrics to songs that have none, read a romanize
 10. IF the user edits lyrics fetched from a provider, THEN THE SYSTEM SHALL save a separate copy as own lyrics and leave the provider's cached text as it is.
 
 ### Romanization
-11. THE SYSTEM SHALL offer romanization for these 12 languages: Japanese (Hepburn), Korean (Revised Romanization), Mandarin Chinese (Pinyin), Cantonese (Jyutping), Russian, Ukrainian, Greek, Arabic, Hebrew, Hindi, Thai and Persian. Each has a script that many listeners cannot read and a song catalog on YouTube Music.
+11. THE SYSTEM SHALL offer romanization for these 12 languages: Japanese (Hepburn), Korean (Revised Romanization), Mandarin Chinese (Pinyin), Cantonese (Jyutping), Russian, Ukrainian, Greek, Arabic, Hebrew, Hindi, Thai and Persian. Each has a script that many listeners cannot read and a song catalog on YouTube Music. Thai comes in a later task; Arabic, Persian, Hebrew and Hindi carry the label "Partial".
 12. THE SYSTEM SHALL do romanization on this computer and send no lyrics to any host for it.
 13. WHEN romanization is on and a lyric line is in one of those languages, THE SYSTEM SHALL show the romanized text under that line in a smaller, quieter style that keeps 4.5:1 contrast.
 14. THE SYSTEM SHALL default romanization to off, with a switch in Settings > Lyrics and a toggle in the lyrics tools. WHEN a provider already sends a romanization line, THE SYSTEM SHALL use it and label it as the provider's.
@@ -88,9 +88,9 @@ Decided by the owner (2026-11-14):
 - Share image: one fixed style (criterion 19).
 - Translation language: a setting that defaults to the UI language (criterion 42).
 
-Still open for the design to settle (the owner confirms them when approving it):
-1. Languages with no good offline crate (Arabic, Persian, Hebrew, Thai): ship them as "partial" with a visible label, or leave them out until a better option exists.
-2. The Japanese dictionary adds about 50 MB to the program. Is that acceptable, or is Japanese a separate download?
+Decided (owner, 2026-11-14):
+- Arabic, Persian and Hebrew ship with the label "Partial" (consonants only). Hindi ships "Partial" until its vowel handling is checked. Thai ships later, when a readable offline romanization exists.
+- The Japanese dictionary ships with the app (about 49 MB larger program). Its IPADIC licence notice ships in the app's licence file.
 <!-- Sources:
 .kiro/steering/coc.md (Owner Decisions 2026-11-14, User Privacy), .kiro/steering/product.md (Approved additions), .kiro/steering/design.md section 10
 docs/adr/0002-lyrics-providers.md (chain, cache, offset, granularity, credit)

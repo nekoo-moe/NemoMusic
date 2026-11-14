@@ -164,17 +164,21 @@ All crates proposed in the 17 designs and in the two new pieces build on the wor
 - Apple Music animated covers are Later (now-playing-styles criterion 22). No code or trait variant exists for them; `AnimatedArtSource` can take one later.
 - `nemo-app` gets more wiring. If it passes 500 lines per file, it splits as `code.md` asks.
 
+## Decided by the owner (2026-11-14, second round)
+- **Opus.** The first Opus task tests the pure-Rust `opus-decoder`; if it fails, `symphonia-adapter-libopus` with CMake is accepted. Once the decoder lands, `Codec::Opus` joins `supported_stream_codecs()`, so streams may play as Opus where it sounds better.
+- **Video.** libmpv is accepted (LGPL or GPL build, shipped as a shared library), with the `libmpv2` `deny.toml` exception. The spike tries `libmpv2` first. Own FFI is only a fallback and needs a `code.md` change first.
+- **Comments.** Reading ships first; posting, replying and liking come in a later task.
+- **Romanization.** The Japanese dictionary ships with the app (about 49 MB), with its IPADIC licence notice. Arabic, Persian, Hebrew and Hindi carry "Partial". Thai is later.
+- **Dependency age.** `tech.md` now matches `code.md`: a release within the last 2 years (Decision 5).
+- **Sign-out exception** for listening-stats (Decision 3).
+
 ## Open decisions for the owner
-Decisions that two designs or a steering file leave to the owner. None blocks the other designs.
-1. **Opus.** Should `Codec::Opus` join `supported_stream_codecs()`, so YouTube and SoundCloud streams may play as Opus? It changes what the owner hears (`workflow.md` section 8). The decoder itself (local files) lands first. And is CMake acceptable for `symphonia-adapter-libopus` (`tech.md` avoids backends that need it), or should local-library use the pure-Rust `opus-decoder` 0.1.1?
-2. **Unsafe code in `nemo-video`.** `code.md` allows `unsafe` only in an `ffi` or `sys` module of `nemo-audio`. Own libmpv FFI over `libloading` needs an `ffi` module in `nemo-video`. Either extend the rule to that module, or take `libmpv2` 7.0.1 (LGPL-2.1, a `deny.toml` exception). A spike decides which works; a short ADR 0005 records libmpv.
-3. **Per-provider timeout.** The lyrics chain limits each provider to 4 s (ADR 0002). Captions run `yt-dlp` and need about 20 s. Approve a defaulted `LyricsProvider::timeout`, or captions serve only the subtitle menu.
-4. **Exclusive mode and crossfade.** audio-effects skips a crossfade when the next song needs another format on an exclusive device (`TransitionSkipped(FormatChangeInExclusive)`). That departs from its criterion 22 in one case.
-5. **Comments.** Do posted comments ship in the first version or after a trial (youtube-extras question 1)?
-6. **Numbers the designs proposed:** offline-cache (at least 3 plays for smart downloads, a takedown check every 30 days, 256 MiB free-disk margin), listen-together drift 500 ms, playlist-import match thresholds and the 500-song notice, soundcloud codec factors.
-7. **Notifications.** Skip the notification while the window is focused (integrations criterion 34, the design's proposal), and the Windows app id `NemoMusic.NemoMusic` with a Start Menu shortcut written by the installer.
-8. **Local single-instance token** (local-library): the design writes a random token to `instance.json` for a loopback hand-off. `coc.md` says tokens go to the OS keychain only. The token guards a local socket and is not an account credential, but the owner should confirm, or choose a named pipe and Unix socket.
-9. **Cast** skips the TLS certificate check on port 8009 (devices use self-signed certificates). The owner accepts or asks for pinning of the first-seen certificate.
-10. **Registrations the owner makes:** the Discord application id; a Last.fm API account for testing; throwaway Spotify and Google accounts for the spikes; the `design.md` change of now-playing-styles (the Apple style's four exceptions).
-11. **Licence notices:** `sabiyomi` embeds IPADIC data whose licence text is not on the `code.md` list (lyrics-plus); the vendored `cast_channel.proto` (Apache-2.0) and `listentogether.proto` (GPL-3.0, compatible with this repository's GPL-3.0).
-12. **Sign-out exception** for listening-stats is decided (Decision 3). The `tech.md` fix of Decision 5 needs the owner's approval before it is edited.
+Each has a recommendation. None blocks the task lists.
+1. **Per-provider timeout.** The lyrics chain limits each provider to 4 s (ADR 0002). Captions run `yt-dlp` and need about 20 s. Recommended: a defaulted `LyricsProvider::timeout`, and ADR 0002 updated in that task.
+2. **Exclusive mode and crossfade.** On an exclusive device, a next song in another format cannot crossfade (`TransitionSkipped(FormatChangeInExclusive)`), which departs from audio-effects criterion 22 in that one case. Recommended: accept, with the reason shown.
+3. **Numbers the designs proposed:** offline-cache (at least 3 plays for smart downloads, a takedown check every 30 days, 256 MiB free-disk margin), listen-together drift 500 ms, playlist-import match thresholds and the 500-song notice, soundcloud codec factors. Recommended: accept as starting values, tuned in testing.
+4. **Notifications.** Recommended: skip the OS notification while the window is focused (the in-app list still updates), and the Windows app id `NemoMusic.NemoMusic` with a Start Menu shortcut written by the installer.
+5. **Local single-instance hand-off** (local-library): the design writes a random token to `instance.json` for a loopback hand-off, and `coc.md` keeps tokens in the OS keychain. Recommended: use a Windows named pipe and a Unix socket in the user's runtime folder instead, so no token file exists.
+6. **Cast** skips the TLS certificate check on port 8009, because devices use self-signed certificates. Recommended: pin each device's first-seen certificate and warn when it changes.
+7. **Registrations the owner makes:** the Discord application id; a Last.fm API account for testing; throwaway Spotify and Google accounts for the spikes; the `design.md` change for the Apple Music-style player (its four exceptions).
+8. **Licence notices:** the vendored `cast_channel.proto` (Apache-2.0) and `listentogether.proto` (GPL-3.0, compatible with this repository's GPL-3.0) ship with their notices. Recommended: accept.
