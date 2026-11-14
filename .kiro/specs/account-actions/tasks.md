@@ -20,7 +20,7 @@ Tasks in other specs are cited by spec and the ADR 0004 Decision 4 row they own,
   - Checks: the ignored per-platform round-trip tests move with the stores and pass when run by hand on Windows and on Linux. `cargo tree -p nemo-ytm --edges normal` lists no keyring crate; `cargo tree -p nemo-secrets` lists only `nemo-core` among `nemo-*`. Manual, needs the owner or a throwaway account: a session saved before this change still loads after it on Windows and on Linux, and sign-out still removes it.
   - Steering: `tech.md`: replace rows "Credential store crates" and "Credential store" with `keyring-core` =1.0.1, `windows-native-keyring-store` =1.1.0 and `zbus-secret-service-keyring-store` =1.0.1, owned by `nemo-secrets`. `structure.md`: add `nemo-secrets` (depends on `nemo-core` only), `nemo-app` depends on it, `nemo-ytm` loses its keyring dependencies. ADR 0004: mark the `SecretStore` move done.
 
-- [ ] 3. Add `ScopedStore` to `nemo-secrets`
+- [x] 3. Add `ScopedStore` to `nemo-secrets`
   - Crate and files: `nemo-secrets` (`src/scoped.rs`, `src/lib.rs`).
   - Does: Adds `ScopedStore`, which prefixes every key with `<prefix>/` and refuses a key that fails `is_valid_key` after prefixing, so one crate cannot reach another crate's entries. The existing `session-*` keys stay unscoped until account-actions#16 migrates them.
   - _Requirements: none (groundwork)_

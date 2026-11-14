@@ -12,11 +12,13 @@ use nemo_core::secret_store::{SecretStore, StoreError};
 
 #[cfg(target_os = "linux")]
 mod linux;
+mod scoped;
 #[cfg(windows)]
 mod windows;
 
 #[cfg(target_os = "linux")]
 pub use linux::SecretServiceStore;
+pub use scoped::ScopedStore;
 #[cfg(windows)]
 pub use windows::WindowsStore;
 
