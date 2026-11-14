@@ -43,7 +43,7 @@ NemoMusic/
 - nemo-integrations: OS media controls and media keys, Last.fm scrobbling, Discord Rich Presence and OS notifications, behind the `nemo-core` `IntegrationsService`, `PlayObserver` and `OsNotifier` contracts, with their opt-in settings rows. Depends only on `nemo-core`.
 - nemo-spotify: the user's own Spotify session (`SpotifyAccount`, the `sp_dc` cookie only through `SecretStore`), the Spotify `LyricsProvider` and the Canvas `AnimatedArtSource`. Depends only on `nemo-core`.
 - nemo-ui: all iced code, theme, fonts, widgets, animations. Talks to the player only through `PlayerCommand` and `PlayerEvent`.
-- nemo-app: `main`, config file, tracing setup, crate wiring, packaging metadata. No business logic.
+- nemo-app: `main`, config file, tracing setup, crate wiring, packaging metadata, and the play hub thread (`src/play_hub.rs`: feeds the `nemo-core` `PlayTracker` and hands play events to the registered `PlayObserver`s without blocking). No business logic.
 
 ## Allowed dependency direction
 
