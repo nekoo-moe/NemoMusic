@@ -218,6 +218,12 @@ impl PlayerState {
             | PlayerCommand::Park
             | PlayerCommand::Unpark { .. }
             | PlayerCommand::SwitchAudioTrack(_) => {}
+            // The mock applies no effect to sound; it only reports the settings back.
+            PlayerCommand::SetEffects(settings) => {
+                self.snapshot.effects.settings = settings;
+                self.emit(PlayerEvent::EffectsChanged(self.snapshot.effects));
+            }
+            PlayerCommand::SetTransition(settings) => self.snapshot.transition = settings,
             PlayerCommand::SetRepeat(mode) => {
                 self.snapshot.repeat = mode;
                 self.emit(PlayerEvent::RepeatChanged(mode));

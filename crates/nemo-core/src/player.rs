@@ -5,6 +5,9 @@
 use std::time::Duration;
 
 use crate::audio::SignalPath;
+use crate::effects::{
+    EffectsSettings, EffectsStatus, TransitionKind, TransitionSettings, TransitionSkipReason,
+};
 use crate::segment::Segment;
 use crate::track::{Track, TrackId};
 
@@ -99,6 +102,11 @@ pub enum PlayerCommand {
     /// again with that language in its stream request and reopens it at the current position;
     /// the tracks that follow are resolved with it too. A local track ignores the command.
     SwitchAudioTrack(Option<String>),
+    /// Apply these effects settings. The player answers with [`PlayerEvent::EffectsChanged`],
+    /// carrying the settings it applies.
+    SetEffects(EffectsSettings),
+    /// Use these song-transition settings from the next song change on.
+    SetTransition(TransitionSettings),
 }
 
 /// Something that happened in the player. Names are past tense.
@@ -132,6 +140,17 @@ pub enum PlayerEvent {
     },
     /// The player was parked (`true`, a remote device plays) or unparked (`false`).
     ParkedChanged(bool),
+    /// The effects the player applies changed (after a [`PlayerCommand::SetEffects`]).
+    EffectsChanged(EffectsStatus),
+    /// A transition into the next song began.
+    TransitionStarted {
+        /// The transition used for this pair of songs.
+        kind: TransitionKind,
+        /// Its length in seconds.
+        seconds: u8,
+    },
+    /// The set transition did not run; the songs joined gaplessly. Not a failure.
+    TransitionSkipped(TransitionSkipReason),
 }
 
 /// The player state at one moment. Cheap to clone; the UI reads it after a [`PlayerEvent`].
@@ -159,6 +178,10 @@ pub struct PlayerSnapshot {
     pub repeat: RepeatMode,
     /// The current track is a live stream: it has no length and cannot be seeked.
     pub live: bool,
+    /// The effects as the player applies them.
+    pub effects: EffectsStatus,
+    /// The song-transition settings in use.
+    pub transition: TransitionSettings,
 }
 
 impl Default for PlayerSnapshot {
@@ -175,13 +198,15 @@ impl Default for PlayerSnapshot {
             skip_segments: false,
             repeat: RepeatMode::Off,
             live: false,
+            effects: EffectsStatus::default(),
+            transition: TransitionSettings::default(),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{PlayState, PlayerSnapshot, RepeatMode};
+    use super::{EffectsStatus, PlayState, PlayerSnapshot, RepeatMode, TransitionSettings};
 
     #[test]
     fn repeat_cycles_off_all_one_off() {
@@ -201,5 +226,7 @@ mod tests {
         assert_eq!(s.volume_percent, 100);
         assert!(s.current.is_none() && s.queue.is_empty() && !s.skip_segments);
         assert!(!s.live);
+        assert_eq!(s.effects, EffectsStatus::default());
+        assert_eq!(s.transition, TransitionSettings::default());
     }
 }
