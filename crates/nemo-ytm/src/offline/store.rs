@@ -5,12 +5,14 @@
 //! the covers. Every statement is parameterized. Migrations run in order, each once and in its
 //! own transaction, and `schema_migration` records when each ran.
 
+use std::collections::HashSet;
 use std::path::Path;
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
-use rusqlite::{Connection, params};
+use nemo_core::track::VideoId;
+use rusqlite::{Connection, ErrorCode, params};
 
-use super::{Clock, OfflineError};
+use super::{Clock, OfflineError, StartupCleanup, is_opaque_name};
 
 /// The index file inside the cache folder.
 pub(super) const DB_FILE: &str = "offline.db";
@@ -88,21 +90,70 @@ CREATE TABLE collection_song (
 );
 ";
 
+/// The files SQLite keeps beside the index in WAL mode.
+const DB_SIDE_FILES: [&str; 2] = ["offline.db-wal", "offline.db-shm"];
+
+/// Why the index could not be opened.
+enum OpenError {
+    /// The file is not a database or is corrupt: the cache is reset.
+    Damaged,
+    /// Any other failure, including an index from a newer app. Nothing is deleted.
+    Other(OfflineError),
+}
+
+impl From<rusqlite::Error> for OpenError {
+    fn from(err: rusqlite::Error) -> Self {
+        // Only the code is kept: SQLite messages can quote values such as a video id.
+        match err.sqlite_error_code() {
+            Some(ErrorCode::DatabaseCorrupt | ErrorCode::NotADatabase) => Self::Damaged,
+            _ => Self::Other(OfflineError::Db),
+        }
+    }
+}
+
 /// The open index. One connection guarded by a mutex.
 pub(super) struct Store {
     conn: Mutex<Connection>,
 }
 
 impl Store {
-    /// Open (or create) the index at `path` and run the migrations it has not seen.
-    pub(super) fn open(path: &Path, clock: &dyn Clock) -> Result<Self, OfflineError> {
+    /// Open (or create) the index in the cache folder `root`. A damaged index is deleted with
+    /// every cache file and a new one is made; the flag says whether that happened.
+    pub(super) fn open_or_reset(
+        root: &Path,
+        clock: &dyn Clock,
+    ) -> Result<(Self, bool), OfflineError> {
+        let path = root.join(DB_FILE);
+        match Self::open(&path, clock) {
+            Ok(store) => Ok((store, false)),
+            Err(OpenError::Other(err)) => Err(err),
+            Err(OpenError::Damaged) => {
+                tracing::warn!("the offline index was damaged; the offline cache was reset");
+                reset_folder(root)?;
+                match Self::open(&path, clock) {
+                    Ok(store) => Ok((store, true)),
+                    Err(OpenError::Other(err)) => Err(err),
+                    Err(OpenError::Damaged) => Err(OfflineError::Db),
+                }
+            }
+        }
+    }
+
+    /// Open (or create) the index at `path`, check it and run the migrations it has not seen.
+    fn open(path: &Path, clock: &dyn Clock) -> Result<Self, OpenError> {
         let mut conn = Connection::open(path)?;
         // `journal_mode` returns a row, so it cannot go through `execute_batch`.
         conn.pragma_update_and_check(None, "journal_mode", "WAL", |_| Ok(()))?;
         conn.execute_batch(
             "PRAGMA synchronous = NORMAL;
-             PRAGMA foreign_keys = ON;
-             CREATE TABLE IF NOT EXISTS schema_migration (
+             PRAGMA foreign_keys = ON;",
+        )?;
+        let check: String = conn.query_row("PRAGMA quick_check", [], |row| row.get(0))?;
+        if check != "ok" {
+            return Err(OpenError::Damaged);
+        }
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS schema_migration (
                  version    INTEGER PRIMARY KEY NOT NULL,
                  applied_at INTEGER NOT NULL
              );",
@@ -111,6 +162,65 @@ impl Store {
         Ok(Self {
             conn: Mutex::new(conn),
         })
+    }
+
+    /// Start-up cleanup in the cache folder `root`: delete `.part` files that no queue row
+    /// names, and mark songs whose file is missing as unsaved.
+    pub(super) fn clean_up(&self, root: &Path) -> Result<StartupCleanup, OfflineError> {
+        let parts_removed = self.remove_stray_parts(&root.join(TMP))?;
+        let unsaved = self.unsave_missing(&root.join(BLOBS))?;
+        Ok(StartupCleanup {
+            index_reset: false,
+            parts_removed,
+            unsaved,
+        })
+    }
+
+    fn remove_stray_parts(&self, tmp: &Path) -> Result<u64, OfflineError> {
+        let known: HashSet<String> = {
+            let conn = self.lock();
+            let mut stmt =
+                conn.prepare("SELECT part_file FROM queue WHERE part_file IS NOT NULL")?;
+            stmt.query_map([], |row| row.get(0))?
+                .collect::<Result<_, _>>()?
+        };
+        let mut removed = 0;
+        for entry in std::fs::read_dir(tmp)? {
+            let entry = entry?;
+            let name = entry.file_name();
+            let Some(stem) = name.to_str().and_then(|n| n.strip_suffix(".part")) else {
+                continue;
+            };
+            if !known.contains(stem) && entry.file_type()?.is_file() {
+                std::fs::remove_file(entry.path())?;
+                removed += 1;
+            }
+        }
+        Ok(removed)
+    }
+
+    fn unsave_missing(&self, blobs: &Path) -> Result<Vec<VideoId>, OfflineError> {
+        let mut conn = self.lock();
+        let rows: Vec<(String, String)> = {
+            let mut stmt = conn.prepare("SELECT video_id, file FROM song")?;
+            stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+                .collect::<Result<_, _>>()?
+        };
+        let missing: Vec<String> = rows
+            .into_iter()
+            .filter(|(_, file)| !is_opaque_name(file) || !blobs.join(file).is_file())
+            .map(|(video_id, _)| video_id)
+            .collect();
+        let tx = conn.transaction()?;
+        for video_id in &missing {
+            // Segments go with the row (`ON DELETE CASCADE`).
+            tx.execute("DELETE FROM song WHERE video_id = ?1", [video_id])?;
+        }
+        tx.commit()?;
+        Ok(missing
+            .iter()
+            .filter_map(|id| VideoId::parse(id).ok())
+            .collect())
     }
 
     fn lock(&self) -> MutexGuard<'_, Connection> {
@@ -129,7 +239,7 @@ impl Store {
 
 /// Run every migration newer than the last one recorded. An index written by a newer version
 /// of the app is refused rather than guessed at.
-fn migrate(conn: &mut Connection, clock: &dyn Clock) -> Result<(), OfflineError> {
+fn migrate(conn: &mut Connection, clock: &dyn Clock) -> Result<(), OpenError> {
     let applied: i64 = conn.query_row(
         "SELECT COALESCE(MAX(version), 0) FROM schema_migration",
         [],
@@ -137,7 +247,7 @@ fn migrate(conn: &mut Connection, clock: &dyn Clock) -> Result<(), OfflineError>
     )?;
     let known = i64::try_from(MIGRATIONS.len()).unwrap_or(i64::MAX);
     if applied > known {
-        return Err(OfflineError::Db);
+        return Err(OpenError::Other(OfflineError::Db));
     }
     for (version, sql) in (1_i64..).zip(MIGRATIONS) {
         if version <= applied {
@@ -150,6 +260,25 @@ fn migrate(conn: &mut Connection, clock: &dyn Clock) -> Result<(), OfflineError>
             params![version, clock.now_secs()],
         )?;
         tx.commit()?;
+    }
+    Ok(())
+}
+
+/// Delete the index and every cache file under `root`, then make the empty folders again.
+/// The connection to the old index must be closed first.
+fn reset_folder(root: &Path) -> Result<(), OfflineError> {
+    for name in std::iter::once(DB_FILE).chain(DB_SIDE_FILES) {
+        match std::fs::remove_file(root.join(name)) {
+            Err(err) if err.kind() != std::io::ErrorKind::NotFound => return Err(err.into()),
+            _ => {}
+        }
+    }
+    for folder in FOLDERS {
+        let dir = root.join(folder);
+        if dir.exists() {
+            std::fs::remove_dir_all(&dir)?;
+        }
+        std::fs::create_dir_all(&dir)?;
     }
     Ok(())
 }
