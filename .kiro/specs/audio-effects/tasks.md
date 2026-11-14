@@ -59,7 +59,7 @@
   - Checks: gain at each band centre matches the analytic value at 44.1, 48, 96 and 192 kHz; the 31 Hz band stays stable at 192 kHz; `proptest`: a swept sine through any settings with the auto preamp never exceeds 0 dBFS; a counting-allocator case for `process` in `cargo test -p nemo-audio --test rt_no_alloc`; `cargo test -p nemo-audio --test bit_exact`.
   - Steering: `tech.md`: add the row "Effects: own biquad, delay and reverb code in `nemo-audio`, `f32` with `f64` filter state" (no new crate).
 
-- [ ] 8. Add the delay stage
+- [x] 8. Add the delay stage
   - Crate and files: `nemo-audio`: `src/effects/delay.rs` (new).
   - Does: Time, feedback and wet/dry mix; the delay line holds 2 s per channel for up to 8 channels and is sized when the pipeline starts, never in the callback. Feedback is limited to 85% so the echo always decays. Reports `tail_frames` from time and feedback, capped at 10 s.
   - _Requirements: 14, 15_

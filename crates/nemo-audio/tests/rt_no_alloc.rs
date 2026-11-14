@@ -178,6 +178,51 @@ fn ten_seconds_of_equalizer_filters_allocate_nothing() {
     assert!(out.iter().all(|s| s.is_finite()));
 }
 
+/// A stereo 250 ms delay at 85% feedback, 48 kHz, 512-frame callbacks for 10 s, with a
+/// parameter change and a reset on the way.
+#[test]
+fn ten_seconds_of_delay_allocate_nothing() {
+    use nemo_audio::effects::{Delay, DelayParams};
+    use nemo_core::effects::DelaySettings;
+
+    let settings = DelaySettings {
+        enabled: true,
+        time_ms: 250,
+        feedback_pct: 85,
+        mix_pct: 50,
+    };
+    let params = DelayParams::new(&settings, 48_000);
+    let shorter = DelayParams::new(
+        &DelaySettings {
+            time_ms: 40,
+            ..settings
+        },
+        48_000,
+    );
+    let mut delay = Delay::new(2, 48_000, params);
+    let block = vec![0.25_f32; CALLBACK_SAMPLES];
+    let mut out = vec![0.0_f32; CALLBACK_SAMPLES];
+
+    let before = count();
+    for n in 0..CALLBACKS_10S {
+        out.copy_from_slice(&block);
+        if n == CALLBACKS_10S / 2 {
+            delay.set_params(shorter);
+        }
+        if n == CALLBACKS_10S * 3 / 4 {
+            delay.reset();
+        }
+        delay.process(&mut out);
+    }
+    let after = count();
+
+    assert_eq!(after - before, 0, "the delay allocated");
+    assert!(
+        out.iter()
+            .all(|s| s.is_finite() && s.abs() <= 0.25 / 0.15 + 1e-3)
+    );
+}
+
 mod player_callback {
     use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
