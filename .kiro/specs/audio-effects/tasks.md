@@ -50,7 +50,7 @@
   - Wave: 1
   - Checks: unit tests in a temp folder for each store action, `NameTaken`, the 64 KiB cap and Flat at 0 dB; `cargo test -p nemo-audio --test bit_exact`.
 
-- [ ] 7. Add the biquad filters and the automatic preamp
+- [x] 7. Add the biquad filters and the automatic preamp
   - Crate and files: `nemo-audio`: `src/effects/biquad.rs` (new).
   - Does: RBJ peak, low-shelf and high-shelf coefficients, `f64` state, `f32` samples; the ten-band equalizer is ten peaks at the ISO centres 31 Hz to 16 kHz, Q 1.41. `auto_preamp(settings, rate)` returns the peak boost of the combined response in tenths of a dB. The per-sample `process` is `/// RT-SAFE` (no allocation, lock or logging, code.md).
   - _Requirements: 5, 6_

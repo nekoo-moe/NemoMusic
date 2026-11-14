@@ -96,3 +96,35 @@ fn engine_rejects_a_sink_with_another_rate() {
     assert!(err.is_some_and(|e| e.to_string().contains("does not match")));
     std::fs::remove_file(path).expect("cleanup");
 }
+
+/// The equalizer stage: a Flat ten-band equalizer is ten identity filters, and running every
+/// sample through them in `f64` gives back every decoded sample bit for bit.
+#[test]
+fn a_flat_ten_band_equalizer_keeps_every_sample() {
+    use nemo_audio::effects::{Biquad, Coefficients, ten_band};
+
+    for bits in [16, 24] {
+        let (path, source) = temp_wav(bits, "flat-eq");
+        let decoded = decode_file(&path).expect("decode");
+        let flat = ten_band([0; 10]).map(|band| {
+            band.map_or(Coefficients::IDENTITY, |f| {
+                Coefficients::for_filter(&f, 48_000)
+            })
+        });
+        assert!(flat.iter().all(|c| *c == Coefficients::IDENTITY));
+        let mut channels = [flat.map(Biquad::new); 2];
+        let mut out = decoded.samples.clone();
+        for frame in out.chunks_exact_mut(2) {
+            for (sample, bank) in frame.iter_mut().zip(channels.iter_mut()) {
+                *sample = bank.iter_mut().fold(*sample, |s, b| b.process(s));
+            }
+        }
+        let same = out
+            .iter()
+            .zip(&decoded.samples)
+            .all(|(a, b)| a.to_bits() == b.to_bits());
+        assert!(same, "{bits}-bit samples changed");
+        assert_eq!(to_ints(&out, bits), source);
+        std::fs::remove_file(path).expect("cleanup");
+    }
+}

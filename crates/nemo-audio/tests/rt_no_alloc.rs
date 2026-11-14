@@ -131,6 +131,53 @@ fn ten_seconds_of_render_with_gain_allocate_nothing() {
     );
 }
 
+/// Twelve filters per channel (the ten bands plus a low and a high shelf) on a stereo stream
+/// at 48 kHz, 512-frame callbacks for 10 s.
+#[test]
+fn ten_seconds_of_equalizer_filters_allocate_nothing() {
+    use nemo_audio::effects::{Biquad, Coefficients, ten_band};
+    use nemo_core::effects::{EqFilter, FilterKind};
+
+    let mut filters = ten_band([60, -30, 45, 0, -15, 30, -60, 90, -120, 120]);
+    let shelf = |kind, freq_hz, gain_tenth_db| {
+        Some(EqFilter {
+            kind,
+            freq_hz,
+            gain_tenth_db,
+            q_hundredths: 70,
+        })
+    };
+    let [.., eleventh, twelfth] = &mut filters;
+    *eleventh = shelf(FilterKind::LowShelf, 105, 40);
+    *twelfth = shelf(FilterKind::HighShelf, 10_000, -20);
+    let bank = filters
+        .map(|f| {
+            f.map_or(Coefficients::IDENTITY, |f| {
+                Coefficients::for_filter(&f, 48_000)
+            })
+        })
+        .map(Biquad::new);
+    let mut channels = [bank; 2];
+    let block: Vec<f32> = (0..u16::try_from(CALLBACK_SAMPLES).unwrap_or(u16::MAX))
+        .map(|i| (f32::from(i) * 0.37).sin() * 0.5)
+        .collect();
+    let mut out = vec![0.0_f32; CALLBACK_SAMPLES];
+
+    let before = count();
+    for _ in 0..CALLBACKS_10S {
+        out.copy_from_slice(&block);
+        for frame in out.chunks_exact_mut(2) {
+            for (sample, filters) in frame.iter_mut().zip(channels.iter_mut()) {
+                *sample = filters.iter_mut().fold(*sample, |s, b| b.process(s));
+            }
+        }
+    }
+    let after = count();
+
+    assert_eq!(after - before, 0, "the equalizer filters allocated");
+    assert!(out.iter().all(|s| s.is_finite()));
+}
+
 mod player_callback {
     use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
