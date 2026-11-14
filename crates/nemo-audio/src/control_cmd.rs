@@ -52,6 +52,33 @@ impl Core {
             PlayerCommand::SetRepeat(mode) => self.set_repeat(mode),
             PlayerCommand::Park => self.park(),
             PlayerCommand::Unpark { at } => self.unpark(at),
+            PlayerCommand::SwitchAudioTrack(language) => self.switch_audio_track(language),
+        }
+    }
+
+    /// Resolve the current stream again with `language` and reopen it where it is now. A paused
+    /// track stays paused. Local tracks and tracks without a video id are left alone. While
+    /// parked only the request changes; the next unpark resolves with it.
+    fn switch_audio_track(&mut self, language: Option<String>) {
+        let Some(cur) = self.cur.as_ref() else {
+            return;
+        };
+        if cur.track.local_path.is_some() || cur.track.video_id.is_none() {
+            return;
+        }
+        let at = if cur.loaded {
+            self.shared.position()
+        } else {
+            cur.start
+        };
+        self.deps.request.audio_language = language;
+        let Some(index) = self.index.filter(|_| !self.parked) else {
+            return;
+        };
+        let paused = self.state == PlayState::Paused;
+        self.start_track(index, at);
+        if paused {
+            self.pause();
         }
     }
 
@@ -338,3 +365,6 @@ impl Core {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;
