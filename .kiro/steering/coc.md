@@ -32,7 +32,7 @@ Keep request volume low and human-paced. Honor backoff and error signals.
 - The owner accepted the YouTube Terms of Service risk. This covers unofficial access, Google sign-in, ad blocking and SponsorBlock.
 - Ad blocking means the app does not request or play ads. It must never unlock Premium audio quality or bypass DRM. Say plainly in the README and UI that it can restrict the account and reduces income for artists.
 - Local only: no project server, no telemetry endpoint. Contact third-party hosts only if they are on the README egress list.
-- Lyrics are copyrighted text. Show them, cache them locally, never export or redistribute them. Always show the provider name. (One exception, 2026-11-14 below.)
+- Lyrics are copyrighted text. Show them, cache them locally, never export or redistribute them. Always show the provider name. (Two exceptions, 2026-11-14 below.)
 - SponsorBlock data has its own license. Follow its attribution terms (see `docs/adr/0003-adblock-sponsorblock.md`).
 
 ## Owner Decisions (2026-11-14)
@@ -41,6 +41,9 @@ Keep request volume low and human-paced. Honor backoff and error signals.
 - Offline cache: songs the user saves, and a capped set of the most-played songs (smart downloads), stay in the app's private cache. They play only inside NemoMusic, are never exported, and are deleted on sign-out. The badge shows the cached file's real codec and bitrate. Downloads stay human-paced (see Forbidden Features).
 - Premium quality is used only for accounts that have Premium. It never unlocks Premium for other accounts.
 - Lyrics excerpt: the user may share up to 4 lines of one song as an image, with title, artist and provider credit. Full lyrics are never exported. Lyrics the user writes or times stay on this computer.
+- Lyrics translation (BETA): only after the user turns it on and reads a warning, the lyrics of the song on screen may be sent to the AI endpoint the user set, to be translated. Nothing else gets lyrics.
+- Cast may pass the stream that is playing through this computer to a device on the local network. Songs in the offline cache are not cast.
+- Song recognition: the owner also accepts the patent risk of Shazam-compatible fingerprinting (open-source implementations warn about software patents outside the EU).
 - Every new host still goes on the README egress list in the change that adds it, and every new service names its risk in the README and in its settings.
 
 ## Honest Audio Quality Labeling

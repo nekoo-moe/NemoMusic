@@ -66,7 +66,7 @@ Each one goes through its own spec in `.kiro/specs/<name>/` (`workflow.md` secti
 - `lyrics-plus`: lyrics editor (line or word timing), romanization, a lyrics excerpt as an image, Spotify and YouTube transcript sources, AI translation.
 - `listening-stats`: local listening history, charts, listening clock, a listening receipt, a year in music and monthly recap playlists.
 - `account-actions`: dislike, playlist editing synced with YouTube Music, several accounts, Premium quality, preferred audio language, notifications from followed artists.
-- `youtube-extras`: search all of YouTube, live stations, comments, Return YouTube Dislike, chart data. `video-playback`: video up to 1080p with subtitles.
+- `youtube-extras`: search all of YouTube, live stations, comments, Return YouTube Dislike. `video-playback`: video up to 1080p with subtitles.
 - `integrations`: OS media controls and media keys, Last.fm scrobbling, Discord Rich Presence.
 - `song-recognition`, `ai-features` (song suggestions and a reading of your taste), `playlist-import` (from Spotify and other apps), `listen-together` (rooms compatible with Metrolist).
 
