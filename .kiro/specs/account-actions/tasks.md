@@ -47,7 +47,7 @@ Tasks in other specs are cited by spec and the ADR 0004 Decision 4 row they own,
   - Checks: three fake steps with the middle one failing: all three run, the report names the failed one, the `Vault` is wiped after the steps. Sign-out with no steps behaves as today.
   - Steering: none.
 
-- [ ] 6. Add the account list types and `AccountSwitcher`
+- [x] 6. Add the account list types and `AccountSwitcher`
   - Crate and files: `nemo-core` (`src/account.rs`). Touches nemo-core/src/account.rs, after account-actions#4.
   - Does: Adds `MAX_ACCOUNTS`, `AccountId`, `PremiumStatus`, `AccountEntry`, `AccountList` with `generation`, the `AccountSwitcher` trait and `AccountError::{LimitReached, UnknownAccount}` (ADR 0004 row 25). `NoAccount` returns an empty list.
   - _Requirements: none (groundwork)_

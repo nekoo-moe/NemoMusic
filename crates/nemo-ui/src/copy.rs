@@ -197,6 +197,8 @@ pub fn account_error(error: &nemo_core::account::AccountError) -> String {
         E::Unavailable(_) => "The sign-in window cannot open on this computer. Use \u{201c}Paste cookie instead\u{201d} below.".to_owned(),
         E::Storage(_) => concat!("NemoMusic could not save the sign-in in ", store!(), ", so you are still signed out.").to_owned(),
         E::Network(_) => "The network request failed. Check your connection and try again.".to_owned(),
+        E::LimitReached => "Five accounts are signed in already. Sign one out to add another.".to_owned(),
+        E::UnknownAccount => "This account is no longer signed in.".to_owned(),
     }
 }
 
