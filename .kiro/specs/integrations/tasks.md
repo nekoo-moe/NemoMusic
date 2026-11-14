@@ -62,7 +62,7 @@ Cross-spec ids written `<spec>#?` name the other spec's task by the ADR 0004 Dec
   - Checks: existing `Backend` tests build with the defaults. Only one task at a time edits `services.rs` (listening-stats#1 and ai-features#2 also touch it).
   - Steering: `structure.md`, add the `integrations` module and `Backend.{integrations, notifier}` to the `nemo-core` entry.
 
-- [ ] 8. Create the `nemo-integrations` crate skeleton
+- [x] 8. Create the `nemo-integrations` crate skeleton
   - Crate and files: `nemo-integrations` (new: `Cargo.toml`, `src/lib.rs`, `src/service.rs`, `src/info.rs`); workspace `Cargo.toml` members.
   - Does: Adds the crate with `build(..)` returning an `Integrations` that implements `IntegrationsService` and a no-op `PlayObserver` fan-out. `info.rs` holds the `OptInInfo` values for media controls (default on), Last.fm and Discord.
   - _Requirements: 10, 22_

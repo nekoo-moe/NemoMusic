@@ -20,6 +20,7 @@ NemoMusic/
     nemo-lyrics/        # lyrics providers, parsers, matching, cache (proposed, ADR 0002)
     nemo-secrets/       # OS credential store behind the nemo-core SecretStore trait
     nemo-soundcloud/    # SoundCloud catalog of public tracks, through the yt-dlp URL resolver
+    nemo-integrations/  # OS media controls, Last.fm, Discord presence, OS notifications
     nemo-ui/            # iced views, theme, widgets, album-art effects
     nemo-app/           # binary: wiring, config, logging, startup
   assets/               # fonts/, icons/, shaders/, images/ (with licenses)
@@ -38,6 +39,7 @@ NemoMusic/
 - nemo-lyrics: other `LyricsProvider` implementations (LRCLIB and more), LRC and enhanced-LRC parsers, match scoring, fallback chain. The `LyricsProvider` and `SegmentSource` traits live in `nemo-core`. Depends only on `nemo-core`.
 - nemo-secrets: the OS credential store (Windows Credential Manager, the Linux Secret Service) behind the `nemo-core` `SecretStore` trait, and `open_platform_store()`. Owns the `keyring-core` and platform store crates. `nemo-app` opens the store and hands it to every crate that needs a secret. Depends only on `nemo-core`.
 - nemo-soundcloud: the SoundCloud catalog (public tracks only, no sign-in), its host list and its opt-in settings entry. Never starts a process or opens a socket: search, pages and streams go through the `nemo-core` URL-resolver trait that `nemo-ytm` implements with `yt-dlp`. Depends only on `nemo-core`.
+- nemo-integrations: OS media controls and media keys, Last.fm scrobbling, Discord Rich Presence and OS notifications, behind the `nemo-core` `IntegrationsService`, `PlayObserver` and `OsNotifier` contracts, with their opt-in settings rows. Depends only on `nemo-core`.
 - nemo-ui: all iced code, theme, fonts, widgets, animations. Talks to the player only through `PlayerCommand` and `PlayerEvent`.
 - nemo-app: `main`, config file, tracing setup, crate wiring, packaging metadata. No business logic.
 
@@ -54,6 +56,7 @@ nemo-app
  ├─> nemo-lyrics ──> nemo-core
  ├─> nemo-secrets ─> nemo-core
  ├─> nemo-soundcloud ─> nemo-core
+ ├─> nemo-integrations ─> nemo-core
  └─> nemo-core
 ```
 
