@@ -15,6 +15,7 @@ use nemo_core::downloads::CollectionRef;
 use nemo_core::secret::Secret;
 use nemo_core::track::VideoId;
 
+mod catalog;
 #[cfg_attr(
     not(test),
     expect(
@@ -23,10 +24,16 @@ use nemo_core::track::VideoId;
     )
 )]
 mod fetch;
+mod gate;
 mod store;
 
 #[cfg(test)]
 mod tests;
+
+pub use catalog::OfflineCatalog;
+pub use gate::{
+    FAILURE_WINDOW, GatedImages, GatedOpener, GatedResolver, GatedSegments, OfflineSwitch,
+};
 
 /// Source of the current time, so tests can move it.
 pub trait Clock: Send + Sync {
