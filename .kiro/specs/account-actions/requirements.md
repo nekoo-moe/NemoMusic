@@ -42,7 +42,7 @@ The signed-in user can shape their YouTube Music account from NemoMusic. They ca
 26. IF no track matches, THEN THE SYSTEM SHALL play the default track and show which language is playing.
 27. WHEN a video has several audio tracks, THE SYSTEM SHALL let the user switch track during playback.
 28. THE SYSTEM SHALL provide "Notify me about new releases from followed artists", off by default.
-29. BEFORE the user turns it on, THE SYSTEM SHALL say what is sent (the followed artists' channel IDs), to whom (`music.youtube.com`), and how often it checks.
+29. WHEN the user turns it on, THE SYSTEM SHALL first say what is sent (the followed artists' channel IDs), to whom (`music.youtube.com`), and how often it checks.
 30. WHEN it is on, THE SYSTEM SHALL check no more often than once every few hours and only while the app is open.
 31. WHEN a followed artist has a new release, THE SYSTEM SHALL add it to an in-app list. It SHALL NOT show a badge count, a popup or a sound.
 32. WHERE the user separately turns on OS notifications, THE SYSTEM SHALL send at most one notification per check, grouped.
