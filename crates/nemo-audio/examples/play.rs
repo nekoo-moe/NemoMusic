@@ -96,6 +96,7 @@ fn run(args: Args) {
     let player = Player::spawn(PlayerDeps {
         resolver: no_network.clone(),
         request: StreamRequest::default(),
+        local: None,
         opener: no_network,
         segments: None,
         sink_factory: Arc::new(CpalSinkFactory::new(args.device)),

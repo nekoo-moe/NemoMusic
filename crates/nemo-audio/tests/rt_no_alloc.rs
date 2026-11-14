@@ -143,7 +143,9 @@ mod player_callback {
     use nemo_audio::player::{Player, PlayerDeps};
     use nemo_audio::sink::{AudioSink, RenderCallback, SinkError, SinkFactory};
     use nemo_core::audio::{AudioFormat, OutputInfo, OutputMode};
+    use nemo_core::library::{LocalPlayback, LocalTrackLookup, TrackSpan};
     use nemo_core::player::PlayerCommand;
+    use nemo_core::track::Track;
 
     /// A device that counts the allocations its own thread makes inside the render callback.
     struct CountingSink {
@@ -215,18 +217,45 @@ mod player_callback {
         }
     }
 
+    /// Every local track is one span of its file, as a CUE track is.
+    struct OneSpan(TrackSpan);
+
+    impl LocalTrackLookup for OneSpan {
+        fn playback(&self, _track: &Track) -> Option<LocalPlayback> {
+            Some(LocalPlayback {
+                span: Some(self.0),
+                ..LocalPlayback::default()
+            })
+        }
+    }
+
     #[test]
     fn the_real_player_callback_allocates_nothing_at_volume_100_and_50() {
+        check_callback_allocates_nothing("long.wav", None);
+    }
+
+    #[test]
+    fn the_callback_allocates_nothing_while_a_cue_span_plays() {
+        let span = TrackSpan {
+            start: Duration::from_secs(5),
+            end: Some(Duration::from_secs(55)),
+        };
+        check_callback_allocates_nothing("span.wav", Some(Arc::new(OneSpan(span))));
+    }
+
+    /// Play a 60 s local file, then lower the volume, counting allocations in the callback.
+    fn check_callback_allocates_nothing(name: &str, local: Option<Arc<dyn LocalTrackLookup>>) {
         let ints = tone_i16(48_000, 2, 60 * 48_000, 440.0);
         let dir = std::env::temp_dir().join(format!("nemo-rt-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("temp dir");
-        let path = dir.join("long.wav");
+        let path = dir.join(name);
         std::fs::write(&path, wav_bytes(&ints, 16, 48_000, 2)).expect("fixture");
         let callbacks = Arc::new(AtomicU64::new(0));
         let allocations = Arc::new(AtomicU64::new(0));
         let player = Player::spawn(PlayerDeps {
             resolver: Arc::new(FakeResolver { known: vec![] }),
             request: nemo_core::stream::StreamRequest::default(),
+            local,
             opener: Arc::new(FakeOpener {
                 files: std::collections::HashMap::default(),
                 chunk: None,

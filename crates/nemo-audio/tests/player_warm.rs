@@ -103,6 +103,7 @@ fn start(refuse: &[u32], request: StreamRequest) -> (Arc<dyn PlayerControl>, Arc
     let player = Player::spawn(PlayerDeps {
         resolver: Arc::clone(&resolver) as Arc<dyn StreamResolver>,
         request,
+        local: None,
         opener: Arc::new(opener),
         segments: None,
         sink_factory: Arc::new(ThreadSinkFactory {
