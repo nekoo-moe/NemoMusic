@@ -3610,6 +3610,7 @@ dependencies = [
  "nemo-core",
  "nemo-library",
  "nemo-lyrics",
+ "nemo-secrets",
  "nemo-ui",
  "nemo-ytm",
  "serde",
@@ -3668,6 +3669,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "nemo-secrets"
+version = "0.0.1"
+dependencies = [
+ "keyring-core",
+ "nemo-core",
+ "windows-native-keyring-store",
+ "zbus-secret-service-keyring-store",
+]
+
+[[package]]
 name = "nemo-signin"
 version = "0.0.1"
 dependencies = [
@@ -3698,9 +3709,9 @@ dependencies = [
 name = "nemo-ytm"
 version = "0.0.1"
 dependencies = [
- "keyring-core",
  "nemo-audio",
  "nemo-core",
+ "nemo-secrets",
  "proptest",
  "reqwest",
  "serde",
@@ -3709,9 +3720,7 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tracing",
- "windows-native-keyring-store",
  "ytmapi-rs",
- "zbus-secret-service-keyring-store",
 ]
 
 [[package]]
