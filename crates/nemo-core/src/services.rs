@@ -14,6 +14,7 @@ use crate::catalog::Catalog;
 use crate::lyrics::{
     Granularity, LyricsCandidate, LyricsCredit, LyricsDoc, LyricsQuery, ProviderId,
 };
+use crate::lyrics_plus::LineMeta;
 use crate::player::{PlayerCommand, PlayerEvent, PlayerSnapshot};
 use crate::stream::{ResolvedStream, StreamError};
 use crate::track::Artwork;
@@ -124,6 +125,13 @@ pub trait LyricsService: Send + Sync {
     /// The default does nothing.
     fn set_provider_enabled(&self, _provider: ProviderId, _enabled: bool) -> bool {
         false
+    }
+
+    /// Per-line side data (singer, background vocals, provider romanization) of the cached
+    /// lyrics of `provider` for a track, same index as `LyricsDoc.lines`. Empty when the source
+    /// gave none or nothing is cached. Reads the local cache only. The default is empty.
+    fn line_meta(&self, _track_key: &str, _provider: ProviderId) -> Vec<LineMeta> {
+        Vec::new()
     }
 }
 

@@ -2,7 +2,7 @@
 
 Cross-spec ids written `<spec>#?` point at the task of that spec that adds the named item (ADR 0004 Decision 4 row in brackets). Replace `?` with its number once that spec's `tasks.md` is merged.
 
-- [ ] 1. Add `LineMeta` and the defaulted `LyricsService::line_meta`
+- [x] 1. Add `LineMeta` and the defaulted `LyricsService::line_meta`
   - Crate and files: `nemo-core`: new `src/lyrics_plus.rs`, `src/services.rs`, `src/lib.rs`. Touches nemo-core/src/lyrics_plus.rs, services.rs and lib.rs.
   - Does: Adds `LineMeta { singer, background, roman }` and `line_meta` with an empty default, so no implementor changes. Signatures as in the design.
   - _Requirements: none (groundwork)_

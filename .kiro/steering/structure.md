@@ -28,7 +28,7 @@ NemoMusic/
 
 ## Crate ownership
 
-- nemo-core: `Track`, `Album`, `Source` (Local or Ytm), `AudioFormat`, `SignalPath`, `PlayerCommand`, `PlayerEvent`, shared `Error`. No I/O, no async runtime, no GUI.
+- nemo-core: `Track`, `Album`, `Source` (Local or Ytm), `AudioFormat`, `SignalPath`, `PlayerCommand`, `PlayerEvent`, shared `Error`. `lyrics_plus.rs`: per-line lyrics data (`LineMeta`) and the own-lyrics, romanizer and lyrics-translation contracts (lyrics-plus). No I/O, no async runtime, no GUI.
 - nemo-audio: symphonia decode, Opus decode, device enumeration, WASAPI and cpal output, optional ASIO, rubato, gapless queue, volume, signal-path report. Real-time code lives only here.
 - nemo-library: SQLite schema and migrations, folder scan, lofty tag read/write, cover art extraction, search over the local catalog.
 - nemo-ytm: `ytmapi-rs` catalog calls, `yt-dlp` stream resolver, Google sign-in and credential handling, account data fetch, SponsorBlock `SegmentSource`, the YTM timed-lyrics provider, rate limiting. Returns `nemo-core` types. Owns the ToS risk notice text.
