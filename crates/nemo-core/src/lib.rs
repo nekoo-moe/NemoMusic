@@ -6,6 +6,7 @@
 pub mod account;
 pub mod ai;
 pub mod audio;
+pub mod cast;
 pub mod catalog;
 pub mod downloads;
 pub mod effects;
