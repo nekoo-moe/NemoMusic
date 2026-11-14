@@ -25,6 +25,8 @@
 //! The scanner is hand written (no XML crate is allowed). It never panics, never fails, and
 //! skips what it does not understand. Input over 4 MiB or 64 levels deep is cut off.
 
+#[cfg(doc)]
+use nemo_core::lyrics::LyricWord;
 use nemo_core::lyrics::{Granularity, LyricLine, LyricsDoc, ProviderId};
 
 /// Largest input read.
