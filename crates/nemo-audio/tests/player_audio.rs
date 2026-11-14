@@ -1,5 +1,9 @@
 //! Audio content through the streaming player: bit-exact copy, volume, resampling, channel
 //! mix, seeking and streaming over slow reads. No device, no network.
+#![allow(
+    clippy::float_cmp,
+    reason = "bit-exact checks compare samples exactly, so exact float equality is the point"
+)]
 
 mod common;
 

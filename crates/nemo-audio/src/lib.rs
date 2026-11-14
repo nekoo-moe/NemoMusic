@@ -12,6 +12,13 @@
 //! [`ProcessingStage`](nemo_core::audio::ProcessingStage) that exists only when the source
 //! and the device disagree or the user lowered the volume, and it is reported in the signal
 //! path.
+#![cfg_attr(
+    test,
+    allow(
+        clippy::float_cmp,
+        reason = "the render tests check samples bit for bit, so exact float equality is the point"
+    )
+)]
 
 pub mod block_on;
 pub mod chain;

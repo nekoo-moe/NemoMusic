@@ -5,6 +5,13 @@
 //! behind the `gui` feature.
 
 #![allow(clippy::struct_excessive_bools)] // settings, UI state and the app are bundles of independent flags
+#![cfg_attr(
+    test,
+    allow(
+        clippy::duration_suboptimal_units,
+        reason = "tests spell short durations in seconds, as the timings they check"
+    )
+)]
 
 pub mod anim;
 pub mod canvas;
