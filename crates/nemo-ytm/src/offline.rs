@@ -15,6 +15,14 @@ use nemo_core::downloads::CollectionRef;
 use nemo_core::secret::Secret;
 use nemo_core::track::VideoId;
 
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "the download worker (offline-cache task 9) is the caller"
+    )
+)]
+mod fetch;
 mod store;
 
 #[cfg(test)]

@@ -52,7 +52,7 @@ Cross-spec ids written `<spec>#?` name the owner's task by its ADR 0004 Decision
   - Wave: 1
   - Checks: after `wipe` no file is left under `offline/`; play counts and queue are gone; removal keeps no copy.
 
-- [ ] 7. Download one song with ranged reads
+- [x] 7. Download one song with ranged reads
   - Crate and files: `nemo-ytm`: `src/offline/fetch.rs` (new).
   - Does: Blocking `reqwest` `GET` with one `Range: bytes=<part length>-` stream into `tmp/<opaque>.part` in 1 MiB reads, checking a pause flag between reads. Compares the length to `Content-Length`, syncs and renames to `blobs/`; a 200 answer to a range restarts from zero. The bytes are kept as served, with no re-encoding; URLs, file names and video ids are never logged.
   - _Requirements: 11, 13_
