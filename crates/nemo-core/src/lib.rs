@@ -8,6 +8,7 @@ pub mod ai;
 pub mod audio;
 pub mod catalog;
 pub mod lyrics;
+pub mod opt_in;
 pub mod player;
 pub mod secret;
 pub mod secret_store;
