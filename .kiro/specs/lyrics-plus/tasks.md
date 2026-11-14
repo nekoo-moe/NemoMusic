@@ -19,7 +19,7 @@ Cross-spec ids written `<spec>#?` point at the task of that spec that adds the n
   - Wave: 0
   - Checks: `cargo test -p nemo-core`.
 
-- [ ] 3. Add the romanizer contract
+- [x] 3. Add the romanizer contract
   - Crate and files: `nemo-core`: `src/lyrics_plus.rs`. Touches nemo-core/src/lyrics_plus.rs.
   - Does: Adds `RomanLang` (`#[non_exhaustive]`, all 12 languages), `RomanQuality`, `RomanScheme`, `RomanOptions`, `Romanization` and the `Romanizer` trait.
   - _Requirements: none (groundwork)_
