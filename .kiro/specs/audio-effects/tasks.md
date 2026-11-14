@@ -17,7 +17,7 @@
   - Wave: 0
   - Checks: `is_bit_perfect` is false with each new stage in the path (unit test in `audio.rs`).
 
-- [ ] 3. Add the effects and transition commands, events and snapshot fields
+- [x] 3. Add the effects and transition commands, events and snapshot fields
   - Crate and files: `nemo-core`: `src/player.rs`; `nemo-audio`: `src/control_cmd.rs`; exhaustive matches in `nemo-ui` and `nemo-app`. Touches nemo-core/src/player.rs.
   - Does: Adds `PlayerCommand::{SetEffects, SetTransition}`, `PlayerEvent::{EffectsChanged, TransitionStarted, TransitionSkipped}` and `PlayerSnapshot.{effects, transition}` (row 1). `control_cmd.rs` stores the settings and answers with `EffectsChanged`; nothing reaches the audio path yet, and no UI sends the commands until task 19.
   - _Requirements: 1_
