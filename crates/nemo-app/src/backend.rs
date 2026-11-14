@@ -118,6 +118,7 @@ pub fn build(
             account,
             integrations: Arc::new(NoIntegrations),
             notifier: Arc::new(NoNotifier),
+            soundcloud: None,
         },
         local,
     })
