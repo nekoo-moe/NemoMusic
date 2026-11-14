@@ -27,7 +27,7 @@ Cross-spec ids written `<spec>#?` name the other spec's task by the ADR 0004 Dec
   - Wave: 0
   - Checks: a counting fake host sees zero requests while a switch is off or unconfirmed; raising `version` makes the gate closed again; egress-list test passes.
 
-- [ ] 4. Add `PlayRule`, the shared play-count rule
+- [x] 4. Add `PlayRule`, the shared play-count rule
   - Crate and files: `nemo-core` (`src/hooks.rs` new, `src/lib.rs`); touches nemo-core/src/hooks.rs.
   - Does: Adds `PlayRule::{MIN_TRACK, MAX_THRESHOLD, threshold, counts}`: a track over 30 s counts at half its length or 4 minutes, an unknown length at 4 minutes. Pure.
   - _Requirements: 14, 15_
