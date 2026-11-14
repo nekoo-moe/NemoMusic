@@ -23,9 +23,6 @@ allow = [
     "Unicode-3.0",
     "Zlib",
 ]
-# The nemo-* workspace crates set `publish = false` (workspace Cargo.toml) and
-# carry no SPDX license field; the repo LICENSE is GPL-3.0. Treat them as
-# private so GPL-3.0 is not matched against the allowlist.
 exceptions = [
     # BSL-1.0: clipboard-win and error-code, pulled in by iced_winit -> window_clipboard (Windows clipboard).
     { name = "clipboard-win", allow = ["BSL-1.0"] },
@@ -36,6 +33,9 @@ exceptions = [
     { name = "target-lexicon", allow = ["Apache-2.0 WITH LLVM-exception"] },
 ]
 
+# The nemo-* workspace crates set `publish = false` (workspace Cargo.toml) and
+# carry no SPDX license field; the repo LICENSE is GPL-3.0. Treat them as
+# private so they are not matched against the allowlist.
 [licenses.private]
 ignore = true
 
