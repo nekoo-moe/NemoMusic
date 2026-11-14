@@ -13,7 +13,7 @@
   - Crate and files: `nemo-core`: `src/audio.rs`; `nemo-ui`: `src/signal.rs` (match arms only). Touches nemo-core/src/audio.rs (soundcloud's `Origin::SoundCloud` task also edits it; one at a time).
   - Does: Replaces the unit `Equalizer` with `Equalizer { preamp_tenth_db, auto_preamp }` and adds `Delay { time_ms }`, `Reverb`, `Crossfade { seconds, running }`, `Clipped { samples }` and `ReplayGain { db }` (row 3; `Gain` stays the volume stage). `ProcessingStage` stays `Copy`. `nemo-ui` gets plain labels so the build stays green; the real lines come in task 22.
   - _Requirements: 4_
-  - Depends on: none
+  - Depends on: audio-effects#1 (the `Crossfade` stage holds a `TransitionKind`, which that task adds in `effects.rs`)
   - Wave: 0
   - Checks: `is_bit_perfect` is false with each new stage in the path (unit test in `audio.rs`).
 
