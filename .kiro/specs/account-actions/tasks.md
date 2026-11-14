@@ -92,7 +92,7 @@ Tasks in other specs are cited by spec and the ADR 0004 Decision 4 row they own,
   - Checks: `cargo test -p nemo-audio --test bit_exact`; `rt_no_alloc` still passes (the command runs on the control thread, never in the callback); a fake resolver shows the reopen position equals the position before the switch.
   - Steering: none.
 
-- [ ] 11. Add `ReleaseFeed` and `ReleaseNotice`
+- [x] 11. Add `ReleaseFeed` and `ReleaseNotice`
   - Crate and files: `nemo-core` (new `src/releases.rs`, `src/lib.rs`). Touches nemo-core/src/releases.rs and nemo-core/src/lib.rs.
   - Does: Adds `ReleaseNotice` and the `ReleaseFeed` trait with `list`, `mark_seen` and `take_unannounced` (ADR 0004 row 28).
   - _Requirements: none (groundwork)_
