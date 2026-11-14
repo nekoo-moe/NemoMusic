@@ -66,6 +66,8 @@ pub enum Origin {
     Local,
     /// A YouTube Music stream. Always lossy.
     YoutubeMusic,
+    /// A public SoundCloud stream, found through the `yt-dlp` URL resolver. Always lossy.
+    SoundCloud,
 }
 
 /// Sample rate, channel count and (when known) bit depth of PCM audio.
@@ -106,12 +108,12 @@ pub enum QualityClass {
 impl StreamInfo {
     /// Quality class under the honest-label rule.
     ///
-    /// A YouTube Music stream is always [`QualityClass::Lossy`], whatever the codec says.
-    /// [`QualityClass::Lossless`] needs a local file with a lossless codec.
+    /// A YouTube Music or SoundCloud stream is always [`QualityClass::Lossy`], whatever the
+    /// codec says. [`QualityClass::Lossless`] needs a local file with a lossless codec.
     #[must_use]
     pub const fn quality_class(&self) -> QualityClass {
         match self.origin {
-            Origin::YoutubeMusic => QualityClass::Lossy,
+            Origin::YoutubeMusic | Origin::SoundCloud => QualityClass::Lossy,
             Origin::Local => {
                 if self.codec.is_lossless() {
                     QualityClass::Lossless
@@ -300,6 +302,29 @@ mod tests {
                 codec,
                 bitrate_kbps: Some(256),
                 format: None,
+            };
+            assert_eq!(info.quality_class(), QualityClass::Lossy, "{codec:?}");
+        }
+    }
+
+    #[test]
+    fn soundcloud_stream_is_never_lossless_even_with_a_lossless_codec() {
+        for codec in [
+            Codec::Flac,
+            Codec::Alac,
+            Codec::Pcm,
+            Codec::Opus,
+            Codec::Unknown,
+        ] {
+            let info = StreamInfo {
+                origin: Origin::SoundCloud,
+                codec,
+                bitrate_kbps: None,
+                format: Some(AudioFormat {
+                    sample_rate: 44_100,
+                    channels: 2,
+                    bit_depth: Some(16),
+                }),
             };
             assert_eq!(info.quality_class(), QualityClass::Lossy, "{codec:?}");
         }

@@ -108,6 +108,7 @@ pub fn lines(path: &SignalPath) -> Vec<PathLine> {
     let origin = match path.source.origin {
         Origin::Local => "local file",
         Origin::YoutubeMusic => "YouTube Music",
+        Origin::SoundCloud => "SoundCloud",
     };
     let process = if path.processing.is_empty() {
         "None (samples untouched)".to_owned()

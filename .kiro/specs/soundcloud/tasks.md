@@ -2,7 +2,7 @@
 
 Cross-spec ids written `<spec>#?` name the task in that spec that adds the ADR 0004 Decision 4 row given in brackets; the number is filled in once that spec's `tasks.md` is committed.
 
-- [ ] 1. Add `Origin::SoundCloud` and `MediaUrl` to nemo-core
+- [x] 1. Add `Origin::SoundCloud` and `MediaUrl` to nemo-core
   - Crate and files: `nemo-core` (touches nemo-core/src/audio.rs, nemo-core/src/track.rs); the exhaustive `match` arms this breaks in `nemo-audio` and `nemo-ui`.
   - Does: `Origin::SoundCloud` always maps to `QualityClass::Lossy`, never lossless. `MediaUrl::parse` accepts https only, no user or password in the URL, and a host that matches the given list (exact or `*.suffix`).
   - _Requirements: 8, 15_
