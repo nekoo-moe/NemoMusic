@@ -4,6 +4,8 @@
 //! (`code.md`, Bit-perfect). Code here runs off the real-time path unless its doc says
 //! `RT-SAFE`.
 
+mod biquad;
 mod profile;
 
+pub use biquad::{Biquad, Coefficients, TEN_BAND_HZ, TEN_BAND_Q_HUNDREDTHS, auto_preamp, ten_band};
 pub use profile::{EqProfile, ProfileError, parse_autoeq, write_autoeq};
