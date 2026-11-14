@@ -10,6 +10,7 @@ use std::thread;
 use std::time::Duration;
 
 use nemo_core::audio::AudioFormat;
+use nemo_core::library::TrackSpan;
 use nemo_core::segment::Segment;
 
 use crate::chain::Chain;
@@ -22,6 +23,28 @@ const NAP: Duration = Duration::from_millis(2);
 /// How long a ring flush waits for the audio callback to acknowledge.
 const FLUSH_TIMEOUT: Duration = Duration::from_millis(500);
 
+/// A [`TrackSpan`] in source frames, so that one CUE track ends on exactly the frame where the
+/// next one starts.
+#[derive(Clone, Copy)]
+struct FrameSpan {
+    /// File frame of the span start.
+    start: u64,
+    /// Frames in the span. `None` plays to the end of the file.
+    len: Option<u64>,
+}
+
+impl FrameSpan {
+    fn new(span: TrackSpan, rate: u32) -> Self {
+        let start = to_frames(span.start, rate);
+        Self {
+            start,
+            len: span
+                .end
+                .map(|end| to_frames(end, rate).saturating_sub(start)),
+        }
+    }
+}
+
 /// The track being decoded.
 struct Active {
     token: u64,
@@ -29,6 +52,8 @@ struct Active {
     chain: Chain,
     /// Source frame index (from the track start) of the next decoded block.
     pos_frames: u64,
+    /// The part of the file that is the track, if not all of it.
+    span: Option<FrameSpan>,
     segments: Vec<Segment>,
     ignored: HashSet<String>,
 }
@@ -54,6 +79,19 @@ fn to_frames(d: Duration, rate: u32) -> u64 {
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     let frames = (d.as_secs_f64() * f64::from(rate)).round() as u64;
     frames
+}
+
+/// The earliest time that lands on source frame `frames`. symphonia turns a seek time into a
+/// frame by rounding down, so the time is rounded up to the next nanosecond.
+fn frame_time(frames: u64, rate: u32) -> Duration {
+    let nanos = (u128::from(frames) * 1_000_000_000).div_ceil(u128::from(rate.max(1)));
+    Duration::from_nanos(u64::try_from(nanos).unwrap_or(u64::MAX))
+}
+
+/// The file time of track position `to`: the same time without a span, else counted from the
+/// span start, on an exact frame.
+fn file_time(span: Option<FrameSpan>, to: Duration, rate: u32) -> Duration {
+    span.map_or(to, |s| frame_time(s.start + to_frames(to, rate), rate))
 }
 
 impl Feeder {
@@ -162,7 +200,8 @@ impl Feeder {
             self.send(FeedEvent::SeekMiss { token, to });
             return;
         };
-        if let Err(e) = a.decoder.seek(to) {
+        let rate = a.decoder.info().format.sample_rate;
+        if let Err(e) = a.decoder.seek(file_time(a.span, to, rate)) {
             tracing::warn!(error = %e, "seek failed");
             self.send(FeedEvent::Failed {
                 token,
@@ -171,7 +210,7 @@ impl Feeder {
             return;
         }
         a.chain.reset();
-        a.pos_frames = to_frames(to, a.decoder.info().format.sample_rate);
+        a.pos_frames = to_frames(to, rate);
         self.flush_ring();
         self.send(FeedEvent::Started {
             token,
@@ -199,7 +238,10 @@ impl Feeder {
                 return true;
             }
         };
-        if !job.start.is_zero() && job.decoder.seek(job.start).is_err() {
+        // A CUE track starts at its span start: an accurate seek lands on that exact frame.
+        let span = job.span.map(|s| FrameSpan::new(s, source.sample_rate));
+        let from = file_time(span, job.start, source.sample_rate);
+        if !from.is_zero() && job.decoder.seek(from).is_err() {
             self.fail(job.token, "could not seek in this track");
             return true;
         }
@@ -216,6 +258,7 @@ impl Feeder {
         self.active = Some(Active {
             token: job.token,
             pos_frames: to_frames(job.start, source.sample_rate),
+            span,
             decoder: job.decoder,
             chain,
             segments: std::mem::take(&mut job.segments),
@@ -269,15 +312,37 @@ impl Feeder {
                 return;
             }
         }
+        let at_span_end = self.trim_to_span_end();
         let Ok(cut) = self.convert_block() else {
             self.fail(token, "this track could not be converted");
             return;
         };
-        if self.push_converted()
-            && let Some(segment) = cut
-        {
+        if !self.push_converted() {
+            return;
+        }
+        if at_span_end {
+            self.finish_active();
+        } else if let Some(segment) = cut {
             self.skip_segment(&segment);
         }
+    }
+
+    /// Cut the block at the span end, counting frames from the span start. Returns `true` when
+    /// the block reaches the end, so the track ends after it.
+    fn trim_to_span_end(&mut self) -> bool {
+        let Some(a) = self.active.as_ref() else {
+            return false;
+        };
+        let Some(len) = a.span.and_then(|s| s.len) else {
+            return false;
+        };
+        let channels = usize::from(a.decoder.info().format.channels);
+        let left = usize::try_from(len.saturating_sub(a.pos_frames)).unwrap_or(usize::MAX);
+        if self.block.len() / channels < left {
+            return false;
+        }
+        self.block.truncate(left * channels);
+        true
     }
 
     /// Trim the block at a segment start if one lies inside it, then convert it into
@@ -334,7 +399,11 @@ impl Feeder {
         a.chain.reset();
         let rate = a.decoder.info().format.sample_rate;
         let past_end = a.decoder.info().duration.is_some_and(|d| segment.end >= d);
-        if past_end || a.decoder.seek(segment.end).is_err() {
+        if past_end
+            || a.decoder
+                .seek(file_time(a.span, segment.end, rate))
+                .is_err()
+        {
             self.complete_active();
             return;
         }

@@ -1,5 +1,5 @@
-//! Decode a local audio file (FLAC, ALAC, WAV, AIFF, AAC, MP3, Ogg Vorbis) into interleaved
-//! `f32` frames.
+//! Decode a local audio file (FLAC, ALAC, WAV, AIFF, AAC, MP3, Ogg Vorbis, Opus in Ogg or `WebM`)
+//! into interleaved `f32` frames.
 //!
 //! # Exactness
 //!
@@ -15,9 +15,8 @@ use std::path::Path;
 use nemo_core::audio::{AudioFormat, Codec, Origin, StreamInfo};
 use symphonia::core::codecs::audio::AudioCodecId;
 use symphonia::core::codecs::audio::AudioCodecParameters;
-use symphonia::core::codecs::audio::AudioDecoderOptions;
 use symphonia::core::codecs::audio::well_known::{
-    CODEC_ID_AAC, CODEC_ID_ALAC, CODEC_ID_FLAC, CODEC_ID_MP3, CODEC_ID_PCM_MULAW,
+    CODEC_ID_AAC, CODEC_ID_ALAC, CODEC_ID_FLAC, CODEC_ID_MP3, CODEC_ID_OPUS, CODEC_ID_PCM_MULAW,
     CODEC_ID_PCM_S32LE, CODEC_ID_VORBIS,
 };
 use symphonia::core::errors::Error as SymphoniaError;
@@ -41,7 +40,8 @@ pub enum DecodeError {
     /// The stream does not state a fact the engine needs. Nothing is guessed.
     #[error("the stream does not state its {0}")]
     MissingParameter(&'static str),
-    /// The stream uses a codec this build cannot decode (for example Opus).
+    /// The stream uses a codec this build cannot decode, or the decoder refuses the stream's
+    /// parameters (for example Opus with more than two channels).
     #[error("unsupported codec")]
     UnsupportedCodec,
     /// The channel count or sample rate is outside what this crate can carry.
@@ -126,8 +126,7 @@ pub fn decode_file(path: &Path) -> Result<DecodedAudio, DecodeError> {
         .ok_or(DecodeError::UnsupportedLayout("channel count"))?;
     let bit_depth = stated_bit_depth(params);
     let codec = codec_from_id(params.codec);
-    let mut decoder = symphonia::default::get_codecs()
-        .make_audio_decoder(params, &AudioDecoderOptions::default())?;
+    let mut decoder = crate::codecs::make_decoder(params)?;
 
     let mut samples: Vec<f32> = Vec::new();
     let mut scratch: Vec<f32> = Vec::new();
@@ -160,8 +159,8 @@ pub fn decode_file(path: &Path) -> Result<DecodedAudio, DecodeError> {
 
 /// Codecs the streaming decoder can really decode in this build, for stream selection.
 ///
-/// Opus is absent on purpose: symphonia 0.6.1 has an Opus codec id (it can demux Opus in
-/// Ogg or Matroska) but ships no Opus decoder, so offering it would only fail at playback.
+/// Opus decodes (see `codecs.rs`) but is not offered yet: adding it changes which YouTube and
+/// SoundCloud stream is chosen, so it lands as its own change (local-library task 7).
 #[must_use]
 pub fn supported_stream_codecs() -> &'static [Codec] {
     &[Codec::Aac, Codec::Flac, Codec::Mp3, Codec::Pcm]
@@ -180,6 +179,8 @@ pub(crate) fn codec_from_id(id: AudioCodecId) -> Codec {
         Codec::Alac
     } else if id == CODEC_ID_VORBIS {
         Codec::Vorbis
+    } else if id == CODEC_ID_OPUS {
+        Codec::Opus
     } else if (CODEC_ID_PCM_S32LE..=CODEC_ID_PCM_MULAW).contains(&id) {
         Codec::Pcm
     } else {
@@ -189,7 +190,13 @@ pub(crate) fn codec_from_id(id: AudioCodecId) -> Codec {
 
 /// Bit depth the stream states. symphonia 0.6.1 leaves `bits_per_sample` unset for ALAC in
 /// MP4, so for ALAC it is read from the magic cookie, which always states it.
+///
+/// A lossy codec has no bit depth: a value in the container (the `WebM` muxer of `FFmpeg` writes
+/// 16 for Opus) names the encoder's input, not the stream, so it is ignored.
 pub(crate) fn stated_bit_depth(params: &AudioCodecParameters) -> Option<u8> {
+    if codec_from_id(params.codec).is_lossy() {
+        return None;
+    }
     params
         .bits_per_sample
         .and_then(|b| u8::try_from(b).ok())
@@ -266,5 +273,15 @@ mod tests {
     fn new_codec_ids_map_to_their_codec() {
         assert_eq!(codec_from_id(CODEC_ID_ALAC), Codec::Alac);
         assert_eq!(codec_from_id(CODEC_ID_VORBIS), Codec::Vorbis);
+        assert_eq!(codec_from_id(CODEC_ID_OPUS), Codec::Opus);
+    }
+
+    #[test]
+    fn a_lossy_codec_states_no_bit_depth_even_when_the_container_does() {
+        let mut params = AudioCodecParameters::new();
+        params.for_codec(CODEC_ID_OPUS).with_bits_per_sample(16);
+        assert_eq!(stated_bit_depth(&params), None);
+        params.for_codec(CODEC_ID_FLAC);
+        assert_eq!(stated_bit_depth(&params), Some(16));
     }
 }

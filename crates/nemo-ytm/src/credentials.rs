@@ -1,157 +1,21 @@
-//! Where the signed-in session is kept: Windows Credential Manager on Windows, the Secret
-//! Service (GNOME Keyring, `KWallet`) on Linux (ADR 0001).
+//! How the signed-in session is kept in the OS credential store (ADR 0001). The store itself
+//! (Windows Credential Manager, or the Secret Service on Linux) lives in `nemo-secrets`;
+//! `nemo-app` hands it in as `Arc<dyn SecretStore>`.
 //!
 //! One credential blob holds at most 2560 bytes and a cookie header can be longer, so the header
 //! is cut into parts of at most [`PART_BYTES`] bytes, one entry per part, plus a manifest entry
 //! that says how many parts there are. Nothing here logs a value.
 
-use std::collections::HashMap;
 use std::sync::Arc;
 
-use keyring_core::api::CredentialStoreApi;
-use keyring_core::{Entry, Error as KeyringError};
 use nemo_core::secret_store::{SecretStore, StoreError};
 
-/// Service name for every entry this app writes.
-pub const SERVICE: &str = "NemoMusic";
 /// Biggest part, in bytes. Windows allows 2560 per blob; this leaves a wide margin.
 pub const PART_BYTES: usize = 2000;
 /// Most parts a session may have (about 32 KB, far above any real cookie header).
 pub const MAX_PARTS: usize = 16;
 
 const MANIFEST_KEY: &str = "session-manifest";
-
-/// The credential store of this platform.
-#[cfg(windows)]
-pub type PlatformStore = WindowsStore;
-/// The credential store of this platform.
-#[cfg(target_os = "linux")]
-pub type PlatformStore = SecretServiceStore;
-
-/// Windows Credential Manager through `keyring-core`.
-#[cfg(windows)]
-pub struct WindowsStore {
-    store: Arc<windows_native_keyring_store::Store>,
-}
-
-#[cfg(windows)]
-impl WindowsStore {
-    /// Open the credential store.
-    ///
-    /// # Errors
-    /// Returns a [`StoreError`] when the store cannot be created.
-    pub fn new() -> Result<Self, StoreError> {
-        let store = windows_native_keyring_store::Store::new()
-            .map_err(|_| StoreError("credential store is not available"))?;
-        Ok(Self { store })
-    }
-
-    fn entry(&self, key: &str) -> Result<Entry, StoreError> {
-        // `Local`: stays on this computer instead of roaming with a domain profile.
-        let modifiers = HashMap::from([("persistence", "Local")]);
-        self.store
-            .build(SERVICE, key, Some(&modifiers))
-            .map_err(|_| StoreError("credential entry is not valid"))
-    }
-}
-
-#[cfg(windows)]
-impl SecretStore for WindowsStore {
-    fn set(&self, key: &str, value: &[u8]) -> Result<(), StoreError> {
-        entry_set(&self.entry(key)?, value)
-    }
-
-    fn get(&self, key: &str) -> Result<Option<Vec<u8>>, StoreError> {
-        entry_get(&self.entry(key)?)
-    }
-
-    fn delete(&self, key: &str) -> Result<bool, StoreError> {
-        entry_delete(&self.entry(key)?)
-    }
-}
-
-/// The Secret Service (GNOME Keyring, `KWallet`) through `keyring-core`.
-#[cfg(target_os = "linux")]
-pub struct SecretServiceStore {
-    store: Arc<zbus_secret_service_keyring_store::Store>,
-}
-
-#[cfg(target_os = "linux")]
-impl SecretServiceStore {
-    /// Connect to the Secret Service on the session bus.
-    ///
-    /// # Errors
-    /// Returns a [`StoreError`] when no Secret Service is running. Nothing is written to a file
-    /// instead.
-    pub fn new() -> Result<Self, StoreError> {
-        let store = zbus_secret_service_keyring_store::Store::new()
-            .map_err(|_| StoreError("the system keyring (Secret Service) is not available"))?;
-        Ok(Self { store })
-    }
-
-    fn entry(&self, key: &str) -> Result<Entry, StoreError> {
-        let modifiers = HashMap::from([("label", "NemoMusic sign-in")]);
-        self.store
-            .build(SERVICE, key, Some(&modifiers))
-            .map_err(|_| StoreError("credential entry is not valid"))
-    }
-}
-
-#[cfg(target_os = "linux")]
-impl SecretStore for SecretServiceStore {
-    fn set(&self, key: &str, value: &[u8]) -> Result<(), StoreError> {
-        entry_set(&self.entry(key)?, value)
-    }
-
-    fn get(&self, key: &str) -> Result<Option<Vec<u8>>, StoreError> {
-        entry_get(&self.entry(key)?)
-    }
-
-    fn delete(&self, key: &str) -> Result<bool, StoreError> {
-        entry_delete(&self.entry(key)?)
-    }
-}
-
-/// Fixed error texts of one store. Platform errors are dropped: they can name the credential.
-struct Texts {
-    write: &'static str,
-    read: &'static str,
-    delete: &'static str,
-}
-
-#[cfg(windows)]
-const TEXTS: Texts = Texts {
-    write: "cannot write to Windows Credential Manager",
-    read: "cannot read Windows Credential Manager",
-    delete: "cannot delete from Windows Credential Manager",
-};
-
-#[cfg(not(windows))]
-const TEXTS: Texts = Texts {
-    write: "cannot write to the system keyring",
-    read: "cannot read the system keyring",
-    delete: "cannot delete from the system keyring",
-};
-
-fn entry_set(entry: &Entry, value: &[u8]) -> Result<(), StoreError> {
-    entry.set_secret(value).map_err(|_| StoreError(TEXTS.write))
-}
-
-fn entry_get(entry: &Entry) -> Result<Option<Vec<u8>>, StoreError> {
-    match entry.get_secret() {
-        Ok(bytes) => Ok(Some(bytes)),
-        Err(KeyringError::NoEntry) => Ok(None),
-        Err(_) => Err(StoreError(TEXTS.read)),
-    }
-}
-
-fn entry_delete(entry: &Entry) -> Result<bool, StoreError> {
-    match entry.delete_credential() {
-        Ok(()) => Ok(true),
-        Err(KeyringError::NoEntry) => Ok(false),
-        Err(_) => Err(StoreError(TEXTS.delete)),
-    }
-}
 
 fn part_key(index: usize) -> String {
     format!("session-{index}")
@@ -354,35 +218,5 @@ mod tests {
         assert!(vault.save("").is_err());
         assert!(vault.save(&"a".repeat(PART_BYTES * MAX_PARTS + 1)).is_err());
         assert!(store.is_empty());
-    }
-
-    #[cfg(windows)]
-    #[test]
-    #[ignore = "writes synthetic entries to the real Windows Credential Manager"]
-    fn windows_credential_manager_round_trip() {
-        let vault = Vault::new(Arc::new(WindowsStore::new().expect("store")));
-        let cookie = format!("SAPISID=synthetic; filler={}", "v".repeat(4500));
-        vault.save(&cookie).expect("save");
-        assert_eq!(
-            vault.load().expect("load").as_deref(),
-            Some(cookie.as_str())
-        );
-        assert_eq!(vault.wipe().expect("wipe"), 4);
-        assert_eq!(vault.load().expect("load"), None);
-    }
-
-    #[cfg(target_os = "linux")]
-    #[test]
-    #[ignore = "writes synthetic entries to the real Secret Service keyring"]
-    fn secret_service_round_trip() {
-        let vault = Vault::new(Arc::new(SecretServiceStore::new().expect("store")));
-        let cookie = format!("SAPISID=synthetic; filler={}", "v".repeat(4500));
-        vault.save(&cookie).expect("save");
-        assert_eq!(
-            vault.load().expect("load").as_deref(),
-            Some(cookie.as_str())
-        );
-        assert_eq!(vault.wipe().expect("wipe"), 4);
-        assert_eq!(vault.load().expect("load"), None);
     }
 }

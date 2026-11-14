@@ -148,13 +148,14 @@ impl Core {
         };
         let mut run = Run::new(slot.token, slot.entry, slot.track, Duration::ZERO);
         run.stages = plan_stages(format, out);
-        run.duration = prepared.decoder.info().duration.or(run.track.duration);
+        run.duration = prepared.duration().or(run.track.duration);
         run.source = Some(prepared.info);
         run.loaded = true;
         pipe.send(FeedCmd::Load(Job {
             token: run.token,
             decoder: prepared.decoder,
             start: Duration::ZERO,
+            span: prepared.playback.span,
             segments: Vec::new(),
         }));
         self.following = Some(run);
