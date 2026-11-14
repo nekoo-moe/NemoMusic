@@ -53,7 +53,7 @@ Cross-spec ids written `<spec>#?` point at the task of that spec that adds the n
   - Checks: `cargo test -p nemo-core`.
   - Steering: `structure.md` lists `nemo-core/src/animated_art.rs`.
 
-- [ ] 7. Create the `nemo-spotify` crate skeleton
+- [x] 7. Create the `nemo-spotify` crate skeleton
   - Crate and files: new `crates/nemo-spotify/` (`Cargo.toml`, `src/lib.rs`), workspace `Cargo.toml` members.
   - Does: Empty crate depending on `nemo-core` only, with `#![forbid(unsafe_code)]`, `#![warn(missing_docs)]` and `[lints] workspace = true`. No network code yet.
   - _Requirements: none (groundwork)_
