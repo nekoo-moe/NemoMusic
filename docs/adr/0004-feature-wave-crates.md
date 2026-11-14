@@ -31,7 +31,7 @@ New crates, each depending on `nemo-core` and its own third-party crates only:
 | `nemo-soundcloud` | SoundCloud catalog and pages. Stream lookup uses the `nemo-core` URL-resolver trait that `nemo-ytm` implements with `yt-dlp`. |
 | `nemo-spotify` | The user's Spotify session, Spotify lyrics (a `LyricsProvider`) and Canvas (an animated-art trait). |
 | `nemo-stats` | The local play log (SQLite) and every aggregate: charts, clock, receipt, year in music, recaps. |
-| `nemo-integrations` | OS media controls and media keys, Last.fm, Discord Rich Presence. |
+| `nemo-integrations` | OS media controls and media keys, Last.fm, Discord Rich Presence, OS notifications (`OsNotifier`: Windows toast, Linux desktop notification). |
 | `nemo-ai` | The client for the endpoint the user sets, behind a `nemo-core` trait used by lyrics translation and suggestions. |
 | `nemo-recognize` | Microphone and loopback capture, the fingerprint, the recognition request. |
 | `nemo-cast` | Cast and DLNA discovery and control, and the LAN-only stream server. |
@@ -41,7 +41,7 @@ New crates, each depending on `nemo-core` and its own third-party crates only:
 A design may merge two of these or add a module elsewhere if it says why. A design that needs a crate-to-crate edge other than "depends on `nemo-core`" must stop and raise it.
 
 ## Decision 2: shared traits in `nemo-core`
-`nemo-core` files are shared. Each design names the traits and types it adds, signatures only. At implementation time only one task at a time edits a given `nemo-core` file, and the task that adds a trait lands before the tasks that use it. Expected additions: `SecretStore`, a URL resolver for `yt-dlp`, a new `Origin` value for SoundCloud, a translator, an animated-art source, a play-log and stats service, a downloads service, a remote-playback service (Cast and rooms), a recognizer, and video frames.
+`nemo-core` files are shared. Each design names the traits and types it adds, signatures only. At implementation time only one task at a time edits a given `nemo-core` file, and the task that adds a trait lands before the tasks that use it. Expected additions: `SecretStore`, a URL resolver for `yt-dlp`, a new `Origin` value for SoundCloud, a translator, an animated-art source, a play-log and stats service, a downloads service, a remote-playback service (Cast and rooms), a recognizer, and video frames. The 17 designs fixed the complete list; it is Decision 4 below.
 
 ## Decision 3: rules every design follows
 - Storage: one SQLite file per owning crate (as `nemo-lyrics` does now), under the app data folder, with migrations. No shared database.
@@ -49,7 +49,8 @@ A design may merge two of these or add a module elsewhere if it says why. A desi
 - Opt-in: each opt-in feature has one settings entry with the switch, what is sent, to which hosts, and its risk text, shown before the first request. One shared UI pattern for all of them.
 - Network: every new host goes on the README egress list in the task that first contacts it.
 - Audio: every stage that alters samples registers in the signal path, is off by default and does no arithmetic when off. The real-time rules of `code.md` hold. The bit-exact test passes with every stage off.
-- Sign-out: every crate that keeps account data registers a wipe step that sign-out runs.
+- Sign-out: every crate that keeps account data implements `SignOutWipe` (account-actions, Decision 4 row 26) and `nemo-app` registers the step with `GoogleAccount`. Sign-out runs every step, keeps going after a failure and reports it. Steps: `nemo-ytm` ("ytm-extras": comment pages, dislike cache, subtitle cues; and the vault and release notices of account-actions), offline-cache ("offline"), ai-features ("ai"), nemo-spotify ("spotify", including Canvas clips), listen-together ("together"), cast ("cast").
+- Sign-out exception: listening-stats registers no step. The owner decided on 2026-11-14 that local stats stay after sign-out. "Clear stats" is the only way to delete them, and the sign-out text says so. This is the one place where sign-out keeps data that came from playing songs with an account; it is not account data of YouTube Music. Other designs register no step because their own requirements say they keep no account data: local-library (criterion 29), song-recognition (history, criterion 19), integrations (Last.fm and Discord settings, criterion 20), playlist-import (the UI drops an import in progress), soundcloud, audio-effects, output-devices, video-playback.
 - Steering: `tech.md` (crates) and `structure.md` (new crates and edges) change in the implementing task, as their change rules say. Designs list the edits.
 
 ## Decision 4: shared items, owners and users
@@ -138,7 +139,41 @@ Where each design points here (one line in its "Steering and README changes"):
 | Cast | the playing stream, to a device on the local network | none on the internet | cast |
 | Listening stats | nothing (recording is local) | none | listening-stats |
 
+## Decision 5: dependency age
+`tech.md` (Change rules) asks for a release within 12 months. `code.md` (Dependencies) rejects a crate with no release in 2 years. `workflow.md` section 2 ranks `code.md` (3) above `tech.md` (4), so the 2-year rule wins and a crate released within 2 years is allowed. The designs were reviewed under it:
+
+| Crate | Last release | Decision |
+|---|---|---|
+| `csv` 1.4.0 (playlist-import) | 2025-10-17 | Use it. Replaces the hand-written reader. Licence Unlicense OR MIT, MSRV 1.73. |
+| `rustfft` 6.4.1 (song-recognition, through `realfft`) | 2025-09-18 | Use it. No exception and no own FFT. |
+| `ab_glyph` 0.2.32 (listening-stats receipt) | 2025-09-28 | Use it instead of `fontdue`: it is Apache-2.0, already in `Cargo.lock` (through `sctk-adwaita`, Wayland only), so no new crate. `fontdue` 0.9.5 is newer but new to the tree and its `rust-version` is not listed. |
+| `rupnp` 3.0.0, `ssdp-client` 2.1.0 (cast) | 2025-04-25 | Allowed by age, not used: they add `roxmltree`, `genawaiter` and a second `if-addrs`, and a second HTTP client, to replace about 300 lines on `quick-xml` and `reqwest`, which are already locked. |
+| `byteorder` (song-recognition) | 2023 | Rejected by age (over 2 years); `u32::from_le_bytes` replaces it. |
+
+Proposed fix to `tech.md` (owner approves; `workflow.md` section 8 forbids editing it without that), replacing the sentence in Change rules:
+
+> A new dependency must be maintained (a release within the last 2 years, as `code.md` requires; prefer one within 12 months, and say in the change when the last release is older), license-compatible with the repo `LICENSE`, and checked with `cargo deny` once configured.
+
+Also for `tech.md`, from the designs: the "Opus decode" row says `opus` or `audiopus`; local-library replaces it with `symphonia-adapter-libopus` =0.3.0 (needs CMake); the "build no audio cache" line is replaced by offline-cache; the two credential rows move to `nemo-secrets` (account-actions). Every design lists its own rows, and the first task that adds a crate adds its row.
+
+All crates proposed in the 17 designs and in the two new pieces build on the workspace `rust-version` of 1.97 (checked MSRVs: `rfd` 1.92, `symphonia-adapter-libopus` 1.89, `libloading` 1.88, `wasapi` 1.85 to 1.88, `zbus` 1.87, `tauri-winrt-notification` 1.82, the rest lower). `rust-toolchain.toml` pins 1.99.1, which is newer than the 1.97 the brief for the designs named; this is not a conflict, but `code.md` ("latest stable minus 2") and the file should agree when the owner next raises either.
+
 ## Consequences
 - `nemo-ytm` loses its credential module to `nemo-secrets` and `nemo-core`; its sign-in flow is otherwise unchanged.
 - The crate count grows from 8 to 18. Each new crate is small and testable alone.
 - `nemo-app` gets more wiring. If it passes 500 lines per file, it splits as `code.md` asks.
+
+## Open decisions for the owner
+Decisions that two designs or a steering file leave to the owner. None blocks the other designs.
+1. **Opus.** Should `Codec::Opus` join `supported_stream_codecs()`, so YouTube and SoundCloud streams may play as Opus? It changes what the owner hears (`workflow.md` section 8). The decoder itself (local files) lands first. And is CMake acceptable for `symphonia-adapter-libopus` (`tech.md` avoids backends that need it), or should local-library use the pure-Rust `opus-decoder` 0.1.1?
+2. **Unsafe code in `nemo-video`.** `code.md` allows `unsafe` only in an `ffi` or `sys` module of `nemo-audio`. Own libmpv FFI over `libloading` needs an `ffi` module in `nemo-video`. Either extend the rule to that module, or take `libmpv2` 7.0.1 (LGPL-2.1, a `deny.toml` exception). A spike decides which works; a short ADR 0005 records libmpv.
+3. **Per-provider timeout.** The lyrics chain limits each provider to 4 s (ADR 0002). Captions run `yt-dlp` and need about 20 s. Approve a defaulted `LyricsProvider::timeout`, or captions serve only the subtitle menu.
+4. **Exclusive mode and crossfade.** audio-effects skips a crossfade when the next song needs another format on an exclusive device (`TransitionSkipped(FormatChangeInExclusive)`). That departs from its criterion 22 in one case.
+5. **Comments.** Do posted comments ship in the first version or after a trial (youtube-extras question 1)?
+6. **Numbers the designs proposed:** offline-cache (at least 3 plays for smart downloads, a takedown check every 30 days, 256 MiB free-disk margin), listen-together drift 500 ms, playlist-import match thresholds and the 500-song notice, soundcloud codec factors.
+7. **Notifications.** Skip the notification while the window is focused (integrations criterion 34, the design's proposal), and the Windows app id `NemoMusic.NemoMusic` with a Start Menu shortcut written by the installer.
+8. **Local single-instance token** (local-library): the design writes a random token to `instance.json` for a loopback hand-off. `coc.md` says tokens go to the OS keychain only. The token guards a local socket and is not an account credential, but the owner should confirm, or choose a named pipe and Unix socket.
+9. **Cast** skips the TLS certificate check on port 8009 (devices use self-signed certificates). The owner accepts or asks for pinning of the first-seen certificate.
+10. **Registrations the owner makes:** the Discord application id; a Last.fm API account for testing; throwaway Spotify and Google accounts for the spikes; the `design.md` change of now-playing-styles (the Apple style's four exceptions).
+11. **Licence notices:** `sabiyomi` embeds IPADIC data whose licence text is not on the `code.md` list (lyrics-plus); the vendored `cast_channel.proto` (Apache-2.0) and `listentogether.proto` (GPL-3.0, compatible with this repository's GPL-3.0).
+12. **Sign-out exception** for listening-stats is decided (Decision 3). The `tech.md` fix of Decision 5 needs the owner's approval before it is edited.

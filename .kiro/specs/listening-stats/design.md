@@ -119,7 +119,7 @@ Export writes to `dest.tmp` in the same folder, then renames. Columns: `started_
 
 ## Risks and Alternatives
 
-- Sign-out keeps stats (owner decision). `product.md` and ADR 0004 say sign-out wipes cached account data, and `nemo-stats` registers no wipe step. This is a deliberate exception: plays are this computer's history. The sign-out text and "Clear stats" carry the explanation. ADR 0004 should list the exception.
+- Sign-out keeps stats (owner decision). `product.md` and ADR 0004 say sign-out wipes cached account data, and `nemo-stats` registers no wipe step. This is a deliberate exception: plays are this computer's history. The sign-out text and "Clear stats" carry the explanation. ADR 0004, Decision 3, lists the exception.
 - A play is counted when the track ends, so a crash loses the current play. Writing at the threshold would fix that but would store a partial "heard" value; the end-of-track write is kept.
 - Heard time is sampled every 500 ms, so it is off by up to half a second per track. The rule's 50 % line is not affected in practice.
 - One song across sources by name only: tags that differ ("(Remastered)") split a song in two. A fuzzy match would invent merges, which criterion 22 forbids.
@@ -131,7 +131,7 @@ Export writes to `dest.tmp` in the same folder, then renames. Columns: `started_
 ## Steering and README changes
 
 - Opt-in: the recording switch and the monthly-recaps switch use the shared `OptInRow` and `OptInInfo` (ADR 0004, "Opt-in settings pattern"). Sends: nothing; hosts: none; the risk text says the history stays on this computer, survives sign-out and is deleted by "Clear stats".
-- `tech.md`: add `chrono` =0.4.45 (MIT OR Apache-2.0, 2026-06-04, `clock` feature, already in `Cargo.lock`); `ab_glyph` =0.2.32 (Apache-2.0, 2025-09-28, already locked; direct dependency of `nemo-stats`); `rusqlite`, `image`, `sha2`, `unicode-normalization` and `tokio` are existing pins. Confirm `rusqlite` 0.41.1 stays pinned (0.42.0 exists since 2026-11-11).
+- `tech.md`: add `chrono` =0.4.45 (MIT OR Apache-2.0, 2026-06-04, `clock` feature, already in `Cargo.lock`); `ab_glyph` =0.2.32 (Apache-2.0, 2025-09-28, already locked; direct dependency of `nemo-stats`); `rfd` =0.18.0 (MIT, MSRV 1.92) and `arboard` =3.7.0 (MIT OR Apache-2.0, MSRV 1.71) for `nemo-ui`, the same rows that local-library and lyrics-plus list, added once by whichever task lands first; `rusqlite`, `image`, `sha2`, `unicode-normalization` and `tokio` are existing pins. Confirm `rusqlite` 0.41.1 stays pinned (0.42.0 exists since 2026-11-11).
 - `structure.md`: new crate `nemo-stats`, edge `nemo-app -> nemo-stats`, it depends on `nemo-core` only; note `Backend.stats`.
 - README egress list: no new host. README privacy text: stats are off until switched on, stay local, survive sign-out, export is a file the user saves.
 - ADR 0004: record the sign-out exception and the `nemo-stats` crate list (`ab_glyph`, `chrono`).

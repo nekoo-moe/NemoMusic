@@ -146,7 +146,7 @@ From other designs I need: `SubtitleSource` and `SubtitleCue` from youtube-extra
 
 ## Steering and README changes
 
-- `tech.md`: add a "Video" row: libmpv (LGPL-2.1-or-later build, shared library loaded at run time, version pinned in the spike), `libmpv2` =7.0.1 (LGPL-2.1, last release 2026-11-07, MSRV unverified; needs the `deny.toml` exception) or `libloading` (ISC; 0.8.9 is in `Cargo.lock`, 0.9.1 is current, MSRV 1.88), status "decided - spike first". Add the `ffmpeg` rejection note: libmpv carries its own FFmpeg, loaded as a binary.
+- `tech.md`: add a "Video" row: libmpv (LGPL-2.1-or-later build, shared library loaded at run time, version pinned in the spike), `libmpv2` =7.0.1 (LGPL-2.1, last release 2026-11-07, MSRV unverified; needs the `deny.toml` exception) or `libloading` =0.9.1 (ISC, MSRV 1.88; `Cargo.lock` has 0.8.9 for other crates), status "decided - spike first". Add the `ffmpeg` rejection note: libmpv carries its own FFmpeg, loaded as a binary.
 - `structure.md`: add `nemo-video` (depends on `nemo-core` only, plus its binding); `nemo-app` depends on it; `nemo-audio` gets the `PlaybackClock` impl.
 - README egress list: `*.googlevideo.com` (video streams, already used for audio), `www.youtube.com`, and the caption host, confirmed in the spike (likely `www.youtube.com`). No new host is expected. README gets the libmpv licence notice and a source link.
 - `deny.toml` (when it exists): the `libmpv2` exception, owner-approved, only if that binding is chosen.

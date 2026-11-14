@@ -127,7 +127,7 @@ pub(crate) fn build_codecs() -> CodecRegistry;  // default decoders plus the Opu
 
 ## Steering and README changes
 
-- `tech.md`: Decode row: add features `alac`, `vorbis`, `ogg`, `aiff`. Opus decode row: `symphonia-adapter-libopus` =0.3.0, MIT OR Apache-2.0, plus bundled libopus (via `opusic-sys` 0.7.7, BSD-3-Clause); needs CMake; replaces the `opus` or `audiopus` wording. Library DB row: `rusqlite` 0.41.1 from "proposed" to "decided". New rows: `rfd` 0.18.0 (MIT, Windows and Linux portal), `ebur128` 0.1.11 (MIT). Record `notify` as rejected (CC0-1.0, rc).
+- `tech.md`: Decode row: add features `alac`, `vorbis`, `ogg`, `aiff`. Opus decode row: `symphonia-adapter-libopus` =0.3.0, MIT OR Apache-2.0, plus bundled libopus (via `opusic-sys` 0.7.7, BSD-3-Clause); needs CMake; replaces the `opus` or `audiopus` wording. Library DB row: `rusqlite` 0.41.1 from "proposed" to "decided". New rows: `rfd` 0.18.0 (MIT, Windows and Linux portal), `ebur128` 0.1.11 (MIT), `getrandom` 0.3.4 (MIT OR Apache-2.0, already locked; the single-instance token). Record `notify` as rejected (CC0-1.0, rc).
 - `structure.md`: `nemo-library` owns `library.db`; `nemo-audio` implements `LoudnessMeter` and `nemo-app` wires it; no new crate-to-crate edge.
 - README: no new network host. Add libopus (BSD-3-Clause) to the third-party licence notice if one exists. Note that the folder dialog on Linux uses the desktop portal.
 - ADR 0004: add `library.rs` to the expected `nemo-core` additions; record that folder watching was not built.

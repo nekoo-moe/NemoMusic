@@ -11,7 +11,7 @@ Apple Music animated covers are Later (criterion 22). Checked 2026-11-14: the of
 - `nemo-ui`: `NowPlayingStyle` and `AnimatedCoverSettings` in `settings.rs`; new `gui/views/np_classic.rs`, `np_apple.rs`, `np_apple_lyrics.rs`; `now_playing.rs::view` and `pane.rs::view` dispatch on the style; `CoverSlot` in `bar.rs` next to `cover_art`; style cards (with a small snapshot each) and the animated-cover rows in `settings.rs`; `layout.rs` gets the Apple sizes.
 - `nemo-core`: uses `AnimatedArtSource` and `LineMeta` (singer, background) from the lyrics-plus design. Needs a video frame trait from `video-playback` (see Interfaces). Adds nothing else.
 - `nemo-spotify` (new, designed in lyrics-plus): `SpotifyCanvasSource`, cache folder `canvas/`, table `canvas_miss` in `spotify.sqlite`.
-- `nemo-app`: `config.rs` and `ui_bridge.rs` carry the new settings in `settings.json`; builds the source list and passes it to the UI backend; wipes Canvas on sign-out.
+- `nemo-app`: `config.rs` and `ui_bridge.rs` carry the new settings in `settings.json`; builds the source list and passes it to the UI backend. The Canvas folder is wiped by the "spotify" `SignOutWipe` step of lyrics-plus.
 - `nemo-video` (video-playback design): decodes the clip. `nemo-ui` never depends on it.
 - `nemo-audio`, `nemo-library`, `nemo-lyrics`, `nemo-ytm`: no change.
 
