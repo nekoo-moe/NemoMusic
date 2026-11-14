@@ -18,7 +18,7 @@ Priorities: 1) sound quality, 2) beauty, 3) calm daily use. Versions checked on 
 | Area | Choice | Reason | Main rejected alternative | Status |
 |---|---|---|---|---|
 | Language | Rust, edition 2024, stable toolchain | Memory safety with no GC pauses on the audio thread | C++ (unsafe by default) | decided |
-| Decode | `symphonia` 0.6.1 | Pure Rust, FLAC/ALAC/WAV/AAC/Opus-container/MP3 support, gapless info | `ffmpeg` bindings (large C dependency, build pain on Windows) | decided |
+| Decode | `symphonia` 0.6.1 (MPL-2.0), features `flac`, `wav`, `pcm`, `isomp4`, `aac`, `mkv`, `mp3`, `alac`, `vorbis`, `ogg`, `aiff` | Pure Rust, FLAC/ALAC/WAV/AIFF/AAC/Vorbis/Opus-container/MP3 support, gapless info | `ffmpeg` bindings (large C dependency, build pain on Windows) | decided |
 | Opus decode | `symphonia` lacks an Opus codec; add `opus` or `audiopus` crate behind `nemo-audio` | Needed for YouTube Opus streams | Forcing AAC only (loses the best YouTube stream) | decided (owner ok 2026-11-10); symphonia Opus gap unverified |
 | Device output | `cpal` 0.18.2 (shared mode, default path) | Maintained, cross-platform for Linux/macOS later | `rodio` (hides the stream, no bit-perfect control) | decided |
 | Exclusive mode | `wasapi` 0.27.0 directly for WASAPI exclusive on Windows | cpal's WASAPI backend targets shared mode; exclusive needs direct control | Shared mode only (mixer may resample) | decided (owner ok 2026-11-10); cpal/WASAPI exclusive support unverified |
