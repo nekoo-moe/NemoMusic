@@ -13,7 +13,7 @@ Cross-spec ids written `<spec>#?` point at the task in that spec that adds the n
   - Checks: needs the owner: a Chromecast or Nest device, a DLNA speaker, and a throwaway Google account for `yt-dlp`. No cookies or tokens are written into the design.
   - Steering: none
 
-- [ ] 2. Add the shared remote-playback types to nemo-core
+- [x] 2. Add the shared remote-playback types to nemo-core
   - Crate and files: `nemo-core`: new `src/remote.rs`, `src/lib.rs`. Touches nemo-core/src/remote.rs and nemo-core/src/lib.rs.
   - Does: Adds `RemoteKind`, `RoomRole`, `RemoteMode`, `RemoteStatus`, `CommandGate`, `RemoteBusy`, `RemoteSlot`, `RemoteLease` and the `RemotePlayback` trait, signatures as in the design (ADR 0004 row 41). `RemoteSlot::claim` fails while another kind holds the slot, and the lease frees it on drop.
   - _Requirements: 27_
