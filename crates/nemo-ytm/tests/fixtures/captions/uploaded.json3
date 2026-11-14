@@ -1,0 +1,15 @@
+{
+  "wireMagic": "pb3",
+  "pens": [{}],
+  "wsWinStyles": [{}],
+  "wpWinPositions": [{}],
+  "events": [
+    { "tStartMs": 1360, "dDurationMs": 1680, "segs": [{ "utf8": "[♪♪♪]" }] },
+    { "tStartMs": 18640, "dDurationMs": 3240, "segs": [{ "utf8": "♪ The kettle hums a quiet tune ♪" }] },
+    { "tStartMs": 22640, "dDurationMs": 4320, "segs": [{ "utf8": "♪ The window holds\nthe paper moon ♪" }] },
+    { "tStartMs": 27040, "dDurationMs": 4000, "segs": [{ "utf8": "♪ Trời xanh, gió nhẹ\nqua hàng cây ♪" }] },
+    { "tStartMs": 31120, "dDurationMs": 3960, "segs": [{ "utf8": "♪ 月が静かに光る ♪" }] },
+    { "tStartMs": 35160, "dDurationMs": 4360, "segs": [{ "utf8": "" }] },
+    { "tStartMs": 40520, "dDurationMs": 2400, "segs": [{ "utf8": "♪ And morning comes too soon ♪" }] }
+  ]
+}

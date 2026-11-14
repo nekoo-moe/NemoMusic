@@ -1,0 +1,26 @@
+{
+  "_note": "Invented subset of a yt-dlp -J info dictionary: the caption fields and the facts pick_track and the length check read. Track names follow what yt-dlp 2026.10.26 returned on 2026-11-14; every URL is removed.",
+  "music_video": {
+    "id": "AAAAAAAAAAA",
+    "language": "en",
+    "duration": 282,
+    "subtitles": {
+      "en-nP7-2PuUl7o": [{ "ext": "json3", "name": "English - en" }, { "ext": "vtt", "name": "English - en" }],
+      "es": [{ "ext": "json3", "name": "Spanish" }, { "ext": "vtt", "name": "Spanish" }],
+      "es-ES-7eCR4kqQbL4": [{ "ext": "json3", "name": "Spanish (Spain) - Spanish - Spain" }]
+    },
+    "automatic_captions": {
+      "en-orig": [{ "ext": "json3", "name": "English (Original)" }, { "ext": "vtt", "name": "English (Original)" }],
+      "en": [{ "ext": "vtt" }],
+      "de": [{ "ext": "json3", "name": "German" }],
+      "ab-en-nP7-2PuUl7o": [{ "ext": "json3", "name": "Abkhazian from English - en" }]
+    }
+  },
+  "audio_track": {
+    "id": "BBBBBBBBBBB",
+    "language": null,
+    "duration": 229,
+    "subtitles": {},
+    "automatic_captions": {}
+  }
+}

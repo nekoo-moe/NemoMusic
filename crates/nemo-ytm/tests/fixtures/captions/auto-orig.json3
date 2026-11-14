@@ -1,0 +1,41 @@
+{
+  "wireMagic": "pb3",
+  "pens": [{}],
+  "wsWinStyles": [{}, { "mhModeHint": 2, "juJustifCode": 0, "sdScrollDir": 3 }],
+  "wpWinPositions": [{}, { "apPoint": 6, "ahHorPos": 20, "avVerPos": 100, "rcRows": 2, "ccCols": 40 }],
+  "events": [
+    { "tStartMs": 0, "dDurationMs": 240000, "id": 1, "wpWinPosId": 1, "wsWinStyleId": 1 },
+    { "tStartMs": 4200, "dDurationMs": 6000, "wWinId": 1, "segs": [{ "utf8": "[Music]" }] },
+    {
+      "tStartMs": 19439, "dDurationMs": 3641, "wWinId": 1,
+      "segs": [
+        { "utf8": "the", "acAsrConf": 0 },
+        { "utf8": " kettle", "tOffsetMs": 121, "acAsrConf": 0 },
+        { "utf8": " hums", "tOffsetMs": 281, "acAsrConf": 0 },
+        { "utf8": " a", "tOffsetMs": 441, "acAsrConf": 0 },
+        { "utf8": " quiet", "tOffsetMs": 600, "acAsrConf": 0 },
+        { "utf8": " tune", "tOffsetMs": 760, "acAsrConf": 0 }
+      ]
+    },
+    { "tStartMs": 20870, "dDurationMs": 2210, "wWinId": 1, "aAppend": 1, "segs": [{ "utf8": "\n" }] },
+    {
+      "tStartMs": 20880, "dDurationMs": 6760, "wWinId": 1,
+      "segs": [
+        { "utf8": "the", "acAsrConf": 0 },
+        { "utf8": " window", "tOffsetMs": 479, "acAsrConf": 0 },
+        { "utf8": " holds", "tOffsetMs": 700, "acAsrConf": 0 }
+      ]
+    },
+    { "tStartMs": 23070, "dDurationMs": 4570, "wWinId": 1, "aAppend": 1, "segs": [{ "utf8": "\n" }] },
+    {
+      "tStartMs": 23080, "dDurationMs": 4560, "wWinId": 1,
+      "segs": [
+        { "utf8": "the", "acAsrConf": 0 },
+        { "utf8": " paper", "tOffsetMs": 1000, "acAsrConf": 0 },
+        { "utf8": " moon", "tOffsetMs": 1119, "acAsrConf": 0 }
+      ]
+    },
+    { "tStartMs": 30150, "wWinId": 1, "aAppend": 1, "segs": [{ "utf8": "\n" }] },
+    { "tStartMs": 30160, "dDurationMs": 5000, "wWinId": 1, "segs": [{ "utf8": "[Music]" }] }
+  ]
+}
