@@ -18,6 +18,8 @@ use nemo_core::catalog::{
     PlaylistDetail, PodcastDetail, SearchResults,
 };
 use nemo_core::track::Thumbnail;
+#[cfg(doc)]
+use nemo_core::track::VideoId;
 use tokio::runtime::Handle;
 use tokio::sync::OnceCell;
 use ytmapi_rs::YtMusic;

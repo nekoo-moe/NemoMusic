@@ -10,6 +10,8 @@ use nemo_core::catalog::{
 };
 use nemo_core::track::Track;
 
+#[cfg(doc)]
+use super::GoogleAccount;
 use super::SessionSlot;
 
 // ---------------------------------------------------------------------------------------------
