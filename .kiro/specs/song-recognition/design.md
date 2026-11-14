@@ -13,7 +13,7 @@ First task, before any other code: a `#[ignore]` live test that posts one signat
 - `nemo-recognize` (new): capture, signature, request, history database.
 - `nemo-core`: new `recognize.rs` with the `Recognizer` trait and its types.
 - `nemo-ui`: Recognize button, Listening state with Cancel, result card, history list, settings entry, keyboard shortcut, reduced-motion indicator. Talks only to `Recognizer`.
-- `nemo-app`: builds `nemo-recognize`, injects it, runs "Find in NemoMusic" by calling `Catalog::search` and the library search, and registers the sign-out step (a no-op, criterion 19).
+- `nemo-app`: builds `nemo-recognize`, injects it, runs the cover lookup and "Find in NemoMusic" by calling `Catalog::search` and the library search. It registers no sign-out step: the history holds no account data (criterion 19; ADR 0004, Decision 3).
 - `nemo-audio`: no change. `nemo-ytm`, `nemo-library`, `nemo-lyrics`: no change.
 
 ## Data Flow
@@ -24,6 +24,7 @@ First task, before any other code: a `#[ignore]` live test that posts one signat
 - At 5 s, 9 s and 12 s of audio the worker builds a signature from the whole window (`SignatureGenerator::make_signature_from_buffer`) and the async side posts it. A match, "No match" after the third request, a cancel or an error ends the run: the stream is dropped first, then the result is sent.
 - The request is built from the signature only: `signature.uri`, `signature.samplems`, `signature.timestamp`, and `timestamp`, all real. The path has fresh random UUIDs per request, as the route requires. Headers: `User-Agent: NemoMusic/<version>`, `Content-Type: application/json`. No cookies. The cookie store of `reqwest` stays off.
 - Loopback: on Windows the same cpal call opens the default output device as an input (WASAPI loopback). On Linux it opens the monitor source. If cpal 0.18.2 lacks loopback on a platform, `wasapi` 0.27.0 (already approved) covers Windows. The cpal part is unverified; the first capture task checks it.
+- Cover: after a match, `nemo-app` runs one `Catalog::search("<title> <artist>")`, the same request "Find in NemoMusic" makes, and takes the first song whose normalized title and first artist equal the match. The result card shows that song's YouTube Music cover through `ImageSource`; with no equal song it shows a placeholder. No image is fetched from the recognition service, so no Shazam cover host exists. The search goes to `music.youtube.com`, which is listed already; the settings text names it (criterion 2).
 - History: `recognition.sqlite3` in the app data folder, owned by `nemo-recognize` (`rusqlite` 0.41.1, WAL, migrations). One table `history(id, title, artist, recognized_at, source)`, capped at 500 rows.
 
 ## Interfaces
@@ -31,7 +32,8 @@ First task, before any other code: a `#[ignore]` live test that posts one signat
 ```rust
 // nemo-core/src/recognize.rs  (no I/O, no runtime)
 pub enum InputSource { Microphone { id: String, name: String }, ComputerSound }
-pub struct RecognizedSong { pub title: String, pub artist: String, pub cover_url: Option<String> }
+/// No cover field: the cover comes from the YouTube Music search result (criteria 8, 26).
+pub struct RecognizedSong { pub title: String, pub artist: String }
 pub enum RecognitionState { Idle, Listening { seconds: u8 }, Matching, Done }
 pub struct CancelFlag(/* Arc<AtomicBool> */);
 impl CancelFlag { pub fn new() -> Self; pub fn cancel(&self); pub fn is_cancelled(&self) -> bool; }
@@ -76,15 +78,15 @@ pub fn request_body(sig: &DecodedSignature, now_ms: u64) -> String;
 - Patent and Terms of Service risk. The owner accepted it (`coc.md`). The settings text names both before the first request.
 - The real User-Agent may be blocked where a browser-like one is not. We do not impersonate; we raise it.
 - The path segment `en/US/android` belongs to the service's route. The first task checks whether other values work; if not, it stays a constant and the owner is told.
-- `rustfft` 6.4.1 (pulled by `realfft`) was released 2025-09-18, over the 12 months `tech.md` asks for. It is pure Rust and widely used. The owner approves the exception, or we write a 2048-point real FFT ourselves (about 100 lines, more test work).
+- `rustfft` 6.4.1 (pulled by `realfft`) was released 2025-09-18, which is inside the 2 years `code.md` allows (ADR 0004, Decision 5). It is pure Rust and widely used. It needs no exception and no hand-written FFT.
 - Alternative rejected: depend on the `songrec` crate. GPL crate, GUI dependencies, and it would need a `deny.toml` exception.
 - Alternative rejected: `chromaprint` bindings. They fingerprint for AcoustID, not for this service.
 
 ## Steering and README changes
 
-- `tech.md` rows (add): `realfft` =3.5.1 (MIT, released 2026-10-26, MSRV 1.61) with `rustfft` =6.4.1 (MIT OR Apache-2.0, released 2025-09-18, MSRV 1.61, upkeep exception needed); `crc32fast` =1.5.5 and `base64` at the versions already in `Cargo.lock`; `rubato` and `cpal` at the versions `nemo-audio` pins. The ported code is GPL-3.0+; the row says so. Little-endian packing uses `u32::from_le_bytes`, so `byteorder` (last release 2023) is not added.
+- `tech.md` rows (add): `realfft` =3.5.1 (MIT, released 2026-10-26, MSRV 1.61) with `rustfft` =6.4.1 (MIT OR Apache-2.0, released 2025-09-18, MSRV 1.61, no exception); `uuid` 1.29.2 with feature `v4` (for the random path ids; already locked), `crc32fast` =1.5.5 and `base64` at the versions already in `Cargo.lock`; `rubato` and `cpal` at the versions `nemo-audio` pins. The ported code is GPL-3.0+; the row says so. Little-endian packing uses `u32::from_le_bytes`, so `byteorder` (last release 2023) is not added.
 - `structure.md`: add `nemo-recognize` (depends on `nemo-core` only) to the layout, ownership list and the dependency graph under `nemo-app`.
-- README egress list: `amp.shazam.com` (fingerprint, only on user action). A cover host is added only after the owner approves it (criterion 26).
+- README egress list: `amp.shazam.com` (fingerprint, only on user action). No cover host: covers come from YouTube Music (criterion 26). The settings text says that the matched title and artist are searched on `music.youtube.com`, which is listed already.
 - ADR 0004: no change; the `Recognizer` trait follows Decision 2.
 
 <!-- Sources:

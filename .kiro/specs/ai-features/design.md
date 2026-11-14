@@ -8,10 +8,10 @@ A new crate, `nemo-ai`, is a small client for one OpenAI-style chat endpoint tha
 
 - `nemo-core` (new `ai.rs`): `AiFeature`, `AiRequest`, `PayloadPreview`, `AiAnswer`, `AiError`, `AiService`, `Translator`, `NoAi` and `NoTranslator` defaults; `Backend.ai` and `Backend.translator`.
 - `nemo-ai` (new): `endpoint.rs` (URL rules), `client.rs` (HTTP), `prompts.rs`, `parse.rs` (strict answer parsing), `store.rs` (SQLite: provider, switches, saved readings), `service.rs`.
-- `nemo-ui`: Settings entry "AI provider" in the shared opt-in pattern (endpoint, model, key, test, list models, remove); the "Suggest songs" and "Read my taste" actions; the preview dialog (messages, host, model, scope, a LAN warning); the result lists. Every AI control is built only when `AiService::provider()` is `Some` (criterion 1). Suggestion lookup uses `Catalog::search` and a pure matcher in `nemo-ui` (`suggest_match`).
+- `nemo-ui`: Settings entry "AI provider" in the shared opt-in pattern (endpoint, model, key, test, list models, remove); the "Suggest songs" and "Read my taste" actions; the preview dialog (messages, host, model, scope, a LAN warning); the result lists. Every AI control is built only when `AiService::provider()` is `Some` (criterion 1). The one exception is the Settings > Lyrics translation entry, which lyrics-plus shows disabled with "Set up an AI endpoint first". Suggestion lookup uses `Catalog::search` and a pure matcher in `nemo-ui` (`suggest_match`).
 - `nemo-app`: builds `nemo-ai` with the `SecretStore`, the tokio handle and `paths.ai`; passes the same object as `Backend.ai` and `Backend.translator`; wires the taste sources (stats, likes, playlist) as data.
 - `nemo-lyrics` and the lyrics-plus UI: call `Translator` only. They need from this design `available()`, `prepare` and `translate`; the lyrics-plus spec owns the warning text and where translations are stored.
-- Needs from other designs: `SecretStore` (nemo-secrets, ADR 0004); `StatsService::top_artists` (listening-stats design, same author); a sign-out wipe step (the ADR does not name the trait yet).
+- Needs from other designs: `SecretStore` (nemo-secrets, ADR 0004); `StatsService::top_artists` (listening-stats design); `SignOutWipe` and `WipeScope` (account-actions design). `AiClient` implements `SignOutWipe` (name "ai"): it deletes the `from_account` readings and ignores the scope, because readings are not stored per account.
 - `nemo-audio`, `nemo-library`, `nemo-ytm`: no change.
 
 ## Data Flow
@@ -74,7 +74,6 @@ pub trait AiService: Send + Sync {
     fn readings(&self) -> Vec<SavedReading>;
     fn save_reading(&self, source: TasteSource, result: &AiResult) -> Result<i64, AiError>;
     fn delete_reading(&self, id: i64);
-    fn wipe_account_derived(&self) -> usize;                       // sign-out step
 }
 
 /// What lyrics-plus sees. `available()` is false until a provider is saved and translation is switched on.
@@ -115,7 +114,7 @@ Parsing is strict: `choices[0].message.content` must be a string. A surrounding 
 - Local test server (hand-rolled on `tokio::net::TcpListener`, like `nemo-ytm/src/test_server.rs`): the bytes posted match `preview.messages` exactly; the key appears only in the `Authorization` header and in no `Debug`, `Display` or captured `tracing` output; a 302 is not followed; a response over 256 KiB is cut and fails; a slow reply times out; 401, 404, 429, 500 map to the right errors; `localhost` pins to loopback.
 - Parsing: valid and fenced JSON, extra fields, 31 songs, an overlong title, wrong line count for translation, text with control characters, a song title that contains "ignore previous instructions" (it appears in the answer as plain data and triggers nothing).
 - Limits: `prepare` with 51 songs, 201 lines and a 65 KiB payload each fails with `TooLarge` and sends nothing; with no provider or the feature off no request is made (a server that counts calls sees zero).
-- Store: readings round trip; `wipe_account_derived` deletes only `from_account` rows; `remove_provider` removes endpoint, model and key (fake `SecretStore`).
+- Store: readings round trip; the `SignOutWipe` step deletes only `from_account` rows; `remove_provider` removes endpoint, model and key (fake `SecretStore`).
 - `suggest_match` unit tests in `nemo-ui`: not found gives `None`; a near-miss title does not match.
 - UI `iced_test`: with `NoAi` no AI control exists in the widget tree; keyboard order and focus; reduced motion stops the loading animation.
 - Audio is untouched; `cargo test -p nemo-audio --test bit_exact` must keep passing. No real-time path is added, so no counting-allocator test.
@@ -123,7 +122,7 @@ Parsing is strict: `choices[0].message.content` must be a string. A surrounding 
 ## Risks and Alternatives
 
 - Lyrics leave the machine for translation by the owner's decision (`coc.md`, 2026-11-14). This design only makes `prepare` mark the payload as `LyricsTranslation`; the lyrics-plus spec owns the warning and the BETA label.
-- The lyrics-plus requirements (criterion 38) show the translation toggle as unavailable when no endpoint is set, while ai-features criterion 1 hides it. `Translator::available()` serves both; the two specs need one wording from the owner.
+- Decided with the owner's rule for this review: with no endpoint the translation toggle is hidden in the lyrics view, and Settings > Lyrics shows the entry as unavailable with "Set up an AI endpoint first". `Translator::available()` is false until a provider is saved and translation is switched on; lyrics-plus maps it to `TranslationAvailability`. `LyricsTranslation::prepare` calls `Translator::prepare`, so the preview step and the "do not ask again" switch of this design apply to translation too.
 - Plain HTTP on a LAN address sends text and the key unencrypted to any device that answers on that address. The warning and confirmation are the only guard. Names like `nas.local` are refused on purpose, because mDNS names can resolve to anything.
 - A remote provider receives listening habits (top artists and counts). The preview and the switch are the control; the owner accepted this.
 - Models can invent songs or return broken JSON. The "may be wrong" label, the search check and strict parsing contain this; no answer is acted on.

@@ -13,7 +13,7 @@ Decoder: libmpv, chosen by the owner on 2026-11-14 and proven by a spike task on
 - `nemo-video` (new): `MpvBinding` (the spike picks `libmpv2` or own FFI), `VideoEngine`, drift controller, frame pool. Depends on `nemo-core` and its binding crate only.
 - `nemo-core`: new `video.rs` with `VideoFrame`, `VideoFrameSource`, `PlaybackClock`, `VideoController`, `VideoStreamResolver` and the video types. `PlayerSnapshot` is untouched.
 - `nemo-audio`: implements `PlaybackClock` over the existing played-frames and device-latency atomics (`control.rs` `shared.position()`). No decoder, ring or sink change.
-- `nemo-ytm`: implements `VideoStreamResolver` with one extra `yt-dlp` run, finds the music-video id of a song, and exposes captions to the subtitle source (shared with the captions lyrics provider).
+- `nemo-ytm`: implements `VideoStreamResolver` with one extra `yt-dlp` run, finds the music-video id of a song, and implements `SubtitleSource` (youtube-extras design, `nemo-core/src/captions.rs`), the same captions code the "YouTube captions" lyrics provider uses.
 - `nemo-ui`: Video switch and quality and subtitle menus in Now Playing, a `VideoSurface` shader widget, full-screen mode, subtitle overlay.
 - `nemo-app`: builds `nemo-video` (when libmpv loads), injects `VideoController` and `PlaybackClock`, owns the wake lock.
 
@@ -89,7 +89,18 @@ pub trait VideoController: Send + Sync {
 // nemo-core/src/services.rs additions (settings): `video_quality: VideoQuality`, `subtitle_language: Option<String>`, `keep_screen_awake: bool` (default false).
 // A wake lock is a platform call in nemo-app: `trait ScreenWake { fn hold(&self); fn release(&self); }` in video.rs.
 
-// nemo-ytm: `fn captions_for(&self, video: &VideoId) -> BoxFuture<'_, Result<Vec<SubtitleTrack>, VideoError>>` and `fn cues(...)`, reusing the captions lyrics parser (design owned by lyrics-plus).
+// Subtitles: `SubtitleSource` and `SubtitleCue` are owned by youtube-extras (ADR 0004, row 22). `ResolvedVideo.subtitles` stays, filled from the one `yt-dlp` run, so the menu needs no second call; cues are fetched through `SubtitleSource::cues` when the user picks a language.
+
+/// A silent, looping clip for animated covers (now-playing-styles). One open clip at most.
+pub struct ClipInfo { pub width: u32, pub height: u32 }
+pub trait ClipPlayer: Send + Sync {
+    fn available(&self) -> bool;                                          // false when libmpv is missing
+    fn open(&self, file: &std::path::Path) -> Result<ClipInfo, VideoError>; // loops, no audio, at most 30 fps; Err(Overloaded) while a music video plays
+    fn pause(&self);
+    fn resume(&self);
+    fn stop(&self);
+    fn frames(&self) -> std::sync::Arc<dyn VideoFrameSource>;
+}
 
 // nemo-video
 pub struct VideoEngine { /* thread handle, command sender, frame pool */ }
@@ -97,9 +108,10 @@ impl VideoEngine {
     pub fn new(clock: std::sync::Arc<dyn PlaybackClock>, underruns: std::sync::Arc<dyn Fn() -> u64 + Send + Sync>) -> Result<Self, VideoError>; // loads libmpv
 }
 impl VideoController for VideoEngine { /* start, stop, frames */ }
+impl ClipPlayer for VideoEngine { /* second libmpv handle: loop-file=inf, aid=no, ao=null; own frame pool of two */ }
 ```
 
-From other designs I need: the captions fetcher and WebVTT or json3 parser of the lyrics design (name unconfirmed), `PlayerCommand::SwitchAudioTrack` and `StreamRequest` from `account-actions` (audio language, criteria 13 and 14), and the Opus decoder is not needed here.
+From other designs I need: `SubtitleSource` and `SubtitleCue` from youtube-extras (the captions fetcher and parser), `PlayerCommand::SwitchAudioTrack` and `StreamRequest` from `account-actions` (audio language, criteria 13 and 14). The Opus decoder is not needed here. `ClipPlayer` above is defined here for now-playing-styles.
 
 ## Error Handling
 
@@ -125,6 +137,7 @@ From other designs I need: the captions fetcher and WebVTT or json3 parser of th
 
 - Software rendering may be too slow at 1080p. Fallbacks, in order: cap at 720p; an OpenGL render context on a hidden GL context with a read-back (needs a GL crate, owner to approve); a native child window (breaks the glass layout); GStreamer (LGPL-2.1, heavy on Windows). The owner picks if the spike fails.
 - libmpv on Windows is a DLL to find, ship and update, with its licence text and a source offer. Which build, and where it lives next to the executable, is decided in the spike; the app must start without it.
+- Unsafe code: `code.md` allows `unsafe` only in an `ffi` or `sys` module of `nemo-audio`. Own FFI over `libloading` in `nemo-video` breaks that rule, and `code.md` outranks this design. The owner must either extend the rule to an `ffi` module of `nemo-video` (proposed text in ADR 0004, open decisions) or take `libmpv2` with its `deny.toml` exception. The spike reports which one works; neither is chosen here.
 - Licence: an LGPL build keeps the shipped combination GPL-3.0 compatible. A GPL-2.0-or-later build also works with GPL-3.0 but shuts out any later relicensing. `libmpv2` is LGPL-2.1 and needs the `deny.toml` exception; own FFI over `libloading` does not.
 - Speed trimming moves the picture, not the audio, so audio stays bit-exact. A change of audio device latency (a device switch) makes the clock jump; the controller then seeks the picture.
 - `yt-dlp` may return no separate video stream for a song id; the music-video id is a different id found from the `next` response (unverified), so "No video" can be a false negative. The spike lists three songs.

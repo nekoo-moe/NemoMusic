@@ -12,8 +12,8 @@ Two shared pieces are defined here and used by `nemo-together` too: `RemotePlayb
 - `nemo-core`: new `remote.rs` (`RemotePlayback`, `RemoteSlot`, `RemoteStatus`, `CommandGate`), `cast.rs` (`CastControl`). New `PlayerCommand::Park` and `PlayerCommand::Unpark { at }`, new `PlayerEvent::ParkedChanged(bool)`.
 - `nemo-audio`: `control_cmd.rs` handles `Park` and `Unpark`; `control.rs::start_track` skips `spawn_prepare` and the pipeline while parked and still emits `TrackChanged`; `stop_all` and the device release run on `Park`. No change to the render callback.
 - `nemo-ui`: picker (keyboard, list, busy flag), "Casting to <name>" on the player bar, remote position and volume, firewall hint, reduced-motion text state. Uses `CastControl` only.
-- `nemo-app`: builds `nemo-cast`, applies `RemotePlayback::gate` to every UI command, refuses cached songs (asks the downloads service), registers the sign-out step (stop casting, end server).
-- `nemo-ytm`: needs `StreamResolver` to accept a `StreamPreference` (AAC/m4a first for DLNA). Owned by the `nemo-ytm` design. `nemo-library`, `nemo-lyrics`: no change.
+- `nemo-app`: builds `nemo-cast`, applies `RemotePlayback::gate` to every UI command, refuses saved songs (`DownloadService::state(&VideoId) == SaveState::Saved`, offline-cache design), and registers a `SignOutWipe` step named "cast" that stops casting and ends the server.
+- `nemo-ytm`: no change. `nemo-app` calls `StreamResolver::resolve_with` with `StreamRequest { prefer_codec: Some(Codec::Aac), .. }` for a DLNA device (account-actions design, ADR 0004 row 13). `nemo-library`, `nemo-lyrics`: no change.
 
 ## Data Flow
 
@@ -21,7 +21,7 @@ Two shared pieces are defined here and used by `nemo-together` too: `RemotePlayb
 - Cast session: TLS to `ip:8009` through `tokio-native-tls` with certificate and host checks off (devices use self-signed certificates; see Risks). Frames are a 4-byte big-endian length and a `CastMessage` (prost). Sender `sender-0` sends `CONNECT`, answers `PING` and pings every 5 s, sends `LAUNCH` for the Default Media Receiver (`CC1AD845`), then `LOAD` on the media namespace. `MEDIA_STATUS` gives position, state and idle reason; `RECEIVER_STATUS` gives volume. A busy device (another app or session) needs an explicit take-over from the user (criterion 21).
 - UPnP session: SOAP over `reqwest`: `GetProtocolInfo`, `SetAVTransportURI` with DIDL-Lite metadata, `Play`, `Pause`, `Seek` (REL_TIME), `Stop`, `SetVolume`. State is polled once a second with `GetPositionInfo` and `GetTransportInfo`.
 - Casting starts: nemo-app claims `RemoteSlot` (fails while a room is live), sends `Park`, and `nemo-cast` loads the current track at the current position. `RemotePlayback::gate` returns `Forward` for Pause, Resume, Seek, SetVolume and Stop (handled by the device session) and `Allow` for Next, Previous and queue edits (the parked player moves the index and emits `TrackChanged`, which `nemo-cast` turns into a new `LOAD`). When the device reports `IDLE/FINISHED`, `nemo-cast` emits `TrackEnded` and nemo-app sends `Next`; at the queue end it stops (criterion 11).
-- Stream route per track: a local file is served by the LAN server. A YouTube stream goes `Direct` (the resolved URL, as a `Secret<String>`, handed to the device) or `Relay` (the server fetches it with `reqwest` and streams the bytes to the device with no disk copy). If a `Direct` load fails on the device, `nemo-cast` retries that track once as `Relay`. Songs from the offline cache are refused (criterion 16).
+- Stream route per track: a local file is served by the LAN server. A YouTube stream goes `Direct` (the resolved URL, as a `Secret<String>`, handed to the device) or `Relay` (the server fetches it with `reqwest` and streams the bytes to the device with no disk copy). If a `Direct` load fails on the device, `nemo-cast` retries that track once as `Relay`. Songs saved by the offline cache are refused (criterion 16; `DownloadService::state`).
 - LAN server: `hyper` 1.12.0 on one IPv4 address, the interface in the same subnet as the device (via `if-addrs`), port chosen by the OS. Never `0.0.0.0`. The path is `/s/<32 hex from the OS random source>/<name>.<ext>`; any other path is 404, a peer IP other than the device's is 403. It answers `GET`, `HEAD` and `OPTIONS`, supports `Range` (local files: file ranges; relay: the `Range` header is forwarded upstream), and serves only the current session's one item. CORS headers on every answer: `Access-Control-Allow-Origin: *`, `Allow-Headers: Range, Content-Type`, `Expose-Headers: Content-Length, Content-Range, Accept-Ranges` (criterion 26). `*` is acceptable because the path is unguessable and the peer is pinned. The server ends on stop, error, sign-out or exit.
 - Windows firewall: the first bind of a non-loopback listener makes Windows ask. The turn-on text and the picker say so before it happens (criterion 2), and say "choose Private networks". If the device never requests the file within 8 s of `LOAD`, `nemo-cast` emits `FirewallHint` and the UI shows how to allow it (criterion 6). The README gives the one-line `netsh` rule.
 - Handover back (criterion 20): `nemo-cast` reads the device position, nemo-app sends `Unpark { at }`, and the local player resumes there.
@@ -54,9 +54,10 @@ pub trait RemotePlayback: Send + Sync {
 }
 
 // nemo-core/src/cast.rs
-pub struct DeviceId(pub String);
+/// Named `CastDeviceId` so it does not clash with the output-devices `DeviceId` (ADR 0004, row 5).
+pub struct CastDeviceId(pub String);
 pub enum DeviceKind { ThisComputer, Cast, Dlna }
-pub struct CastDevice { pub id: DeviceId, pub name: String, pub kind: DeviceKind, pub busy: bool }
+pub struct CastDevice { pub id: CastDeviceId, pub name: String, pub kind: DeviceKind, pub busy: bool }
 pub enum Discovery { Closed, Searching, Finished }
 pub enum CastEvent { DevicesChanged, Connected, FirewallHint, FormatRejected { format: String }, TrackEnded, Failed { reason: String }, Disconnected }
 pub trait CastEventReceiver: Send { fn try_next(&mut self) -> Option<CastEvent>; }
@@ -65,7 +66,7 @@ pub trait CastControl: RemotePlayback {
     fn close_picker(&self);
     fn discovery(&self) -> Discovery;
     fn devices(&self) -> Vec<CastDevice>;
-    fn cast_to<'a>(&'a self, device: &'a DeviceId, take_over: bool, track: &'a Track, at: Duration) -> BoxFuture<'a, Result<(), CastError>>;
+    fn cast_to<'a>(&'a self, device: &'a CastDeviceId, take_over: bool, track: &'a Track, at: Duration) -> BoxFuture<'a, Result<(), CastError>>;
     fn stop_casting(&self) -> BoxFuture<'_, Option<Duration>>; // last device position
     fn subscribe_cast(&self) -> Box<dyn CastEventReceiver>;
 }
@@ -101,7 +102,7 @@ impl CastService {
 - Windows firewall: a denied prompt or a Public profile blocks the device from reaching the server. Discovery can also fail with VPNs, several adapters or Wi-Fi client isolation. Messages name these causes (criterion 6).
 - Skipping TLS certificate checks on port 8009 lets a LAN attacker pose as a device. It then sees only the session URL, which is unguessable and pinned to the device IP. Chrome itself checks the device chain; we do not, and the settings text says so.
 - DLNA renderers differ (DIDL-Lite metadata, supported containers, position format). The spike covers one speaker; more are added as users report them.
-- Crates rejected: `rust-cast` 0.21.0 (MIT, 2025-12-30) is synchronous, pins `protobuf` =3.7.2 as a second protobuf stack next to `prost`, and its certificate handling is unverified. `rupnp` 3.0.0 and `ssdp-client` 2.1.0 (both 2025-04-25) are past the 12-month rule of `tech.md`.
+- Crates rejected: `rust-cast` 0.21.0 (MIT, 2025-12-30) is synchronous, pins `protobuf` =3.7.2 as a second protobuf stack next to `prost`, and its certificate handling is unverified. `rupnp` 3.0.0 and `ssdp-client` 2.1.0 (both 2025-04-25, MIT OR Apache-2.0) pass the two-year rule of `code.md` (ADR 0004, Decision 5), so age does not reject them. They are still not used: `rupnp` brings `roxmltree`, `genawaiter` and `if-addrs` 0.13 (a second copy next to the 0.15 above) and its own hyper client beside `reqwest`, to replace one `M-SEARCH` and seven SOAP calls (about 300 lines on `quick-xml`, already locked).
 - Alternative rejected: transcoding on this computer to fit a device. Criterion 17 forbids it unless the user turns it on, which is not planned.
 
 ## Steering and README changes

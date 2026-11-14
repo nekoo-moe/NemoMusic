@@ -81,7 +81,7 @@ pub struct RydClient;                           // impl VideoRatings
 pub const RYD_HOST: &str = "returnyoutubedislikeapi.com";
 ```
 
-Needed from other designs: the signed-in innertube request helper and sign-out registry (`account-actions`, multi-account); `UrlResolver`, `Transport`, `HlsSource` (the `soundcloud` spec); the shared opt-in settings pattern; the `video-playback` trait for pictures.
+Needed from other designs: the signed request builder and `SessionSource` in `nemo-ytm` (`raw.rs`, account-actions design; both stay inside `nemo-ytm`, so no `nemo-core` item), and `SignOutWipe` (account-actions): `YtmComments` and `RydClient` register one step named "ytm-extras" that empties comment pages and the dislike cache; `UrlResolver`, `Transport`, `HlsSource` (the `soundcloud` spec); the shared opt-in settings pattern (ADR 0004); `VideoController` and `VideoFrameSource` (video-playback) for the picture of a video result.
 
 ## Error Handling
 

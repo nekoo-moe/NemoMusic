@@ -15,7 +15,7 @@ AutoEq files are plain text (`Preamp: -6.2 dB`, `Filter 1: ON PK Fc 105 Hz Gain 
 - `nemo-audio`: new `effects/` module (`chain`, `biquad`, `delay`, `reverb`, `fade`, `profile` parser, `presets` store), new `transition.rs` (`TransitionMixer`), changes to `pipeline.rs`, `feeder.rs`, `control.rs`, `control_tick.rs`.
 - `nemo-app`: loads and saves `EffectsSettings` and `TransitionSettings` in `settings.json`; injects a `GaplessPolicy`.
 - `nemo-ui`: the effects screen and the signal-path lines. It sends `PlayerCommand` only (the UI task is separate).
-- `nemo-library`: implements `GaplessPolicy` (marks an album as gapless). Needed from the local-library design; it also owns the file `ByteSource` of ADR 0004, which this design does not need beyond what `FileSource` does today.
+- `nemo-library`: implements `GaplessPolicy` (local-library design, `gapless.rs`: true for consecutive tracks of one CUE file and for albums marked gapless). It also owns the file `ByteSource` of ADR 0004, which this design does not need beyond what `FileSource` does today.
 
 ## Data Flow
 
@@ -27,6 +27,9 @@ AutoEq files are plain text (`Preamp: -6.2 dB`, `Filter 1: ON PK Fc 105 Hz Gain 
 6. The feeder keeps a tail window of L frames of the playing song. At decoder end it scans the window for trailing silence (below -60 dBFS), scans the first 10 s of the next song for leading silence, and picks per pair: `Crossfade` (equal-power, length L), `TrimSilence` (drop the silences, then a 300 ms overlap), or `Gapless` (no overlap). `Gapless` is chosen when `GaplessPolicy::join_without_fade` is true (criterion 18) or when both ends are already within 50 ms of silence. The plain mode skips the scan and always crossfades.
 7. Both songs go through their own `Chain` to the output format first, so differing rates or channel counts still work (criterion 22). `Started` for the incoming song is sent at the middle of the overlap with `base` = L/2, so the player bar and position follow the louder song (criterion 21).
 8. Manual skip (criterion 17): control sets `shared.fade_ms` (0 to 1000) before the flush. The callback ramps the gain to zero over that time, then discards the ring and acks. `FLUSH_TIMEOUT` becomes fade + 500 ms. The new song's first frames fade in over the same time in the feeder.
+
+9. ReplayGain (local-library design, settled here). The feeder applies one `f32` scalar to each block of a song after that song's own `Chain` and before the `TransitionMixer`, so both songs of a crossfade keep their own gain. The stage exists only while the setting is on and the song has a value, so off means no arithmetic. The scalar is lowered so that peak x gain stays at or below 1.0 when the file gives a peak. It is not part of the EQ auto preamp: the clamp counter (`Clipped`) shows any clipping. A change applies from the next song, because the ring already holds up to 1 s. The stage is `ProcessingStage::ReplayGain { db }`, so `is_bit_perfect` is false while it is in the path.
+10. A room (listen-together) is the only caller that sets `TransitionMode::Off` on the user's behalf; `nemo-app` keeps the saved `TransitionSettings` and restores them when the room ends. The stored setting does not change.
 
 Threads are unchanged: control, feeder, decode `prepare` workers, audio callback. The ring stays the only audio handoff; the tail window and the next song's head buffer belong to the feeder thread.
 
@@ -62,6 +65,7 @@ Equalizer { preamp_tenth_db: i16, auto_preamp: bool },
 Delay { time_ms: u16 }, Reverb,
 Crossfade { seconds: u8, running: Option<TransitionKind> },   // listed while the mode is on
 Clipped { samples: u64 },                                      // listed only when > 0
+ReplayGain { db: f32 },                                        // new: the local-library gain; `Gain` stays the volume stage
 ```
 
 `ProcessingStage` stays `Copy`; names such as "preset Flat" come from the UI's own preset state, not the stage.

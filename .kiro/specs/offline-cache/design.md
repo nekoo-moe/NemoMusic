@@ -17,7 +17,7 @@ Limits (owner, 2026-11-14): default size limit 2 GB; smart downloads at most 50 
 - `nemo-audio`: `prepare.rs` (offline check, `PrepareDeps.offline`, bitrate measured from file size and duration); no decoder change. `FileSource` is reused as is.
 - `nemo-lyrics`: implements `keep_offline` (a `pinned` flag that skips expiry in `cache.rs`). Contact point with the lyrics-plus design.
 - `nemo-ui`: Save offline actions, saved mark, storage view, offline switch and shortcut, smart-downloads opt-in.
-- `nemo-app`: builds the store, worker, gates and the offline `Catalog`; picks the Premium resolver when the account-actions switch is on; calls `record_play`; runs `OfflineStore::wipe` at sign-out.
+- `nemo-app`: builds the store, worker, gates and the offline `Catalog`; sets `prefer_premium` in the `StreamRequest` the worker uses when the account-actions switch is on; registers `OfflineCache` as a `PlayObserver` (hooks, integrations design) and as a `SignOutWipe` step named "offline".
 
 ## Data Flow
 
@@ -27,10 +27,10 @@ Limits (owner, 2026-11-14): default size limit 2 GB; smart downloads at most 50 
 - Pause: an atomic flag read between chunks. The `.part` file stays; resume re-resolves (URLs expire) and continues with `Range`, restarting if the server answers 200.
 - Play: `prepare()` calls `OfflineStore::open(&VideoId)`, gets `CachedAudio { path, info }`, opens `FileSource`, probes. The badge uses the probed codec and a bitrate of `bytes * 8 / duration`; it reads "Unknown" if either is missing and never says Lossless, HD or Hi-Res (`Origin::YoutubeMusic` keeps `quality_class` at Lossy). If the open or probe fails, the store marks the song unsaved; online playback then falls back to the stream, offline shows an error.
 - Segments: `OfflineSegmentSource` answers from the `segment` table for saved songs and from the online source otherwise. Covers: `OfflineImages` does the same for `ImageSource`.
-- Offline mode: `NetworkMode` is one shared flag. When on, `nemo-app` swaps in the offline `Catalog`, and the gates around the resolver, stream opener, segment source and image source refuse at once, so no request reaches a YouTube host. It switches on by itself after two network failures within 30 s on user actions, with one notice; only the user switches it off. No connectivity probe is sent.
-- Smart downloads: `nemo-app` calls `record_play` on the same condition `nemo-stats` counts a play. Counts live in `play_count` in this computer's index. After a play and at start, `smart.rs` picks the most played songs that are not saved (at least 3 plays, a proposal) and enqueues them with reason `Smart`. Before a smart save it evicts the least played smart songs until both caps hold. `User` songs are never evicted.
+- Offline mode: `NetworkMode` is one shared flag. When on, `nemo-app` swaps in the offline `Catalog`, and the gates around the resolver, stream opener, segment source and image source refuse at once. So do the gates `nemo-app` puts around the other services that call a YouTube host: `CommentSource`, `VideoRatings`, `SubtitleSource` and the `UrlResolver` and `Catalog` extensions of youtube-extras and soundcloud (live, channel, all-YouTube search), and the release check of account-actions. No request reaches a YouTube host. Services for other hosts (SoundCloud, Spotify, Last.fm, the AI endpoint) are not gated by this flag; they fail by themselves when the network is down. It switches on by itself after two network failures within 30 s on user actions, with one notice; only the user switches it off. No connectivity probe is sent.
+- Smart downloads: `OfflineCache` is a `PlayObserver` registered with the play hub; on `PlayHookEvent::TrackEnded` with `counts` (the `PlayRule` that `nemo-stats` and the scrobbler use) it calls `record_play`. Counts live in `play_count` in this computer's index. After a play and at start, `smart.rs` picks the most played songs that are not saved (at least 3 plays, a proposal) and enqueues them with reason `Smart`. Before a smart save it evicts the least played smart songs until both caps hold. `User` songs are never evicted.
 - Takedown check: `verify.rs` re-resolves one saved song at a time, at most one every 10 to 30 s, each song about every 30 days (a proposal), only online and idle. `NotAvailable` twice in a row deletes the file and index row and shows "removed by YouTube". This is the only way a removal is seen, because cached play makes no request.
-- Sign-out: `OfflineStore::wipe` closes the connection, removes `<root>/offline` completely (songs, art, index, play counts, queue) and returns the file count for `SignOutReport.files_removed`. With several accounts, signing out of any one wipes the whole cache: simpler and private.
+- Sign-out: `OfflineCache` implements `SignOutWipe` (name "offline", the `WipeScope` is ignored) by calling `OfflineStore::wipe`, which closes the connection, removes `<root>/offline` completely (songs, art, index, play counts, queue) and returns the file count for `SignOutReport.files_removed`. With several accounts, signing out of any one wipes the whole cache: simpler and private.
 
 ## Interfaces
 
@@ -79,7 +79,7 @@ impl OfflineCache { pub fn open(dir: &Path, clock: Arc<dyn Clock>) -> Result<Sel
 pub trait Jitter: Send + Sync { fn pause(&self) -> Duration; }   // 10..=30 s
 ```
 
-`Secret<PathBuf>` keeps the path out of logs; only `prepare()` calls `expose`. The path never reaches the UI. `PrepareDeps` gains `offline: Option<Arc<dyn OfflineStore>>`. The Premium switch is read by `nemo-app`, which hands the worker the Premium or the anonymous `StreamResolver`; I need that switch and the Premium resolver from the account-actions design.
+`Secret<PathBuf>` keeps the path out of logs; only `prepare()` calls `expose`. The path never reaches the UI. `PrepareDeps` gains `offline: Option<Arc<dyn OfflineStore>>`. The worker resolves with `StreamResolver::resolve_with(video, &StreamRequest { prefer_premium, audio_language: None, prefer_codec: None })` (account-actions design); `nemo-app` sets `prefer_premium` from the account-actions switch, so no separate Premium resolver exists.
 
 ## Error Handling
 

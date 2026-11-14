@@ -18,7 +18,7 @@ The user taps "Recognize", NemoMusic listens for a few seconds, and it shows whi
 5. THE SYSTEM SHALL NOT write captured audio to disk, to logs or to memory beyond the capture window, and SHALL NOT send it anywhere.
 6. WHEN a fingerprint is sent, THE SYSTEM SHALL send only the fingerprint and the minimum request fields the service needs, with no account data, cookies or user identifiers.
 7. THE SYSTEM SHALL NOT send a made-up location, time zone or device identity. THE SYSTEM SHALL send the real time of the request and its real name and version as the User-Agent. IF the service answers only when a location or time zone is present, THEN THE SYSTEM SHALL keep recognition unavailable, say why, and send nothing false.
-8. WHEN the service returns a match, THE SYSTEM SHALL show title, artist and cover, and a "Find in NemoMusic" action.
+8. WHEN the service returns a match, THE SYSTEM SHALL show title, artist and the YouTube Music cover of the same song, and a "Find in NemoMusic" action. IF YouTube Music has no matching song, THEN THE SYSTEM SHALL show a placeholder instead of a cover.
 9. WHEN the user chooses "Find in NemoMusic", THE SYSTEM SHALL search the YouTube Music catalog and the local library by title and artist, list the matches, and play the one the user picks. THE SYSTEM SHALL NOT play a match automatically.
 10. IF no catalog entry matches, THEN THE SYSTEM SHALL say so and keep the recognized song in history.
 11. IF the service finds no match, THEN THE SYSTEM SHALL say "No match" and offer to try again.
@@ -36,7 +36,7 @@ The user taps "Recognize", NemoMusic listens for a few seconds, and it shows whi
 23. WHEN the change is merged, THE README egress list SHALL name the recognition host, and the settings screen SHALL show the same host.
 24. WHILE listening, THE SYSTEM SHALL capture at most 12 seconds of audio in total, SHALL send at most 3 requests per run with at least 4 seconds between them, and SHALL NOT start a new run within 10 seconds of the end of the last one.
 25. WHEN the user turns the feature on, THE SYSTEM SHALL NOT send any request until the user starts a recognition. The first task of the feature SHALL check whether the service answers without a location and time zone (criterion 7) and record the result before any other code ships.
-26. WHEN a result shows a cover, THE SYSTEM SHALL fetch it only from a host that is on the README egress list. UNTIL the owner approves that host, THE SYSTEM SHALL show a placeholder.
+26. THE SYSTEM SHALL NOT fetch any image from the recognition service or from a cover host of that service. WHEN a result shows a cover, THE SYSTEM SHALL take it from the YouTube Music search result for the matched title and artist (hosts the app already lists for covers), and SHALL say in the settings text of criterion 2 that the matched title and artist are searched on YouTube Music.
 
 ## Out of Scope
 
@@ -54,7 +54,7 @@ The user taps "Recognize", NemoMusic listens for a few seconds, and it shows whi
 Decided (owner, 2026-11-14): the host `amp.shazam.com` is approved. The owner accepts the patent and Terms of Service risk (`coc.md`). The design picks between a port of the algorithm and a crate. Loopback capture stays in, as opt-in. Capture length and attempt rate are set by the design (criterion 24). History keeps text only, 500 entries.
 
 1. Terms notice text: no public terms for third-party clients were found. The owner approves the wording of the risk text shown before the switch turns on.
-2. Cover host: the first real response shows which host serves covers. The owner approves it for the README egress list (criterion 26).
+2. Cover host: decided (owner, 2026-11-14). The cover comes from YouTube Music; no recognition-service cover host is used or listed (criteria 8 and 26).
 3. Does the service answer without a location and time zone? Unverified. The first task tests it (criterion 25). If it does not, the design raises it to the owner and the feature stays unavailable.
 
 <!-- Sources:

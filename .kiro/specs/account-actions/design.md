@@ -99,6 +99,8 @@ fn set_rating<'a>(&'a self, video_id: &'a VideoId, status: LikeStatus) -> BoxFut
 pub struct PlaylistEditInfo { pub privacy: Privacy, pub description: Option<String>, pub set_video_ids: Vec<SetVideoId> /* parallel to `tracks` */ }
 // PlaylistDetail gains: `pub edit: Option<PlaylistEditInfo>`.
 pub trait PlaylistEditor: Send + Sync {
+    /// Creates a playlist with the first videos in one call (used by playlist-import). Returns its id.
+    fn create<'a>(&'a self, title: &'a str, privacy: Privacy, videos: &'a [VideoId]) -> BoxFuture<'a, Result<BrowseId, CatalogError>>;
     fn rename<'a>(&'a self, id: &'a BrowseId, title: &'a str) -> BoxFuture<'a, Result<(), CatalogError>>;
     fn set_description<'a>(&'a self, id: &'a BrowseId, text: &'a str) -> BoxFuture<'a, Result<(), CatalogError>>;
     fn set_privacy<'a>(&'a self, id: &'a BrowseId, privacy: Privacy) -> BoxFuture<'a, Result<(), CatalogError>>;
@@ -110,7 +112,11 @@ pub trait PlaylistEditor: Send + Sync {
 
 // nemo-core/src/stream.rs (additions; `ResolvedStream` gains `audio_language: Option<String>`, `audio_tracks: Vec<AudioTrackInfo>`)
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct StreamRequest { pub audio_language: Option<String> /* BCP 47, None = automatic */, pub prefer_premium: bool }
+pub struct StreamRequest {
+    pub audio_language: Option<String> /* BCP 47, None = automatic */, pub prefer_premium: bool,
+    /// A hint for the ranker, never a codec the decoder cannot play (cast asks for AAC for DLNA). None = automatic.
+    pub prefer_codec: Option<nemo_core::audio::Codec>,
+}
 #[derive(Debug, Clone, PartialEq, Eq)] pub struct AudioTrackInfo { pub language: Option<String>, pub label: String, pub is_default: bool }
 // StreamResolver: `fn resolve_with<'a>(&'a self, video: &'a VideoId, request: &'a StreamRequest) -> BoxFuture<'a, Result<ResolvedStream, StreamError>>;` default calls `resolve`.
 // nemo-core/src/player.rs: `PlayerCommand::SwitchAudioTrack(Option<String>)`: resolve again with that language, reopen at the current position.
@@ -130,7 +136,7 @@ pub const MIN_CHECK_INTERVAL: std::time::Duration = std::time::Duration::from_se
 pub fn rank_audio(codec: nemo_core::audio::Codec, kbps: Option<u32>) -> u32; // higher abr wins; Opus wins a tie
 ```
 
-Traits I need from other designs: `OsNotifier` (integrations design) for criterion 32, a `Codec::Opus` entry in `supported_stream_codecs()` (local-library design), the captions parser is not needed here. Settings in `UiSettings`: `premium_audio: bool`, `audio_language: Option<String>`, `release_notices: bool`, `os_release_notices: bool`, with matching `SettingChange` variants.
+Traits I need from other designs: `OsNotifier` (integrations design, `notify.rs`) for criterion 32: after each release check `nemo-app` calls `ReleaseFeed::take_unannounced` and, when `os_release_notices` is on, one `OsNotifier::notify` with the grouped list. The Opus decoder comes from the local-library design; `Codec::Opus` already exists, and widening `supported_stream_codecs()` waits for the owner (ADR 0004). The captions parser is not needed here. Settings in `UiSettings`: `premium_audio: bool`, `audio_language: Option<String>`, `release_notices: bool`, `os_release_notices: bool`, with matching `SettingChange` variants.
 
 ## Error Handling
 
@@ -156,7 +162,7 @@ Traits I need from other designs: `OsNotifier` (integrations design) for criteri
 
 - Several accounts may fail the spike: `ytmapi-rs` 0.3.4 sends no `X-Goog-AuthUser`, and Google may share state between webview logins. Fallback 1: one multi-login cookie plus an `X-Goog-AuthUser` index per account, with our own signed requests (`sha2` is already a dependency) for the account-aware calls. Fallback 2: one account at a time; "switch" signs out and opens the Google chooser. Criteria 12 to 15 hold either way; criterion 36 drops to 1.
 - Passing the session to `yt-dlp` can lead to account or IP limits (ADR 0001). The setting stays off by default and says so. The temp file is the weakest point: another process of the same user could read it for a few seconds. The spike checks the Windows file ACL and whether `yt-dlp` re-reads a deleted-on-close file; if not, the Premium option stays Linux-pipe only and Windows is blocked until fixed.
-- Raw innertube calls (rename, privacy, move) can break when YouTube changes. `ytmapi-rs` 0.3.4 lists `EditPlaylistQuery` (title, description, privacy, swap), `AddPlaylistItemsQuery`, `RemovePlaylistItemsQuery`, `DeletePlaylistQuery` and `RateSongQuery` with `LikeStatus::Disliked`. The owner chose raw calls where the crate lacks an action; the first task checks each typed query field by field, uses it where it works, and writes raw calls (as in `raw.rs`) for the rest. A move is a swap in the crate, so `move_track` is raw.
+- Raw innertube calls (rename, privacy, move) can break when YouTube changes. `ytmapi-rs` 0.3.4 lists `EditPlaylistQuery` (title, description, privacy, swap), `AddPlaylistItemsQuery`, `RemovePlaylistItemsQuery`, `DeletePlaylistQuery` and `RateSongQuery` with `LikeStatus::Disliked`. `create` (needed by playlist-import) uses `CreatePlaylistQuery` if the crate has it (unverified; the first task checks) and a raw call otherwise. The owner chose raw calls where the crate lacks an action; the first task checks each typed query field by field, uses it where it works, and writes raw calls (as in `raw.rs`) for the rest. A move is a swap in the crate, so `move_track` is raw.
 - Release check: the cheapest plan is two calls (the subscription list, cached for a day, and the new-releases page matched against it). The page may not be personal. Fallback: one browse per followed artist, one every 90 seconds, oldest first, at most 40 per check.
 - Premium status is learned from the first stream, so the UI says "active when your plan has it" until then.
 - Departures from ADR 0004: none. Two shared traits beyond its expected list (`AccountSwitcher`, `SignOutWipe`) and `ReleaseFeed` are added to `nemo-core`; the ADR lists the expected set as open. `nemo-ytm` keeps no dependency on `nemo-secrets`: it receives the store as `Arc<dyn SecretStore>`.

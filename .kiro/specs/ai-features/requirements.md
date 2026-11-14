@@ -14,7 +14,7 @@ NemoMusic can suggest songs and write a short reading of the user's music taste,
 
 ### Provider settings
 
-1. WHEN no AI provider is saved, THE SYSTEM SHALL hide every AI feature, button and menu entry, including AI translation in lyrics-plus. Settings SHALL show one "AI provider" entry to set it up.
+1. WHEN no AI provider is saved, THE SYSTEM SHALL hide every AI feature, button and menu entry, including the AI translation toggle in the lyrics view. Settings SHALL show one "AI provider" entry to set it up, and Settings > Lyrics SHALL show the translation entry as unavailable with the text "Set up an AI endpoint first" (lyrics-plus criterion 38).
 2. WHEN the user sets up a provider, THE SYSTEM SHALL ask for an endpoint URL, a model name and an API key (the key is optional for a local server).
 3. THE SYSTEM SHALL talk to the endpoint with the OpenAI-style chat completions request shape (`/v1/chat/completions`, as local servers such as Ollama accept it).
 4. THE SYSTEM SHALL store the API key in the OS credential store only, and SHALL NOT write it to a file, a log, an error message or the clipboard.

@@ -68,7 +68,7 @@ pub fn cover_slot<'a>(app: &App, size: f32, radius: f32) -> Element<'a, Message>
 pub struct SpotifyCanvasSource;       // impl AnimatedArtSource; label "Animated cover: Spotify"
 ```
 
-Needed from `video-playback` (not defined here): a `nemo-core` trait that opens a local MP4 file, silent and looping; reports width and height; `pause`, `resume`, `stop`; and returns the newest RGBA frame without blocking. It must allow only one open clip, and report "no decoder in this build" so the switches can show as unavailable.
+Needed from `video-playback` (defined there, ADR 0004 row 39): `ClipPlayer` with `available()` (false means "no decoder in this build", so the switches show as unavailable), `open(file) -> ClipInfo` (silent, looping), `pause`, `resume`, `stop` and `frames()` (a `VideoFrameSource`, newest frame without blocking). It allows one open clip; `open` fails with `Overloaded` while a music video plays.
 
 ## Error Handling
 

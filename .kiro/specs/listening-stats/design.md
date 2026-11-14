@@ -10,7 +10,7 @@ The work is split on purpose. `nemo-core` gets a pure play tracker (shared with 
 - `nemo-stats` (new): `store.rs` (schema, migrations, writer thread), `period.rs` (calendar bounds), `songkey.rs`, `query.rs` (charts), `year.rs` and `recap.rs`, `export.rs` (CSV, JSON), `receipt.rs` (PNG), `service.rs` (`StatsService` implementation, `PlayObserver` implementation).
 - `nemo-ui`: route `Route::Stats` and a sidebar entry; `gui/views/stats.rs` (switch, period picker, three ranked lists, receipt and export buttons); `gui/views/stats_chart.rs` (hour bars on `iced::widget::canvas`, with reduced motion honoured); `copy.rs` (Stats texts, and the sign-out text in `ACCOUNT_SIGN_OUT_CONFIRM`, which must now say that stats stay and name "Clear stats"); `fonts` accessor for the receipt. A save-file dialog and an image clipboard helper are needed; see Risks.
 - `nemo-app`: build `StatsStore` at `paths.stats`, register it with the play hub (`play_hub.rs`, from the integrations design), put it on `Backend` as `stats: Arc<dyn StatsService>`.
-- `nemo-library`, `nemo-ytm`: no change here. The recap playlist uses the local-playlist API (local-library design) and the account playlist edit (account-actions design); both are needed, neither is defined here.
+- `nemo-library`, `nemo-ytm`: no change here. The recap playlist uses `LocalLibraryService::{create_playlist, add_tracks}` (local-library design) and `PlaylistEditor::create` (account-actions design); neither is defined here.
 - `nemo-audio`: not touched.
 
 ## Data Flow
@@ -93,7 +93,7 @@ pub fn song_key(artist: Option<&str>, title: &str) -> String;
 pub fn counts_as_play(duration: Option<Duration>, heard: Duration) -> bool; // wraps nemo_core::hooks::PlayRule
 ```
 
-The charts are ranked by play count, ties by heard time, then by latest play. The receipt is 640 px wide: the NemoMusic name, the period, up to 10 rows (rank, title, artist, plays), the total, drawn with `fontdue` and the bundled Google Sans Flex, NFC-normalized, long names cut with an ellipsis. No cover art, no account name, no lyrics. It is made in memory on demand, so there is no receipt cache to clear.
+The charts are ranked by play count, ties by heard time, then by latest play. The receipt is 640 px wide: the NemoMusic name, the period, up to 10 rows (rank, title, artist, plays), the total, drawn with `ab_glyph` and the bundled Google Sans Flex, NFC-normalized, long names cut with an ellipsis. No cover art, no account name, no lyrics. It is made in memory on demand, so there is no receipt cache to clear.
 
 Export writes to `dest.tmp` in the same folder, then renames. Columns: `started_at` (RFC 3339 UTC), `heard_seconds`, `title`, `artist`, `album`, `source`. No ids, paths, cookies or lyrics. CSV cells that start with `=`, `+`, `-` or `@` get a leading `'` so a spreadsheet does not run a title as a formula; the writer is about 30 lines, so no `csv` crate.
 
@@ -124,16 +124,16 @@ Export writes to `dest.tmp` in the same folder, then renames. Columns: `started_
 - Heard time is sampled every 500 ms, so it is off by up to half a second per track. The rule's 50 % line is not affected in practice.
 - One song across sources by name only: tags that differ ("(Remastered)") split a song in two. A fuzzy match would invent merges, which criterion 22 forbids.
 - The receipt uses one font with no fallback, so CJK or Thai titles show missing-glyph boxes. Alternative: render with the iced headless renderer; rejected because `iced_test` needs `ICED_TEST_BACKEND` set, which needs `unsafe`.
-- Alternative `ab_glyph` 0.2.32 for the receipt: last release 2025-09-28, older than the 12 months `tech.md` allows. `fontdue` 0.9.5 was released 2026-10-19; its `rust-version` is not listed (unverified).
+- Receipt text uses `ab_glyph` 0.2.32 (Apache-2.0, released 2025-09-28, inside the 2 years `code.md` allows; ADR 0004, Decision 5). It is already in `Cargo.lock` (through `sctk-adwaita`, Wayland only), so it adds no new version to audit. `fontdue` 0.9.5 (released 2026-10-19, `rust-version` not listed, unverified) is newer but a new crate for the same job. `ab_glyph` lays out nothing, so the receipt places glyphs one by one from NFC text, which is enough for one font and no shaping.
 - A save-file dialog (`rfd` 0.18.0, MIT, MSRV 1.92, 2026-11-07) and an image clipboard (`arboard` 3.7.0, MIT OR Apache-2.0, MSRV 1.71, 2026-10-15) are not in the workspace. The first design that lands one adds it to `nemo-ui`; both are unverified against `cargo deny` and Linux build packages.
 - Alternative storage in `nemo-library`'s database: rejected, ADR 0004 says one SQLite file per owning crate and Clear stats must not touch the library.
 
 ## Steering and README changes
 
-- `tech.md`: add `chrono` =0.4.45 (MIT OR Apache-2.0, 2026-06-04, `clock` feature, already in `Cargo.lock`); `fontdue` =0.9.5 (MIT OR Apache-2.0 OR Zlib, 2026-10-19); `rusqlite`, `image`, `sha2`, `unicode-normalization` and `tokio` are existing pins. Confirm `rusqlite` 0.41.1 stays pinned (0.42.0 exists since 2026-11-11).
+- `tech.md`: add `chrono` =0.4.45 (MIT OR Apache-2.0, 2026-06-04, `clock` feature, already in `Cargo.lock`); `ab_glyph` =0.2.32 (Apache-2.0, 2025-09-28, already locked; direct dependency of `nemo-stats`); `rusqlite`, `image`, `sha2`, `unicode-normalization` and `tokio` are existing pins. Confirm `rusqlite` 0.41.1 stays pinned (0.42.0 exists since 2026-11-11).
 - `structure.md`: new crate `nemo-stats`, edge `nemo-app -> nemo-stats`, it depends on `nemo-core` only; note `Backend.stats`.
 - README egress list: no new host. README privacy text: stats are off until switched on, stay local, survive sign-out, export is a file the user saves.
-- ADR 0004: record the sign-out exception and the `nemo-stats` crate list (`fontdue`, `chrono`).
+- ADR 0004: record the sign-out exception and the `nemo-stats` crate list (`ab_glyph`, `chrono`).
 - `copy.rs` text for sign-out and the Stats page (implementing task).
 
 <!-- Sources:

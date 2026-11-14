@@ -12,12 +12,12 @@ Spotify sign-in uses the existing `nemo-signin` helper (a webview on Spotify's o
 ## Affected Crates
 
 - `nemo-core`: new `lyrics_plus.rs` (own lyrics, romanizer, translation, `LineMeta`), `spotify.rs` (`SpotifyAccount`), `animated_art.rs` (owned here, used by `now-playing-styles`). `LyricsService` gains one default method, `line_meta`. No I/O, no async runtime.
-- `nemo-lyrics`: `own.rs` (table `own_lyrics` in the existing lyrics database, created in `LyricsCache::init` like the other tables), `romanize/` (one file per script family), `translate.rs` (hook, table `lyrics_translation`), `ttml.rs` and `netease.rs` keep provider romanization, `service.rs` asks own lyrics first, `cache.rs` stores `LineMeta`.
+- `nemo-lyrics`: `own.rs` (table `own_lyrics` in the existing lyrics database, created in `LyricsCache::init` like the other tables), `romanize/` (one file per script family), `translate.rs` (hook, table `lyrics_translation`), `ttml.rs` and `netease.rs` keep provider romanization, `service.rs` asks own lyrics first, `cache.rs` stores `LineMeta` and implements `LyricsService::keep_offline` (offline-cache design) with a `pinned` flag that skips expiry. Spotify rows are deleted on sign-out even when pinned; own lyrics are never cleared.
 - `nemo-spotify` (new): session, `SpotifyLyricsProvider`, `SpotifyCanvasSource`, its own SQLite file `spotify.sqlite`.
 - `nemo-signin`: `--site youtube|spotify`, one more sign-in URL and cookie filter in `cookies.rs`.
-- `nemo-ytm`: the captions provider and its host list. Designed in the nemo-ytm design; this design needs only the `LyricsProvider` trait.
+- `nemo-ytm`: the captions provider (`CaptionsLyricsProvider`, id "YouTube captions") and its host list. Designed in youtube-extras; this design only puts it last in the chain, after every lyrics provider (criterion 36).
 - `nemo-ui`: lyrics editor, share card, landscape full-screen lyrics, translation and romanization rows under the lyrics, Settings > Lyrics entries.
-- `nemo-app`: builds `SpotifySession`, the translation hook (given the `Translator` of `nemo-ai`) and the romanizer, and calls `SpotifySession::wipe` on sign-out.
+- `nemo-app`: builds `SpotifySession`, the translation hook (given the `Translator` of ai-features, through `nemo-core` only) and the romanizer, and registers `SpotifySession` as a `SignOutWipe` step named "spotify" (it calls `wipe`).
 - `nemo-audio`: not touched.
 
 Romanization crates, one module per family behind the `Romanizer` trait:
@@ -45,7 +45,7 @@ Romanization crates, one module per family behind the `Romanizer` trait:
 - Lookup stays on the app's async runtime. `LyricsHub::lookup` checks `own_lyrics` first. A hit returns at once and sends no request (criterion 8). Otherwise the chain runs as in ADR 0002. `SpotifyLyricsProvider` joins it as an opt-in entry.
 - Spotify, one lookup: access token (kept in memory only, about one hour) from `sp_dc`, then the Spotify track id (cached in `spotify.sqlite`, table `track_map`), then the lyrics request. After the first song it is one request. The chain's 4 s per-provider limit and one request per host in flight still apply.
 - Romanization is pure CPU. `nemo-ui` calls `Romanizer::romanize` on a worker thread (`spawn_blocking`) when a document arrives, and keeps the result in an in-memory map keyed by track key, provider and scheme. The UI thread only reads it. Never on the audio thread.
-- Translation: UI message, then `LyricsTranslation::translate` on the runtime, which batches all lines of the song in one `Translator` call, writes the answer to `lyrics_translation`, and returns it. One request per song and language; no retry loop (criterion 40).
+- Translation: UI message, then `LyricsTranslation::prepare` (no I/O), the BETA warning and the preview of ai-features when they are due, then `LyricsTranslation::translate` on the runtime, which sends all lines of the song in one `Translator::translate` call, writes the answer to `lyrics_translation`, and returns it. One request per song and language; no retry loop (criterion 40).
 - Editor: the UI thread owns `EditorModel`. A tap stores `PlayerSnapshot.position` at the moment of the key event. The preview feeds the unsaved draft through the same line-finding code as the lyrics view, so the highlight matches (criterion 5). Audio buffers are not involved.
 - Share image: one worker renders RGBA, then the UI saves a PNG or sets the clipboard after the click. No network.
 
@@ -88,12 +88,16 @@ pub struct LangTag(pub String);                                // BCP 47, for ex
 pub enum TranslationAvailability { Ready, NoEndpoint, NotConfirmed }
 pub struct Translation { pub lang: LangTag, pub lines: Vec<Option<String>>, pub endpoint_host: String }
 #[derive(Debug, thiserror::Error)]
-pub enum TranslationError { #[error("no AI endpoint is set")] NoEndpoint, #[error("not confirmed")] NotConfirmed, #[error("offline")] Offline,
-    #[error("timed out")] Timeout, #[error("the endpoint refused: {0}")] Refused(String), #[error("unusable answer: {0}")] BadAnswer(String) }
+pub enum TranslationError { #[error("no AI endpoint is set")] NoEndpoint, #[error("not confirmed")] NotConfirmed,
+    #[error("{0}")] Ai(AiError) }   // AiError of ai-features: Offline, Timeout, KeyRejected, BadAnswer and the rest keep their short texts
 pub trait LyricsTranslation: Send + Sync {
+    /// `NoEndpoint` when `Translator::available()` is false: the lyrics view hides the toggle, Settings > Lyrics shows "Set up an AI endpoint first".
     fn availability(&self) -> TranslationAvailability;
     fn cached(&self, track_key: &str, lang: &LangTag) -> Option<Translation>;
-    fn translate<'a>(&'a self, track_key: &'a str, doc: &'a LyricsDoc, lang: &'a LangTag) -> BoxFuture<'a, Result<Translation, TranslationError>>;
+    /// No I/O. Calls `Translator::prepare`; the UI shows the preview unless the user turned it off (ai-features).
+    fn prepare(&self, doc: &LyricsDoc, lang: &LangTag) -> Result<PayloadPreview, TranslationError>;
+    /// One `Translator::translate(preview, doc.lines.len())` call, then the answer is stored in `lyrics_translation`.
+    fn translate<'a>(&'a self, track_key: &'a str, doc: &'a LyricsDoc, lang: &'a LangTag, preview: &'a PayloadPreview) -> BoxFuture<'a, Result<Translation, TranslationError>>;
     fn forget(&self, track_key: &str);
 }
 
@@ -138,7 +142,7 @@ pub fn save_png(img: &image::RgbaImage, path: &Path) -> Result<(), ShareError>;
 pub fn copy_to_clipboard(img: &image::RgbaImage) -> Result<(), ShareError>;
 ```
 
-Needed from other designs (not defined here): `Translator` (ai-features, `nemo-ai`): `translate_lines(&[String], &LangTag, Option<&str>) -> BoxFuture<Result<Vec<String>, TranslateError>>`, `is_configured() -> bool`, `endpoint_host() -> Option<String>`. `SecretStore` (moved to `nemo-core` by the secrets design). A sign-out wipe hook that `nemo-app` calls (ADR 0004, Decision 3); `SpotifySession::wipe` and `OwnLyrics` need nothing more. `nemo-ytm` captions provider: any `LyricsProvider`, id "YouTube captions", `ProviderInfo::opt_in`.
+Needed from other designs (not defined here): `Translator` (ai-features, `nemo-core/src/ai.rs`): `available() -> bool`, `prepare(&[String], target_language: &str) -> Result<PayloadPreview, AiError>`, `translate(&PayloadPreview, expected_lines) -> BoxFuture<Result<Vec<String>, AiError>>`; `AiService::provider()` gives the endpoint host shown in `Translation.endpoint_host`. `SecretStore` and `SignOutWipe` (account-actions). `OwnLyrics` needs nothing more. The `nemo-ytm` captions provider (youtube-extras) is a `LyricsProvider` with id "YouTube captions" and `ProviderInfo::opt_in`.
 
 ## Error Handling
 

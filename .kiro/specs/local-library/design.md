@@ -4,9 +4,10 @@ Local files already play: `nemo-library` scans folders in memory and `nemo-audio
 
 Decisions in one place:
 - Storage: `rusqlite` =0.41.1 (bundled SQLite, WAL), the version `nemo-lyrics` already builds. One file, `library.db`, in `AppPaths.library`.
-- Formats: `symphonia` features `alac`, `vorbis`, `ogg`, `aiff` (all MPL-2.0, 0.6.1). Opus through `symphonia-adapter-libopus` =0.3.0, which registers a libopus decoder with `symphonia`, so `StreamDecoder` stays one code path. The same decoder can play YouTube's Opus streams; whether the resolver then prefers them is a separate change.
+- Formats: `symphonia` features `alac`, `vorbis`, `ogg`, `aiff` (all MPL-2.0, 0.6.1). Opus through `symphonia-adapter-libopus` =0.3.0, which registers a libopus decoder with `symphonia`, so `StreamDecoder` stays one code path. The same decoder can play YouTube's Opus streams. Adding `Codec::Opus` to `supported_stream_codecs()` (`decoder.rs`), which makes the YouTube and SoundCloud rankers pick Opus, is a separate task: it changes what the owner hears, so it waits for the owner's choice (ADR 0004, open decisions). `Codec::Opus` already exists in `audio.rs`.
 - Folder dialog: `rfd` =0.18.0 (MIT) in `nemo-ui`. Typed path stays as the fallback.
 - Watching: none. The library loads from SQLite at start, then rescans in the background, and rescans on demand. `notify` is CC0-1.0 (not on the `code.md` allowlist) and its 9.0 line is a release candidate; no criterion needs live watching.
+- Gapless marks: `nemo-library` implements `GaplessPolicy` (defined by audio-effects, `gapless.rs`). `join_without_fade(from, to)` is true for consecutive tracks of one CUE file, and for two consecutive tracks of one album that has the `gapless` flag (a column on the album row, set from the iTunes `pgap` tag or by the user).
 - ReplayGain: tags are read at scan time. The opt-in scan for untagged files measures loudness with `ebur128` =0.1.11 (MIT, pure Rust) and stores the result in the library only.
 - CUE tracks: a hand-written parser (`rcue` is MIT but unreleased since 2022; `cue` is GPL-2.0-or-later). A CUE track is a time span of one audio file.
 - Linux: the lossless badge stays off because `SignalPath::is_bit_perfect` needs `OutputMode::Exclusive`, which `cpal` on ALSA never reports. No code change is needed for this.
@@ -26,7 +27,7 @@ Decisions in one place:
 - Scan: one scan thread walks folders (existing `scan_folder`, no symlinks, depth 16) and sends `ScanEvent` values over an `mpsc` channel to one writer thread. The writer owns the only write connection, batches inserts in transactions, and swaps new rows into the snapshot. A file is re-read only when its size or modified time differ from the row. Missing files are removed after the walk ends.
 - Playback: the control thread starts `spawn_prepare`. The prepare thread calls `LocalTrackLookup::playback(&Track)` (a read on its own SQLite connection, never on the callback), opens `FileSource`, probes with `StreamDecoder`, and returns `Prepared` with the span and gain. The feeder thread owns decoded blocks and the ring producer; the `cpal` callback only reads the ring. Nothing new runs in the callback.
 - CUE gapless: tracks N and N+1 of one file are two jobs on two decoders. Job N ends at frame `E`; job N+1 seeks to the same frame `E` with `SeekMode::Accurate` (the existing `skip_frames` logic) and starts there. The feeder counts frames, so the join is sample-exact for FLAC, ALAC and WAV. For lossy files the cut is exact in decoded frames; codec delay is handled by the container's gapless data (criterion 11).
-- ReplayGain: the feeder applies one scalar per sample block before the ring, only while the stage exists. Off means the stage is not built, so there is no arithmetic. The stage is registered as `ProcessingStage::Gain` in the signal path. I need the gain-stage slot and its registration from the audio-effects design; this design defines only the values and the mode.
+- ReplayGain: the feeder applies one scalar per sample block before the ring, only while the stage exists. Off means the stage is not built, so there is no arithmetic. The stage is registered as `ProcessingStage::ReplayGain { db }` (defined by audio-effects, which also fixes the order: after the song's own `Chain`, before the transition mixer; `Gain` stays the volume stage). This design defines only the values, the mode and the peak rule: the scalar is lowered so peak x gain stays at or below 1.0.
 - Loudness scan: a low-priority thread takes one untagged file at a time, decodes it with `StreamDecoder` inside `nemo-audio`, feeds `ebur128`, and returns `Loudness`. The library writes it to table `loudness`. A cancel flag stops it between blocks.
 - Open and drop: a second launch with a path connects to a loopback listener on `127.0.0.1` (ephemeral port and a random token in `instance.json` under the app root, `Secret<String>`), sends the path, and exits. Dropped paths arrive as UI messages. Neither adds to the library unless the file lies under a watched folder.
 - Sign-out: no wipe step; the library holds no account data (criterion 29).
@@ -60,7 +61,8 @@ pub trait LoudnessMeter: Send + Sync {
 }
 
 pub struct LocalPlaylistId(pub i64);
-pub struct PlaylistEntry { pub path: PathBuf, pub track: Option<Track>, pub missing: bool }
+/// `path` is set for a local file. A streamed song (saved by playlist-import or a stats recap) has `path: None` and its `track`.
+pub struct PlaylistEntry { pub path: Option<PathBuf>, pub track: Option<Track>, pub missing: bool }
 pub struct LocalPlaylist { pub id: LocalPlaylistId, pub name: String, pub entries: Vec<PlaylistEntry> }
 pub struct M3uImport { pub playlist: LocalPlaylistId, pub added: usize, pub skipped: usize }
 pub struct TagEdit { pub title: Option<String>, pub artists: Option<Vec<String>>, pub album: Option<String>,
@@ -77,6 +79,8 @@ pub trait LocalLibraryService: Send + Sync {
     fn details(&self, id: &TrackId) -> Option<LocalTrackDetails>;
     fn playlists(&self) -> Vec<LocalPlaylist>;
     fn create_playlist(&self, name: &str) -> BoxFuture<'_, Result<LocalPlaylistId, LibraryError>>;
+    /// Used by playlist-import and listening-stats recaps. Returns how many were added.
+    fn add_tracks(&self, id: LocalPlaylistId, tracks: Vec<Track>) -> BoxFuture<'_, Result<usize, LibraryError>>;
     fn import_m3u(&self, file: &Path) -> BoxFuture<'_, Result<M3uImport, LibraryError>>;
     fn export_m3u8(&self, id: LocalPlaylistId, to: &Path) -> BoxFuture<'_, Result<(), LibraryError>>;
     fn preview_tag_edit(&self, id: &TrackId, edit: &TagEdit) -> BoxFuture<'_, Result<Vec<TagDiff>, LibraryError>>;
@@ -98,7 +102,7 @@ pub(crate) fn build_codecs() -> CodecRegistry;  // default decoders plus the Opu
 - Corrupt file: `PRAGMA quick_check` at open. On failure the file and its `-wal` and `-shm` are renamed to `library.db.broken-<unix time>`, a new file is created, a rescan runs, and one `ScanEvent::Rebuilt` tells the user. Playlists live in the same file, so the kept copy is how the user gets them back; the message says so.
 - A file that cannot be decoded is stored as `Unplayable` with a reason; the reason text shows on request. Playlist entries to missing files stay and the player skips them.
 - Tag write: copy to a temp file beside the original, write the tag with `lofty`, re-read it, then replace the original. Any failure removes the temp file and leaves the original unchanged (criterion 24). A read-only file or a file another program holds ends as `LibraryError::Tag` with a plain reason.
-- M3U: unresolved lines are counted in `skipped`, not raised. CUE with a missing audio file or bad index lists the audio file as one track and records the problem.
+- M3U: unresolved lines are counted in `skipped`, not raised. Entries without a path (streamed songs) are not written to M3U8; the export reports how many were left out. CUE with a missing audio file or bad index lists the audio file as one track and records the problem.
 - Opus adapter or ReplayGain stage failing to build: the track plays at unity gain; the error is logged without paths.
 
 ## Testing Strategy

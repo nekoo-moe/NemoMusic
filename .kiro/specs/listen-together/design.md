@@ -11,7 +11,7 @@ Launch feature set, sent in `client_capabilities`: `request_id`, `origin_tag`, `
 - `nemo-together` (new): socket, codec, room state machine, clock sync, drift loop, blocklist database.
 - `nemo-core`: new `together.rs` with `RoomControl` and its types; `remote.rs` (Cast design) for `RemotePlayback` and `RemoteSlot`.
 - `nemo-ui`: settings entry (shared opt-in pattern, server address field, risk text), create and join dialogs, member list, host approvals, player-bar dot (criterion 27). Uses `RoomControl` only.
-- `nemo-app`: builds `nemo-together` with `Arc<dyn PlayerControl>`, applies `RemotePlayback::gate` to UI commands, sends the command that suspends crossfade when a room starts and restores it when it ends (the command is named by the crossfade design), registers the sign-out step.
+- `nemo-app`: builds `nemo-together` with `Arc<dyn PlayerControl>`, applies `RemotePlayback::gate` to UI commands, keeps the user's saved `TransitionSettings` in memory, sends `PlayerCommand::SetTransition` with `mode: TransitionMode::Off` and `skip_fade: SkipFade::Off` when a room starts and the saved value when it ends (audio-effects design; the stored setting is not changed), and registers a `SignOutWipe` step named "together" that leaves the room and drops the session token.
 - `nemo-audio`, `nemo-ytm`: no change. A guest resolves its own stream through the existing `StreamResolver` (criterion 17).
 
 ## Data Flow
