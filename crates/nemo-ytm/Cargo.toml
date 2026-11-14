@@ -41,5 +41,7 @@ zbus-secret-service-keyring-store = { version = "=1.0.1", default-features = fal
 
 [dev-dependencies]
 nemo-audio.workspace = true
+# `MemoryStore` for the `Vault` and account tests.
+nemo-core = { workspace = true, features = ["test-util"] }
 proptest.workspace = true
 tokio = { version = "=1.54.1", default-features = false, features = ["rt-multi-thread", "time", "macros"] }
