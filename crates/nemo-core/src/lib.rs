@@ -23,6 +23,7 @@ pub mod secret;
 pub mod secret_store;
 pub mod segment;
 pub mod services;
+pub mod spotify;
 pub mod stream;
 pub mod track;
 
