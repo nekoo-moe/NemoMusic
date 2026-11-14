@@ -17,7 +17,7 @@ Status: early development. Runs on Windows 10/11 and Linux (x86_64).
 
 - YouTube Music serves lossy audio only (AAC or Opus, about 256 kbps at most). NemoMusic never labels a YouTube stream as lossless. The badge shows the real codec and bitrate.
 - NemoMusic keeps the output path untouched: no resampling, gain, EQ or dither unless the device needs it or you turn it on. Any such step is shown in the signal-path view.
-- True lossless applies only to local FLAC, ALAC and WAV files.
+- True lossless applies only to local FLAC, ALAC and WAV files, and the badge says "Lossless" only while the path is bit-perfect (exclusive mode, nothing changing the samples). Through the shared system mixer, a resampler or any effect, it shows the codec and format, and the signal-path view says why. On Linux the output is shared mode for now, so the badge stays off there.
 
 ## Please read: risks
 

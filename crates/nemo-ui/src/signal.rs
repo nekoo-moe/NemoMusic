@@ -1,6 +1,7 @@
 //! Text for the signal path, built only from the real [`SignalPath`] of the player snapshot
-//! (`design.md` section 13). Pure. A lossy source never reads "Lossless"; "Bit-perfect" appears
-//! only when the path really is.
+//! (`design.md` section 13). Pure. "Lossless" appears only for a local lossless file on a
+//! bit-perfect path, so a lossy source or a path that changes samples never reads it;
+//! "Bit-perfect" appears only when the path really is.
 
 use nemo_core::audio::{
     AudioFormat, Origin, OutputMode, ProcessingStage, QualityClass, SignalPath,
@@ -65,13 +66,16 @@ fn stage_text(stage: &ProcessingStage) -> String {
     }
 }
 
-/// `Lossless`, `Lossy` or `Unknown`, by the honest-label rule of `nemo-core`.
+/// `Lossless`, `Lossy` or `Unknown`, by the honest-label rule of `nemo-core`. `None` for a
+/// lossless file on a path that is not bit-perfect: it shows codec and format only, and the
+/// `Result` line says why (`product.md`, Quality badge rule).
 #[must_use]
-pub fn quality_word(path: &SignalPath) -> &'static str {
+pub fn quality_word(path: &SignalPath) -> Option<&'static str> {
     match path.source.quality_class() {
-        QualityClass::Lossless => "Lossless",
-        QualityClass::Lossy => "Lossy",
-        QualityClass::Unknown => "Unknown",
+        QualityClass::Lossless if path.is_true_lossless() => Some("Lossless"),
+        QualityClass::Lossless => None,
+        QualityClass::Lossy => Some("Lossy"),
+        QualityClass::Unknown => Some("Unknown"),
     }
 }
 
@@ -124,14 +128,17 @@ pub fn lines(path: &SignalPath) -> Vec<PathLine> {
         OutputMode::Shared => "Shared mode",
         OutputMode::Unknown => "Unknown mode",
     };
-    let result = if path.is_bit_perfect() {
-        format!("{} \u{b7} Bit-perfect", quality_word(path))
-    } else {
-        format!(
-            "{} \u{b7} Not bit-perfect ({})",
-            quality_word(path),
+    let result = match (quality_word(path), path.is_bit_perfect()) {
+        (Some(word), true) => format!("{word} \u{b7} Bit-perfect"),
+        (Some(word), false) => format!(
+            "{word} \u{b7} Not bit-perfect ({})",
             not_bit_perfect_because(path).join(", ")
-        )
+        ),
+        // A lossless file whose path changes samples: no lossless badge, and the reason.
+        (None, _) => format!(
+            "Not bit-perfect ({}), so no lossless badge",
+            not_bit_perfect_because(path).join(", ")
+        ),
     };
     vec![
         PathLine {
@@ -171,7 +178,11 @@ pub fn badge_label(path: Option<&SignalPath>) -> String {
     let Some(path) = path else {
         return "Unknown".to_owned();
     };
-    let mut s = format!("{} \u{b7} {}", path.source.badge(), quality_word(path));
+    let mut s = path.source.badge();
+    if let Some(word) = quality_word(path) {
+        s.push_str(" \u{b7} ");
+        s.push_str(word);
+    }
     // A bit-perfect path says so in the popover (Result line); the badge stays short.
     if !path.is_bit_perfect()
         && path
@@ -265,14 +276,84 @@ mod tests {
     }
 
     #[test]
-    fn local_flac_through_the_shared_mixer_is_lossless_but_not_bit_perfect() {
+    fn local_flac_through_the_shared_mixer_shows_no_lossless_badge_and_says_why() {
         let mut p = youtube_aac();
         p.source.origin = Origin::Local;
         p.source.codec = Codec::Flac;
         p.source.bitrate_kbps = None;
-        assert!(badge_label(Some(&p)).contains("Lossless"));
-        assert!(badge_label(Some(&p)).ends_with("Resample"));
-        assert!(lines(&p)[4].value.contains("Not bit-perfect"));
+        p.source.format = Some(p.output.format);
+        p.processing.clear();
+        assert_eq!(badge_label(Some(&p)), "FLAC 48\u{2009}kHz / 32-bit");
+        let result = &lines(&p)[4].value;
+        assert_eq!(
+            result,
+            "Not bit-perfect (shared mode), so no lossless badge"
+        );
+        // With a resampler too, the badge names it and the reason lists both.
+        p.processing.push(ProcessingStage::Resample {
+            from_hz: 44_100,
+            to_hz: 48_000,
+        });
+        let badge = badge_label(Some(&p));
+        assert!(!badge.contains("Lossless") && badge.ends_with("Resample"));
+        assert!(lines(&p)[4].value.contains("shared mode, resample"));
+        assert!(!lines(&p).iter().any(|l| l.value.contains("Lossless")));
+    }
+
+    /// One row per case of the quality badge rule (`product.md`).
+    #[test]
+    fn badge_rule_table() {
+        let format = AudioFormat {
+            sample_rate: 44_100,
+            channels: 2,
+            bit_depth: Some(16),
+        };
+        let exclusive = |origin, codec, kbps| SignalPath {
+            source: StreamInfo {
+                origin,
+                codec,
+                bitrate_kbps: kbps,
+                format: Some(format),
+            },
+            processing: vec![],
+            output: OutputInfo {
+                device_name: "DAC".to_owned(),
+                mode: OutputMode::Exclusive,
+                format,
+            },
+        };
+        let table = [
+            // A YouTube stream on a bit-perfect path: lossy badge, bit-perfect only as a path.
+            (
+                exclusive(Origin::YoutubeMusic, Codec::Opus, Some(160)),
+                "Opus 160\u{2009}kbps \u{b7} Lossy",
+                "Lossy \u{b7} Bit-perfect",
+            ),
+            (
+                exclusive(Origin::Local, Codec::Alac, None),
+                "ALAC 44.1\u{2009}kHz / 16-bit \u{b7} Lossless",
+                "Lossless \u{b7} Bit-perfect",
+            ),
+            (
+                exclusive(Origin::Local, Codec::Pcm, None),
+                "PCM 44.1\u{2009}kHz / 16-bit \u{b7} Lossless",
+                "Lossless \u{b7} Bit-perfect",
+            ),
+            (
+                exclusive(Origin::Local, Codec::Vorbis, None),
+                "Vorbis Unknown \u{b7} Lossy",
+                "Lossy \u{b7} Bit-perfect",
+            ),
+            (
+                exclusive(Origin::Local, Codec::Unknown, None),
+                "Unknown Unknown \u{b7} Unknown",
+                "Unknown \u{b7} Bit-perfect",
+            ),
+        ];
+        for (p, badge, result) in table {
+            assert_eq!(badge_label(Some(&p)), badge);
+            assert_eq!(lines(&p)[4].value, result);
+        }
     }
 
     #[test]

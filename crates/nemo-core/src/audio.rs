@@ -269,6 +269,14 @@ impl SignalPath {
             && self.output.mode == OutputMode::Exclusive
             && self.source.format == Some(self.output.format)
     }
+
+    /// `true` only when the true-lossless badge may show: a local lossless file (FLAC, ALAC,
+    /// WAV) on a bit-perfect path. Shared mode (every `cpal` report on Linux), resampling or any
+    /// effect turns it off, and a lossy or unknown codec never has it.
+    #[must_use]
+    pub fn is_true_lossless(&self) -> bool {
+        self.source.quality_class() == QualityClass::Lossless && self.is_bit_perfect()
+    }
 }
 
 #[cfg(test)]
@@ -427,5 +435,65 @@ mod tests {
         let mut p = path(OutputMode::Exclusive, vec![]);
         p.output.format.sample_rate = 48_000;
         assert!(!p.is_bit_perfect());
+    }
+
+    #[test]
+    fn shared_mode_is_never_bit_perfect_even_with_an_equal_format() {
+        // `cpal` reports every Linux output as shared, so the badge stays off there.
+        let p = path(OutputMode::Shared, vec![]);
+        assert_eq!(p.source.format, Some(p.output.format));
+        assert!(!p.is_bit_perfect());
+        assert!(!p.is_true_lossless());
+    }
+
+    /// The true-lossless badge per codec and origin, on a bit-perfect and a shared path.
+    #[test]
+    fn true_lossless_only_for_local_lossless_files_on_a_bit_perfect_path() {
+        let table = [
+            (Origin::Local, Codec::Flac, true),
+            (Origin::Local, Codec::Alac, true),
+            (Origin::Local, Codec::Pcm, true),
+            (Origin::Local, Codec::Opus, false),
+            (Origin::Local, Codec::Vorbis, false),
+            (Origin::Local, Codec::Mp3, false),
+            (Origin::Local, Codec::Aac, false),
+            (Origin::Local, Codec::Unknown, false),
+            (Origin::YoutubeMusic, Codec::Flac, false),
+            (Origin::YoutubeMusic, Codec::Opus, false),
+            (Origin::SoundCloud, Codec::Pcm, false),
+        ];
+        for (origin, codec, lossless) in table {
+            let mut exclusive = path(OutputMode::Exclusive, vec![]);
+            exclusive.source.origin = origin;
+            exclusive.source.codec = codec;
+            assert_eq!(
+                exclusive.is_true_lossless(),
+                lossless,
+                "{origin:?} {codec:?}"
+            );
+            let mut shared = exclusive.clone();
+            shared.output.mode = OutputMode::Shared;
+            assert!(!shared.is_true_lossless(), "shared {origin:?} {codec:?}");
+            let mut resampled = exclusive.clone();
+            resampled.processing.push(ProcessingStage::Resample {
+                from_hz: 96_000,
+                to_hz: 48_000,
+            });
+            assert!(!resampled.is_true_lossless(), "resampled {codec:?}");
+        }
+    }
+
+    #[test]
+    fn lossy_badges_never_say_lossless() {
+        for codec in [Codec::Opus, Codec::Vorbis, Codec::Mp3, Codec::Aac] {
+            let mut info = flac_96_24();
+            info.codec = codec;
+            info.bitrate_kbps = None;
+            assert_eq!(info.badge(), format!("{} Unknown", codec.name()));
+            assert!(!info.badge().contains("ossless"));
+        }
+        let mut unknown = flac_96_24();
+        unknown.format = None;
+        assert_eq!(unknown.badge(), "FLAC Unknown");
     }
 }

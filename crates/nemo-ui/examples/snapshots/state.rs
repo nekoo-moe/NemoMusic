@@ -155,6 +155,15 @@ pub(super) fn states(out: &mut Vec<Shot>) {
         },
     ));
     out.push(shot(
+        named("local-flac-shared", size),
+        Scenario {
+            track: 3,
+            signal_open: true,
+            shared_output: true,
+            ..at(Route::Home)
+        },
+    ));
+    out.push(shot(
         named("no-lyrics", size),
         Scenario {
             track: 5,
