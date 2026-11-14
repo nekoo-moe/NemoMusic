@@ -240,5 +240,6 @@ pub(crate) fn map_search(parts: &SearchParts) -> SearchResults {
             .filter_map(adapt::search_playlist)
             .filter_map(|p| map_playlist(&p))
             .collect(),
+        ..SearchResults::default()
     }
 }
