@@ -13,7 +13,7 @@ The user opens a device picker, sees Google Cast (Chromecast, Nest, Google TV) d
 ## Acceptance Criteria
 
 1. WHEN the app is installed or updated, THE SYSTEM SHALL keep Cast off and SHALL send no discovery packet.
-2. WHEN the user turns Cast on, THE SYSTEM SHALL first say what it does: it searches the local network when the picker is open, and it serves the chosen song to the device over the local network. The switch stays off until the user confirms.
+2. WHEN the user turns Cast on, THE SYSTEM SHALL first say what it does: it searches the local network when the picker is open, and it serves the chosen song, or passes the stream that is playing, to the device over the local network. THE SYSTEM SHALL also say that Windows may ask to allow NemoMusic through the firewall on the first cast. The switch stays off until the user confirms.
 3. WHILE the device picker is closed, THE SYSTEM SHALL NOT run discovery or listen for devices.
 4. WHEN the user opens the picker, THE SYSTEM SHALL start discovery of Cast devices and UPnP renderers, and WHEN the picker closes, THE SYSTEM SHALL stop it.
 5. WHEN a device is found, THE SYSTEM SHALL list its name, its type (Cast or DLNA) and whether it is busy. THE SYSTEM SHALL list the computer's own speakers as "This computer".
@@ -27,16 +27,21 @@ The user opens a device picker, sees Google Cast (Chromecast, Nest, Google TV) d
 13. WHILE casting, THE SYSTEM SHALL keep the local output idle, and SHALL NOT play the same song on both.
 14. WHEN a local file is cast, THE SYSTEM SHALL serve it from a small HTTP server on this computer, bound to the local network interface only, never to the internet and never to all interfaces by default.
 15. THE SYSTEM SHALL serve only the file of the song being cast, under an unguessable per-session path, and SHALL end the server when casting stops.
-16. THE SYSTEM SHALL NOT serve library folders, lists of files, cached songs from the offline cache, lyrics or account data.
+16. THE SYSTEM SHALL NOT serve library folders, lists of files, lyrics or account data. THE SYSTEM SHALL NOT cast a song from the offline cache, and SHALL say that it plays only inside NemoMusic.
 17. IF the device cannot play the file's format, THEN THE SYSTEM SHALL say which format failed and SHALL NOT transcode unless the user turned that on. Transcoding shows in the signal path.
-18. WHEN a YouTube or SoundCloud song is cast, THE SYSTEM SHALL pass the device a stream address that the device can fetch itself, and SHALL NOT relay or record the stream. IF the device cannot fetch it, THEN THE SYSTEM SHALL say so and keep playing here.
+18. WHEN a YouTube or SoundCloud song is cast, THE SYSTEM SHALL pass the device the stream address when a test on real devices shows that the device can fetch it. OTHERWISE, or IF the device cannot fetch it, THE SYSTEM SHALL pass the playing stream through this computer to the device over the local network. THE SYSTEM SHALL NOT store the passed-through stream on disk, SHALL serve it only to the chosen device, and SHALL end it when casting stops.
 19. THE SYSTEM SHALL NOT send cookies, tokens or account data to the device.
 20. IF the network drops, the device goes away or the device reports an error, THEN THE SYSTEM SHALL show the reason, stop casting and offer to continue on this computer at the same position.
 21. IF the device is already used by another sender, THEN THE SYSTEM SHALL ask before it takes over the device.
 22. WHEN the user signs out, THE SYSTEM SHALL stop casting and end the file server.
 23. THE SYSTEM SHALL work with the keyboard: a shortcut opens the picker, arrow keys move in the list, Enter selects, and focus is visible.
 24. WHILE reduced motion is on, THE SYSTEM SHALL show the discovery state as text and a static indicator, not a spinner.
-25. WHEN the change is merged, THE README SHALL explain the local-network traffic of Cast. No internet host is added by this feature. The Cast and UPnP traffic stays on the local network.
+25. WHEN the change is merged, THE README SHALL explain the local-network traffic of Cast, the Windows firewall prompt and the rule to allow it. No internet host is added by this feature. The Cast and UPnP traffic stays on the local network.
+26. THE SYSTEM SHALL answer the cross-origin requests of Cast receivers with the headers that playback needs, and only for the file or stream of the current session.
+27. WHILE a room is live, THE SYSTEM SHALL NOT start casting, and WHILE casting, THE SYSTEM SHALL NOT start or join a room. THE SYSTEM SHALL say which one is active.
+28. WHILE casting, THE SYSTEM SHALL set the volume on the device only, and SHALL NOT apply software volume on this computer.
+29. WHILE casting, THE SYSTEM SHALL NOT claim gapless playback or show a gapless badge.
+30. THE FIRST TASK of the feature SHALL be a spike on a real Chromecast and a real DLNA speaker. It SHALL record whether the device plays a `googlevideo.com` address it fetches itself, and which formats and headers work. The spike result decides which route criterion 18 uses first.
 
 ## Out of Scope
 
@@ -47,17 +52,17 @@ The user opens a device picker, sees Google Cast (Chromecast, Nest, Google TV) d
 - Casting through the internet or to devices on another network.
 - Transcoding by default.
 - A custom Cast receiver app, which needs a Google developer registration.
+- Casting songs from the offline cache.
+- Gapless playback on the device.
+- Volume on this computer while casting.
+- Windows "Play To" and a Linux DLNA push.
 
 ## Open Questions
 
-1. Offline cache vs Cast: `coc.md` says cached songs play only inside NemoMusic and are never exported. Serving them to a device leaves the app. Criterion 16 therefore excludes them. Confirm?
-2. YouTube streams: do `googlevideo.com` addresses play when another device on the same network fetches them? Evidence so far: the address carries an `ip` parameter, and yt-dlp's FAQ says requests often must come from the same IP address with the same headers; Invidious reports 403 when the IP differs. Devices behind one router share a public IP, so it may work, but it is unverified. NemoMusic resolves addresses anonymously with `yt-dlp` (no cookies). Test on real devices (a Chromecast and a DLNA speaker) before the design is approved. A relay through this computer would fix a failure but would carry the stream, which touches `coc.md` (no redistribution). Does the owner allow it, or is the answer "not supported"?
-3. Cast receivers load media in a web player that may need CORS headers. Google's media page says CORS can break playback. The Default Media Receiver and plain audio files (MP3, MP4/AAC, FLAC, Opus, WAV) are listed as supported (FLAC up to 96 kHz/24-bit on audio devices). The design must test the exact container and headers for googlevideo streams. Unverified.
-4. Protocols and crates (unverified fit): Cast uses mDNS (`_googlecast._tcp`) and a TLS protobuf channel on port 8009. UPnP uses SSDP and SOAP (`SetAVTransportURI`, then Play, Pause, Seek). Candidates: `rust-cast` 0.21.0 (MIT), `mdns-sd` 0.21.7 (Apache-2.0 or MIT), `rupnp` 3.0.0 and `ssdp-client` 2.1.0 (MIT or Apache-2.0). Their upkeep, TLS and dependency impact need a check against `tech.md`.
-5. Should Cast play gaplessly? Most devices cannot be gapless. If so, the badge says "Not gapless" or the app says nothing.
-6. Windows firewall: the first local server prompts for a rule. Accept a prompt, or document the rule in the README?
-7. Should DLNA's "Play To" (Windows) or a Linux DLNA push be offered? Skip for now.
-8. Does Cast need its own volume model (device volume only), since software volume is off by default (`code.md`)? Proposal: device volume only.
+Decided (owner, 2026-11-14): offline-cache songs are never cast (criterion 16). If `googlevideo.com` addresses do not play when the device fetches them, the stream passes through this computer over the local network, and `coc.md` allows it (criterion 18). The spike on real devices comes first (criterion 30). CORS and the Windows firewall prompt are covered by the design (criteria 2, 25 and 26). Device volume only (criterion 28). No gapless claim (criterion 29). No "Play To" (Out of Scope).
+
+1. Which crates carry Cast and UPnP? The design checks licence, upkeep and MSRV against `tech.md`.
+2. Which container and headers do the Default Media Receiver and DLNA speakers accept for a YouTube stream? The spike answers it.
 
 <!-- Sources:
 Google Cast supported media (containers, audio codecs, CORS note): https://developers.google.com/cast/docs/media
