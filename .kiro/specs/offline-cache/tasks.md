@@ -36,7 +36,7 @@ Cross-spec ids written `<spec>#?` name the owner's task by its ADR 0004 Decision
   - Checks: reopen and migration tests; no file name contains a video id or a title.
   - Steering: `tech.md`: replace "build no audio cache" with the decided rule (cache in `nemo-ytm`, plain files with opaque names, caps); add rows `getrandom` 0.3.4 (MIT OR Apache-2.0, already locked) and `rusqlite` 0.41.1 also in `nemo-ytm` (account-actions then skips its own `rusqlite` line). `structure.md`: `nemo-ytm` owns `offline/` and `offline.db`.
 
-- [ ] 5. Clean up the cache at start
+- [x] 5. Clean up the cache at start
   - Crate and files: `nemo-ytm`: `src/offline/store.rs`.
   - Does: Deletes `.part` files with no queue row and marks `song` rows whose file is missing as unsaved. A damaged index is deleted with its files and the user is told once.
   - _Requirements: 24_

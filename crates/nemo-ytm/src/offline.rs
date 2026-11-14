@@ -8,9 +8,11 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use nemo_core::secret::Secret;
+use nemo_core::track::VideoId;
 
 mod store;
 
@@ -103,10 +105,24 @@ pub enum FileKind {
     Art,
 }
 
+/// What the start-up cleanup of [`OfflineCache::open`] did.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StartupCleanup {
+    /// The index was damaged, so it was deleted with every cache file and made again. The
+    /// user is told once ([`OfflineCache::take_reset_notice`]).
+    pub index_reset: bool,
+    /// Leftover `.part` files that no queue row named, now deleted.
+    pub parts_removed: u64,
+    /// Songs whose file was missing, now marked unsaved, so they stream again when online.
+    pub unsaved: Vec<VideoId>,
+}
+
 /// The offline cache: the index and the folders.
 pub struct OfflineCache {
     root: PathBuf,
     store: store::Store,
+    cleanup: StartupCleanup,
+    reset_notice: AtomicBool,
 }
 
 impl std::fmt::Debug for OfflineCache {
@@ -119,8 +135,14 @@ impl OfflineCache {
     /// Open (or create) the cache in `dir`: the folders, then `offline.db`, running every
     /// migration it has not seen yet. `clock` stamps the migrations.
     ///
+    /// Then it cleans up (offline-cache criterion 24): a damaged index is deleted with every
+    /// cache file and made again, leftover `.part` files with no queue row are deleted, and
+    /// songs whose file is missing are marked unsaved. [`Self::startup_cleanup`] says what
+    /// was done.
+    ///
     /// # Errors
-    /// Returns an [`OfflineError`] when a folder or the index cannot be created or migrated.
+    /// Returns an [`OfflineError`] when a folder or the index cannot be created, migrated or
+    /// cleaned up, or when the index comes from a newer app (it is kept, not reset).
     #[allow(
         clippy::needless_pass_by_value,
         reason = "the design's signature: later offline-cache tasks keep the clock in the cache"
@@ -129,11 +151,27 @@ impl OfflineCache {
         for folder in store::FOLDERS {
             std::fs::create_dir_all(dir.join(folder))?;
         }
-        let store = store::Store::open(&dir.join(store::DB_FILE), clock.as_ref())?;
+        let (store, index_reset) = store::Store::open_or_reset(dir, clock.as_ref())?;
+        let mut cleanup = store.clean_up(dir)?;
+        cleanup.index_reset = index_reset;
         Ok(Self {
             root: dir.to_path_buf(),
             store,
+            cleanup,
+            reset_notice: AtomicBool::new(index_reset),
         })
+    }
+
+    /// What the start-up cleanup did when the cache was opened.
+    #[must_use]
+    pub fn startup_cleanup(&self) -> &StartupCleanup {
+        &self.cleanup
+    }
+
+    /// `true` the first time it is called after a damaged index was reset, `false` after
+    /// that and when nothing was reset, so the user is told once.
+    pub fn take_reset_notice(&self) -> bool {
+        self.reset_notice.swap(false, Ordering::SeqCst)
     }
 
     /// Where a cache file with the opaque `name` lives. `None` when `name` is not an opaque
