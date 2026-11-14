@@ -52,6 +52,62 @@ A design may merge two of these or add a module elsewhere if it says why. A desi
 - Sign-out: every crate that keeps account data registers a wipe step that sign-out runs.
 - Steering: `tech.md` (crates) and `structure.md` (new crates and edges) change in the implementing task, as their change rules say. Designs list the edits.
 
+## Decision 4: shared items, owners and users
+Checked against the 17 designs on 2026-11-14. One spec owns each item and defines it in full; the other specs use its name. When two designs differ, the owner's name wins. Items marked "new" had no owner before this review and were assigned here. Names below are the final ones; the designs were edited to match.
+
+| # | Item (`nemo-core` unless noted) | Owner | Used by |
+|---|---|---|---|
+| 1 | `PlayerCommand::{SetEffects, SetTransition}`, `PlayerEvent::{EffectsChanged, TransitionStarted, TransitionSkipped}`, `PlayerSnapshot.{effects, transition}` | audio-effects | listen-together (sends `SetTransition` with mode Off while a room is live), nemo-ui |
+| 2 | `effects.rs`: `EffectsSettings`, `EqSettings`, `EqFilter`, `FilterKind`, `DelaySettings`, `ReverbSettings`, `PreampMode`, `EffectsStatus`, `TransitionMode`, `SkipFade`, `TransitionSettings`, `TransitionKind`, `TransitionSkipReason` | audio-effects | nemo-app, nemo-ui |
+| 3 | `ProcessingStage::{Equalizer { .. }, Delay, Reverb, Crossfade, Clipped, ReplayGain}` (`ReplayGain` is new) | audio-effects | local-library (ReplayGain), output-devices (no stage in exclusive mode), nemo-ui signal path |
+| 4 | `GaplessPolicy` (trait) | audio-effects | local-library implements it; nemo-audio calls it |
+| 5 | `output.rs`: `DeviceId`, `OutputDevice`, `SavedDevice`, `OutputOptions`, `OutputStatus`, `FallbackReason`; `PlayerCommand::{ListOutputDevices, SetOutputDevice, SetOutputOptions, RetryOutput, ResumeOnReturnedDevice}`; `PlayerEvent::{OutputDevicesChanged, OutputChanged, OutputOpenFailed, DeviceLost, SavedDeviceReturned, OutputTaken, ExclusiveFellBack}`; `PlayerSnapshot.output` | output-devices | audio-effects (`TransitionSkipped`), nemo-app. cast uses `CastDeviceId` (row 41), not `DeviceId` |
+| 6 | `PlayerCommand::SwitchAudioTrack` | account-actions | video-playback |
+| 7 | `PlayerCommand::{Park, Unpark { at }}`, `PlayerEvent::ParkedChanged` | cast | nemo-audio, nemo-app, integrations hub (reads the remote position while parked) |
+| 8 | `PlayerSnapshot.live` | youtube-extras | nemo-ui |
+| 9 | `Origin::SoundCloud`, `Track.source_url`, `MediaUrl` | soundcloud | listening-stats (`origin`), listen-together and cast (refuse or route), offline-cache (YouTube only), nemo-audio `prepare` |
+| 10 | `Transport`, `ResolvedStream.{transport, preview}`, `ByteSource::is_seekable` | soundcloud | youtube-extras (live HLS), nemo-audio |
+| 11 | `url_resolver.rs`: `UrlResolver`, `MediaQuery`, `MediaEntry`, `EntryKind`, `Site`, `FormatPolicy`, `FormatCandidate`, `rank_formats`, `ResolverState` | soundcloud | youtube-extras (live), nemo-ytm implements |
+| 12 | `HlsSource` (`nemo-ytm/hls`, not `nemo-core`) | soundcloud | youtube-extras |
+| 13 | `StreamRequest`, `AudioTrackInfo`, `StreamResolver::resolve_with`, `ResolvedStream.{audio_language, audio_tracks}` | account-actions | cast (codec preference), offline-cache (Premium), video-playback (language) |
+| 14 | Decoders ALAC, Vorbis, AIFF and Opus (`nemo-audio`); `Codec::Opus` already exists in `audio.rs`; `supported_stream_codecs()` | local-library | soundcloud and account-actions (rankers wait for it), youtube-extras |
+| 15 | File `ByteSource` (`FileSource` in `nemo-audio`) | local-library | offline-cache |
+| 16 | `library.rs`: `LocalTrackLookup`, `LocalPlayback`, `TrackSpan`, `ReplayGainMode`, `ReplayGainValues`, `LocalTrackDetails`, `TrackStatus`, `LoudnessMeter`, `LocalLibraryService`, `LocalPlaylist`, `PlaylistEntry`, `TagEdit` | local-library | nemo-audio `prepare`, playlist-import and listening-stats (save to a local playlist) |
+| 17 | `downloads.rs`: `DownloadService`, `OfflineStore`, `NetworkMode`, `CachedAudio`, `SaveRequest`, `SaveState`, `StorageReport`, `DownloadEvent` | offline-cache | cast (refuses saved songs), account-actions (actions offline), nemo-app |
+| 18 | `LyricsService::keep_offline` | offline-cache | nemo-lyrics implements; lyrics-plus |
+| 19 | `import.rs`: `PlaylistImport`, `ImportSession`, `ImportRow`, `MatchCandidate`, `Confidence` | playlist-import | nemo-ui, nemo-app |
+| 20 | `catalog.rs`: `SearchScope`, `VideoSummary`, `ChannelSummary`, `ChannelDetail`, `ChannelRef`, `SearchResults.{videos, channels}`, `Catalog::{search_scoped, channel, live_streams}` | youtube-extras | soundcloud (maps results), nemo-ui |
+| 21 | `CommentSource`, `Comment`, `CommentPage`, `CommentError`, `VideoRatings`, `Dislikes`, `Backend.{comments, ratings}` | youtube-extras | nemo-ui |
+| 22 | `captions.rs`: `SubtitleSource`, `SubtitleCue` (new) | youtube-extras | video-playback (subtitles), lyrics-plus (captions provider in the chain) |
+| 23 | `Backend.soundcloud` | soundcloud | nemo-app |
+| 24 | `SecretStore`, `StoreError`, `MAX_SECRET_BYTES`, `is_valid_key`, `MemoryStore`; crate `nemo-secrets` | account-actions | integrations, ai-features, nemo-spotify (lyrics-plus), nemo-ytm |
+| 25 | `AccountId`, `AccountList`, `AccountEntry`, `PremiumStatus`, `AccountSwitcher`, `MAX_ACCOUNTS` | account-actions | nemo-ui, youtube-extras (account-specific data) |
+| 26 | `SignOutWipe`, `WipeScope`, `WipeError` | account-actions | offline-cache, youtube-extras, ai-features, lyrics-plus (Spotify), listen-together, cast. Not registered by listening-stats (Decision 3) |
+| 27 | `LikeStatus`, `Catalog::set_rating`, `CatalogError::{Rejected, RateLimited}`, `PlaylistEditor` (with `create`, new), `PlaylistEditInfo`, `Privacy`, `SetVideoId` | account-actions | playlist-import, nemo-ui |
+| 28 | `releases.rs`: `ReleaseFeed`, `ReleaseNotice` | account-actions | integrations (OS notifications) |
+| 29 | `notify.rs`: `OsNotifier`, `OsNotification`, `NotifierState`, `NotificationEvent` (new) | integrations | account-actions (release notices) |
+| 30 | `hooks.rs`: `PlayRule`, `PlayTracker`, `PlayHookEvent`, `FinishedPlay`, `PlayObserver` | integrations | listening-stats, offline-cache (`record_play`) |
+| 31 | `integrations.rs`: `IntegrationsService`, `IntegrationInfo`, `LastFmStatus`, `NativeWindow`, `NoIntegrations`, `Backend.integrations` | integrations | nemo-ui, nemo-app |
+| 32 | `stats.rs`: `StatsService`, `StatsPeriod`, `RankedSong`, `RankedName`, `HourClock`, `YearSummary`, `Recap`, `Receipt`, `NoStats`, `Backend.stats` | listening-stats | ai-features (taste input), nemo-ui |
+| 33 | `ai.rs`: `AiService`, `Translator`, `AiRequest`, `PayloadPreview`, `AiAnswer`, `AiError`, `NoAi`, `NoTranslator`, `Backend.{ai, translator}` | ai-features | lyrics-plus (translation), nemo-ui |
+| 34 | `lyrics_plus.rs`: `OwnLyrics`, `OwnLyricsDraft`, `Romanizer`, `RomanLang`, `Romanization`, `LyricsTranslation`, `LangTag`, `Translation`, `LineMeta`, `LyricsService::line_meta` | lyrics-plus | now-playing-styles (`LineMeta`), nemo-ui |
+| 35 | `spotify.rs`: `SpotifyAccount`, `SpotifyState` | lyrics-plus | now-playing-styles (Canvas), nemo-app |
+| 36 | `animated_art.rs`: `AnimatedArtSource`, `ArtQuery`, `AnimatedArt`, `ArtLookup`, `ArtSourceInfo` | lyrics-plus | now-playing-styles |
+| 37 | `video.rs`: `VideoFrame`, `VideoFrameSource`, `VideoController`, `VideoState`, `VideoInfo`, `VideoQuality`, `ResolvedVideo`, `SubtitleTrack`, `VideoError`, `VideoStreamResolver`, `ScreenWake` | video-playback | nemo-ui, youtube-extras (picture of a video result) |
+| 38 | `PlaybackClock` | video-playback | nemo-audio implements it; nemo-video reads it |
+| 39 | `ClipPlayer` (silent looping clip over the same engine; new) | video-playback | now-playing-styles |
+| 40 | `recognize.rs`: `Recognizer`, `InputSource`, `RecognizedSong`, `RecognitionState`, `CancelFlag`, `HistoryEntry`, `RecognizeError` | song-recognition | nemo-ui, nemo-app |
+| 41 | `remote.rs`: `RemotePlayback`, `RemoteSlot`, `RemoteLease`, `RemoteKind`, `RoomRole`, `RemoteMode`, `RemoteStatus`, `CommandGate`, `RemoteBusy`; `cast.rs`: `CastControl`, `CastDevice`, `CastDeviceId` (renamed from `DeviceId`), `DeviceKind`, `CastEvent`, `Discovery` | cast | listen-together (`RemotePlayback`, `RoomRole`), nemo-app (gate), integrations hub |
+| 42 | `together.rs`: `RoomControl`, `RoomStatus`, `Member`, `MemberId`, `RoomEvent`, `LinkState`, `RoomError` | listen-together | nemo-ui, nemo-app |
+
+Result: 42 rows. Every item has one owner. Rows 3 (`ReplayGain`), 22, 27 (`create`), 29 and 39 were gaps that two designs relied on and nobody defined. Two items were defined under two names and were merged: `DeviceId` (output-devices wins, cast uses `CastDeviceId`) and the translator contract (ai-features `Translator` wins, lyrics-plus calls it).
+
+Four rules from the map:
+- `ResolvedStream` gets four new fields from two designs (`transport`, `preview` from soundcloud; `audio_language`, `audio_tracks` from account-actions), and `Track` gets `source_url`. They land in one task that adds all of them with `Default`, so no later task edits every struct literal again.
+- Two rankers exist on purpose: `rank_audio` (account-actions) picks among YouTube Music formats; `rank_formats` (soundcloud) picks among `yt-dlp` formats of other sites and live streams. They do not merge. The owner's listening test sets the soundcloud factors.
+- Every `PlayerCommand` addition is handled in `nemo-audio/src/control_cmd.rs`. Commands from rows 1, 5, 6 and 7 are independent, so their tasks may land in any order, but only one task at a time edits `player.rs`.
+- Position and play counting while parked or casting: `PlayTracker` reads `RemotePlayback::remote_status().position` instead of `PlayerControl::position()` when the mode is not `Local`.
+
 ## Consequences
 - `nemo-ytm` loses its credential module to `nemo-secrets` and `nemo-core`; its sign-in flow is otherwise unchanged.
 - The crate count grows from 8 to 18. Each new crate is small and testable alone.
