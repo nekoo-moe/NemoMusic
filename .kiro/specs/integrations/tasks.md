@@ -44,7 +44,7 @@ Cross-spec ids written `<spec>#?` name the other spec's task by the ADR 0004 Dec
   - Wave: 0
   - Checks: table tests (pause, seek forward and back, repeat one, gapless handover, skip); `proptest` that heard time never exceeds wall time. listening-stats reuses these tests.
 
-- [ ] 6. Add the `OsNotifier` contract
+- [x] 6. Add the `OsNotifier` contract
   - Crate and files: `nemo-core` (`src/notify.rs` new, `src/lib.rs`); touches nemo-core/src/notify.rs.
   - Does: Adds `NotificationGroup`, `OsNotification`, `NotificationAction`, `NotificationEvent`, `NotifyUnavailable`, `NotifierState`, `NotifyError`, `NotificationReceiver`, `OsNotifier` and `NoNotifier`. No I/O.
   - _Requirements: 31_

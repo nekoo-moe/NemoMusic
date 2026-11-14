@@ -10,6 +10,7 @@ pub mod catalog;
 pub mod hooks;
 pub mod library;
 pub mod lyrics;
+pub mod notify;
 pub mod opt_in;
 pub mod player;
 pub mod secret;
