@@ -190,3 +190,40 @@ fn a_reverb_at_mix_0_keeps_every_sample() {
         std::fs::remove_file(path).expect("cleanup");
     }
 }
+
+/// The transition stage: with the mode `Off`, or a gapless join picked by the policy, two songs
+/// cut from one decoded file come out of the transition mixer bit for bit and in order.
+#[test]
+fn a_gapless_transition_keeps_every_sample() {
+    use nemo_audio::transition::{TransitionMixer, TransitionPlan};
+    use nemo_core::effects::{TransitionKind, TransitionMode};
+
+    for bits in [16, 24] {
+        let (path, source) = temp_wav(bits, "gapless-mix");
+        let decoded = decode_file(&path).expect("decode");
+        let (first, second) = decoded.samples.split_at(30_000 * 2);
+        for mode in [TransitionMode::Off, TransitionMode::Smart] {
+            let plan = TransitionPlan {
+                kind_hint: mode,
+                frames: 24_000,
+            };
+            let mut mixer = TransitionMixer::new(decoded.format, plan);
+            let mut out = Vec::new();
+            for block in first.chunks(512 * 2) {
+                mixer.push(block, &mut out);
+            }
+            let kind = mixer.at_end(second, true);
+            assert_eq!(kind, TransitionKind::Gapless);
+            let t = mixer.mix_into(kind, second, &mut out);
+            out.extend_from_slice(&second[t.head_used() * 2..]);
+            let same = out.len() == decoded.samples.len()
+                && out
+                    .iter()
+                    .zip(&decoded.samples)
+                    .all(|(a, b)| a.to_bits() == b.to_bits());
+            assert!(same, "{bits}-bit samples changed with {mode:?}");
+            assert_eq!(to_ints(&out, bits), source);
+        }
+        std::fs::remove_file(path).expect("cleanup");
+    }
+}

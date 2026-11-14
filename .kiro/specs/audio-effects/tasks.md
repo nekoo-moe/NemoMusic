@@ -107,7 +107,7 @@
   - Wave: 2
   - Checks: `cargo test -p nemo-audio --test bit_exact` with `SkipFade::Off` (no arithmetic); fade path in `cargo test -p nemo-audio --test rt_no_alloc`; a skip completes within fade + 500 ms (`tests/player_skip.rs`).
 
-- [ ] 14. Build the `TransitionMixer`
+- [x] 14. Build the `TransitionMixer`
   - Crate and files: `nemo-audio`: `src/transition.rs` (new).
   - Does: Feeder-only type with a tail window of L frames, allocated when the song starts. At decoder end it scans the tail for trailing silence and the first 10 s of the next song for leading silence (below -60 dBFS) and picks `Crossfade` (equal-power, length L), `TrimSilence` (drop silences, 300 ms overlap) or `Gapless` (both ends within 50 ms of silence, or the policy says so). It never changes tempo or aligns beats.
   - _Requirements: 16, 19_
