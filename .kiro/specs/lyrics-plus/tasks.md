@@ -11,7 +11,7 @@ Cross-spec ids written `<spec>#?` point at the task of that spec that adds the n
   - Checks: rustdoc on every item; `cargo test -p nemo-core`.
   - Steering: `structure.md` lists `nemo-core/src/lyrics_plus.rs` (one edit, covers tasks 2 to 4 too).
 
-- [ ] 2. Add the own-lyrics contract
+- [x] 2. Add the own-lyrics contract
   - Crate and files: `nemo-core`: `src/lyrics_plus.rs`. Touches nemo-core/src/lyrics_plus.rs.
   - Does: Adds `OWN_LYRICS`, `DraftLine`, `OwnLyricsDraft`, `OwnLyricsError` (`thiserror`) and the `OwnLyrics` trait.
   - _Requirements: none (groundwork)_
