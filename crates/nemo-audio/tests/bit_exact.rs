@@ -159,3 +159,34 @@ fn a_delay_at_mix_0_keeps_every_sample() {
         std::fs::remove_file(path).expect("cleanup");
     }
 }
+
+/// The reverb stage: at a mix of 0 the dry path keeps every decoded sample bit for bit, with
+/// the combs running underneath.
+#[test]
+fn a_reverb_at_mix_0_keeps_every_sample() {
+    use nemo_audio::effects::{Reverb, ReverbParams};
+    use nemo_core::effects::ReverbSettings;
+
+    for bits in [16, 24] {
+        let (path, source) = temp_wav(bits, "dry-reverb");
+        let decoded = decode_file(&path).expect("decode");
+        let settings = ReverbSettings {
+            enabled: true,
+            size_pct: 100,
+            damping_pct: 0,
+            mix_pct: 0,
+        };
+        let mut reverb = Reverb::new(2, 48_000, ReverbParams::new(&settings, 48_000));
+        let mut out = decoded.samples.clone();
+        for block in out.chunks_mut(512 * 2) {
+            reverb.process(block);
+        }
+        let same = out
+            .iter()
+            .zip(&decoded.samples)
+            .all(|(a, b)| a.to_bits() == b.to_bits());
+        assert!(same, "{bits}-bit samples changed");
+        assert_eq!(to_ints(&out, bits), source);
+        std::fs::remove_file(path).expect("cleanup");
+    }
+}
