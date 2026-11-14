@@ -164,7 +164,7 @@ impl MockLyrics {
     fn candidates(&self, query: &LyricsQuery) -> Vec<LyricsCandidate> {
         let duration = query
             .duration_ms
-            .map_or(Duration::from_secs(180), Duration::from_millis);
+            .map_or(Duration::from_mins(3), Duration::from_millis);
         let Some(base) = query_index(query).and_then(|n| lyrics_for(n, duration)) else {
             return Vec::new();
         };

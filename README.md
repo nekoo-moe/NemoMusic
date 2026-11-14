@@ -44,7 +44,7 @@ These are the only hosts NemoMusic contacts. Adding a host needs owner approval.
 | `api.betterlyrics.org` | Better Lyrics API, syllable timing, cached answers only (no key), credited in the lyrics view | When lyrics are shown (on by default, can be switched off in settings) |
 | `music.163.com`, `api-lyrics.simpmusic.org` | Extra lyrics sources, grey area, line timing | Only if you switch the source on in settings (off by default) |
 | `sponsor.ajay.app` | SponsorBlock segments (only a 4-character hash prefix is sent) | Only when SponsorBlock is on |
-| `accounts.google.com`, `*.gstatic.com` | Google sign-in page | Only while you sign in (not built yet) |
+| `accounts.google.com`, `*.gstatic.com` | Google sign-in page | Only while you sign in |
 
 ## Build and run
 

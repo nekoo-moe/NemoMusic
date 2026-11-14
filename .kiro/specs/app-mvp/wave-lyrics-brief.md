@@ -136,6 +136,6 @@ page, `gui/app.rs` (lyrics state, cover, `prev_cover`, `bg_fade`), `gui/textfit.
   tiny-skia (tiny-skia cannot round-clip images, see `bar.rs`). Reuse the existing crossfade.
   Contrast tests over all-black, all-white, grey, saturated and noisy covers.
 - Snapshots (headless, tiny-skia) to
-  `C:\Users\heiznerd nguyen\.kiro\crew\scratch\runtime-afc3bf66\wave-lyrics\`: right pane with a
+  `$env:KIROCREW_SCRATCH\wave-lyrics\` (set `NEMO_SNAPSHOT_DIR`): right pane with a
   long wrapped active line; full screen with the canvas in AMOLED + Sakura; tools panel with the
   Lyrics source section; settings lyrics list. Look at each PNG and fix what looks wrong.

@@ -137,7 +137,7 @@ pub fn install_onedir(target_dir: &Path) -> Result<PathBuf, InstallError> {
     let client = reqwest::blocking::Client::builder()
         .user_agent(USER_AGENT)
         .connect_timeout(Duration::from_secs(20))
-        .timeout(Duration::from_secs(300))
+        .timeout(Duration::from_mins(5))
         .redirect(https_redirects())
         .https_only(true)
         .build()

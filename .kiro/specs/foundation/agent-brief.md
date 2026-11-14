@@ -3,10 +3,10 @@
 Read this file first. Each agent's own task text names its crate and its slice.
 
 ## Setup
-- Project: `C:\Users\heiznerd nguyen\Documents\NemoMusic`, a Rust Cargo workspace (`crates/nemo-*`). Windows 11, PowerShell.
-- Rust 1.99.1 is installed. In every new shell run first:
+- Project: the repository root (the folder with the workspace `Cargo.toml`), a Rust Cargo workspace (`crates/nemo-*`). Windows 11 with PowerShell, or Linux.
+- Rust is pinned in `rust-toolchain.toml`; `rustup toolchain install` in the repo root adds it. In every new shell run first:
   `$env:Path = "$env:USERPROFILE\.cargo\bin;" + $env:Path ; $env:CARGO_BUILD_JOBS = '2'`
-- The machine has 4 cores and about 6 GB RAM, and other agents build at the same time. Cargo may wait on the build-directory lock. Wait. Do not kill other cargo processes.
+- Other agents may build at the same time. Check cores and free memory first and keep `CARGO_BUILD_JOBS` low (2 on a 4-core machine with 6 GB RAM). Cargo may wait on the build-directory lock. Wait. Do not kill other cargo processes.
 
 ## Read first
 `.kiro/steering/` (code.md, structure.md, tech.md, workflow.md, coc.md, product.md; design.md for UI), `.kiro/specs/foundation/` (requirements, design, tasks), the matching ADR in `docs/adr/`, and `crates/nemo-core/src/*.rs` (the shared types you must use).
