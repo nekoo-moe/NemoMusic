@@ -64,6 +64,18 @@ pub struct Settings {
     pub accent_intensity: String,
     /// Corner style label (empty = default).
     pub corner_style: String,
+    /// Now Playing style label (empty or unknown = Material 3 Expressive).
+    pub now_playing_style: String,
+    /// Animated-cover switches, all off by default.
+    pub animated_covers: AnimatedCovers,
+}
+
+/// Stored animated-cover switches. A missing field is off.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct AnimatedCovers {
+    /// Spotify Canvas clips in place of the still cover.
+    pub spotify_canvas: bool,
 }
 
 impl Default for Settings {
@@ -83,6 +95,8 @@ impl Default for Settings {
             base_mode: String::new(),
             accent_intensity: String::new(),
             corner_style: String::new(),
+            now_playing_style: String::new(),
+            animated_covers: AnimatedCovers::default(),
         }
     }
 }
@@ -167,6 +181,33 @@ mod tests {
         };
         s.save(&root).expect("save");
         assert_eq!(Settings::load(&root), s);
+        std::fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[test]
+    fn now_playing_settings_round_trip_and_an_old_file_has_none() {
+        let root = temp_root("now-playing");
+        let s = Settings {
+            now_playing_style: "Apple Music".into(),
+            animated_covers: AnimatedCovers {
+                spotify_canvas: true,
+            },
+            ..Settings::default()
+        };
+        s.save(&root).expect("save");
+        assert_eq!(Settings::load(&root), s);
+        // A file written before the style existed.
+        std::fs::write(root.join(CONFIG_FILE), r#"{"volume_percent": 40}"#).expect("write");
+        let old = Settings::load(&root);
+        assert_eq!(old.now_playing_style, "");
+        assert!(!old.animated_covers.spotify_canvas);
+        // Values of the wrong type: the broken file is kept and defaults load.
+        std::fs::write(
+            root.join(CONFIG_FILE),
+            r#"{"now_playing_style": 5, "animated_covers": {"spotify_canvas": "yes"}}"#,
+        )
+        .expect("write");
+        assert_eq!(Settings::load(&root), Settings::default());
         std::fs::remove_dir_all(root).expect("cleanup");
     }
 
