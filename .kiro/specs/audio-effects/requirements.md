@@ -34,7 +34,7 @@ The user can shape the sound when they want to, and only then. NemoMusic gets a 
 19. WHEN the user turns on the smart transition, THE SYSTEM SHALL choose per song pair between a plain crossfade, trimming silence at the end and start, and a plain gapless join, and SHALL show which one it used. It SHALL NOT change the tempo of a song or align beats.
 20. IF the smart transition cannot analyse a song (for example a stream with no lead time), THEN THE SYSTEM SHALL fall back to the plain crossfade or a gapless join.
 21. WHILE a crossfade or transition runs, THE SYSTEM SHALL show it in the signal path and SHALL show the real playing song in the player bar.
-22. WHEN the next song has another sample rate or channel count, THE SYSTEM SHALL still crossfade, and SHALL show any resampling it needed.
+22. WHEN the next song has another sample rate or channel count, THE SYSTEM SHALL still crossfade, and SHALL show any resampling it needed. Exception (owner, 2026-11-14): on an exclusive-mode device, where the format cannot change mid-stream without reopening the device, THE SYSTEM SHALL skip that crossfade, join the songs without it, and say why.
 23. THE SYSTEM SHALL run every effect without allocation, locks, blocking calls or logging inside the audio callback, proved by the counting-allocator test of code.md, and SHALL cover the effects in that test.
 24. WHILE effects run on the reference machine, THE SYSTEM SHALL keep the audio callback under 25% of its period and SHALL NOT raise the underrun count.
 25. THE SYSTEM SHALL let the user reach every control with the keyboard, with a visible focus, and SHALL name the bands and sliders for screen readers.

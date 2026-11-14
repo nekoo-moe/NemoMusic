@@ -1,6 +1,6 @@
 # ADR 0004: Crates and shared rules for the 2026-11-14 feature wave
 
-Status: proposed - owner approves it together with the designs
+Status: approved by the owner on 2026-11-14, together with the 17 designs
 
 ## Owner decisions recorded
 - All 17 features in `product.md` (Scope, "Approved additions") are approved (owner, 2026-11-14).
@@ -172,13 +172,14 @@ All crates proposed in the 17 designs and in the two new pieces build on the wor
 - **Dependency age.** `tech.md` now matches `code.md`: a release within the last 2 years (Decision 5).
 - **Sign-out exception** for listening-stats (Decision 3).
 
-## Open decisions for the owner
-Each has a recommendation. None blocks the task lists.
-1. **Per-provider timeout.** The lyrics chain limits each provider to 4 s (ADR 0002). Captions run `yt-dlp` and need about 20 s. Recommended: a defaulted `LyricsProvider::timeout`, and ADR 0002 updated in that task.
-2. **Exclusive mode and crossfade.** On an exclusive device, a next song in another format cannot crossfade (`TransitionSkipped(FormatChangeInExclusive)`), which departs from audio-effects criterion 22 in that one case. Recommended: accept, with the reason shown.
-3. **Numbers the designs proposed:** offline-cache (at least 3 plays for smart downloads, a takedown check every 30 days, 256 MiB free-disk margin), listen-together drift 500 ms, playlist-import match thresholds and the 500-song notice, soundcloud codec factors. Recommended: accept as starting values, tuned in testing.
-4. **Notifications.** Recommended: skip the OS notification while the window is focused (the in-app list still updates), and the Windows app id `NemoMusic.NemoMusic` with a Start Menu shortcut written by the installer.
-5. **Local single-instance hand-off** (local-library): the design writes a random token to `instance.json` for a loopback hand-off, and `coc.md` keeps tokens in the OS keychain. Recommended: use a Windows named pipe and a Unix socket in the user's runtime folder instead, so no token file exists.
-6. **Cast** skips the TLS certificate check on port 8009, because devices use self-signed certificates. Recommended: pin each device's first-seen certificate and warn when it changes.
-7. **Registrations the owner makes:** the Discord application id; a Last.fm API account for testing; throwaway Spotify and Google accounts for the spikes; the `design.md` change for the Apple Music-style player (its four exceptions).
-8. **Licence notices:** the vendored `cast_channel.proto` (Apache-2.0) and `listentogether.proto` (GPL-3.0, compatible with this repository's GPL-3.0) ship with their notices. Recommended: accept.
+## Decided by the owner (2026-11-14, third round, with the design approval)
+- **Per-provider timeout.** `LyricsProvider` gains a defaulted `timeout` (4 s); captions use 20 s. ADR 0002 is updated in that task.
+- **Exclusive mode and crossfade.** On an exclusive device, a next song in another format is joined without a crossfade and the reason is shown (audio-effects criterion 22, exception).
+- **Design numbers** (offline-cache caps and checks, listen-together drift, playlist-import thresholds, soundcloud codec factors) are starting values, tuned in testing.
+- **Notifications.** No OS notification while the window is focused; the in-app list still updates. Windows app id `NemoMusic.NemoMusic`, with a Start Menu shortcut written by the installer.
+- **Single-instance hand-off** uses a named pipe on Windows and a Unix socket on Linux. No token file.
+- **Cast** pins each device's first-seen certificate and warns when it changes.
+- **Licence notices** for `cast_channel.proto` (Apache-2.0), `listentogether.proto` (GPL-3.0) and IPADIC ship with the app.
+
+## Actions for the owner
+Registrations only the owner can make: the Discord application id; a Last.fm API account for testing; throwaway Spotify and Google accounts for the spikes; asking the operator of Metrolist's public Listen Together server whether NemoMusic may use it; and the `design.md` change for the Apple Music-style player (its four exceptions), made in that feature's first UI task.
