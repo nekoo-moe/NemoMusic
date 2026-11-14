@@ -212,7 +212,7 @@ Cross-spec ids written `<spec>#?` name the other spec's task by the ADR 0004 Dec
   - Wave: 3
   - Checks: `iced_test` snapshot; hidden with an empty id; keyboard order and focus.
 
-- [ ] 26. Compose release notifications as plain text
+- [x] 26. Compose release notifications as plain text
   - Crate and files: `nemo-integrations` (`src/notify/mod.rs`, `src/notify/compose.rs` new).
   - Does: `release_notification` gives "Artist - Title" for one release, "N new releases" with up to 3 artist names for several, and `None` for none. `sanitize` removes control characters, cuts the title at 100 and the body at 200 characters and escapes `&`, `<`, `>`. No cover, lyrics, token or account id.
   - _Requirements: 33, 36_

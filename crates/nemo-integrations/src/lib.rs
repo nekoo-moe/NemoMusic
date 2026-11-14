@@ -6,6 +6,7 @@
 //! depends on `nemo-core` only.
 //!
 //! - [`info`]: the settings rows of the three integrations.
+//! - [`notify`]: the text of OS notifications.
 //! - [`service`]: the service and its observer fan-out. The workers (media controls, Last.fm,
 //!   Discord) come in later tasks; until then every switch is in memory only and nothing
 //!   leaves the computer.
@@ -14,6 +15,7 @@
 #![warn(missing_docs)]
 
 pub mod info;
+pub mod notify;
 pub mod service;
 
 pub use service::{DISCORD_APPLICATION_ID, Integrations, build};
