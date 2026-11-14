@@ -53,8 +53,33 @@ fn supported_codecs_list_only_what_decodes() {
     }
     assert!(
         !codecs.contains(&Codec::Opus),
-        "symphonia 0.6.1 has no Opus decoder"
+        "Opus decodes but joins the list in its own change (local-library task 7)"
     );
+}
+
+#[test]
+fn an_opus_file_the_decoder_refuses_plays_nothing_and_names_no_path() {
+    let fixture =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/opus-surround.opus");
+    let bytes = std::fs::read(fixture).expect("fixture");
+    let path = temp_file("Secret Song Title.opus", &bytes);
+    let mut r = rig(vec![], RigOptions::default());
+    r.send(PlayerCommand::Play(local_track(1, path.clone())));
+    r.wait_event("failure", LIMIT, |e| {
+        matches!(e, PlayerEvent::Failed { .. })
+    });
+    let message = r
+        .drain()
+        .iter()
+        .find_map(|e| match e {
+            PlayerEvent::Failed { message } => Some(message.clone()),
+            _ => None,
+        })
+        .expect("a failure event");
+    assert_eq!(message, "this track uses a codec that cannot be played");
+    assert!(!message.contains("Secret Song Title"), "{message}");
+    assert!(r.captured().is_empty(), "nothing plays");
+    std::fs::remove_file(path).expect("cleanup");
 }
 
 #[test]

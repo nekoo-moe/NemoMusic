@@ -27,6 +27,9 @@ nemo-core.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 symphonia = { version = "=0.6.1", default-features = false, features = ["flac", "wav", "pcm", "isomp4", "aac", "mkv", "mp3", "alac", "vorbis", "ogg", "aiff"] }
+# Opus decoder (local-library spike, task 4): builds libopus from source through `opusic-sys`,
+# so the build needs CMake and a C compiler.
+symphonia-adapter-libopus = { version = "=0.3.0", default-features = false, features = ["bundled"] }
 rtrb = "=0.4.1"
 cpal = { version = "=0.18.2", default-features = false }
 

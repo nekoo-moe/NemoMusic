@@ -6,9 +6,10 @@ use std::thread;
 use std::time::Duration;
 
 use nemo_core::audio::{Codec, Origin, StreamInfo};
+use nemo_core::library::{LocalPlayback, LocalTrackLookup};
 use nemo_core::segment::SegmentSource;
 use nemo_core::services::{ByteSource, StreamOpener};
-use nemo_core::stream::{StreamError, StreamResolver};
+use nemo_core::stream::{StreamError, StreamRequest, StreamResolver};
 use nemo_core::track::{Track, VideoId};
 
 use crate::block_on::block_on;
@@ -23,6 +24,21 @@ pub struct Prepared {
     pub decoder: StreamDecoder,
     /// Measured facts about the source, for the signal path.
     pub info: StreamInfo,
+    /// Span and gain of a local library track (a CUE track plays one span of its file). The
+    /// default (whole file, unity gain) for streams and for files the library does not know.
+    pub playback: LocalPlayback,
+}
+
+impl Prepared {
+    /// Length of what plays: the span when there is one, else the whole stream.
+    #[must_use]
+    pub fn duration(&self) -> Option<Duration> {
+        let whole = self.decoder.info().duration;
+        match self.playback.span {
+            None => whole,
+            Some(span) => span.end.or(whole).map(|end| end.saturating_sub(span.start)),
+        }
+    }
 }
 
 /// The services a prepare thread needs.
@@ -30,8 +46,12 @@ pub struct Prepared {
 pub struct PrepareDeps {
     /// Stream resolver.
     pub resolver: Arc<dyn StreamResolver>,
+    /// The current stream request, passed to every resolve of this prepare.
+    pub request: StreamRequest,
     /// Stream opener.
     pub opener: Arc<dyn StreamOpener>,
+    /// Span and gain of local tracks. Asked here, on the prepare thread, never in the callback.
+    pub local: Option<Arc<dyn LocalTrackLookup>>,
 }
 
 /// Open `track` on a new thread and report the result to the control thread.
@@ -93,19 +113,30 @@ fn prepare(deps: &PrepareDeps, track: &Track) -> Result<Prepared, String> {
         let decoder =
             StreamDecoder::open(Box::new(source), ext).map_err(|e| describe_decode(&e))?;
         let info = local_info(&decoder);
-        return Ok(Prepared { decoder, info });
+        // May block on the library database: this is the prepare thread.
+        let playback = deps
+            .local
+            .as_ref()
+            .and_then(|lookup| lookup.playback(track))
+            .unwrap_or_default();
+        return Ok(Prepared {
+            decoder,
+            info,
+            playback,
+        });
     }
     let Some(video) = &track.video_id else {
         return Err("this track has no playable source".into());
     };
-    let stream = block_on(deps.resolver.resolve(video)).map_err(|e| describe(&e))?;
+    let resolve = || block_on(deps.resolver.resolve_with(video, &deps.request));
+    let stream = resolve().map_err(|e| describe(&e))?;
     let source: Box<dyn ByteSource> = match deps.opener.open(&stream) {
         Ok(source) => source,
         Err(StreamError::NotAvailable | StreamError::Network(_)) => {
             // A stale or refused URL (HTTP 403, 404/410, connection reset): tell the resolver,
             // which drops its cached answer or switches method for this video, and try once more.
             deps.resolver.stream_failed(video);
-            let stream = block_on(deps.resolver.resolve(video)).map_err(|e| describe(&e))?;
+            let stream = resolve().map_err(|e| describe(&e))?;
             let source = deps.opener.open(&stream).map_err(|e| {
                 deps.resolver.stream_failed(video);
                 describe(&e)
@@ -135,7 +166,11 @@ fn finish_stream(
         bitrate_kbps: stream.info.bitrate_kbps,
         format: Some(probed.format),
     };
-    Ok(Prepared { decoder, info })
+    Ok(Prepared {
+        decoder,
+        info,
+        playback: LocalPlayback::default(),
+    })
 }
 
 fn local_info(decoder: &StreamDecoder) -> StreamInfo {
