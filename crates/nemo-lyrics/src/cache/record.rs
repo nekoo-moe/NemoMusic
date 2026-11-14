@@ -69,7 +69,7 @@ impl From<GranularityRec> for Granularity {
     }
 }
 
-pub(super) fn granularity_name(g: Granularity) -> &'static str {
+pub(crate) fn granularity_name(g: Granularity) -> &'static str {
     match g {
         Granularity::Unsynced => "unsynced",
         Granularity::Line => "line",
@@ -78,7 +78,7 @@ pub(super) fn granularity_name(g: Granularity) -> &'static str {
     }
 }
 
-pub(super) fn encode_doc(doc: &LyricsDoc) -> Result<Vec<u8>, CacheError> {
+pub(crate) fn encode_doc(doc: &LyricsDoc) -> Result<Vec<u8>, CacheError> {
     let rec = DocRec {
         lines: doc
             .lines
@@ -110,7 +110,7 @@ pub(super) fn encode_doc(doc: &LyricsDoc) -> Result<Vec<u8>, CacheError> {
     serde_json::to_vec(&rec).map_err(|e| CacheError::Body(e.to_string()))
 }
 
-pub(super) fn decode_doc(body: &[u8], provider: ProviderId) -> Result<LyricsDoc, CacheError> {
+pub(crate) fn decode_doc(body: &[u8], provider: ProviderId) -> Result<LyricsDoc, CacheError> {
     let rec: DocRec = serde_json::from_slice(body).map_err(|e| CacheError::Body(e.to_string()))?;
     Ok(LyricsDoc {
         lines: rec
