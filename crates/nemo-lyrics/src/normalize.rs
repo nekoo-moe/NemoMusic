@@ -3,7 +3,8 @@
 //! Steps: Unicode NFKC (folds full-width forms, ideographic space, ligatures, compatibility
 //! characters), Unicode-aware lowercase, strip `(feat. ...)` / `[feat. ...]` /
 //! `(Remastered ...)` groups and `- Remastered 2011` style suffixes, drop apostrophes, turn
-//! other punctuation into spaces, collapse spaces.
+//! other punctuation into spaces, collapse spaces, then NFKC once more (a dropped apostrophe can
+//! leave marks that compose or reorder).
 
 use unicode_normalization::UnicodeNormalization;
 /// True if a bracket group's lowercase content is noise to drop.
@@ -78,7 +79,11 @@ pub fn normalize(input: &str) -> String {
             out.push(' ');
         }
     }
-    out.split_whitespace().collect::<Vec<_>>().join(" ")
+    let joined = out.split_whitespace().collect::<Vec<_>>().join(" ");
+    // Dropping an apostrophe can leave two combining marks side by side out of canonical
+    // order (or a base and a mark that compose), so compose once more; without this a second
+    // pass would change the text and `normalize` would not be idempotent.
+    joined.nfkc().collect()
 }
 
 #[cfg(test)]
@@ -147,9 +152,17 @@ mod tests {
             "A & B",
             "ＴＥＳＴ",
             "İstanbul",
+            // An apostrophe between two combining marks (found by the property test).
+            "\u{816}`\u{c55}",
         ] {
             let once = normalize(s);
             assert_eq!(normalize(&once), once, "input {s:?}");
         }
+    }
+
+    #[test]
+    fn dropping_an_apostrophe_keeps_marks_in_canonical_order() {
+        // U+0C55 (combining class 84) sorts before U+0816 (230) once nothing sits between them.
+        assert_eq!(normalize("\u{816}`\u{c55}"), "\u{c55}\u{816}");
     }
 }
