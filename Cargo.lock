@@ -3638,6 +3638,7 @@ dependencies = [
 name = "nemo-core"
 version = "0.0.1"
 dependencies = [
+ "proptest",
  "thiserror 2.0.21",
 ]
 

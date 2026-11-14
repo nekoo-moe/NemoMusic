@@ -36,7 +36,7 @@ Cross-spec ids written `<spec>#?` name the other spec's task by the ADR 0004 Dec
   - Checks: table test for 29 s, 30 s, 31 s, 8 min and unknown duration.
   - Steering: `structure.md`, add the `hooks` module to the `nemo-core` entry.
 
-- [ ] 5. Add `PlayTracker`, `PlayHookEvent`, `FinishedPlay` and `PlayObserver`
+- [x] 5. Add `PlayTracker`, `PlayHookEvent`, `FinishedPlay` and `PlayObserver`
   - Crate and files: `nemo-core` (`src/hooks.rs`); touches nemo-core/src/hooks.rs.
   - Does: Turns `PlayerEvent`s and position samples into `TrackStarted`, `StateChanged`, `PositionJumped`, `DurationKnown` and `TrackEnded`. Heard time grows only while `Playing`, by `min(position delta, wall time)`; a forward jump is a seek, a backward jump resyncs; `TrackChanged` (also repeat one) closes the old play; `flush` closes the last one.
   - _Requirements: 14, 15_
