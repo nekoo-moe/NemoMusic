@@ -4,7 +4,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use nemo_core::audio::{AudioFormat, Codec, Origin, StreamInfo};
 use nemo_core::secret::Secret;
-use nemo_core::stream::{ResolvedStream, StreamError};
+use nemo_core::stream::{ResolvedStream, StreamError, Transport};
 use serde_json::Value;
 
 /// Decide what a failed `yt-dlp` run means from the start of its stderr.
@@ -189,6 +189,10 @@ pub fn parse_with(json: &str, allowed: Option<&[Codec]>) -> Result<ResolvedStrea
         .map(|v| v.round() as u32);
     Ok(ResolvedStream {
         expires_at: expiry(&best.url),
+        transport: Transport::File,
+        preview: false,
+        audio_language: None,
+        audio_tracks: Vec::new(),
         info: StreamInfo {
             origin: Origin::YoutubeMusic,
             codec: codec_of(&best.acodec),

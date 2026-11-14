@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
+use nemo_core::effects::EffectsSettings;
 use nemo_core::player::{PlayState, PlayerCommand, PlayerEvent, RepeatMode};
 use nemo_core::track::Track;
 
@@ -53,7 +54,19 @@ impl Core {
             PlayerCommand::Park => self.park(),
             PlayerCommand::Unpark { at } => self.unpark(at),
             PlayerCommand::SwitchAudioTrack(language) => self.switch_audio_track(language),
+            PlayerCommand::SetEffects(settings) => self.set_effects(settings),
+            PlayerCommand::SetTransition(settings) => {
+                self.transition = settings;
+                self.publish();
+            }
         }
+    }
+
+    /// Store the effects settings and report them. Nothing reaches the audio path yet
+    /// (audio-effects task 11 clamps them and runs the chain).
+    fn set_effects(&mut self, settings: EffectsSettings) {
+        self.effects.settings = settings;
+        self.notify(&PlayerEvent::EffectsChanged(self.effects));
     }
 
     /// Resolve the current stream again with `language` and reopen it where it is now. A paused

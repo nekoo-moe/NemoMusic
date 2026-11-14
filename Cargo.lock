@@ -3655,11 +3655,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "nemo-integrations"
+version = "0.0.1"
+dependencies = [
+ "nemo-core",
+]
+
+[[package]]
 name = "nemo-library"
 version = "0.0.1"
 dependencies = [
  "lofty",
  "nemo-core",
+ "rusqlite",
+ "serde_json",
+ "unicode-normalization",
 ]
 
 [[package]]
@@ -3701,6 +3711,13 @@ dependencies = [
 
 [[package]]
 name = "nemo-soundcloud"
+version = "0.0.1"
+dependencies = [
+ "nemo-core",
+]
+
+[[package]]
+name = "nemo-spotify"
 version = "0.0.1"
 dependencies = [
  "nemo-core",

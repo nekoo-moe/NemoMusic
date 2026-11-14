@@ -11,7 +11,7 @@ Cross-spec ids written `<spec>#?` name the task in that spec that adds the ADR 0
   - Checks: unit tests for `MediaUrl::parse` (http, credentials in URL, wrong host, `*.sndcdn.com` suffix, punycode look-alike); a test that `Origin::SoundCloud` never yields a lossless class. Bit-exact test must pass (arms in `nemo-audio` change).
   - Steering: none
 
-- [ ] 2. Add `Transport`, the four new `ResolvedStream` fields and `Track.source_url` in one change
+- [x] 2. Add `Transport`, the four new `ResolvedStream` fields and `Track.source_url` in one change
   - Crate and files: `nemo-core` (touches nemo-core/src/stream.rs, nemo-core/src/track.rs); struct literals in `nemo-ytm`, `nemo-audio`, `nemo-ui` tests.
   - Does: adds `Transport { File, Hls { live } }`, `ResolvedStream.{transport, preview, audio_language, audio_tracks}` and `Track.source_url: Option<MediaUrl>`, all with `Default` (`File`, `false`, `None`, empty), so no later task edits every literal again (ADR 0004 Decision 4, first rule).
   - _Requirements: none (groundwork)_
@@ -38,7 +38,7 @@ Cross-spec ids written `<spec>#?` name the task in that spec that adds the ADR 0
   - Checks: table tests from the design (64 kbps Opus beats 128 kbps MP3, Opus not playable, encrypted dropped, preview last, missing bitrate playable, tie rules); proptest that the result index is always in range.
   - Steering: ADR 0004 Decision 4 rows 9 to 12 already list these items; add `UrlResolver::list` to row 11 if the text still lacks it.
 
-- [ ] 5. Add `Backend.soundcloud`
+- [x] 5. Add `Backend.soundcloud`
   - Crate and files: `nemo-core` (touches nemo-core/src/services.rs), `nemo-app` and `nemo-ui` mock backends set `None`.
   - Does: `Backend.soundcloud: Option<Arc<dyn Catalog>>`, `None` by default, so the UI shows no SoundCloud entry until the app builds one.
   - _Requirements: 2_

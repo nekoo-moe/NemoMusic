@@ -5,7 +5,9 @@
 
 pub mod account;
 pub mod ai;
+pub mod animated_art;
 pub mod audio;
+pub mod cast;
 pub mod catalog;
 pub mod downloads;
 pub mod effects;
@@ -17,6 +19,7 @@ pub mod lyrics;
 pub mod lyrics_plus;
 pub mod notify;
 pub mod opt_in;
+pub mod output;
 pub mod player;
 pub mod releases;
 pub mod remote;
@@ -25,7 +28,9 @@ pub mod secret_store;
 pub mod segment;
 pub mod services;
 pub mod spotify;
+pub mod stats;
 pub mod stream;
+pub mod together;
 pub mod track;
 
 use std::future::Future;

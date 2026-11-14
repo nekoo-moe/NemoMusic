@@ -2,7 +2,7 @@
 
 use nemo_core::audio::{AudioFormat, Codec, Origin, StreamInfo};
 use nemo_core::secret::Secret;
-use nemo_core::stream::{ResolvedStream, StreamError};
+use nemo_core::stream::{ResolvedStream, StreamError, Transport};
 use serde_json::Value;
 
 use crate::http::is_https;
@@ -160,6 +160,10 @@ pub fn parse_player(json: &str, allowed: Option<&[Codec]>) -> Result<ResolvedStr
     Ok(ResolvedStream {
         url: Secret::new(best.url.to_owned()),
         expires_at: expiry(best.url),
+        transport: Transport::File,
+        preview: false,
+        audio_language: None,
+        audio_tracks: Vec::new(),
         info: StreamInfo {
             origin: Origin::YoutubeMusic,
             codec: best.codec,

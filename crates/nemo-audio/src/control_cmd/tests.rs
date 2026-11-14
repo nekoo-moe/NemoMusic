@@ -1,5 +1,6 @@
-//! `SwitchAudioTrack` through the real control thread, with a resolver that records requests
-//! and a test device. The tests pause first, so the position stands still.
+//! `SwitchAudioTrack`, `SetEffects` and `SetTransition` through the real control thread, with a
+//! resolver that records requests and a test device. The track tests pause first, so the
+//! position stands still.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -8,10 +9,11 @@ use std::time::{Duration, Instant};
 
 use nemo_core::BoxFuture;
 use nemo_core::audio::{AudioFormat, Codec, Origin, OutputInfo, OutputMode, StreamInfo};
+use nemo_core::effects::{EffectsSettings, EffectsStatus, TransitionMode, TransitionSettings};
 use nemo_core::player::{PlayState, PlayerCommand, PlayerEvent};
 use nemo_core::secret::Secret;
 use nemo_core::services::{ByteSource, EventReceiver, PlayerControl, StreamOpener};
-use nemo_core::stream::{ResolvedStream, StreamError, StreamRequest, StreamResolver};
+use nemo_core::stream::{ResolvedStream, StreamError, StreamRequest, StreamResolver, Transport};
 use nemo_core::track::{Artwork, Track, TrackId, VideoId};
 
 use crate::player::{Player, PlayerDeps};
@@ -47,6 +49,10 @@ impl Recorder {
                     format: None,
                 },
                 expires_at: None,
+                transport: Transport::File,
+                preview: false,
+                audio_language: None,
+                audio_tracks: Vec::new(),
             })
         })
     }
@@ -158,6 +164,7 @@ fn video_track() -> Track {
         video_id: Some(VideoId::parse("TestTrack01").expect("valid id")),
         local_path: None,
         artwork: Artwork::None,
+        source_url: None,
     }
 }
 
@@ -252,4 +259,39 @@ fn a_local_track_ignores_the_switch() {
     drop(p);
     // The file is a test fixture in the temp folder; a leftover does no harm.
     let _ = std::fs::remove_file(&path);
+}
+
+#[test]
+fn effects_and_transition_settings_are_stored_and_reported() {
+    let p = player(&Arc::new(Recorder::default()));
+    let mut events = p.subscribe();
+    let mut effects = EffectsSettings::default();
+    effects.equalizer.enabled = true;
+    effects.equalizer.preamp_tenth_db = -30;
+    effects.delay.enabled = true;
+
+    p.send(PlayerCommand::SetEffects(effects));
+    let mut changed: Vec<EffectsStatus> = Vec::new();
+    wait("EffectsChanged", || {
+        changed.extend(
+            std::iter::from_fn(|| events.try_next()).filter_map(|e| match e {
+                PlayerEvent::EffectsChanged(s) => Some(s),
+                _ => None,
+            }),
+        );
+        !changed.is_empty()
+    });
+    assert_eq!(changed.len(), 1);
+    assert_eq!(changed[0].settings, effects);
+    assert_eq!(changed[0].clipped_samples, 0);
+    assert_eq!(p.snapshot().effects, changed[0]);
+
+    let transition = TransitionSettings {
+        mode: TransitionMode::Crossfade,
+        seconds: 4,
+        ..TransitionSettings::default()
+    };
+    p.send(PlayerCommand::SetTransition(transition));
+    wait("the transition", || p.snapshot().transition == transition);
+    assert_eq!(p.snapshot().state, PlayState::Stopped, "nothing started");
 }

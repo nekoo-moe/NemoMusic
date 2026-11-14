@@ -19,6 +19,7 @@ use nemo_core::catalog::{AlbumSummary, ArtistSummary, BrowseId, PlaylistSummary}
 use nemo_core::integrations::NoIntegrations;
 use nemo_core::notify::NoNotifier;
 use nemo_core::services::Backend;
+use nemo_core::stats::NoStats;
 use nemo_core::track::{Artwork, Thumbnail, Track, TrackId, VideoId};
 
 pub use crate::mock_lyrics::{MockLyrics, lyrics_for};
@@ -183,6 +184,7 @@ pub fn track(n: usize) -> Track {
             .flatten(),
         local_path: local.then(|| PathBuf::from(format!("mock/music/track-{n:02}.flac"))),
         artwork: cover_artwork(album),
+        source_url: None,
     }
 }
 
@@ -284,6 +286,8 @@ pub fn mock_backend() -> Backend {
         account: Arc::new(MockAccount::new()),
         integrations: Arc::new(NoIntegrations),
         notifier: Arc::new(NoNotifier),
+        soundcloud: None,
+        stats: Arc::new(NoStats),
     }
 }
 

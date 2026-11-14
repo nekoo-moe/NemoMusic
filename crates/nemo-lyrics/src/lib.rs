@@ -13,6 +13,7 @@
 //! - [`http`]: shared request helpers.
 //! - [`chain`]: run providers with timeouts and a per-host limit.
 //! - [`cache`]: SQLite cache and per-track offsets.
+//! - [`own`]: the user's own lyrics, kept beside the cache and never cleared with it.
 //! - [`service`]: `LyricsHub`, the `LyricsService` implementation.
 #![cfg_attr(
     test,
@@ -31,6 +32,7 @@ pub mod lrc;
 pub mod lrclib;
 pub mod netease;
 pub mod normalize;
+pub mod own;
 pub mod pick;
 pub mod plain;
 pub mod score;

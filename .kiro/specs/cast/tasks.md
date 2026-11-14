@@ -22,7 +22,7 @@ Cross-spec ids written `<spec>#?` point at the task in that spec that adds the n
   - Checks: unit tests: claim, claim while busy returns `RemoteBusy(kind)`, release on drop, `active()`. No I/O in `nemo-core`.
   - Steering: `structure.md` adds `remote.rs` and `cast.rs` to the `nemo-core` ownership line; ADR 0004 Decision 2 lists `RemotePlayback`, `RemoteSlot` and `CastControl`.
 
-- [ ] 3. Add the Cast control trait and its types to nemo-core
+- [x] 3. Add the Cast control trait and its types to nemo-core
   - Crate and files: `nemo-core`: new `src/cast.rs`, `src/lib.rs`. Touches nemo-core/src/cast.rs and nemo-core/src/lib.rs.
   - Does: Adds `CastDeviceId`, `DeviceKind`, `CastDevice`, `Discovery`, `CastEvent`, `CastEventReceiver`, the `CastControl` trait and `CastError` (`thiserror`, the variants of the design's Error Handling), because the trait returns it.
   - _Requirements: none (groundwork)_

@@ -10,6 +10,7 @@ use std::sync::{Arc, PoisonError};
 use std::time::Duration;
 
 use nemo_core::audio::{AudioFormat, ProcessingStage, SignalPath, StreamInfo};
+use nemo_core::effects::{EffectsStatus, TransitionSettings};
 use nemo_core::player::{PlayState, PlayerEvent, PlayerSnapshot, RepeatMode};
 use nemo_core::segment::Segment;
 use nemo_core::track::Track;
@@ -104,6 +105,10 @@ pub(crate) struct Core {
     pub ignored: HashMap<u64, HashSet<String>>,
     /// A remote device plays: decode nothing and hold no output device.
     pub parked: bool,
+    /// The effects last set (audio-effects); nothing reaches the samples yet.
+    pub effects: EffectsStatus,
+    /// The song-transition settings last set (audio-effects); not applied yet.
+    pub transition: TransitionSettings,
 }
 
 impl Core {
@@ -131,6 +136,8 @@ impl Core {
             last_skip: None,
             ignored: HashMap::new(),
             parked: false,
+            effects: EffectsStatus::default(),
+            transition: TransitionSettings::default(),
         }
     }
 
@@ -211,6 +218,8 @@ impl Core {
             repeat: self.repeat,
             // Live streams are not played yet (youtube-extras).
             live: false,
+            effects: self.effects,
+            transition: self.transition,
         };
         *self
             .shared

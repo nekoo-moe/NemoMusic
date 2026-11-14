@@ -379,6 +379,7 @@ mod tests {
             video_id: VideoId::parse(id).ok(),
             local_path: None,
             artwork: Artwork::None,
+            source_url: None,
         }
     }
 

@@ -19,7 +19,7 @@ use nemo_core::player::{PlayerCommand, PlayerEvent};
 use nemo_core::secret::Secret;
 use nemo_core::segment::{Segment, SegmentError, SegmentSource};
 use nemo_core::services::{ByteSource, EventReceiver, PlayerControl, StreamOpener};
-use nemo_core::stream::{ResolvedStream, StreamError, StreamRequest, StreamResolver};
+use nemo_core::stream::{ResolvedStream, StreamError, StreamRequest, StreamResolver, Transport};
 use nemo_core::track::{Artwork, Track, TrackId, VideoId};
 
 /// Serves a video id from a map of in-memory files. Unknown ids are "not available".
@@ -45,6 +45,10 @@ impl StreamResolver for FakeResolver {
                     format: None,
                 },
                 expires_at: None,
+                transport: Transport::File,
+                preview: false,
+                audio_language: None,
+                audio_tracks: Vec::new(),
             })
         })
     }
@@ -337,6 +341,7 @@ pub fn video_track(n: u32) -> Track {
         video_id: Some(VideoId::parse(&video_id(n)).expect("invariant: 11 chars")),
         local_path: None,
         artwork: Artwork::None,
+        source_url: None,
     }
 }
 

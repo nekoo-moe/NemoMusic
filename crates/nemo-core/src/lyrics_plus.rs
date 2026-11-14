@@ -1,6 +1,6 @@
 //! Lyrics extras that travel beside a [`LyricsDoc`]: per-line facts
-//! such as the singer, background vocals and the provider's romanization, and the user's own
-//! lyrics.
+//! such as the singer, background vocals and the provider's romanization, the user's own
+//! lyrics, and the romanizer contract.
 //!
 //! `LyricsDoc` and `LyricLine` are built as struct literals in many crates, so this data is
 //! kept apart from them and indexed by line number (lyrics-plus design).
@@ -92,9 +92,102 @@ pub trait OwnLyrics: Send + Sync {
     fn delete(&self, track_key: &str) -> Result<(), OwnLyricsError>;
 }
 
+/// A language whose script can be shown in Latin letters. More may come (Thai is later).
+#[non_exhaustive]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum RomanLang {
+    /// Japanese (kana and kanji).
+    Japanese,
+    /// Korean (Hangul).
+    Korean,
+    /// Mandarin Chinese (Han characters).
+    Mandarin,
+    /// Cantonese (Han characters).
+    Cantonese,
+    /// Russian (Cyrillic).
+    Russian,
+    /// Ukrainian (Cyrillic).
+    Ukrainian,
+    /// Greek.
+    Greek,
+    /// Arabic.
+    Arabic,
+    /// Hebrew.
+    Hebrew,
+    /// Hindi (Devanagari).
+    Hindi,
+    /// Thai.
+    Thai,
+    /// Persian (Arabic script).
+    Persian,
+}
+
+/// How faithful a romanization scheme is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum RomanQuality {
+    /// Readings are complete.
+    Good,
+    /// Vowels or readings are missing (the script does not write them); shown as "Partial".
+    Partial,
+}
+
+/// One romanization scheme a romanizer offers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct RomanScheme {
+    /// The language it romanizes.
+    pub lang: RomanLang,
+    /// The scheme name shown in settings, for example "Hepburn".
+    pub name: &'static str,
+    /// How faithful it is.
+    pub quality: RomanQuality,
+}
+
+/// What the user wants romanized.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RomanOptions {
+    /// The languages to romanize; empty turns romanization off.
+    pub enabled: Vec<RomanLang>,
+    /// How Han characters are read: [`RomanLang::Mandarin`] or [`RomanLang::Cantonese`].
+    pub han: RomanLang,
+}
+
+impl Default for RomanOptions {
+    /// Nothing romanized; Han characters read as Mandarin once it is turned on.
+    fn default() -> Self {
+        Self {
+            enabled: Vec::new(),
+            han: RomanLang::Mandarin,
+        }
+    }
+}
+
+/// The romanization of one lyrics document.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Romanization {
+    /// The scheme used, or `None` when nothing was romanized.
+    pub scheme: Option<RomanScheme>,
+    /// One entry per lyric line, same index as `LyricsDoc.lines`; `None` for a line left as
+    /// it is.
+    pub lines: Vec<Option<String>>,
+    /// The lines came from the provider's own romanization ([`LineMeta::roman`]).
+    pub from_provider: bool,
+}
+
+/// Turns lyric lines into Latin letters. Pure and local: no network.
+pub trait Romanizer: Send + Sync {
+    /// The schemes this romanizer offers, one per language.
+    fn schemes(&self) -> &'static [RomanScheme];
+
+    /// Romanize `doc` as `opts` asks. A provider's own romanization in `meta` wins over the
+    /// romanizer's.
+    fn romanize(&self, doc: &LyricsDoc, meta: &[LineMeta], opts: &RomanOptions) -> Romanization;
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{LineMeta, OWN_LYRICS, OwnLyricsDraft, OwnLyricsError};
+    use super::{
+        LineMeta, OWN_LYRICS, OwnLyricsDraft, OwnLyricsError, RomanLang, RomanOptions, Romanization,
+    };
     use crate::BoxFuture;
     use crate::lyrics::{LyricsQuery, ProviderId};
     use crate::services::{LyricsLookup, LyricsService};
@@ -142,5 +235,14 @@ mod tests {
         assert_eq!(OwnLyricsError::Empty.to_string(), "no lyrics");
         assert_eq!(OWN_LYRICS, ProviderId::new("Your lyrics"));
         assert!(OwnLyricsDraft::default().lines.is_empty());
+    }
+
+    #[test]
+    fn romanization_is_off_by_default() {
+        let opts = RomanOptions::default();
+        assert!(opts.enabled.is_empty());
+        assert_eq!(opts.han, RomanLang::Mandarin);
+        let r = Romanization::default();
+        assert!(r.scheme.is_none() && r.lines.is_empty() && !r.from_provider);
     }
 }

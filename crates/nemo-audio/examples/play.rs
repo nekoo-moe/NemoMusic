@@ -88,6 +88,7 @@ fn track(n: usize, path: PathBuf) -> Track {
         video_id: None,
         local_path: Some(path),
         artwork: Artwork::None,
+        source_url: None,
     }
 }
 

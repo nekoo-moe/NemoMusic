@@ -32,6 +32,19 @@ pub struct AudioTrackInfo {
     pub is_default: bool,
 }
 
+/// How the bytes of a resolved stream arrive. The opener picks its reader from it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum Transport {
+    /// One file read over ranged HTTPS requests (every YouTube Music stream today).
+    #[default]
+    File,
+    /// An HLS playlist of segments.
+    Hls {
+        /// A live playlist that keeps growing: no length, no seeking.
+        live: bool,
+    },
+}
+
 /// A resolved stream. The URL is a secret: it can carry the listener's IP and a signature.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedStream {
@@ -41,6 +54,16 @@ pub struct ResolvedStream {
     pub info: StreamInfo,
     /// When the URL stops working, if known.
     pub expires_at: Option<SystemTime>,
+    /// How the bytes arrive. [`Transport::File`] unless the resolver found HLS.
+    pub transport: Transport,
+    /// The site serves only a short preview of the track (SoundCloud), not the whole song.
+    pub preview: bool,
+    /// The language of the audio track that plays (BCP 47), if the source gives one. It can
+    /// differ from the requested language when the video has no track in it.
+    pub audio_language: Option<String>,
+    /// The audio tracks the video offers; empty when it has one track or the source does not
+    /// say.
+    pub audio_tracks: Vec<AudioTrackInfo>,
 }
 
 /// Resolving a stream failed.
@@ -114,6 +137,10 @@ mod tests {
                         format: None,
                     },
                     expires_at: None,
+                    transport: Transport::File,
+                    preview: false,
+                    audio_language: None,
+                    audio_tracks: Vec::new(),
                 })
             })
         }
@@ -144,6 +171,15 @@ mod tests {
         assert_eq!(
             ready(Fixed.resolve_with(&video, &StreamRequest::default())),
             ready(Fixed.resolve(&video))
+        );
+    }
+
+    #[test]
+    fn a_stream_is_a_file_by_default() {
+        assert_eq!(Transport::default(), Transport::File);
+        assert_ne!(
+            Transport::Hls { live: false },
+            Transport::Hls { live: true }
         );
     }
 

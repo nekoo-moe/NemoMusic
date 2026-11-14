@@ -19,7 +19,7 @@ Cross-spec ids written `<spec>#?` point at the task of that spec that adds the n
   - Wave: 0
   - Checks: `cargo test -p nemo-core`.
 
-- [ ] 3. Add the romanizer contract
+- [x] 3. Add the romanizer contract
   - Crate and files: `nemo-core`: `src/lyrics_plus.rs`. Touches nemo-core/src/lyrics_plus.rs.
   - Does: Adds `RomanLang` (`#[non_exhaustive]`, all 12 languages), `RomanQuality`, `RomanScheme`, `RomanOptions`, `Romanization` and the `Romanizer` trait.
   - _Requirements: none (groundwork)_
@@ -44,7 +44,7 @@ Cross-spec ids written `<spec>#?` point at the task of that spec that adds the n
   - Checks: a test that `Debug` of every new type prints no secret.
   - Steering: `structure.md` lists `nemo-core/src/spotify.rs`.
 
-- [ ] 6. Add the animated-art source contract
+- [x] 6. Add the animated-art source contract
   - Crate and files: `nemo-core`: new `src/animated_art.rs`, `src/lib.rs`. Touches nemo-core/src/animated_art.rs and lib.rs.
   - Does: Adds `ArtSourceId`, `ArtQuery`, `AnimatedArt`, `ArtLookup`, `ArtSourceInfo`, `AnimatedArtError` (`SignedOut`, `Offline`, `Refused(status)`, `Unsupported`, `TooLarge`, `Store`) and `AnimatedArtSource`, as now-playing-styles needs them. No Apple Music variant.
   - _Requirements: none (groundwork)_
@@ -53,7 +53,7 @@ Cross-spec ids written `<spec>#?` point at the task of that spec that adds the n
   - Checks: `cargo test -p nemo-core`.
   - Steering: `structure.md` lists `nemo-core/src/animated_art.rs`.
 
-- [ ] 7. Create the `nemo-spotify` crate skeleton
+- [x] 7. Create the `nemo-spotify` crate skeleton
   - Crate and files: new `crates/nemo-spotify/` (`Cargo.toml`, `src/lib.rs`), workspace `Cargo.toml` members.
   - Does: Empty crate depending on `nemo-core` only, with `#![forbid(unsafe_code)]`, `#![warn(missing_docs)]` and `[lints] workspace = true`. No network code yet.
   - _Requirements: none (groundwork)_
@@ -79,7 +79,7 @@ Cross-spec ids written `<spec>#?` point at the task of that spec that adds the n
   - Checks: Pass: no tofu boxes on a clean Windows 11 and a default Linux desktop. Fail: task 31 bundles a licensed fallback font in `assets/fonts/` (with `LICENSES.md`) or shows a short notice for unsupported scripts.
   - Status: Windows half done (pass, design Risks); the Linux half needs the owner's Linux Mint machine, so the task stays open.
 
-- [ ] 10. Store own lyrics in the lyrics database
+- [x] 10. Store own lyrics in the lyrics database
   - Crate and files: `nemo-lyrics`: new `src/own.rs`, `src/cache.rs` (`LyricsCache::init` creates `own_lyrics`).
   - Does: Implements `OwnLyrics` (`get`, `save`, `save_copy`, `delete`). `save` refuses a missing start with `MissingStart` and never spreads lines; it returns `Line`, or `Word` when every line has words. `clear()` keeps `own_lyrics`, as it keeps `lyrics_offset`.
   - _Requirements: 6, 7, 9, 10_
@@ -235,7 +235,7 @@ Cross-spec ids written `<spec>#?` point at the task of that spec that adds the n
   - Wave: 2
   - Checks: `cargo tree -p nemo-ui --edges normal` shows only `nemo-core` among `nemo-*` crates.
 
-- [ ] 28. Build the lyrics editor model
+- [x] 28. Build the lyrics editor model
   - Crate and files: `nemo-ui`: new `src/editor.rs` (`EditorModel`).
   - Does: Pure state for the tap pass (start = `PlayerSnapshot.position` at the key event, then next line), step back, re-tap, 50 ms nudge, and the optional word pass. Saving names the first line with no start.
   - _Requirements: 2, 3, 4, 6_

@@ -64,7 +64,7 @@ Cross-spec ids written `<spec>#?` name the owner's task by its ADR 0004 Decision
   - Wave: 1
   - Checks: `cargo test -p nemo-audio --test bit_exact`; a test that a WebM Opus fixture served by the loopback test server plays to the end. Waited on by soundcloud and account-actions rankers and youtube-extras (row 14).
 
-- [ ] 8. Create the `library.db` store with migrations
+- [x] 8. Create the `library.db` store with migrations
   - Crate and files: `nemo-library`: `Cargo.toml` (`rusqlite` =0.41.1, bundled), `src/store.rs` (new), `src/lib.rs`.
   - Does: Opens `library.db` in WAL mode and runs migration 1: folders, tracks (path, size, modified time, tags, status and reason, CUE span, gain values), albums (with the `gapless` flag), playlists, playlist entries and loudness. Adds the queries the later tasks use; one write connection, readers open their own.
   - _Requirements: 5, 18_
@@ -204,7 +204,7 @@ Cross-spec ids written `<spec>#?` name the owner's task by its ADR 0004 Decision
   - Wave: 2
   - Checks: a test that sign-out leaves `library.db` in place; a check that no new host is contacted (no network client in the library path).
 
-- [ ] 25. Keep the lossless badge honest for local formats
+- [x] 25. Keep the lossless badge honest for local formats
   - Crate and files: `nemo-core`: `src/audio.rs`; `nemo-ui`: signal-path view. Touches nemo-core/src/audio.rs.
   - Does: The true-lossless badge shows only for local FLAC, ALAC and WAV on a bit-perfect path, with the real rate and depth; otherwise codec and format with the reason in the signal-path view. Opus, Vorbis, MP3 and AAC never read "lossless"; facts not read show "Unknown". AIFF follows criterion 12 and gets no badge unless the owner adds it.
   - _Requirements: 12, 13, 14_

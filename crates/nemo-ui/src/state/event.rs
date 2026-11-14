@@ -68,6 +68,9 @@ pub enum LyricsState {
 }
 
 /// Something that happened.
+// A snapshot (with the effects settings) is the largest variant; it is moved once per player
+// event, so boxing it would only add an allocation.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum Event {
     /// A key action.

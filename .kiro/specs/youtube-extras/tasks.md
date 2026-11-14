@@ -105,7 +105,7 @@ Cross-spec ids written `<spec>#?` name the task in that spec that adds the ADR 0
   - Spike result (task 7): live audio is audio-only HLS of packed audio (ID3 + ADTS AAC), which `symphonia` already decodes: no `ts.rs`. Pick the audio-only format by `vcodec` "none" (`acodec`, `abr` and `tbr` are empty) and prefer format id `234` (AAC-LC 44.1 kHz) over `233` (HE-AAC, decoded at 22.05 kHz without SBR); ignore the ad cue tags. The decode test uses `tests/fixtures/live/` instead of a TS parser test.
   - Steering: none
 
-- [ ] 12. Search all of YouTube
+- [x] 12. Search all of YouTube
   - Crate and files: `nemo-ytm` (new `web_search.rs`, `WebCatalogExt`).
   - Does: `search_scoped(AllOfYoutube)` runs the music search, then `POST /youtubei/v1/search`, one after the other; parses `videoRenderer`, `channelRenderer`, `playlistRenderer` and the "LIVE NOW" badge into `videos` and `channels`. `Music` calls `search` as today. Backoff signals are honored.
   - _Requirements: 1, 2, 5, 23_

@@ -4,6 +4,7 @@ use std::sync::atomic::AtomicUsize;
 
 use nemo_core::audio::{Origin, StreamInfo};
 use nemo_core::secret::Secret;
+use nemo_core::stream::Transport;
 
 use super::*;
 
@@ -47,6 +48,10 @@ impl StreamResolver for Counting {
                     format: None,
                 },
                 expires_at: self.expires_in.map(|d| SystemTime::now() + d),
+                transport: Transport::File,
+                preview: false,
+                audio_language: None,
+                audio_tracks: Vec::new(),
             })
         })
     }

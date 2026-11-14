@@ -9,7 +9,7 @@ use std::path::Path;
 
 use rusqlite::{Connection, OptionalExtension, params};
 
-use super::{ART, BLOBS, Store, TMP};
+use super::{ART, BLOBS, DB_FILE, DB_SIDE_FILES, FOLDERS, Store, TMP};
 use crate::offline::{OfflineError, is_opaque_name};
 
 /// Songs a collection holds that nothing else holds: no other collection, no save of the song
@@ -87,14 +87,40 @@ impl Store {
 
     /// Close the index and delete the cache folder `root` with everything in it. Returns how
     /// many files were removed. Every later call fails with [`OfflineError::Closed`].
+    ///
+    /// Deletes nothing and fails with [`OfflineError::Io`] when `root` holds anything the
+    /// cache does not make, so a wrong folder can never be wiped.
     pub(in crate::offline) fn wipe(&self, root: &Path) -> Result<u64, OfflineError> {
         self.close();
+        if !holds_only_cache_entries(root)? {
+            return Err(OfflineError::Io);
+        }
         let files = count_files(root)?;
         match std::fs::remove_dir_all(root) {
             Err(err) if err.kind() != ErrorKind::NotFound => Err(err.into()),
             _ => Ok(files),
         }
     }
+}
+
+/// Whether every entry right under `root` is one the cache makes: the index, its WAL files
+/// and the three folders. `true` when `root` is already gone.
+fn holds_only_cache_entries(root: &Path) -> Result<bool, OfflineError> {
+    let entries = match std::fs::read_dir(root) {
+        Ok(entries) => entries,
+        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(true),
+        Err(err) => return Err(err.into()),
+    };
+    for entry in entries {
+        let name = entry?.file_name();
+        let known = name
+            .to_str()
+            .is_some_and(|n| n == DB_FILE || DB_SIDE_FILES.contains(&n) || FOLDERS.contains(&n));
+        if !known {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 fn video_ids(
