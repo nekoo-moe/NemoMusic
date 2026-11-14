@@ -34,7 +34,7 @@ Cross-spec ids written `<spec>#?` point at the task of that spec that adds the n
   - Wave: 2
   - Checks: style change keeps position, offset, scroll and `compact_tab`; the facts list of criterion 5 is in every tree; existing snapshots of the M3 style unchanged; `cargo test -p nemo-audio --test bit_exact` stays green (audio untouched).
 
-- [ ] 5. Add the Classic style
+- [x] 5. Add the Classic style
   - Crate and files: `nemo-ui`: new `src/gui/views/np_classic.rs`.
   - Does: A calm column: large still cover, title, artist, seek bar, controls, badge, signal-path entry, lyrics one tap away on a tab. Existing tokens and plain `surface`; no breathing cover, no canvas gradient, no new color roles.
   - _Requirements: 5, 8_
