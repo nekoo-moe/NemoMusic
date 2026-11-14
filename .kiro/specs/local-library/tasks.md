@@ -27,7 +27,7 @@ Cross-spec ids written `<spec>#?` name the owner's task by its ADR 0004 Decision
   - Wave: 0
   - Checks: `cargo test -p nemo-audio --test bit_exact` (audio path). Fixture under 200 KB with its licence in `fixtures/README.md`. Used by offline-cache. If soundcloud's `ByteSource::is_seekable` (row 10) has landed, `FileSource` returns true; otherwise that soundcloud task adds it.
 
-- [ ] 4. Spike: choose the Opus decoder
+- [x] 4. Spike: choose the Opus decoder
   - Crate and files: `nemo-audio`: a throwaway test on a spike branch (`tests/opus_spike.rs`); only the result lands, in `.kiro/specs/local-library/design.md` (Risks).
   - Does: Must prove three things. (a) The pure-Rust `opus-decoder` 0.1.1 decodes every RFC 8251 test vector and passes `opus_compare`, wrapped as a `symphonia` decoder. (b) `symphonia-format-ogg` 0.6.1 demuxes Ogg Opus and the `mkv` reader demuxes WebM Opus, with pre-skip applied. (c) It builds on the workspace `rust-version` 1.97 with an allowed licence.
   - _Requirements: 9_
@@ -47,6 +47,7 @@ Cross-spec ids written `<spec>#?` name the owner's task by its ADR 0004 Decision
 - [ ] 6. Add the Opus decoder through one codec registry
   - Crate and files: `nemo-audio`: `Cargo.toml`, `src/codecs.rs` (new, `build_codecs()`), `src/decoder.rs`, `src/stream_decoder.rs`, `tests/golden/`; `nemo-library`: treat the Opus codec id as playable in the scan probe. Touches nemo-audio/src/decoder.rs.
   - Does: Registers the decoder the spike chose next to the default `symphonia` decoders behind `build_codecs()`, so `StreamDecoder` keeps one code path and either decoder can be swapped. Maps `Codec::Opus`. Adds Ogg Opus and WebM Opus fixtures.
+  - Spike result (task 4, design Risks): `opus-decoder` failed the mono half of the RFC 8251 vectors, so this task uses the fallback `symphonia-adapter-libopus` =0.3.0. The adapter drops the OpusHead pre-skip itself; the fixtures check the decoded length for Ogg and WebM.
   - _Requirements: 9_
   - Depends on: local-library#4, local-library#5
   - Wave: 1
