@@ -19,7 +19,7 @@ Cross-spec ids written `<spec>#?` name the other spec's task by the ADR 0004 Dec
   - Wave: 0
   - Checks: `iced_test` snapshots (off, panel open, on); keyboard order and visible focus; no animation under reduced motion; readable at 200% text scale; `design.md` checklist with a screenshot.
 
-- [ ] 3. Add the opt-in gate and the egress-list check in `nemo-app`
+- [x] 3. Add the opt-in gate and the egress-list check in `nemo-app`
   - Crate and files: `nemo-app` (`src/opt_in_gate.rs` new, `src/config.rs`).
   - Does: Stores `enabled` and `confirmed_version` per `OptInInfo.id` in the config file. Exposes one check, "build this service only when the switch is on and `confirmed_version == version`", that every opt-in service is built through. A test compares every `OptInInfo.hosts` entry with the README egress list.
   - _Requirements: none (groundwork)_
@@ -36,7 +36,7 @@ Cross-spec ids written `<spec>#?` name the other spec's task by the ADR 0004 Dec
   - Checks: table test for 29 s, 30 s, 31 s, 8 min and unknown duration.
   - Steering: `structure.md`, add the `hooks` module to the `nemo-core` entry.
 
-- [ ] 5. Add `PlayTracker`, `PlayHookEvent`, `FinishedPlay` and `PlayObserver`
+- [x] 5. Add `PlayTracker`, `PlayHookEvent`, `FinishedPlay` and `PlayObserver`
   - Crate and files: `nemo-core` (`src/hooks.rs`); touches nemo-core/src/hooks.rs.
   - Does: Turns `PlayerEvent`s and position samples into `TrackStarted`, `StateChanged`, `PositionJumped`, `DurationKnown` and `TrackEnded`. Heard time grows only while `Playing`, by `min(position delta, wall time)`; a forward jump is a seek, a backward jump resyncs; `TrackChanged` (also repeat one) closes the old play; `flush` closes the last one.
   - _Requirements: 14, 15_

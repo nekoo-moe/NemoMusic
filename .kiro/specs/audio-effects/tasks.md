@@ -9,7 +9,7 @@
   - Checks: unit tests that `Default` turns every effect and the transition off, and that the documented ranges (gain -12 to +12 dB, delay 1 to 2000 ms, feedback at most 85%, crossfade 1 to 12 s) are the constants the clamp code will use.
   - Steering: `structure.md`, `nemo-core` ownership line: add the effects types and `GaplessPolicy`. ADR 0004: no edit (Decision 4 rows 1 to 4 already list them).
 
-- [ ] 2. Add the new `ProcessingStage` values
+- [x] 2. Add the new `ProcessingStage` values
   - Crate and files: `nemo-core`: `src/audio.rs`; `nemo-ui`: `src/signal.rs` (match arms only). Touches nemo-core/src/audio.rs (soundcloud's `Origin::SoundCloud` task also edits it; one at a time).
   - Does: Replaces the unit `Equalizer` with `Equalizer { preamp_tenth_db, auto_preamp }` and adds `Delay { time_ms }`, `Reverb`, `Crossfade { seconds, running }`, `Clipped { samples }` and `ReplayGain { db }` (row 3; `Gain` stays the volume stage). `ProcessingStage` stays `Copy`. `nemo-ui` gets plain labels so the build stays green; the real lines come in task 22.
   - _Requirements: 4_

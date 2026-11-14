@@ -19,11 +19,18 @@ use crate::player::{PlayerCommand, PlayerEvent, PlayerSnapshot};
 use crate::stream::{ResolvedStream, StreamError};
 use crate::track::Artwork;
 
-/// A seekable stream of bytes, for example an HTTP resource read with range requests.
+/// A stream of bytes, for example an HTTP resource read with range requests. Most sources seek;
+/// a live stream reports [`is_seekable`](Self::is_seekable) `false`.
 /// Reads may block: the decode thread calls them, never the audio callback.
 pub trait ByteSource: Read + Seek + Send + Sync {
     /// Total size in bytes, if the source knows it.
     fn byte_len(&self) -> Option<u64>;
+
+    /// Whether the decoder may seek this source. `true` unless the source says otherwise; a live
+    /// stream returns `false` so it is never seeked.
+    fn is_seekable(&self) -> bool {
+        true
+    }
 }
 
 /// Opens a resolved stream for reading.

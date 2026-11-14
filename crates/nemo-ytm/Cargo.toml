@@ -29,23 +29,11 @@ reqwest = { version = "=0.13.5", default-features = false, features = ["blocking
 # Anonymous YouTube Music catalog (NoAuth token). `native-tls` matches the reqwest backend above.
 ytmapi-rs = { version = "=0.3.4", default-features = false, features = ["native-tls", "simplified-queries"] }
 
-# OS credential store (tech.md, Credential store row). `keyring-core` is the store API; the
-# backend is per platform below.
-keyring-core = { version = "=1.0.1", default-features = false }
-
-# Windows Credential Manager.
-[target.'cfg(windows)'.dependencies]
-windows-native-keyring-store = { version = "=1.1.0", default-features = false }
-
-# Linux Secret Service (GNOME Keyring, KWallet) over D-Bus. Pure Rust (`zbus`), no libdbus.
-# `crypto-rust` only: zbus then runs its own executor thread, so the blocking calls are safe
-# from inside the app's tokio runtime.
-[target.'cfg(target_os = "linux")'.dependencies]
-zbus-secret-service-keyring-store = { version = "=1.0.1", default-features = false, features = ["crypto-rust"] }
-
 [dev-dependencies]
 nemo-audio.workspace = true
 # `MemoryStore` for the `Vault` and account tests.
 nemo-core = { workspace = true, features = ["test-util"] }
+# The real credential store, for the hand-run diagnostics in `tests/` only.
+nemo-secrets.workspace = true
 proptest.workspace = true
 tokio = { version = "=1.54.1", default-features = false, features = ["rt-multi-thread", "time", "macros"] }

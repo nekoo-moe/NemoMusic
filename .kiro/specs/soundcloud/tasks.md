@@ -2,7 +2,7 @@
 
 Cross-spec ids written `<spec>#?` name the task in that spec that adds the ADR 0004 Decision 4 row given in brackets; the number is filled in once that spec's `tasks.md` is committed.
 
-- [ ] 1. Add `Origin::SoundCloud` and `MediaUrl` to nemo-core
+- [x] 1. Add `Origin::SoundCloud` and `MediaUrl` to nemo-core
   - Crate and files: `nemo-core` (touches nemo-core/src/audio.rs, nemo-core/src/track.rs); the exhaustive `match` arms this breaks in `nemo-audio` and `nemo-ui`.
   - Does: `Origin::SoundCloud` always maps to `QualityClass::Lossy`, never lossless. `MediaUrl::parse` accepts https only, no user or password in the URL, and a host that matches the given list (exact or `*.suffix`).
   - _Requirements: 8, 15_
@@ -20,7 +20,7 @@ Cross-spec ids written `<spec>#?` name the task in that spec that adds the ADR 0
   - Checks: existing tests pass unchanged apart from literals; bit-exact test.
   - Steering: none
 
-- [ ] 3. Add `ByteSource::is_seekable` and forward it through `MediaAdapter`
+- [x] 3. Add `ByteSource::is_seekable` and forward it through `MediaAdapter`
   - Crate and files: `nemo-core` (touches nemo-core/src/services.rs), `nemo-audio/src/source.rs`.
   - Does: defaulted method returning `true`; `MediaAdapter::is_seekable` reports it to `symphonia` so a live stream is not seeked. No change on the audio callback path.
   - _Requirements: 23_

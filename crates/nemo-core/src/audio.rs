@@ -4,6 +4,8 @@
 //! a YouTube Music stream is never [`QualityClass::Lossless`], and a path is bit-perfect only
 //! when nothing alters the samples.
 
+use crate::effects::TransitionKind;
+
 /// Thin space used between a number and its unit (`design.md`, Typography).
 const THIN_SPACE: char = '\u{2009}';
 
@@ -64,6 +66,8 @@ pub enum Origin {
     Local,
     /// A YouTube Music stream. Always lossy.
     YoutubeMusic,
+    /// A public SoundCloud stream, found through the `yt-dlp` URL resolver. Always lossy.
+    SoundCloud,
 }
 
 /// Sample rate, channel count and (when known) bit depth of PCM audio.
@@ -104,12 +108,12 @@ pub enum QualityClass {
 impl StreamInfo {
     /// Quality class under the honest-label rule.
     ///
-    /// A YouTube Music stream is always [`QualityClass::Lossy`], whatever the codec says.
-    /// [`QualityClass::Lossless`] needs a local file with a lossless codec.
+    /// A YouTube Music or SoundCloud stream is always [`QualityClass::Lossy`], whatever the
+    /// codec says. [`QualityClass::Lossless`] needs a local file with a lossless codec.
     #[must_use]
     pub const fn quality_class(&self) -> QualityClass {
         match self.origin {
-            Origin::YoutubeMusic => QualityClass::Lossy,
+            Origin::YoutubeMusic | Origin::SoundCloud => QualityClass::Lossy,
             Origin::Local => {
                 if self.codec.is_lossless() {
                     QualityClass::Lossless
@@ -185,13 +189,42 @@ pub enum ProcessingStage {
         /// Target rate in hertz.
         to_hz: u32,
     },
-    /// Software gain.
+    /// Software gain (the volume stage).
     Gain {
         /// Gain in decibels.
         db: f32,
     },
     /// Equalizer.
-    Equalizer,
+    Equalizer {
+        /// Preamp as applied, in tenths of a dB.
+        preamp_tenth_db: i16,
+        /// Whether the preamp was lowered automatically.
+        auto_preamp: bool,
+    },
+    /// Delay (echo).
+    Delay {
+        /// Delay time in ms.
+        time_ms: u16,
+    },
+    /// Reverb.
+    Reverb,
+    /// Song transition. Listed while the transition mode is on.
+    Crossfade {
+        /// The set crossfade length in seconds.
+        seconds: u8,
+        /// The transition running now, if one is.
+        running: Option<TransitionKind>,
+    },
+    /// Samples were clamped at full scale. Listed only when `samples` is above 0.
+    Clipped {
+        /// Clamped samples since the stream started.
+        samples: u64,
+    },
+    /// `ReplayGain` of the playing song, from its stored values.
+    ReplayGain {
+        /// Gain in decibels.
+        db: f32,
+    },
     /// Loudness normalization.
     Normalize,
     /// Dither.
@@ -275,6 +308,29 @@ mod tests {
     }
 
     #[test]
+    fn soundcloud_stream_is_never_lossless_even_with_a_lossless_codec() {
+        for codec in [
+            Codec::Flac,
+            Codec::Alac,
+            Codec::Pcm,
+            Codec::Opus,
+            Codec::Unknown,
+        ] {
+            let info = StreamInfo {
+                origin: Origin::SoundCloud,
+                codec,
+                bitrate_kbps: None,
+                format: Some(AudioFormat {
+                    sample_rate: 44_100,
+                    channels: 2,
+                    bit_depth: Some(16),
+                }),
+            };
+            assert_eq!(info.quality_class(), QualityClass::Lossy, "{codec:?}");
+        }
+    }
+
+    #[test]
     fn local_quality_follows_the_codec() {
         let mut info = flac_96_24();
         assert_eq!(info.quality_class(), QualityClass::Lossless);
@@ -340,6 +396,30 @@ mod tests {
             )
             .is_bit_perfect()
         );
+    }
+
+    #[test]
+    fn bit_perfect_is_false_with_each_effects_stage() {
+        let stages = [
+            ProcessingStage::Equalizer {
+                preamp_tenth_db: 0,
+                auto_preamp: false,
+            },
+            ProcessingStage::Delay { time_ms: 250 },
+            ProcessingStage::Reverb,
+            ProcessingStage::Crossfade {
+                seconds: 6,
+                running: None,
+            },
+            ProcessingStage::Clipped { samples: 1 },
+            ProcessingStage::ReplayGain { db: -6.5 },
+        ];
+        for stage in stages {
+            assert!(
+                !path(OutputMode::Exclusive, vec![stage]).is_bit_perfect(),
+                "{stage:?}"
+            );
+        }
     }
 
     #[test]

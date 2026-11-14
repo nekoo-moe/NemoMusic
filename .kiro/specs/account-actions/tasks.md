@@ -11,7 +11,7 @@ Tasks in other specs are cited by spec and the ADR 0004 Decision 4 row they own,
   - Checks: unit tests for `is_valid_key` (accepts `session-manifest`, `session-0`, `ytm/acct-1/part-0`; refuses empty, over 96 bytes, upper case, spaces, dots) and for `MemoryStore` (a value over `MAX_SECRET_BYTES` is refused). The existing `Vault` tests pass unchanged on `MemoryStore`.
   - Steering: `structure.md`: `nemo-core` gets feature `test-util`.
 
-- [ ] 2. Add the `nemo-secrets` crate with the platform stores
+- [x] 2. Add the `nemo-secrets` crate with the platform stores
   - Crate and files: new `nemo-secrets` (`Cargo.toml`, `src/lib.rs`, `src/windows.rs`, `src/linux.rs`); `nemo-ytm` (`src/credentials.rs`, `Cargo.toml`); `nemo-app` (`Cargo.toml`, store setup in its wiring); workspace `Cargo.toml` members.
   - Does: Moves `WindowsStore`, `SecretServiceStore`, `SERVICE` and the fixed error texts from `credentials.rs` into `nemo-secrets`, adds `open_platform_store()`, and has `nemo-app` hand the `Arc<dyn SecretStore>` to `Vault`. `nemo-ytm` drops `keyring-core` and both store crates and keeps only `Vault`.
   - _Requirements: none (groundwork)_
@@ -74,7 +74,7 @@ Tasks in other specs are cited by spec and the ADR 0004 Decision 4 row they own,
   - Checks: the default `resolve_with` returns what `resolve` returns.
   - Steering: none.
 
-- [ ] 9. Resolve through a `StreamRequest` in `nemo-audio`
+- [x] 9. Resolve through a `StreamRequest` in `nemo-audio`
   - Crate and files: `nemo-audio` (`src/prepare.rs`, `src/player.rs`); `nemo-app` (passes the default request).
   - Does: `PrepareDeps` gains the current `StreamRequest` and `prepare` calls `resolve_with` instead of `resolve`. The default request (automatic language, no Premium, no codec hint) keeps every resolver as it is today. The request is read on the prepare thread, never in the audio callback.
   - _Requirements: none (groundwork)_
