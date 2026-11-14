@@ -2,7 +2,7 @@
 
 Cross-spec ids written `<spec>#?` name the owner's task by its ADR 0004 Decision 4 row; replace `?` with the task number once that spec's `tasks.md` has landed. Task 1 is groundwork other specs depend on (row 17: cast, account-actions), and task 2 is the contract nemo-lyrics and lyrics-plus use (row 18).
 
-- [ ] 1. Add the downloads types to `nemo-core`
+- [x] 1. Add the downloads types to `nemo-core`
   - Crate and files: `nemo-core`: `src/downloads.rs` (new), `src/lib.rs`. Touches nemo-core/src/downloads.rs.
   - Does: Adds `SaveReason`, `CollectionRef`, `FailReason`, `SaveState`, `SaveRequest`, `StorageReport`, `DownloadEvent`, `RemovedReason`, `PauseReason`, `DownloadError` (`thiserror`), `DownloadReceiver` and the traits `DownloadService`, `OfflineStore` and `NetworkMode`, signatures as in the design. `CachedAudio.path` is a `Secret<PathBuf>`. No I/O.
   - _Requirements: none (groundwork)_
