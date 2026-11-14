@@ -15,6 +15,7 @@ use crate::format;
 use crate::keys::{KeyAction, LYRICS_OFFSET_STEP_MS};
 use crate::layout;
 use crate::lyrics_view::LineRole;
+use crate::settings::NowPlayingStyle;
 use crate::state::{Event, LyricsState};
 use crate::theme::{color, shape, type_scale};
 use nemo_core::lyrics::Granularity;
@@ -30,14 +31,29 @@ pub fn lyrics_viewport_height(_w: u32, h: u32) -> f32 {
     (h - 56.0 - 2.0 * gap::XL - 24.0).max(120.0)
 }
 
-/// The full-window Now Playing screen.
+/// The full-window Now Playing screen, drawn by the builder of the chosen style. Every style
+/// reads the same `App` state (position, lyrics offset and scroll, `compact_tab`), so a style
+/// change restarts nothing.
 pub fn view(app: &App, w: u32, h: u32) -> Element<'_, Message> {
-    let page = if layout::is_compact(w, h) {
+    #[expect(
+        clippy::match_same_arms,
+        reason = "Classic and Apple Music get their own builders in now-playing-styles tasks 5 and 6"
+    )]
+    let page = match app.ui.settings.now_playing_style {
+        NowPlayingStyle::M3Expressive => m3_expressive(app, w, h),
+        // Until their builders land, these styles draw today's look.
+        NowPlayingStyle::Classic | NowPlayingStyle::AppleMusic => m3_expressive(app, w, h),
+    };
+    stack![super::backdrop::full_backdrop(app), page].into()
+}
+
+/// The Material 3 Expressive look: art and lyrics side by side, or the compact column.
+fn m3_expressive(app: &App, w: u32, h: u32) -> Element<'_, Message> {
+    if layout::is_compact(w, h) {
         compact(app, w, h)
     } else {
         wide(app, w, h)
-    };
-    stack![super::backdrop::full_backdrop(app), page].into()
+    }
 }
 
 fn close_button<'a>() -> Element<'a, Message> {
@@ -357,3 +373,6 @@ fn lyrics_panel(app: &App, width: f32, viewport_h: f32) -> Element<'_, Message> 
     .width(Length::Fixed(width))
     .into()
 }
+
+#[cfg(test)]
+mod tests;

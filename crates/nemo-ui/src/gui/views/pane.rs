@@ -22,6 +22,7 @@ use super::shell::pane_surface;
 use crate::format;
 use crate::layout;
 use crate::route::Route;
+use crate::settings::NowPlayingStyle;
 use crate::signal;
 use crate::state::{Event, LyricsState};
 use crate::theme::{color, shape, type_scale};
@@ -31,7 +32,7 @@ use crate::theme::{color, shape, type_scale};
 pub fn view(app: &App, full_w: f32, slot: Length) -> Element<'_, Message> {
     let bg = super::backdrop::pane_background(app);
     let body: Element<'_, Message> = if app.ui.snapshot.current.is_some() {
-        playing(app, full_w)
+        playing_in_style(app, full_w)
     } else {
         empty(app, full_w)
     };
@@ -43,6 +44,20 @@ pub fn view(app: &App, full_w: f32, slot: Length) -> Element<'_, Message> {
         bg,
     )
     .into()
+}
+
+/// The playing pane, drawn by the builder of the chosen style. The empty pane is the same in
+/// every style: it shows no Now Playing facts.
+#[expect(
+    clippy::match_same_arms,
+    reason = "Classic and Apple Music get their own builders in now-playing-styles tasks 5 and 6"
+)]
+fn playing_in_style(app: &App, width: f32) -> Element<'_, Message> {
+    match app.ui.settings.now_playing_style {
+        NowPlayingStyle::M3Expressive => playing(app, width),
+        // Until their builders land, these styles draw today's look.
+        NowPlayingStyle::Classic | NowPlayingStyle::AppleMusic => playing(app, width),
+    }
 }
 
 /// Nothing is playing: a short line about it, then what is useful. The recent songs come first;
