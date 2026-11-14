@@ -10,5 +10,6 @@ doc-valid-idents = [
     "CoreAudio",
     "PipeWire",
     "SQLite",
+    "SoundCloud",
     "..",
 ]

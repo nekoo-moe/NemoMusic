@@ -47,7 +47,7 @@ Cross-spec ids written `<spec>#?` name the task in that spec that adds the ADR 0
   - Checks: none beyond the usual.
   - Steering: none
 
-- [ ] 6. Create the `nemo-soundcloud` crate skeleton
+- [x] 6. Create the `nemo-soundcloud` crate skeleton
   - Crate and files: new `crates/nemo-soundcloud` (`lib.rs`, `hosts.rs`, `opt_in.rs`); workspace member list.
   - Does: `HOSTS` (the four design hosts until the capture of task 7 replaces them), the `OptInInfo` for the switch (sends search text and page URLs through `yt-dlp`, the hosts, the draft risk text, `version` 1, `default_on` false). Depends on `nemo-core` only.
   - _Requirements: 1_

@@ -18,6 +18,7 @@ NemoMusic/
     nemo-library/       # local files, SQLite, tags, scanning
     nemo-ytm/           # YouTube Music client, login, SponsorBlock, YTM lyrics
     nemo-lyrics/        # lyrics providers, parsers, matching, cache (proposed, ADR 0002)
+    nemo-soundcloud/    # SoundCloud catalog of public tracks, through the yt-dlp URL resolver
     nemo-ui/            # iced views, theme, widgets, album-art effects
     nemo-app/           # binary: wiring, config, logging, startup
   assets/               # fonts/, icons/, shaders/, images/ (with licenses)
@@ -34,6 +35,7 @@ NemoMusic/
 - nemo-ytm: `ytmapi-rs` catalog calls, `yt-dlp` stream resolver, Google sign-in and credential handling, account data fetch, SponsorBlock `SegmentSource`, the YTM timed-lyrics provider, rate limiting. Returns `nemo-core` types. Owns the ToS risk notice text.
 - nemo-signin: small binary that opens Google's sign-in page in a webview window (wry + tao; WebView2 on Windows, WebKitGTK on Linux), waits until YouTube Music is reached, and writes the session cookies to its stdout pipe for `nemo-ytm`. No other logic. Depends on no `nemo-*` crate. Shipped next to `nemo-app` (`nemo-app.exe` on Windows).
 - nemo-lyrics: other `LyricsProvider` implementations (LRCLIB and more), LRC and enhanced-LRC parsers, match scoring, fallback chain. The `LyricsProvider` and `SegmentSource` traits live in `nemo-core`. Depends only on `nemo-core`.
+- nemo-soundcloud: the SoundCloud catalog (public tracks only, no sign-in), its host list and its opt-in settings entry. Never starts a process or opens a socket: search, pages and streams go through the `nemo-core` URL-resolver trait that `nemo-ytm` implements with `yt-dlp`. Depends only on `nemo-core`.
 - nemo-ui: all iced code, theme, fonts, widgets, animations. Talks to the player only through `PlayerCommand` and `PlayerEvent`.
 - nemo-app: `main`, config file, tracing setup, crate wiring, packaging metadata. No business logic.
 
@@ -48,13 +50,14 @@ nemo-app
  ├─> nemo-library ─> nemo-core
  ├─> nemo-ytm ─────> nemo-core
  ├─> nemo-lyrics ──> nemo-core
+ ├─> nemo-soundcloud ─> nemo-core
  └─> nemo-core
 ```
 
 Rules:
 - nemo-audio MUST NOT depend on nemo-ui, nemo-library, or nemo-ytm. Audio receives a stream or file source through a `nemo-core` trait.
 - nemo-ui MUST NOT depend on nemo-audio, nemo-library, or nemo-ytm directly. It uses `nemo-core` traits and messages; `nemo-app` supplies the implementations.
-- Library, ytm and lyrics crates MUST NOT depend on each other.
+- Library, ytm, lyrics and soundcloud crates MUST NOT depend on each other.
 - No cycles. `nemo-core` depends on no other `nemo-*` crate.
 - Check with `cargo tree -p <crate> --edges normal` before merging a dependency change.
 
