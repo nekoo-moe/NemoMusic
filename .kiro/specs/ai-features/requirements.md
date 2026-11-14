@@ -18,11 +18,11 @@ NemoMusic can suggest songs and write a short reading of the user's music taste,
 2. WHEN the user sets up a provider, THE SYSTEM SHALL ask for an endpoint URL, a model name and an API key (the key is optional for a local server).
 3. THE SYSTEM SHALL talk to the endpoint with the OpenAI-style chat completions request shape (`/v1/chat/completions`, as local servers such as Ollama accept it).
 4. THE SYSTEM SHALL store the API key in the OS credential store only, and SHALL NOT write it to a file, a log, an error message or the clipboard.
-5. THE SYSTEM SHALL require HTTPS for an endpoint, except for a loopback address (`localhost`, `127.0.0.1`, `::1`), where plain HTTP is allowed.
+5. THE SYSTEM SHALL require HTTPS for an endpoint. Plain HTTP SHALL be allowed for a loopback address (`localhost`, `127.0.0.1`, `::1`), and for a private LAN address written as an IP number (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16, `fc00::/7`, `fe80::/10`), where THE SYSTEM SHALL show a warning that the text crosses the local network unencrypted and SHALL ask the user to confirm before it saves the provider. A host name other than `localhost` SHALL need HTTPS.
 6. WHEN the user saves a provider, THE SYSTEM SHALL show the host name it will send data to, and a short text: what you send leaves this computer for that host, and its owner's terms apply.
 7. WHEN the user chooses "Test connection", THE SYSTEM SHALL send a fixed test message with no user data and show success or the short error.
 8. WHEN the user chooses "Remove provider", THE SYSTEM SHALL delete the endpoint, the model name and the key, and every AI feature SHALL disappear again.
-9. THE SYSTEM SHALL NOT ship with a default endpoint, a default key or a hosted proxy. The project runs no server.
+9. THE SYSTEM SHALL NOT ship with a default endpoint, a preset provider list, a default key or a hosted proxy. The user may set any endpoint. The project runs no server.
 10. WHEN the user signs out of YouTube Music, THE SYSTEM SHALL keep the provider settings, because they are not account data. AI results derived from account data (for example a taste reading) SHALL be deleted.
 
 ### Consent and disclosure
@@ -42,8 +42,8 @@ NemoMusic can suggest songs and write a short reading of the user's music taste,
 
 ### Taste reading
 
-20. WHEN the user picks "Read my taste", THE SYSTEM SHALL offer the sources to send (top songs from the listening-stats history, liked songs, or a chosen playlist) and show the list before sending.
-21. WHERE the listening-stats history is off or empty, THE SYSTEM SHALL offer only the other sources.
+20. WHEN the user picks "Read my taste", THE SYSTEM SHALL offer the sources to send (top artists and play counts from the listening-stats history while it is on, liked songs, or a chosen playlist) and SHALL show the exact list in the payload preview before sending.
+21. WHERE the listening-stats recording is off or the history is empty, THE SYSTEM SHALL offer only the other sources and SHALL NOT read the history.
 22. WHEN the reading arrives, THE SYSTEM SHALL show it as text labelled with the model name and the host, and save it on this computer only until the user deletes it.
 
 ### Errors and offline
@@ -65,13 +65,13 @@ NemoMusic can suggest songs and write a short reading of the user's music taste,
 
 ## Open Questions
 
-1. Lyrics and AI (conflict with `coc.md`). `coc.md` says lyrics are never exported or redistributed. Sending lyric lines to a cloud endpoint for translation may count as export. The owner must decide: allow it only for a loopback endpoint, allow any endpoint with a lyrics-specific disclosure, or disallow it. The lyrics-plus spec must follow this decision.
-2. Hosts. The README says every host is named. Is "the endpoint you set" enough, or must the owner approve preset providers (for example OpenAI or a named cloud)? This spec proposes no presets.
-3. Is HTTP on a private LAN address (a model server on another computer) allowed, or only loopback (criterion 5)?
-4. May a taste reading use the listening-stats history (criterion 20)? It sends the user's top songs to the endpoint, which reveals listening habits. Proposal: yes, after the preview and consent in criteria 11 and 12.
-5. The design must settle: API key lookup per provider, model list discovery (if the server offers it, unverified), request size and timeout limits, and prompt injection from song titles in the answer (titles are data, never instructions).
-6. Exists today: no AI code and no AI settings. The OS credential store (`keyring-core`, in `crates/nemo-ytm/src/credentials.rs`) and `reqwest` are candidates to reuse.
+Decided by the owner on 2026-11-14:
+- The user may set any endpoint. There are no preset providers (criterion 9), and "the endpoint you set" is enough for the README egress list (criterion 28).
+- HTTPS is required, except plain HTTP for loopback, and for private LAN addresses with a warning (criterion 5).
+- The taste reading may use listening-stats data (top artists and counts) while stats are on, and shows it in the payload preview before sending (criteria 20 and 21).
+- Lyrics and AI: `coc.md` (Owner Decisions, 2026-11-14) lets the lyrics of the song on screen go to the user's endpoint for translation, only after the user turns it on and reads a warning. No other feature sends lyrics. The lyrics-plus spec owns that flow and uses the provider settings here.
 
+The design settles the API key lookup, model list discovery, request size and timeout limits, and how song titles in an answer are kept from acting as instructions (titles are data).
 <!-- Sources:
 - .kiro/steering/product.md (Approved additions: ai-features, lyrics-plus), coc.md (User Privacy; Owner Decisions 2026-11-14; lyrics rule)
 - https://docs.ollama.com/api/openai-compatibility (OpenAI-compatible /v1/chat/completions on a local server, key required but ignored)

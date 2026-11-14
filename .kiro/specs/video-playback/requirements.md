@@ -41,7 +41,10 @@ The user can watch the music video of a song inside NemoMusic, in up to 1080p, w
 27. WHERE the user has reduced motion on, THE SYSTEM SHALL switch between cover and video with no transition, and SHALL NOT autoplay animated covers.
 28. WHEN any video control is used, THE SYSTEM SHALL be operable by keyboard alone, with a visible focus and an accessible name.
 29. WHEN a new network host is used for video or subtitles, THE SYSTEM SHALL list it in the README egress list in the same change. Expected: the YouTube video hosts that `yt-dlp` returns (`*.googlevideo.com`), which music playback already uses, and `www.youtube.com`. The design confirms the final set.
-30. WHEN the app builds, THE SYSTEM SHALL add no dependency that makes the project's licence or the Windows or Linux build unusable. The owner approves the video decoder before the design.
+30. WHEN the app builds, THE SYSTEM SHALL add no dependency that makes the project's licence (GPL-3.0) or the Windows or Linux build unusable. The video decoder is libmpv. Its licence is LGPL-2.1-or-later or GPL-2.0-or-later, depending on the build, and it needs a `deny.toml` exception that the owner approves before it merges.
+
+31. THE SYSTEM SHALL prove libmpv in a spike task on Windows and on Linux (frames decoded to memory, shown in an `iced` window, no audio output from libmpv) before any other video task starts. IF the spike fails on either system, THEN no further video task SHALL start until the owner picks another decoder.
+32. THE SYSTEM SHALL take subtitles from YouTube captions, the same source as the captions lyrics provider in `nemo-ytm`. WHEN a caption track is auto-generated, THE SYSTEM SHALL label it "auto-generated" in the menu.
 
 ## Out of Scope
 
@@ -50,22 +53,14 @@ The user can watch the music video of a song inside NemoMusic, in up to 1080p, w
 - Picture-in-picture and casting video (`cast` is a separate spec).
 - Video effects, filters, upscaling and HDR or 4K.
 - Video on Cast or DLNA devices.
-- Moving the audio path to the video library. Audio still goes through `nemo-audio` unless the owner decides otherwise (Open Question 2).
+- Moving the audio path to the video library. Audio goes through `nemo-audio`, with the audio clock as master (owner, 2026-11-14).
 
 ## Open Questions
 
-1. Video decoder (the big unknown). `tech.md` rejected `ffmpeg` bindings for audio (large C dependency, Windows build pain). Candidates, with unverified details to settle in the design:
-   - libmpv: mpv is GPL-2.0-or-later by default and LGPL-2.1-or-later when built without GPL parts; prebuilt Windows LGPL libmpv builds exist from third parties (zhongfly/mpv-winbuild). Build cost: one DLL to ship, a C API wrapper crate, and the render path into `iced`.
-   - GStreamer: LGPL-2.1, plugins have their own licences; heavy runtime to ship on Windows, but there are Rust bindings (`gstreamer-rs`).
-   - FFmpeg (through a binding crate or the CLI): LGPL-2.1+ or GPL, depending on build flags; large shared libraries, long Windows build.
-   - Platform APIs: Media Foundation on Windows, GStreamer or VA-API on Linux; no new C library on Windows, but two code paths and gaps in VP9 and AV1.
-   - A pure-Rust or subprocess option (for example a helper process that only decodes frames): unverified; none known for VP9 or AV1 at 1080p.
-   YouTube serves H.264, VP9 and AV1, so the choice must cover VP9 at least. Which licence is acceptable? The project licence is not stated in the steering files.
-2. Audio path: confirm that audio stays on `nemo-audio` (decode, ring buffer, output) and the video decoder only decodes frames, with the audio clock as master. The alternative (the video library plays the audio itself) would break bit-perfect output and the badge, and I recommend against it.
-3. Frame output: how are frames shown in an `iced` 0.14 window (texture upload, shader widget, or a native child window), and what does that cost on a 150% and 200% display?
-4. Subtitles: which source (`yt-dlp` subtitle files, innertube captions, auto-generated captions) and which format (WebVTT, TTML)? Are auto-generated captions shown, and how are they labeled?
-5. Does the "Auto, capped at 720p" default match the owner's wish, or should Auto go to 1080p?
-6. A video stream for a song needs a second `yt-dlp` format request. Is the extra request acceptable under the human-paced rule?
+Decided on 2026-11-14 (owner): libmpv first, proven by a spike on Windows and Linux. Audio stays on `nemo-audio` with the audio clock as master, and video frames follow it. "Auto" is capped at 720p. Subtitles come from YouTube captions.
+
+1. Frame output: how are frames shown in an `iced` 0.14 window (texture upload or shader widget), and what does that cost at 150% and 200% display scale? The spike measures it.
+2. A video stream for a song needs a second `yt-dlp` run (its answer lists every format and the captions). The design asks for it once, when the user first turns video on for a song.
 
 <!-- Sources:
 - Repo: .kiro/steering/product.md, tech.md (ffmpeg rejected, line 21), coc.md; crates/nemo-audio/src/decoder.rs

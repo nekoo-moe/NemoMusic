@@ -1,6 +1,6 @@
 ## Goal
 
-NemoMusic reaches past the music catalog when the user asks. Search can cover all of YouTube, with videos and channels next to songs. Live stations and live streams play like any other source. Now Playing can show YouTube comments, and a signed-in user can post, reply and like. Dislike counts from Return YouTube Dislike can appear next to a video. A chart source, chart.simpmusic.org, can add charts. Each part is opt-in and says what it contacts.
+NemoMusic reaches past the music catalog when the user asks. Search can cover all of YouTube, with videos and channels next to songs. Live stations and live streams play like any other source. Now Playing can show YouTube comments, and a signed-in user can post, reply and like. Dislike counts from Return YouTube Dislike can appear next to a video. Each part is opt-in and says what it contacts.
 
 ## User Stories
 
@@ -9,7 +9,6 @@ NemoMusic reaches past the music catalog when the user asks. Search can cover al
 - As a listener, I want to read comments on the song, so that I can see what others say.
 - As a signed-in user, I want to post, reply and like comments, so that I can join in without a browser.
 - As a listener, I want to see the dislike count, so that I can judge a video before I play it.
-- As a listener, I want extra charts, so that I can see what is popular elsewhere.
 
 ## Acceptance Criteria
 
@@ -34,15 +33,13 @@ NemoMusic reaches past the music catalog when the user asks. Search can cover al
 19. WHEN the service answers 429, THEN THE SYSTEM SHALL stop asking for a while and show nothing instead of a wrong count.
 20. IF the service is down or has no data (404), THEN THE SYSTEM SHALL show "Unknown", never zero.
 21. WHEN a count is shown, THE SYSTEM SHALL label it "Estimated by Return YouTube Dislike" with a link to returnyoutubedislike.com.
-22. THE SYSTEM SHALL provide a setting "Extra charts", off by default. WHERE it is on, THE SYSTEM SHALL show charts from chart.simpmusic.org in the Charts area, credited by that name and URL.
-23. THE SYSTEM SHALL NOT name any NemoMusic feature after the chart source or the app it belongs to.
-24. IF the chart source cannot be reached, THEN THE SYSTEM SHALL keep the built-in Charts and show a one-line notice.
-25. WHEN a chart entry has no playable match, THE SYSTEM SHALL show it greyed out and SHALL NOT guess a different song silently.
-26. WHEN the user signs out, THE SYSTEM SHALL delete cached comments, cached dislike counts and any account-specific data from these features.
-27. THE SYSTEM SHALL keep every request human-paced and honor backoff signals.
-28. WHEN a new host is used, THE SYSTEM SHALL list it in the README egress list in the same change: `returnyoutubedislikeapi.com`, and the chart host if the owner confirms an API. `www.youtube.com` and `music.youtube.com` are already listed.
-29. WHEN any panel from this spec is open, THE SYSTEM SHALL be operable by keyboard alone, with a visible focus.
-30. WHERE the user has reduced motion on, THE SYSTEM SHALL show comment loading and the live marker without animation.
+22. WHEN the user signs out, THE SYSTEM SHALL delete cached comments, cached dislike counts and any account-specific data from these features.
+23. THE SYSTEM SHALL keep every request human-paced and honor backoff signals.
+24. WHEN a new host is used, THE SYSTEM SHALL list it in the README egress list in the same change: `returnyoutubedislikeapi.com`. `www.youtube.com` and `music.youtube.com` are already listed.
+25. WHEN any panel from this spec is open, THE SYSTEM SHALL be operable by keyboard alone, with a visible focus.
+26. WHERE the user has reduced motion on, THE SYSTEM SHALL show comment loading and the live marker without animation.
+27. WHEN the user first switches the scope to "All of YouTube", THE SYSTEM SHALL show a one-line note that results come from outside the music catalog, and SHALL show it once.
+28. WHEN a video result is queued, THE SYSTEM SHALL show it as a video item with its channel name, and the badge SHALL show the real codec and bitrate of its audio.
 
 ## Out of Scope
 
@@ -52,19 +49,21 @@ NemoMusic reaches past the music catalog when the user asks. Search can cover al
 - Uploading videos, and managing a channel.
 - Showing ads or ad-supported features.
 - Voting on dislikes through Return YouTube Dislike (sending the user's own vote). Read only.
-- Charts from services other than the one the owner named.
+- Extra charts from chart.simpmusic.org or any other external chart site (dropped by the owner, 2026-11-14). The built-in Charts stay as they are.
 
 ## Open Questions
 
-1. Chart source: https://chart.simpmusic.org loads, but I found no public API, data format, usage terms or licence. It is unverified whether it has an API a third party may use. Does the owner have a contact or documentation? Without it, this part stays blocked.
-2. Return YouTube Dislike: the README of the project allows third-party use of its open API with a link to returnyoutubedislike.com and per-client limits of 100 a minute and 10,000 a day (429 when exceeded). The data is partly estimated. Its Swagger page and terms page were not read. Confirm the terms before the design.
-3. Comments: `ytmapi-rs` does not appear to cover comments (unverified). Reading and posting may need raw innertube calls, or `yt-dlp` for reads. Which path, and what is the account-restriction risk for posting?
-4. Live: does `yt-dlp` return a playable audio-only HLS for live streams, and can the streaming decoder play HLS and an endless stream (gapless, no known length)? Does the signal-path view need a "Live" state?
-5. Search all of YouTube: which innertube search path returns videos and channels, and how are non-music videos shown in the queue and in the badge?
-6. Does "All of YouTube" need its own first-run note, since it leaves the music catalog?
+Decided by the owner on 2026-11-14:
+
+- The external chart site is dropped: its criteria and question are removed and it sits in Out of Scope.
+- Return YouTube Dislike's terms are confirmed in the design (attribution link, rate limits). The innertube calls for comments (read, post, reply, like) and for searching all of YouTube are checked in the design.
+
+Still open:
+
+1. Account risk of posting comments through the web innertube client. The design explains the calls; the owner decides whether posting ships in the first version or after a trial period.
+2. Whether `yt-dlp` today returns a live stream the decoder can play (the design needs a spike with a real live URL).
 
 <!-- Sources:
-- Repo: .kiro/steering/product.md, coc.md; crates/nemo-ytm/src/catalog.rs, feeds.rs; crates/nemo-core/src/catalog.rs (SearchResults)
+- Repo: .kiro/steering/product.md, coc.md; crates/nemo-ytm/src/catalog.rs, feeds.rs, innertube.rs, stream.rs; crates/nemo-core/src/catalog.rs (SearchResults); docs/adr/0004-feature-wave-crates.md
 - Return YouTube Dislike API terms, base URL, `/votes?videoId=`, rate limits: https://github.com/Anarios/return-youtube-dislike/blob/main/README.md
-- chart.simpmusic.org (no API found): https://chart.simpmusic.org and https://www.simpmusic.org/
 -->

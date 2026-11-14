@@ -1,6 +1,6 @@
 ## Goal
 
-The user brings a playlist from Spotify or another app into NemoMusic. They choose an export file, the app matches each song to YouTube Music, shows a review screen with the confidence of each match and lets the user fix them, and then saves the result as a YouTube Music playlist in the account or as a local playlist. Nothing is saved until the user confirms. The first version reads files. Reading a public link is a decision for the owner.
+The user brings a playlist from Spotify or another app into NemoMusic. They choose an export file, the app matches each song to YouTube Music, shows a review screen with the confidence of each match and lets the user fix them, and then saves the result as a local playlist first, or as a YouTube Music playlist in the account when the account-actions playlist editing is available. Nothing is saved until the user confirms. The first version reads exported files only.
 
 ## User Stories
 
@@ -34,33 +34,39 @@ The user brings a playlist from Spotify or another app into NemoMusic. They choo
 20. WHEN the import finishes, THE SYSTEM SHALL keep no copy of the imported file and no match history after the review screen closes, other than the saved playlist.
 21. WHEN the user signs out, THE SYSTEM SHALL delete any import still in progress.
 22. WHILE the import screen is open, THE SYSTEM SHALL reach every action by keyboard with a visible focus, and SHALL honor the reduced-motion setting for progress.
-23. WHEN the README is read, THE SYSTEM SHALL state that file import contacts only hosts already listed (`music.youtube.com`), and list any host added for link import.
+23. WHEN the README is read, THE SYSTEM SHALL state that file import contacts only hosts already listed (`music.youtube.com`).
+24. WHEN the user picks a TuneMyMusic file, THE SYSTEM SHALL read it only if its format was verified against a real export; otherwise THE SYSTEM SHALL say the format is not supported.
+25. WHEN a song's file row has an ISRC and ISRC search is enabled, THE SYSTEM SHALL try the ISRC as the search text first and accept a candidate only if its title and duration also agree; otherwise it SHALL search by title and artist.
+26. WHEN the account-actions playlist editing is not built yet, THE SYSTEM SHALL offer only the local playlist.
 
 ## Out of Scope
 
 - Exporting a NemoMusic playlist to another app.
 - Importing liked songs, albums, artists or podcasts (playlists only).
-- Importing from a service's private API, or logging in to another service for the user.
+- Importing from a service's private API, or logging in to another service for the user. This includes Spotify sign-in.
+- Importing from a playlist link, public or not.
+- XML, JSON, XSPF and plain-text files in the first version.
 - Matching with a paid or hosted matching service, and any server run by the project.
 - Syncing playlists after the import.
 - Playlists of local files (the `local-library` spec).
 
 ## Open Questions
 
-1. Public link. Spotify's Web API today: a Development Mode app needs the app owner to have Premium, allows 5 allowlisted users, and from March 2026 returns playlist items only for playlists the user owns or collaborates on (Spotify's February 2026 migration guide). A project with no server has no shared client id, and each user would have to register an app. So a link to someone else's public playlist cannot be read through the official API. Reading the public web page or embed instead is unverified and may break Spotify's terms. Does the owner want link import at all? Proposal: no, files only in version one.
-2. If Spotify sign-in is wanted (the lyrics-plus spec already plans the user's own Spotify sign-in), should it also read the user's own playlists here? It would need a client id the user supplies, plus the hosts `accounts.spotify.com` and `api.spotify.com` (unverified), opt-in and off by default.
-3. Other file formats. The Soundiiz export page lists CSV, XML, JSON, TXT, URL and XSPF. TuneMyMusic's file export format is unverified. Which to support first? Proposal: CSV, then XSPF and plain "title - artist" text.
-4. ISRC. Exportify and Soundiiz CSV include it. Unverified: whether YouTube Music search can return or filter by ISRC. If not, ISRC only helps when a matched candidate carries one. The design settles how matching uses it.
-5. Matching quality. Proposed thresholds for high, medium and low need real playlists to tune. Which sample set does the owner supply?
-6. Where matching lives. `structure.md` has no crate for it. `nemo-ytm` owns catalog calls but must not depend on other crates; a parser could sit in `nemo-core` or a new crate. Design decides.
-7. Dependency: playlist creation in the account needs the playlist editing of the `account-actions` spec. Should this spec wait for it, or ship local-only first?
-8. Volume: a 1,000-song playlist at one search at a time takes a long while. Is a hard limit per import wanted, so the pace stays polite?
+Decided by the owner on 2026-11-14:
+
+- Files only: Exportify CSV, Soundiiz CSV, and TuneMyMusic only if its format is verified. No link import, no Spotify sign-in (former Open Questions 1, 2, 3).
+- Save to a local playlist first; saving to YouTube Music uses the playlist editing of the `account-actions` design (7).
+- ISRC is used only if YouTube Music search can use it (4). The design records what was checked.
+
+
+Still open:
+
+1. Matching quality. The thresholds for high, medium and low need real playlists to tune. Which sample set does the owner supply?
+2. Volume. The design proposes no hard limit and a notice above 500 songs; the owner may want a hard limit instead.
 
 <!-- Sources:
-.kiro/steering/product.md (Scope; playlist-import), .kiro/steering/coc.md (Forbidden Features; User Privacy)
+.kiro/steering/product.md (Scope; playlist-import), .kiro/steering/coc.md (Forbidden Features; User Privacy), docs/adr/0004-feature-wave-crates.md
 crates/nemo-core/src/catalog.rs (Catalog trait, search, playlists)
 https://github.com/watsonbox/exportify (CSV field list, includes ISRC)
 https://support.soundiiz.com/hc/en-us/articles/38063068900754-How-to-Export-Your-Playlists-and-Favorites-to-a-File (formats and playlist CSV columns)
-https://developer.spotify.com/documentation/web-api/tutorials/february-2026-migration-guide (playlist items only for owned or collaborative playlists; Premium owner; 5 users)
-https://developer.spotify.com/documentation/web-api/concepts/quota-modes (development vs extended quota; organisations only, 250k MAU)
 -->

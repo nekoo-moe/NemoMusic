@@ -31,27 +31,37 @@ The user searches SoundCloud next to YouTube Music, opens track, playlist and us
 18. WHEN the reduced-motion setting is on, THE SYSTEM SHALL show SoundCloud screens with no added motion.
 19. WHEN the README is read, THE SYSTEM SHALL list each SoundCloud host, why it is contacted, and that it is contacted only when SoundCloud is on.
 20. THE SYSTEM SHALL NOT save SoundCloud tracks for offline use.
+21. THE SYSTEM SHALL play public SoundCloud tracks only, and SHALL offer no SoundCloud sign-in, cookie or token entry.
+22. WHEN SoundCloud offers several audio formats for a track, THE SYSTEM SHALL pick, among the formats the decoder can play, the one that ranks best by how it sounds (codec efficiency and bitrate), not the one with the highest bitrate number alone, and SHALL prefer a plain file over an HLS stream of the same codec.
+23. WHEN the chosen SoundCloud stream is HLS, THE SYSTEM SHALL play it through the same output path, with seek by segment, and SHALL show the real codec and bitrate in the badge.
+24. THE SYSTEM SHALL contact SoundCloud only through `yt-dlp`, the SoundCloud pages it needs for search and artwork, and hosts the owner approved from a network capture made during implementation.
 
 ## Out of Scope
 
-- SoundCloud sign-in, likes, reposts, followed artists, the user's own playlists and the SoundCloud home feed (see Open Questions 1).
+- SoundCloud sign-in of any kind, likes, reposts, followed artists, the user's own playlists and the SoundCloud home feed. A later spec may add them.
+- The official SoundCloud API and any shared or per-user API key.
 - Saving SoundCloud audio offline, uploading, commenting and following.
 - Any bypass of previews, Go+ limits or encrypted streams.
 - Lyrics for SoundCloud tracks, unless a provider matches by title and artist as it does today.
 
 ## Open Questions
 
-1. Sign-in. Proposal: out of scope for the first version. Only public content plays. Reason: the official route needs an app registration (see 3), and the unofficial route (a user's cookie or OAuth token passed to `yt-dlp`) adds a credential and an account-restriction risk. Owner decides whether likes and playlists come later.
-2. `yt-dlp` has a SoundCloud extractor. Its source lists the formats `http_aac`, `hls_aac`, `http_opus`, `hls_opus`, `http_mp3` and `hls_mp3`, and it scrapes a web `client_id` and caches it (a `yt-dlp` debug log shows "Loading soundcloud.client_id from cache"). Unverified here: that the pinned `yt-dlp` plays these in this app's decoder, since HLS is not a single file and `stream.rs` reads one ranged HTTPS file. The design needs a spike.
-3. Official API. SoundCloud's developer page says credentials need an Artist Pro subscription, so a project with no server and many users cannot hold one shared key. A per-user key is unusual. Unverified: whether the API terms allow a third-party desktop player. Candidate: do not use the official API.
-4. Formats today. SoundCloud's developer blog (version "Deadline Extended") plans to drop progressive MP3, HLS MP3 and HLS Opus on 2025-12-31 and keep HLS AAC at 160 and 96 kbps (the blog gives the plan, not a confirmed result). Unverified: what the public web serves today. The badge reads the real stream, so it needs no fixed list.
-5. Hosts, from `yt-dlp` and the SoundCloud blog, all unverified for the final list: `soundcloud.com`, `api-v2.soundcloud.com`, `*.sndcdn.com` (media and artwork; named in the blog's example URLs as `cf-media.sndcdn.com` and `cf-hls-media.sndcdn.com`) and `playback.media-streaming.soundcloud.cloud`. A network capture must settle the list. The owner approves it.
-6. Structure. `structure.md` has no crate for a second service and `nemo-core` has a `Source` of Local or Ytm only. Is the new code a new crate (candidate `nemo-soundcloud`) and does `Source` gain a variant? The `Catalog` trait in `nemo-core/src/catalog.rs` is built for YouTube Music pages; does SoundCloud implement it or get its own trait? `structure.md` dependency rules need an edit.
-7. The `yt-dlp` resolver today is anonymous (`--ignore-config`, no cookies) and picks `bestaudio` by `abr`. A 64 kbps Opus stream can sound better than 128 kbps MP3. Which stream does the app choose?
-8. Name and wording of the risk text. The owner has not approved the text.
+Decided by the owner on 2026-11-14:
+
+- Public tracks only, through `yt-dlp`. No sign-in in the first version (former Open Question 1) and no official API (3).
+- A new crate `nemo-soundcloud` and a SoundCloud Origin value (6).
+- The final host list comes from a network capture during implementation; the owner approves it then (5).
+- Stream choice ranks the playable formats by how they sound (7). The Opus decoder comes from the `local-library` design.
+- HLS must play (2); the design plans it. The format list the public web serves today (4) is read from the real stream, so the badge needs no fixed list.
+
+
+Still open:
+
+1. Wording of the risk text. The owner has not approved it; the design proposes a draft.
+2. Whether the pinned `yt-dlp` returns the formats listed in the design for public tracks today. The implementing task runs a spike first.
 
 <!-- Sources:
-.kiro/steering/product.md (Scope; Risks), .kiro/steering/coc.md (Honest Context; Owner Decisions 2026-11-14), .kiro/steering/structure.md
+.kiro/steering/product.md (Scope; Risks), .kiro/steering/coc.md (Honest Context; Owner Decisions 2026-11-14), .kiro/steering/structure.md, docs/adr/0004-feature-wave-crates.md
 crates/nemo-core/src/catalog.rs, crates/nemo-ytm/src/ytdlp.rs, stream.rs
 https://raw.githubusercontent.com/yt-dlp/yt-dlp/master/yt_dlp/extractor/soundcloud.py (format list, api-v2 base URL)
 https://github.com/yt-dlp/yt-dlp/issues/17335 (encrypted HLS tracks give a DRM error; yt-dlp nightly 2026.07.23 log)

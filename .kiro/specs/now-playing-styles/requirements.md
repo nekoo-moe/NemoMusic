@@ -1,6 +1,6 @@
 ## Goal
 
-The user picks one of three Now Playing styles in settings: Classic, Material 3 Expressive, or a redesigned Apple Music-style player with word-by-word lyrics. Where an animated cover exists (Spotify Canvas, Apple Music animated cover), the user can turn it on and see it as a short silent loop in place of the still cover. The look changes. Playback, the quality badge and the signal path do not. Reduced motion and the contrast rules stay.
+The user picks one of three Now Playing styles in settings: Classic, Material 3 Expressive, or a redesigned Apple Music-style player with word-by-word lyrics. Where an animated cover exists (Spotify Canvas), the user can turn it on and see it as a short silent loop in place of the still cover. Animated covers need the video decoder of the `video-playback` spec, so the first release ships still covers and the animated-cover interface only. Apple Music animated covers are Later. The look changes. Playback, the quality badge and the signal path do not. Reduced motion and the contrast rules stay.
 
 ## User Stories
 
@@ -22,7 +22,7 @@ The user picks one of three Now Playing styles in settings: Classic, Material 3 
 7. WHEN the style changes during playback, THE SYSTEM SHALL keep playing and keep the lyrics position without a gap.
 
 ### Classic
-8. THE SYSTEM SHALL show Classic as a calm column: large still cover, title, artist, seek bar and controls, with lyrics one tap away. It uses the existing tokens and no new color roles.
+8. THE SYSTEM SHALL show Classic as a calm column: large still cover, title, artist, seek bar and controls, with lyrics one tap away on a tab. It uses the existing tokens and no new color roles.
 
 ### Material 3 Expressive
 9. THE SYSTEM SHALL keep today's layout, canvas, per-piece lyric highlight and all of `design.md`, with no rule changed.
@@ -40,16 +40,17 @@ The user picks one of three Now Playing styles in settings: Classic, Material 3 
 
 ### Animated covers
 19. THE SYSTEM SHALL default animated covers to off, with one switch per source in Settings > Now Playing. A still cover always shows when the switch is off, no animation exists, or the video is not loaded yet.
+19a. UNTIL the video decoder of `video-playback` is part of the app, THE SYSTEM SHALL show the animated-cover switches as unavailable with the reason, and SHALL NOT look up or download any animated cover.
 20. WHEN the user turns on Spotify Canvas, THE SYSTEM SHALL first say that it uses the user's own Spotify sign-in, is unofficial, may restrict that account, and sends the song's Spotify track ID to Spotify.
 21. THE SYSTEM SHALL keep the Spotify credential in the OS credential store only, never in a file or log, and SHALL delete it, and every cached Canvas, on Spotify sign-out and on NemoMusic sign-out.
-22. WHEN the user turns on Apple Music animated covers, THE SYSTEM SHALL first say what it sends (the album name and artist, to Apple), that the access is unofficial, and that the app has no Apple sign-in.
+22. THE SYSTEM SHALL NOT offer Apple Music animated covers (Later). The official Apple Music API needs a developer token the project cannot ship and does not return them, so only unofficial page scraping would work (see Decided).
 23. WHEN a song plays, THE SYSTEM SHALL look for an animated cover only if its switch is on, and only for the song now playing, at human pace and without retry loops. A miss is cached locally as "none" for 7 days.
 24. WHEN an animated cover exists, THE SYSTEM SHALL play it silently in the cover slot in a loop, with the still cover under it and a cross-fade of at most 400 ms. THE SYSTEM SHALL NOT play its audio.
 25. WHILE the window is minimized, hidden, not on the Now Playing screen, or playback is paused, THE SYSTEM SHALL pause the loop and show the still frame.
 26. WHILE reduced motion is on (the setting or the OS), THE SYSTEM SHALL show the still cover only and SHALL NOT download the video.
 27. THE SYSTEM SHALL NOT use more than one video decoder at a time, SHALL stop it on style change, and SHALL NOT let a decoder stall delay audio.
 28. THE SYSTEM SHALL keep animated covers in the app's private cache only, never export them, cap their size, and delete them on sign-out of the source and on "Clear cache".
-29. THE SYSTEM SHALL label an animated cover as such ("Animated cover: Spotify" or "Animated cover: Apple Music") and SHALL NOT use it to claim any audio quality.
+29. THE SYSTEM SHALL label an animated cover as such ("Animated cover: Spotify") and SHALL NOT use it to claim any audio quality.
 30. IF the network is down, the host refuses, or the video cannot be decoded, THEN THE SYSTEM SHALL keep the still cover and show no error on the Now Playing screen, only a line in Settings.
 31. WHEN a new host is used, THE SYSTEM SHALL list it in the README egress list in the same change.
 
@@ -59,19 +60,22 @@ The user picks one of three Now Playing styles in settings: Classic, Material 3 
 - Animated covers for local files, SoundCloud songs and artist pages.
 - User-made animated covers or uploads.
 - Sound from an animated cover.
+- Apple Music animated covers (Later, see Decided).
 - Lyrics editing (the `lyrics-plus` spec) and the lyrics image.
 - Android Auto and phone lock-screen layouts.
 
 ## Open Questions
 
-1. What is "Classic"? The criteria assume a calm column with lyrics on a tab. Is there an older design the owner means?
-2. Decoder: Canvas and animated covers need a video decoder (Spotify Canvas is a short MP4, Apple's is HLS, both unverified in detail). They depend on the `video-playback` spec for that decoder. Does this spec wait for it, or may it ship a small decoder of its own? Candidates are unverified.
-3. Spotify Canvas: which host and request? Public write-ups mention a protobuf canvas service and a web GraphQL (Pathfinder) call, with an `sp_dc` cookie; both are unverified and have changed before. Sign-in method: webview cookie as for Google?
-4. Apple animated covers: the public Apple Music API has an `editorialVideo` attribute, but it needs a developer token the project cannot ship, and one forum thread says it is not returned. Tools instead read the HLS (`.m3u8`) address from the public album page. Which route is allowed, which host serves the video, and does it cover single songs or only albums (unverified)?
-5. Are animated covers off by default (as written, `product.md` principle 4, calm), or on once the source switch is on?
-6. Apple Music style: may it also use the animated cover as a full-window backdrop, or only in the cover slot?
-7. Does the Apple Music style need its own font sizes and spring values? They are design-phase choices that must be listed against `design.md` sections 8 to 10.
+Decided by the owner (2026-11-14):
+- "Classic" is the calm column with lyrics on a tab, as criterion 8 says. There is no older design to match.
+- Decoder: animated covers wait for `video-playback` (`nemo-video`). This spec defines the animated-art interface now and ships still covers first (criterion 19a).
+- Spotify Canvas goes through `nemo-spotify` and uses the user's own Spotify sign-in (criteria 20 and 21). The design picks the host, the request and the sign-in route.
+- Animated covers are off by default, with one switch per source (criterion 19).
+- Apple Music animated covers: feasibility checked on 2026-11-14. The public Apple Music API has an `editorialVideo` attribute, but it needs a developer token (a paid Apple developer account and a private key the project cannot ship), and an Apple forum thread reports it is not returned. The only working route in public tools is reading the HLS address from the public album page, which is unofficial scraping, covers albums only, and needs HLS playback. They are marked Later (criterion 22).
 
+Settled by the design, no owner decision needed:
+- The Apple Music style uses an animated cover only in the cover slot, never as a full-window backdrop. The backdrop may drift slowly (criterion 18).
+- Font sizes and spring values of the Apple Music style are listed against `design.md` sections 8 to 10 in the design.
 <!-- Sources:
 .kiro/steering/design.md sections 1, 6 to 10, 13, 15; .kiro/steering/product.md (principle 4, Approved additions); .kiro/steering/coc.md (Owner Decisions 2026-11-14)
 docs/ui-redesign.md sections 6c and 7; docs/ui-reference.md; crates/nemo-ui/src/gui/views/now_playing.rs, backdrop.rs, lyrics.rs; crates/nemo-ui/src/gui/app.rs (ToggleFullScreen); crates/nemo-ui/src/canvas.rs

@@ -30,12 +30,12 @@ The signed-in user can shape their YouTube Music account from NemoMusic. They ca
 14. WHEN the account switcher is used, THE SYSTEM SHALL show the active account by display name, never by e-mail or ID in logs.
 15. WHEN the user signs out of one account, THE SYSTEM SHALL delete only that account's credentials and cached data. WHEN the user signs out of all accounts, THE SYSTEM SHALL delete everything local that belongs to any account.
 16. WHEN the account switcher is opened, THE SYSTEM SHALL be reachable and operable by keyboard alone.
-17. THE SYSTEM SHALL provide a setting "Use Premium audio quality", off by default. It SHALL say plainly that the signed-in session is passed to `yt-dlp`, that this may restrict the account, and that it only works for accounts with Premium.
+17. THE SYSTEM SHALL provide a setting "Use Premium audio quality", off by default, with one switch. It SHALL say plainly that the signed-in session is passed to `yt-dlp`, that this may restrict the account, and that it only works for accounts with Premium.
 18. WHEN the setting is on and the active account has Premium, THE SYSTEM SHALL request the best audio the plan allows through the signed-in session.
 19. IF the account has no Premium, THEN THE SYSTEM SHALL play as before and SHALL NOT claim a higher quality.
 20. WHEN the setting is off, THE SYSTEM SHALL resolve streams without the session, as it does today.
 21. WHEN the session is passed to `yt-dlp`, THE SYSTEM SHALL keep it out of logs, command lines shown to the user, and files that outlive the process.
-22. IF the best stream uses a codec the decoder cannot play in this build, THEN THE SYSTEM SHALL choose the best playable stream. The badge SHALL show the codec and bitrate actually playing, or "Unknown".
+22. IF the best stream uses a codec the decoder cannot play in this build, THEN THE SYSTEM SHALL choose the best playable stream. The badge SHALL show the codec and bitrate actually playing, or "Unknown". Until the Opus decoder of `local-library` is in the build, Premium plays AAC. Once it is, THE SYSTEM SHALL choose Opus when its bitrate is at least that of the best AAC stream.
 23. WHEN a stream is YouTube, THE SYSTEM SHALL NOT label it lossless, "HD" or "Hi-Res", Premium or not.
 24. THE SYSTEM SHALL provide a setting "Preferred audio language". Its default is "Automatic" (the video's original track).
 25. WHEN a video offers several audio tracks and one matches the preferred language, THE SYSTEM SHALL play that track.
@@ -43,12 +43,16 @@ The signed-in user can shape their YouTube Music account from NemoMusic. They ca
 27. WHEN a video has several audio tracks, THE SYSTEM SHALL let the user switch track during playback.
 28. THE SYSTEM SHALL provide "Notify me about new releases from followed artists", off by default.
 29. WHEN the user turns it on, THE SYSTEM SHALL first say what is sent (the followed artists' channel IDs), to whom (`music.youtube.com`), and how often it checks.
-30. WHEN it is on, THE SYSTEM SHALL check no more often than once every few hours and only while the app is open.
+30. WHEN it is on, THE SYSTEM SHALL check no more often than once every 6 hours, only while the app is open, and with the cheapest call that finds new releases. It SHALL NOT call once per followed artist in a burst.
 31. WHEN a followed artist has a new release, THE SYSTEM SHALL add it to an in-app list. It SHALL NOT show a badge count, a popup or a sound.
 32. WHERE the user separately turns on OS notifications, THE SYSTEM SHALL send at most one notification per check, grouped.
 33. WHEN the user signs out, THE SYSTEM SHALL delete the notification list and its settings for that account.
 34. WHERE the user has reduced motion on, THE SYSTEM SHALL show account switches and list changes without animation.
 35. WHEN a new network host is used, THE SYSTEM SHALL list it in the README egress list in the same change. The hosts expected here are already listed (`music.youtube.com`, `www.youtube.com`, `accounts.google.com`).
+
+36. THE SYSTEM SHALL support up to 5 signed-in accounts at once, each with its own session, and SHALL say so when the limit is reached.
+37. WHEN the Premium setting ships, THE SYSTEM SHALL update ADR 0001 in the same change: the default stays anonymous and the setting is the one switch.
+38. WHILE it is not known whether the active account has Premium, THE SYSTEM SHALL learn it from the first stream resolved with the session. It SHALL NOT make an extra request to find out.
 
 ## Out of Scope
 
@@ -62,12 +66,11 @@ The signed-in user can shape their YouTube Music account from NemoMusic. They ca
 
 ## Open Questions
 
-1. Premium switch: ADR 0001 says anonymous resolution stays the default and the owner decided on 2026-11-14 to allow the session. Confirm "off by default, one switch in Settings" as the final default, and update ADR 0001 in the design change.
-2. Opus: `decoder::supported_stream_codecs()` lists AAC, FLAC, MP3 and PCM, because symphonia 0.6.1 has no Opus decoder. `tech.md` says an Opus decoder crate is "decided". A Premium stream may be Opus. Which decoder is added, or is Premium limited to AAC?
-3. Several accounts: ADR 0001 notes `ytmapi-rs` sends no `X-Goog-AuthUser`. One session per account looks enough, but needs a spike. How many accounts are supported, and does a switch need a new keyring manifest per account?
-4. Account-action endpoints: `ytmapi-rs` 0.3.4 offers like and playlist create. Unverified: whether it covers dislike, rename, description, privacy, add, remove and reorder, or whether raw innertube calls are needed.
-5. Release checks for followed artists: which call finds new releases cheaply and human-paced, and is "followed" the YouTube Music subscription list?
-6. Is a Premium check available without extra requests, or must the app learn it from the first stream?
+Decided on 2026-11-14 (owner): "Use Premium audio quality" is off by default with one switch. Premium plays AAC until the Opus decoder lands. Several accounts need a spike (one session per account) with a fallback. Raw innertube calls are used where `ytmapi-rs` 0.3.4 lacks an action. The release check uses the cheapest human-paced call, at most once every few hours, only while the app runs.
+
+1. Several accounts: does one cookie session per account work with `ytmapi-rs` (it sends no `X-Goog-AuthUser`), and does a second sign-in in a clean webview profile leave the first session valid? The spike settles it; the design lists the fallbacks.
+2. Release checks: which call is cheapest and personal enough (the new-releases page matched against the subscription list, or one browse per artist at a slow pace)? The spike settles it.
+3. Which marker in the `yt-dlp` answer tells that a format is Premium-only?
 
 <!-- Sources:
 - Repo: .kiro/steering/product.md, coc.md, tech.md; docs/adr/0001-youtube-music-auth.md; crates/nemo-app/src/merged.rs (rate_song), crates/nemo-ytm/src/session.rs (rate_song), crates/nemo-ytm/src/account.rs, crates/nemo-ytm/src/ytdlp.rs ("no cookies"), crates/nemo-audio/src/decoder.rs (supported_stream_codecs), crates/nemo-ui/src/gui/app.rs (CreateMsg, on_create_playlist)
