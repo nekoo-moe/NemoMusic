@@ -307,3 +307,34 @@ fn errors_and_debug_never_show_the_url() {
         "{text}"
     );
 }
+
+/// local-library#7: Opus is offered for streams now, and a `WebM` Opus file served by the
+/// loopback server plays to the end through the player's stream decoder over ranged reads.
+#[test]
+fn a_webm_opus_stream_plays_to_the_end_over_loopback() {
+    use nemo_audio::decoder::{decode_file, supported_stream_codecs};
+    use nemo_audio::stream_decoder::StreamDecoder;
+
+    assert!(supported_stream_codecs().contains(&Codec::Opus));
+    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../nemo-audio/tests/golden/opus-tone.webm");
+    let data = Arc::new(std::fs::read(&fixture).expect("fixture"));
+    let server = serve(&data);
+    let mut decoder = StreamDecoder::open(Box::new(open(&server)), None).expect("decoder");
+    assert_eq!(decoder.info().codec, Codec::Opus);
+    assert_eq!(decoder.info().format.sample_rate, 48_000);
+    let mut played = Vec::new();
+    let mut block = Vec::new();
+    while decoder.next_block(&mut block).expect("decodes") {
+        played.extend_from_slice(&block);
+    }
+    // 12 000 frames of audio and the last packet's 168 frames of padding, which symphonia
+    // 0.6.1 keeps because it ignores WebM `DiscardPadding` (local-library design, Risks).
+    assert_eq!(played.len() / 2, 12_168);
+    let local = decode_file(&fixture).expect("file decode");
+    assert!(
+        played == local.samples,
+        "the stream decodes like the local file"
+    );
+    assert!(!ranges(&server).is_empty(), "read with range requests");
+}

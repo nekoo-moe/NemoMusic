@@ -159,11 +159,11 @@ pub fn decode_file(path: &Path) -> Result<DecodedAudio, DecodeError> {
 
 /// Codecs the streaming decoder can really decode in this build, for stream selection.
 ///
-/// Opus decodes (see `codecs.rs`) but is not offered yet: adding it changes which YouTube and
-/// SoundCloud stream is chosen, so it lands as its own change (local-library task 7).
+/// Opus (in Ogg or `WebM`, through `codecs.rs`) is offered since local-library task 7, so the
+/// YouTube and SoundCloud rankers may pick an Opus stream.
 #[must_use]
 pub fn supported_stream_codecs() -> &'static [Codec] {
-    &[Codec::Aac, Codec::Flac, Codec::Mp3, Codec::Pcm]
+    &[Codec::Aac, Codec::Flac, Codec::Mp3, Codec::Opus, Codec::Pcm]
 }
 
 /// Map a symphonia codec id to the shared [`Codec`]. Every PCM id maps to [`Codec::Pcm`];
