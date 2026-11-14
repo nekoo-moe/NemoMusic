@@ -48,15 +48,11 @@ pub fn view(app: &App, full_w: f32, slot: Length) -> Element<'_, Message> {
 
 /// The playing pane, drawn by the builder of the chosen style. The empty pane is the same in
 /// every style: it shows no Now Playing facts.
-#[expect(
-    clippy::match_same_arms,
-    reason = "Classic and Apple Music get their own builders in now-playing-styles tasks 5 and 6"
-)]
 fn playing_in_style(app: &App, width: f32) -> Element<'_, Message> {
     match app.ui.settings.now_playing_style {
-        NowPlayingStyle::M3Expressive => playing(app, width),
-        // Until their builders land, these styles draw today's look.
-        NowPlayingStyle::Classic | NowPlayingStyle::AppleMusic => playing(app, width),
+        NowPlayingStyle::Classic => super::np_classic::pane(app, width),
+        // The Apple Music style draws today's look until its builder lands (task 6).
+        NowPlayingStyle::M3Expressive | NowPlayingStyle::AppleMusic => playing(app, width),
     }
 }
 

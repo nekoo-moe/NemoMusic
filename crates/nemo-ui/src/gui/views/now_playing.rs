@@ -35,16 +35,16 @@ pub fn lyrics_viewport_height(_w: u32, h: u32) -> f32 {
 /// reads the same `App` state (position, lyrics offset and scroll, `compact_tab`), so a style
 /// change restarts nothing.
 pub fn view(app: &App, w: u32, h: u32) -> Element<'_, Message> {
-    #[expect(
-        clippy::match_same_arms,
-        reason = "Classic and Apple Music get their own builders in now-playing-styles tasks 5 and 6"
-    )]
-    let page = match app.ui.settings.now_playing_style {
-        NowPlayingStyle::M3Expressive => m3_expressive(app, w, h),
-        // Until their builders land, these styles draw today's look.
-        NowPlayingStyle::Classic | NowPlayingStyle::AppleMusic => m3_expressive(app, w, h),
-    };
-    stack![super::backdrop::full_backdrop(app), page].into()
+    match app.ui.settings.now_playing_style {
+        // Classic draws its own plain `surface`, so it needs no cover backdrop.
+        NowPlayingStyle::Classic => super::np_classic::view(app, w, h),
+        // The Apple Music style draws today's look until its builder lands (task 6).
+        NowPlayingStyle::M3Expressive | NowPlayingStyle::AppleMusic => stack![
+            super::backdrop::full_backdrop(app),
+            m3_expressive(app, w, h)
+        ]
+        .into(),
+    }
 }
 
 /// The Material 3 Expressive look: art and lyrics side by side, or the compact column.
