@@ -6,8 +6,8 @@ Read `.kiro/specs/foundation/agent-brief.md` first. Everything there applies, wi
 - Crates allowed: the "App-MVP crates" row of `.kiro/steering/tech.md` (reqwest, image, rubato, lofty, rusqlite, unicode-normalization, tracing-subscriber, ytmapi-rs) plus the Utility crates row, plus `tokio` features your crate needs. Pin exact versions with `=` in your own `Cargo.toml` and verify them on crates.io. Any other crate: do not add it, report it.
 - Contracts: `crates/nemo-core/src/{catalog,services,player,track,audio,lyrics,segment,stream}.rs` are the shared types. They are frozen for this wave. Do not edit them. Write needs in your report.
 - Specs: `.kiro/specs/app-mvp/` (requirements, design, tasks). UI also reads `.kiro/steering/design.md` and `docs/ui-reference.md`.
-- The dev machine has `yt-dlp` 2026.10.26 on PATH (installed with winget).
-- Machine: Windows 11, 4 cores, about 7 GB RAM, Intel HD Graphics 530.
+- `yt-dlp` must be on `PATH` (README, Build and run). Check with `yt-dlp --version`.
+- Reference machine for performance (owner's laptop): Windows 11, 4 cores, about 7 GB RAM, Intel HD Graphics 530. The machine you build on may differ: check cores and memory before parallel builds.
 
 ## Build isolation
 Use your own target directory so agents do not block each other:
