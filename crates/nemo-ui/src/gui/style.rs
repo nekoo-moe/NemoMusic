@@ -8,6 +8,10 @@ use super::assets::{Icon, font, font_w};
 use super::fx::fx;
 use crate::theme::{Rgba, TextStyle, color, glass, shape};
 
+// Only the docs name the `Fx` widget; the code builds it through `fx`.
+#[cfg(doc)]
+use super::fx::Fx;
+
 /// Convert a token colour.
 #[must_use]
 pub fn col(c: Rgba) -> Color {
