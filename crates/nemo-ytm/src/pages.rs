@@ -207,6 +207,7 @@ pub(crate) async fn playlist<A: AuthToken>(
                 thumbnails: album.summary.thumbnails,
             },
             tracks: album.tracks,
+            edit: None,
         });
     }
     let browsed = browse_playlist(api, id).await;
@@ -238,6 +239,7 @@ pub(crate) async fn playlist<A: AuthToken>(
                             .unwrap_or_default(),
                     },
                     tracks,
+                    edit: None,
                 }),
                 (Ok(detail), true) => Ok(detail),
                 (Err(e), true) => Err(e),
@@ -354,6 +356,7 @@ async fn browse_playlist<A: AuthToken>(
             thumbnails: header.thumbnails,
         },
         tracks,
+        edit: None,
     })
 }
 

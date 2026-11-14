@@ -56,7 +56,7 @@ Tasks in other specs are cited by spec and the ADR 0004 Decision 4 row they own,
   - Checks: unit tests for the defaults and for error texts that hold no e-mail, name or id.
   - Steering: none.
 
-- [ ] 7. Add the rating and playlist-edit types to the catalog
+- [x] 7. Add the rating and playlist-edit types to the catalog
   - Crate and files: `nemo-core` (`src/catalog.rs`); struct literals of `PlaylistDetail` in `nemo-ytm` and `nemo-app`. Touches nemo-core/src/catalog.rs.
   - Does: Adds `LikeStatus`, `Catalog::set_rating` with `rate_song` keeping its signature, `CatalogError::{Rejected, RateLimited}`, `SetVideoId`, `Privacy`, `PlaylistEditInfo`, `PlaylistDetail.edit` (always `None` for now) and the `PlaylistEditor` trait including `create` (ADR 0004 row 27).
   - _Requirements: none (groundwork)_
