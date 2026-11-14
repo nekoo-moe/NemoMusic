@@ -35,7 +35,7 @@ Cross-spec ids written `<spec>#?` point at the task of that spec that adds the n
   - Wave: 0
   - Checks: `cargo test -p nemo-core`.
 
-- [ ] 5. Add the Spotify account contract
+- [x] 5. Add the Spotify account contract
   - Crate and files: `nemo-core`: new `src/spotify.rs`, `src/lib.rs`. Touches nemo-core/src/spotify.rs and lib.rs.
   - Does: Adds `SpotifyState`, `SpotifyError` (`thiserror`: `SignedOut`, `TokenRefused`, `Http(status)`, `Parse`, `Store`) and the `SpotifyAccount` trait. `sign_in_cookie` takes `Secret<String>`.
   - _Requirements: none (groundwork)_
