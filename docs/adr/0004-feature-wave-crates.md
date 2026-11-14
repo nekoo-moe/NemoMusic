@@ -159,7 +159,7 @@ Also for `tech.md`, from the designs: the "Opus decode" row says `opus` or `audi
 All crates proposed in the 17 designs and in the two new pieces build on the workspace `rust-version` of 1.97 (checked MSRVs: `rfd` 1.92, `symphonia-adapter-libopus` 1.89, `libloading` 1.88, `wasapi` 1.85 to 1.88, `zbus` 1.87, `tauri-winrt-notification` 1.82, the rest lower). `rust-toolchain.toml` pins 1.99.1, which is newer than the 1.97 the brief for the designs named; this is not a conflict, but `code.md` ("latest stable minus 2") and the file should agree when the owner next raises either.
 
 ## Consequences
-- `nemo-ytm` loses its credential module to `nemo-secrets` and `nemo-core`; its sign-in flow is otherwise unchanged.
+- `nemo-ytm` loses its credential module to `nemo-secrets` and `nemo-core`; its sign-in flow is otherwise unchanged. Done: account-actions tasks 1 (`SecretStore` in `nemo-core`) and 2 (`nemo-secrets`); `nemo-ytm` keeps only the `Vault`.
 - Folder watching (Decision 1, `nemo-library` row) is not built: the library loads from SQLite at start, then rescans in the background and on demand (local-library design, "Departure"; `notify` is CC0-1.0 and its 9.0 line is a release candidate).
 - The crate count grows from 8 to 18. Each new crate is small and testable alone.
 - Apple Music animated covers are Later (now-playing-styles criterion 22). No code or trait variant exists for them; `AnimatedArtSource` can take one later.
