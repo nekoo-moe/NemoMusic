@@ -243,6 +243,13 @@ pub trait LyricsProvider: Send + Sync {
     fn best_granularity(&self) -> Granularity {
         Granularity::Line
     }
+
+    /// Longest the lyrics chain waits for this provider, including the wait for its host. The
+    /// chain's global budget still caps it. The default is 4 s (ADR 0002); a provider that runs
+    /// a slow helper declares more (YouTube captions: 20 s).
+    fn timeout(&self) -> Duration {
+        Duration::from_secs(4)
+    }
 }
 
 #[cfg(test)]

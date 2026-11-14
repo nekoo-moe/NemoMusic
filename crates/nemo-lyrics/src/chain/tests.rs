@@ -58,6 +58,24 @@ impl LyricsProvider for Fake {
     }
 }
 
+/// A provider that declares its own timeout, otherwise the same as the wrapped fake.
+struct WithTimeout(Fake, Duration);
+
+impl LyricsProvider for WithTimeout {
+    fn id(&self) -> ProviderId {
+        self.0.id()
+    }
+    fn hosts(&self) -> &'static [&'static str] {
+        self.0.hosts()
+    }
+    fn fetch<'a>(&'a self, q: &'a LyricsQuery) -> BoxFuture<'a, Answer> {
+        self.0.fetch(q)
+    }
+    fn timeout(&self) -> Duration {
+        self.1
+    }
+}
+
 fn query() -> LyricsQuery {
     LyricsQuery {
         title: "Test Song".into(),
@@ -184,7 +202,6 @@ async fn shared_host_in_flight_never_exceeds_one() {
     };
     let entries = [mk("a"), mk("b"), mk("c")];
     let opts = ChainOptions {
-        provider_timeout: Duration::from_secs(10),
         global_budget: Duration::from_secs(10),
     };
     let _ = run_chain(&entries, &query(), opts, &[]).await;
@@ -213,10 +230,41 @@ async fn slow_provider_times_out_at_four_seconds() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn overridden_timeout_cuts_at_its_own_value() {
+    let slow = Fake::new("slow", &["s.example"], 10_000, Ok(None));
+    let (fast, _, _) = entry(Fake::new(
+        "fast",
+        &["f.example"],
+        100,
+        Ok(Some(doc("fast", Granularity::Line, 1))),
+    ));
+    let short = ChainEntry::new(Arc::new(WithTimeout(slow, Duration::from_secs(2))));
+    let start = Instant::now();
+    let r = run_chain(&[short, fast], &query(), ChainOptions::default(), &[]).await;
+    assert_eq!(start.elapsed(), Duration::from_secs(2));
+    assert_eq!(r.reports[0].outcome, Outcome::TimedOut);
+    assert_eq!(winner(&r), Some("fast"));
+}
+
+#[tokio::test(start_paused = true)]
+async fn longer_own_timeout_outlasts_the_default() {
+    // 4.5 s is past the 4 s default but within the provider's 5 s and the 6 s budget.
+    let late = Fake::new(
+        "late",
+        &["l.example"],
+        4500,
+        Ok(Some(doc("late", Granularity::Line, 1))),
+    );
+    let long = ChainEntry::new(Arc::new(WithTimeout(late, Duration::from_secs(5))));
+    let r = run_chain(&[long], &query(), ChainOptions::default(), &[]).await;
+    assert_eq!(winner(&r), Some("late"));
+}
+
+#[tokio::test(start_paused = true)]
 async fn global_budget_caps_the_run() {
-    let (slow, _, _) = entry(Fake::new("slow", &["s.example"], 20_000, Ok(None)));
+    let slow = Fake::new("slow", &["s.example"], 20_000, Ok(None));
+    let slow = ChainEntry::new(Arc::new(WithTimeout(slow, Duration::from_secs(60))));
     let opts = ChainOptions {
-        provider_timeout: Duration::from_secs(60),
         global_budget: Duration::from_secs(6),
     };
     let start = Instant::now();
