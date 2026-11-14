@@ -25,8 +25,10 @@ Process rules (commits, branches, PRs) live in workflow.md. Crate layout is in s
 
 ## Unsafe
 - Every crate has `#![forbid(unsafe_code)]` by default.
-- Only a module named `ffi` or `sys` inside `nemo-audio` may use `#![allow(unsafe_code)]`, and only for OS audio APIs (WASAPI and similar).
-- `nemo-audio` therefore sets `unsafe_code = "deny"` (not `forbid`) in its own `[lints]` tables, a copy of the workspace tables. The counting allocator in `tests/rt_no_alloc.rs` also opts in. Keep those tables in sync with the workspace by hand.
+- Only these modules may use `#![allow(unsafe_code)]`:
+  - a module named `ffi` or `sys` inside `nemo-audio`, only for OS audio APIs (WASAPI and similar);
+  - the `ffi` module of `nemo-video`, only to load libmpv at run time (`libloading`) and call its C API (owner, 2026-11-14). It wraps every raw pointer in a type that frees it on drop, and the rest of the crate sees only safe functions.
+- `nemo-audio` and `nemo-video` therefore set `unsafe_code = "deny"` (not `forbid`) in their own `[lints]` tables, copies of the workspace tables. The counting allocator in `tests/rt_no_alloc.rs` also opts in. Keep those tables in sync with the workspace by hand.
 - Every `unsafe` block has a `// SAFETY:` comment stating the invariant and who upholds it.
 
 ## Real-time audio thread
