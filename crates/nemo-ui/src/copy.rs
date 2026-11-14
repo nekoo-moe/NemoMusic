@@ -128,6 +128,21 @@ pub const ABOUT_CREDITS: [&str; 2] = [
 /// About: terms of service notice.
 pub const ABOUT_TOS: &str = "NemoMusic is not made, approved or supported by Google or YouTube. It uses YouTube Music without an official API. This may break the YouTube Terms of Service, and your account could be restricted.";
 
+/// Opt-in row (ADR 0004, "Opt-in settings pattern"): heading of what leaves the computer.
+pub const OPT_IN_SENDS: &str = "What is sent";
+/// Opt-in row: heading of the hosts.
+pub const OPT_IN_TO: &str = "To";
+/// Opt-in row: heading of the risk text.
+pub const OPT_IN_RISK: &str = "Risk";
+/// Opt-in row: the host line when the feature contacts no host.
+pub const OPT_IN_NO_HOSTS: &str = "No host. Nothing leaves this computer.";
+/// Opt-in panel: confirms turning the feature on.
+pub const OPT_IN_TURN_ON: &str = "Turn on";
+/// Opt-in panel: leaves the feature off.
+pub const OPT_IN_CANCEL: &str = "Cancel";
+/// Opt-in row: deletes what the feature kept on this computer.
+pub const OPT_IN_DELETE_NOW: &str = "Delete now";
+
 /// Library empty state.
 pub const LIBRARY_EMPTY_TITLE: &str = "Your library is empty";
 /// Library empty state, how to add music.

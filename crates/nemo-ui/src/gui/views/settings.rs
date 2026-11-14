@@ -111,31 +111,36 @@ pub(super) fn switch_with<'a>(
         toggler(on)
             .on_toggle(msg)
             .size(24.0)
-            .style(move |_, status| {
-                let hovered = matches!(status, toggler::Status::Hovered { .. });
-                toggler::Style {
-                    background: Background::Color(if on {
-                        col(color::on_surface())
-                    } else if hovered {
-                        col(color::on_surface().with_alpha(0.30))
-                    } else {
-                        col(color::on_surface().with_alpha(0.24))
-                    }),
-                    background_border_width: 0.0,
-                    background_border_color: Color::TRANSPARENT,
-                    foreground: Background::Color(if on {
-                        col(color::surface())
-                    } else {
-                        col(color::on_surface_variant())
-                    }),
-                    foreground_border_width: 0.0,
-                    foreground_border_color: Color::TRANSPARENT,
-                    text_color: None,
-                    border_radius: None,
-                    padding_ratio: 0.2,
-                }
-            }),
+            .style(switch_style(on)),
     ]
     .align_y(Alignment::Center)
     .into()
+}
+
+/// The style of every settings switch: `on-surface` track when on, a quiet track when off.
+pub(super) fn switch_style(on: bool) -> impl Fn(&iced::Theme, toggler::Status) -> toggler::Style {
+    move |_, status| {
+        let hovered = matches!(status, toggler::Status::Hovered { .. });
+        toggler::Style {
+            background: Background::Color(if on {
+                col(color::on_surface())
+            } else if hovered {
+                col(color::on_surface().with_alpha(0.30))
+            } else {
+                col(color::on_surface().with_alpha(0.24))
+            }),
+            background_border_width: 0.0,
+            background_border_color: Color::TRANSPARENT,
+            foreground: Background::Color(if on {
+                col(color::surface())
+            } else {
+                col(color::on_surface_variant())
+            }),
+            foreground_border_width: 0.0,
+            foreground_border_color: Color::TRANSPARENT,
+            text_color: None,
+            border_radius: None,
+            padding_ratio: 0.2,
+        }
+    }
 }
