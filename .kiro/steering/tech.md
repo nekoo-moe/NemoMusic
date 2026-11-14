@@ -77,7 +77,7 @@ Pick: iced. Reason: pure Rust, wgpu gives GPU effects through a custom shader wi
 ## Change rules
 
 - Adding or swapping a crate in the table above requires updating this file in the same change.
-- A new dependency must be maintained (release within 12 months), license-compatible with the repo `LICENSE`, and checked with `cargo deny` once configured.
+- A new dependency must be maintained (a release within the last 2 years, as `code.md` says; owner, 2026-11-14), license-compatible with the repo `LICENSE`, and checked with `cargo deny` once configured.
 - No dependency on `nemo-ui` from audio code (see `structure.md`).
 
 <!-- Sources (crates.io API, queried 2026-11-10):
