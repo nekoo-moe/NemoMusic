@@ -15,21 +15,21 @@ NemoMusic plays the music files on the user's computer, FLAC included, through t
 ## Acceptance Criteria
 
 1. WHEN the user adds a folder in Settings, THE SYSTEM SHALL scan it in the background and show tracks as they are found, without blocking playback or the screen.
-2. THE SYSTEM SHALL let the user add and remove watched folders, and SHALL pick the folder with a system folder dialog or a typed path.
-3. WHILE a folder is watched, THE SYSTEM SHALL pick up added, changed and removed files on the next start and on a manual rescan. Live file watching is an Open Question.
+2. THE SYSTEM SHALL let the user add and remove watched folders, and SHALL pick the folder with a system folder dialog or a typed path. If the dialog is not available (for example no desktop portal on Linux), THE SYSTEM SHALL fall back to the typed path.
+3. WHILE a folder is watched, THE SYSTEM SHALL pick up added, changed and removed files on the next start and on a manual rescan, and SHALL NOT watch folders live. A rescan SHALL read tags again only for files whose size or modified time changed.
 4. WHEN the user removes a watched folder, THE SYSTEM SHALL remove its tracks from the library and SHALL NOT delete any file on disk.
 5. THE SYSTEM SHALL store the library (tracks, tags, playlists, folder list) on this computer in a file that survives restarts, and SHALL show it within one second of start without a rescan.
 6. IF the library file is damaged, THEN THE SYSTEM SHALL keep a copy of it, rebuild the library by rescanning, and tell the user.
 7. WHEN a file is scanned, THE SYSTEM SHALL read title, artist, album, album artist, track and disc number, year, genre, duration and embedded cover, and SHALL fall back to the file name for a missing title.
 8. IF a file has no readable tags or cannot be decoded, THEN THE SYSTEM SHALL still list it with the file name, mark it unplayable when it cannot be decoded, and say why on request.
-9. THE SYSTEM SHALL list a file as playable only if the player can decode it. Formats the player cannot decode today SHALL NOT be offered as playable (see Open Questions 1 and 2).
+9. THE SYSTEM SHALL list a file as playable only if the player can decode it. The player SHALL decode FLAC, WAV, ALAC, MP3, AAC, Ogg Vorbis and Opus (Ogg or WebM container). Formats it cannot decode SHALL NOT be offered as playable (see Open Question 1).
 10. WHEN a local track plays, THE SYSTEM SHALL use the same player, queue, gapless playback, seek, media keys and signal-path view as other tracks.
 11. WHEN two local tracks of one album follow each other in the queue, THE SYSTEM SHALL play them without a gap, using the encoder delay and padding data where the format gives it.
 12. WHEN a local file is lossless (FLAC, ALAC or WAV) and the output path is bit-perfect, THE SYSTEM SHALL show the true-lossless badge with the real sample rate and bit depth.
-13. IF the path is not bit-perfect (shared mode, resampling or any effect on), THEN THE SYSTEM SHALL show the codec and format only, without the true-lossless badge, and SHALL say why in the signal-path view.
+13. IF the path is not bit-perfect (shared mode, resampling or any effect on), THEN THE SYSTEM SHALL show the codec and format only, without the true-lossless badge, and SHALL say why in the signal-path view. On Linux the path is shared mode until a bit-perfect path exists, so the badge SHALL stay off there.
 14. THE SYSTEM SHALL never show "lossless" for a lossy local file (MP3, AAC, Opus, Vorbis), and SHALL show "Unknown" for facts it could not read.
 15. THE SYSTEM SHALL keep ReplayGain off by default. WHEN the user turns it on, THE SYSTEM SHALL read the ReplayGain or R128 tags, offer track or album mode and a pre-gain, and show a gain stage in the signal path.
-16. IF a track has no ReplayGain tag, THEN THE SYSTEM SHALL play it at unity gain and SHALL NOT scan or guess a gain unless the user asks for a scan (Open Question 5).
+16. IF a track has no ReplayGain tag, THEN THE SYSTEM SHALL play it at unity gain. WHEN the user turns on the ReplayGain scan (off by default, its own switch), THE SYSTEM SHALL measure the loudness of untagged files in the background, store the result in the library only, never write to the file, and let the user stop the scan.
 17. WHILE ReplayGain is off, THE SYSTEM SHALL do no gain arithmetic, and the bit-exact output test SHALL still pass.
 18. WHEN the user creates, renames, reorders or deletes a local playlist, THE SYSTEM SHALL save it at once and keep it after a restart.
 19. WHEN the user imports an M3U or M3U8 file, THE SYSTEM SHALL read relative and absolute paths and UTF-8 for M3U8, skip lines it cannot resolve, and report how many were skipped.
@@ -56,17 +56,20 @@ NemoMusic plays the music files on the user's computer, FLAC included, through t
 
 ## Open Questions
 
-These need the owner (workflow.md section 8, coc.md):
+Decided by the owner (2026-11-14):
 
-1. Formats. Today `symphonia` is built with `flac`, `wav`, `pcm`, `isomp4`, `aac`, `mkv`, `mp3`. ALAC and Vorbis are not enabled, and symphonia 0.6.1 has no Opus decoder. The scan list (`AUDIO_EXTENSIONS`) already names `ogg` and `opus`, which cannot play. Enable ALAC and Vorbis (feature names unverified), and add a separate Opus decoder for local `.opus`, or leave them out? ALAC matters because product.md lists it as lossless.
-2. AIFF and other lossless formats (WavPack, APE): in or out of the first release?
-3. Storage: `tech.md` lists `rusqlite` as "proposed". Confirm it for the library file, or choose another store.
-4. Folder dialog: no picker crate is in use. Which one is approved (candidates: `rfd`; licence and maintenance unverified)?
-5. ReplayGain for files with no tags: allow an opt-in background scan that writes only to the library, never to the file?
-6. Watching: scan on start and on demand only, or a live file watcher (candidate `notify`, unverified)?
-7. The true-lossless badge needs a bit-perfect path. On Linux the path is shared mode until direct ALSA exists, so the badge never shows there. Accept that?
-8. Tag editing writes to the user's files. Accept it as in scope, with the confirm step in criterion 23?
-9. Technical: where the CUE sheet and its audio file live relative to each other, and how gapless works across CUE tracks of one file. The design settles this.
+- Formats: ALAC and Vorbis are decoded through the matching `symphonia` features; Opus gets its own decoder crate (the design picks it).
+- Storage: `rusqlite` holds the library file.
+- Folder dialog: the design picks the crate (licence and Linux needs checked there).
+- ReplayGain for untagged files: an opt-in background scan is accepted (criterion 16).
+- Watching: the design picks; scan on start and on demand (criterion 3).
+- The lossless badge stays off on Linux until a Linux bit-perfect path exists (criterion 13).
+
+Still open (workflow.md section 8, coc.md):
+
+1. AIFF, WavPack and APE. The design proposes AIFF in (one `symphonia` feature, lossless PCM) and WavPack and APE out (no decoder in `symphonia` 0.6.1). Owner confirms with the design.
+2. Tag editing writes to the user's files. The owner's answers did not cover it; criteria 23 and 24 (confirm step, no change on failure) assume it is accepted.
+3. Technical: where the CUE sheet and its audio file live relative to each other, and how gapless works across CUE tracks of one file. The design settles this.
 
 <!-- Sources:
 .kiro/steering/product.md (Scope, Quality badge rule), coc.md (User Privacy), code.md (Bit-perfect), tech.md (Library DB, Tags)
