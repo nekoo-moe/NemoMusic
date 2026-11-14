@@ -305,7 +305,9 @@ impl Core {
     pub fn spawn_prepare(&self, token: u64, track: Track) {
         let deps = PrepareDeps {
             resolver: Arc::clone(&self.deps.resolver),
+            request: self.deps.request.clone(),
             opener: Arc::clone(&self.deps.opener),
+            local: self.deps.local.clone(),
         };
         spawn_prepare(deps, self.tx.clone(), token, track);
     }

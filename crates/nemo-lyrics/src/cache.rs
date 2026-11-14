@@ -1,11 +1,12 @@
 //! SQLite lyrics cache and per-track offsets (ADR 0002).
 //!
 //! Two tables in `lyrics.sqlite3` inside the directory given at construction:
-//! `lyrics_cache(track_key, provider, status, granularity, body, score, fetched_at, expires_at)`
-//! keyed by `(track_key, provider)`, and `lyrics_offset(track_key, offset_ms)`.
+//! `lyrics_cache(track_key, provider, status, granularity, body, score, fetched_at, expires_at,
+//! pinned)` keyed by `(track_key, provider)`, and `lyrics_offset(track_key, offset_ms)`.
 //!
 //! Time to live: a hit lives 30 days, a miss 7 days, an error 15 minutes (longer when the provider
-//! said `Retry-After` for more). Expired rows are never returned. The database runs in WAL mode and
+//! said `Retry-After` for more). Expired rows are never returned, except a pinned hit, which is kept
+//! for a song saved offline and never expires. The database runs in WAL mode and
 //! every statement is parameterized. Lyrics are copyrighted text: they stay in this local file.
 //! [`LyricsCache::clear`] drops the cached lyrics but keeps the user's offsets.
 
@@ -87,7 +88,7 @@ impl LyricsCache {
         Self::init(conn, clock)
     }
 
-    fn init(conn: Connection, clock: Arc<dyn Clock>) -> Result<Self, CacheError> {
+    fn init(mut conn: Connection, clock: Arc<dyn Clock>) -> Result<Self, CacheError> {
         // `journal_mode` returns a row, so it cannot go through `execute_batch`.
         conn.pragma_update_and_check(None, "journal_mode", "WAL", |_| Ok(()))?;
         conn.execute_batch(
@@ -126,6 +127,7 @@ impl LyricsCache {
                  enabled  INTEGER NOT NULL
              );",
         )?;
+        migrate::run(&mut conn)?;
         Ok(Self {
             conn: Mutex::new(conn),
             clock,
@@ -139,7 +141,8 @@ impl LyricsCache {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
-    /// The fresh row for a track and provider, or `None` if absent or expired.
+    /// The fresh row for a track and provider, or `None` if absent or expired. A pinned row
+    /// (see [`LyricsCache::set_pinned`]) never expires.
     ///
     /// # Errors
     /// [`CacheError`] on database or body errors.
@@ -153,7 +156,7 @@ impl LyricsCache {
             .lock()
             .query_row(
                 "SELECT status, body, score, fetched_at, expires_at FROM lyrics_cache
-                 WHERE track_key = ?1 AND provider = ?2 AND expires_at > ?3",
+                 WHERE track_key = ?1 AND provider = ?2 AND (expires_at > ?3 OR pinned = 1)",
                 params![track_key, provider.as_str(), now],
                 |r| {
                     Ok((
@@ -206,10 +209,16 @@ impl LyricsCache {
             ),
             None => (None, None, None),
         };
+        // An upsert, not a replace, so a refreshed hit keeps its pin; anything else drops it.
         self.lock().execute(
-            "INSERT OR REPLACE INTO lyrics_cache
+            "INSERT INTO lyrics_cache
                  (track_key, provider, status, granularity, body, score, fetched_at, expires_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+             ON CONFLICT (track_key, provider) DO UPDATE SET
+                 status = excluded.status, granularity = excluded.granularity,
+                 body = excluded.body, score = excluded.score,
+                 fetched_at = excluded.fetched_at, expires_at = excluded.expires_at,
+                 pinned = lyrics_cache.pinned AND excluded.status = 'hit'",
             params![
                 track_key,
                 provider.as_str(),
@@ -273,6 +282,20 @@ impl LyricsCache {
         conn.execute(
             "DELETE FROM lyrics_credit WHERE track_key = ?1",
             params![track_key],
+        )?;
+        Ok(())
+    }
+
+    /// Keep the found lyrics of one track from expiring (`keep` true), for a song saved
+    /// offline, or let them expire again (`keep` false). Only hits are pinned: a pinned miss or
+    /// error would stop the track from ever being asked again.
+    ///
+    /// # Errors
+    /// [`CacheError`] on database errors.
+    pub fn set_pinned(&self, track_key: &str, keep: bool) -> Result<(), CacheError> {
+        self.lock().execute(
+            "UPDATE lyrics_cache SET pinned = ?2 WHERE track_key = ?1 AND (status = 'hit' OR ?2 = 0)",
+            params![track_key, keep],
         )?;
         Ok(())
     }
@@ -453,6 +476,7 @@ impl LyricsCache {
 
 mod clock;
 mod error;
+mod migrate;
 mod record;
 
 pub use clock::{Clock, SystemClock};
