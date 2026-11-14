@@ -8,6 +8,7 @@ pub mod ai;
 pub mod audio;
 pub mod catalog;
 pub mod downloads;
+pub mod effects;
 pub mod hooks;
 pub mod library;
 pub mod lyrics;
