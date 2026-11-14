@@ -65,7 +65,7 @@ Tasks in other specs are cited by spec and the ADR 0004 Decision 4 row they own,
   - Checks: a `Catalog` that implements neither rating method returns an error instead of looping between the two defaults.
   - Steering: none.
 
-- [ ] 8. Add `StreamRequest`, `AudioTrackInfo` and `resolve_with`
+- [x] 8. Add `StreamRequest`, `AudioTrackInfo` and `resolve_with`
   - Crate and files: `nemo-core` (`src/stream.rs`). Touches nemo-core/src/stream.rs.
   - Does: Adds `StreamRequest` (audio language, `prefer_premium`, `prefer_codec`), `AudioTrackInfo` and `StreamResolver::resolve_with`, which defaults to `resolve` (ADR 0004 row 13). The `ResolvedStream` fields `audio_language` and `audio_tracks` are not added here: ADR 0004 lands all four new `ResolvedStream` fields and `Track.source_url` in one task (soundcloud, rows 9 and 10), which depends on this one.
   - _Requirements: none (groundwork)_
