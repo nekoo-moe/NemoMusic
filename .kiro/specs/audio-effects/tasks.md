@@ -33,7 +33,7 @@
   - Wave: 1
   - Checks: round-trip test; an old `settings.json` without the fields gives all-off; out-of-range values are clamped. No network host (criterion 27).
 
-- [ ] 5. Parse and write AutoEq profile files
+- [x] 5. Parse and write AutoEq profile files
   - Crate and files: `nemo-audio`: `src/effects.rs` (module root, new), `src/effects/profile.rs` (new); fixtures in `crates/nemo-audio/tests/fixtures/autoeq/`.
   - Does: `parse_autoeq(name, text)` reads the fixed-band and the parametric text (`Preamp:` and `Filter N: ON PK|LSC|HSC Fc .. Gain .. Q ..` lines) into `EqProfile`; `write_autoeq` writes the same format for user presets. Other filter types or more than 12 filters return `ProfileError` with the line, and nothing is applied (criterion 11). Pure functions, off the real-time path; no network.
   - _Requirements: 10, 11, 12_
