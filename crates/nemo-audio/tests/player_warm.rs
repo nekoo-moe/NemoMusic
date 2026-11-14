@@ -1,5 +1,6 @@
-//! Resolver hints from the player: the next queue entries are warmed, and a stream that cannot
-//! be opened is reported and resolved once more. No device, no network.
+//! Resolver hints from the player: the next queue entries are warmed, a stream that cannot be
+//! opened is reported and resolved once more, and every resolve carries the player's stream
+//! request. No device, no network.
 
 mod common;
 
@@ -12,18 +13,19 @@ use common::fakes::{FakeOpener, FakeResolver, ThreadSinkFactory, video_id, video
 use common::fixtures::level_wav;
 use nemo_audio::player::{Player, PlayerDeps};
 use nemo_core::BoxFuture;
-use nemo_core::audio::AudioFormat;
+use nemo_core::audio::{AudioFormat, Codec};
 use nemo_core::player::{PlayState, PlayerCommand};
 use nemo_core::services::{ByteSource, PlayerControl, StreamOpener};
-use nemo_core::stream::{ResolvedStream, StreamError, StreamResolver};
+use nemo_core::stream::{ResolvedStream, StreamError, StreamRequest, StreamResolver};
 use nemo_core::track::VideoId;
 
 const LIMIT: Duration = Duration::from_secs(20);
 
-/// A [`FakeResolver`] that records hints and counts resolves.
+/// A [`FakeResolver`] that records hints and requests and counts resolves.
 struct Logging {
     inner: FakeResolver,
     log: Mutex<Vec<String>>,
+    requests: Mutex<Vec<StreamRequest>>,
     resolves: AtomicUsize,
 }
 
@@ -34,6 +36,18 @@ impl StreamResolver for Logging {
     ) -> BoxFuture<'a, Result<ResolvedStream, StreamError>> {
         self.resolves.fetch_add(1, Ordering::SeqCst);
         self.inner.resolve(video)
+    }
+
+    fn resolve_with<'a>(
+        &'a self,
+        video: &'a VideoId,
+        request: &'a StreamRequest,
+    ) -> BoxFuture<'a, Result<ResolvedStream, StreamError>> {
+        self.requests
+            .lock()
+            .expect("requests")
+            .push(request.clone());
+        self.resolve(video)
     }
 
     fn warm(&self, video: &VideoId) {
@@ -67,7 +81,7 @@ impl StreamOpener for Flaky {
     }
 }
 
-fn start(refuse: &[u32]) -> (Arc<dyn PlayerControl>, Arc<Logging>) {
+fn start(refuse: &[u32], request: StreamRequest) -> (Arc<dyn PlayerControl>, Arc<Logging>) {
     let streams: Vec<(String, Vec<u8>)> = (1..=4)
         .map(|n| (video_id(n), level_wav(1000, 48_000, 48_000 * 20)))
         .collect();
@@ -76,6 +90,7 @@ fn start(refuse: &[u32]) -> (Arc<dyn PlayerControl>, Arc<Logging>) {
             known: streams.iter().map(|(id, _)| id.clone()).collect(),
         },
         log: Mutex::new(Vec::new()),
+        requests: Mutex::new(Vec::new()),
         resolves: AtomicUsize::new(0),
     });
     let opener = Flaky {
@@ -87,6 +102,7 @@ fn start(refuse: &[u32]) -> (Arc<dyn PlayerControl>, Arc<Logging>) {
     };
     let player = Player::spawn(PlayerDeps {
         resolver: Arc::clone(&resolver) as Arc<dyn StreamResolver>,
+        request,
         opener: Arc::new(opener),
         segments: None,
         sink_factory: Arc::new(ThreadSinkFactory {
@@ -113,7 +129,7 @@ fn wait(what: &str, mut done: impl FnMut() -> bool) {
 
 #[test]
 fn the_next_two_entries_are_warmed_while_one_plays() {
-    let (player, resolver) = start(&[]);
+    let (player, resolver) = start(&[], StreamRequest::default());
     player.send(PlayerCommand::SetQueue {
         tracks: (1..=4).map(video_track).collect(),
         start: 0,
@@ -138,10 +154,32 @@ fn the_next_two_entries_are_warmed_while_one_plays() {
 
 #[test]
 fn a_refused_stream_is_reported_and_resolved_again() {
-    let (player, resolver) = start(&[1]);
+    let (player, resolver) = start(&[1], StreamRequest::default());
     player.send(PlayerCommand::Play(video_track(1)));
     wait("playing", || player.snapshot().state == PlayState::Playing);
     let log = resolver.log.lock().expect("log").clone();
     assert!(log.contains(&format!("failed {}", video_id(1))), "{log:?}");
     assert_eq!(resolver.resolves.load(Ordering::SeqCst), 2);
+    assert_eq!(
+        *resolver.requests.lock().expect("requests"),
+        [StreamRequest::default(), StreamRequest::default()],
+        "the default request reaches the resolver unchanged"
+    );
+}
+
+#[test]
+fn every_resolve_carries_the_players_stream_request() {
+    let request = StreamRequest {
+        audio_language: Some("ja".to_owned()),
+        prefer_premium: true,
+        prefer_codec: Some(Codec::Aac),
+    };
+    let (player, resolver) = start(&[1], request.clone());
+    player.send(PlayerCommand::Play(video_track(1)));
+    wait("playing", || player.snapshot().state == PlayState::Playing);
+    // The first resolve, then the one after the refused open.
+    assert_eq!(
+        *resolver.requests.lock().expect("requests"),
+        [request.clone(), request]
+    );
 }

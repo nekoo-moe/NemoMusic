@@ -226,6 +226,7 @@ mod player_callback {
         let allocations = Arc::new(AtomicU64::new(0));
         let player = Player::spawn(PlayerDeps {
             resolver: Arc::new(FakeResolver { known: vec![] }),
+            request: nemo_core::stream::StreamRequest::default(),
             opener: Arc::new(FakeOpener {
                 files: std::collections::HashMap::default(),
                 chunk: None,

@@ -16,6 +16,7 @@ use nemo_audio::player::{Player, PlayerDeps};
 use nemo_audio::sink::CpalSinkFactory;
 use nemo_core::catalog::Catalog;
 use nemo_core::player::{PlayState, PlayerCommand};
+use nemo_core::stream::StreamRequest;
 use nemo_ytm::catalog::YtmCatalog;
 use nemo_ytm::stream::HttpStreamOpener;
 use nemo_ytm::ytdlp::{YtDlpResolver, locate_yt_dlp};
@@ -52,6 +53,7 @@ fn main() {
         .with_handle(handle);
     let player = Player::spawn(PlayerDeps {
         resolver: Arc::new(resolver),
+        request: StreamRequest::default(),
         opener: Arc::new(HttpStreamOpener::default()),
         segments: None,
         sink_factory: Arc::new(CpalSinkFactory::new(None)),
