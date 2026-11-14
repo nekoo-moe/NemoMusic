@@ -88,7 +88,7 @@ pub fn request_body(sig: &DecodedSignature, now_ms: u64) -> String;
 - `tech.md` rows (add): `realfft` =3.5.1 (MIT, released 2026-10-26, MSRV 1.61) with `rustfft` =6.4.1 (MIT OR Apache-2.0, released 2025-09-18, MSRV 1.61, no exception); `uuid` 1.29.2 with feature `v4` (for the random path ids; already locked), `crc32fast` =1.5.5 and `base64` at the versions already in `Cargo.lock`; `rubato` and `cpal` at the versions `nemo-audio` pins. The ported code is GPL-3.0+; the row says so. Little-endian packing uses `u32::from_le_bytes`, so `byteorder` (last release 2023) is not added.
 - `structure.md`: add `nemo-recognize` (depends on `nemo-core` only) to the layout, ownership list and the dependency graph under `nemo-app`.
 - README egress list: `amp.shazam.com` (fingerprint, only on user action). No cover host: covers come from YouTube Music (criterion 26). The settings text says that the matched title and artist are searched on `music.youtube.com`, which is listed already.
-- ADR 0004: no change; the `Recognizer` trait follows Decision 2.
+- ADR 0004: no change; the `Recognizer` trait is Decision 4 row 40.
 
 <!-- Sources:
 SongRec repo and files (algorithm.rs, communication.rs, Cargo.toml: GPL-3.0+, rust-version 1.92): https://github.com/marin-m/SongRec

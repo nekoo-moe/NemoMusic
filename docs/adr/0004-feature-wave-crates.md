@@ -161,6 +161,7 @@ All crates proposed in the 17 designs and in the two new pieces build on the wor
 ## Consequences
 - `nemo-ytm` loses its credential module to `nemo-secrets` and `nemo-core`; its sign-in flow is otherwise unchanged.
 - The crate count grows from 8 to 18. Each new crate is small and testable alone.
+- Apple Music animated covers are Later (now-playing-styles criterion 22). No code or trait variant exists for them; `AnimatedArtSource` can take one later.
 - `nemo-app` gets more wiring. If it passes 500 lines per file, it splits as `code.md` asks.
 
 ## Open decisions for the owner

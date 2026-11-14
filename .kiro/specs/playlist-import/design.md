@@ -100,7 +100,7 @@ Parse errors map to the plain texts of criterion 5; nothing is imported. A row w
 ## Steering and README changes
 
 - `tech.md`: new row `csv` =1.4.0 (Unlicense OR MIT, use MIT; MSRV 1.73; released 2025-10-17; pure Rust; `nemo-library` only). `unicode-normalization` 0.1.26 (already locked for lyrics) becomes a `nemo-library` dependency too.
-- `structure.md`: `nemo-library` gains the `import` module and depends on no new crate.
+- `structure.md`: `nemo-library` gains the `import` module. No new `nemo-*` edge; the new third-party dependency is `csv`.
 - README egress list: no new host. State that file import contacts only `music.youtube.com`.
 - ADR 0004: add `PlaylistImport` and its types to Decision 2's expected additions.
 
