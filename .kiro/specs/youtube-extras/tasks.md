@@ -47,7 +47,7 @@ Cross-spec ids written `<spec>#?` name the task in that spec that adds the ADR 0
   - Checks: chain test with a slow fake provider: cut at 4 s by default and at its own value when overridden; existing `nemo-lyrics` tests pass.
   - Steering: ADR 0002 records `LyricsProvider::timeout` (4 s default, captions 20 s).
 
-- [ ] 6. Spike: YouTube captions through `yt-dlp`
+- [x] 6. Spike: YouTube captions through `yt-dlp`
   - Crate and files: none shipped; invented json3 fixtures in `crates/nemo-ytm/tests/fixtures/captions/` (no real lyrics text); result written into the Risks section of `.kiro/specs/youtube-extras/design.md`.
   - Does: for three songs, list `subtitles` and `automatic_captions` from `yt-dlp -J --skip-download`, write one json3 file per track without a cookie, and record whether the body is empty (PO token, issue 13075), whether the original auto track is named `<code>-orig`, and whether the audio id or the music-video id carries the captions.
   - _Requirements: 31, 35_
@@ -73,6 +73,7 @@ Cross-spec ids written `<spec>#?` name the task in that spec that adds the ADR 0
   - Wave: 1
   - Checks: fixture tests from the design (plain, roll-up, `[Music]` and note lines, empty events, 2 MiB cap, Vietnamese and CJK); proptest that `parse_json3` never panics.
   - Steering: none
+  - Spike result (task 6): uploaded keys are `<code>` or `<code>-<track id>` (`en-nP7-2PuUl7o`), so match the language before the first `-` plus an optional region; the original auto track is `<code>-orig`; other `automatic_captions` keys are translations. When `language` is `null` and there is no `-orig` track, return no track. Fixtures: `tests/fixtures/captions/`.
 
 - [ ] 9. Implement `YtmCaptions` over the `yt-dlp` runner
   - Crate and files: `nemo-ytm` (`captions/runner.rs`).
@@ -82,6 +83,7 @@ Cross-spec ids written `<spec>#?` name the task in that spec that adds the ADR 0
   - Wave: 1
   - Checks: fake `yt-dlp` script tests: no `--cookies` argument, temp folder gone after success, failure and timeout, empty file gives `Empty`.
   - Steering: none
+  - Spike result (task 6): pass `--extractor-args youtube:skip=hls,dash` to the `-J` run (without it `yt-dlp` also contacts `manifest.googlevideo.com`), fetch json3 only (some translated tracks are `vtt` over HLS on that host), and keep one caption file per run (a third file within a second got HTTP 429).
 
 - [ ] 10. Add `CaptionsLyricsProvider` and register it last in the lyrics chain
   - Crate and files: `nemo-ytm` (`captions/provider.rs`), `nemo-app` (lyrics chain wiring).
@@ -91,6 +93,7 @@ Cross-spec ids written `<spec>#?` name the task in that spec that adds the ADR 0
   - Wave: 1
   - Checks: chain test: called last and once per track; length check at 5 s and 3 percent; zero processes start while the switch is off.
   - Steering: ADR 0002 adds the "YouTube captions" row (off by default, risk note, last in the chain).
+  - Spike result (task 6): the audio id has no captions, so look up the music-video id; it is the main path, not a fallback. Expect most songs to fail the length check (2 of 3 in the spike).
 
 - [ ] 11. Play live streams through the shared HLS source
   - Crate and files: `nemo-ytm` (`live.rs` policy, `ts.rs` if task 7 needs it), `nemo-audio` (sets `PlayerSnapshot.live` from `Transport::Hls { live: true }`).
