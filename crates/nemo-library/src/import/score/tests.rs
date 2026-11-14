@@ -27,6 +27,7 @@ fn track(title: &str, artist: &str, secs: Option<u64>) -> Track {
         video_id: None,
         local_path: None,
         artwork: Artwork::None,
+        source_url: None,
     }
 }
 

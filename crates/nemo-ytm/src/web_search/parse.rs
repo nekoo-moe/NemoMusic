@@ -177,6 +177,7 @@ fn video(r: &Value) -> Option<VideoSummary> {
         } else {
             Artwork::Remote(thumbs)
         },
+        source_url: None,
     };
     Some(VideoSummary {
         track,

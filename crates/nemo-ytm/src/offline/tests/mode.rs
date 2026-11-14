@@ -53,6 +53,10 @@ fn resolved() -> ResolvedStream {
         url: nemo_core::secret::Secret::new("http://127.0.0.1/fake".to_owned()),
         info: stream_info(),
         expires_at: None,
+        transport: nemo_core::stream::Transport::File,
+        preview: false,
+        audio_language: None,
+        audio_tracks: Vec::new(),
     }
 }
 
@@ -172,6 +176,7 @@ fn track(video_id: &str, title: &str, album: &str) -> Track {
             width: 120,
             height: 120,
         }]),
+        source_url: None,
     }
 }
 
