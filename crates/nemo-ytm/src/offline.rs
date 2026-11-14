@@ -11,6 +11,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use nemo_core::downloads::CollectionRef;
 use nemo_core::secret::Secret;
 use nemo_core::track::VideoId;
 
@@ -49,6 +50,9 @@ pub enum OfflineError {
     /// The system gave no random bytes for a file name.
     #[error("no file name could be made for the offline cache")]
     Random,
+    /// The cache was wiped and its index closed.
+    #[error("the offline cache is closed")]
+    Closed,
 }
 
 impl From<rusqlite::Error> for OfflineError {
@@ -195,5 +199,49 @@ impl OfflineCache {
     /// Returns [`OfflineError::Db`] when the index cannot be read.
     pub fn saved_count(&self) -> Result<u64, OfflineError> {
         self.store.saved_count()
+    }
+
+    /// Remove one saved or queued song: its file, any partial download, its rows and a cover
+    /// no other song uses. Saved albums and playlists that list it stay. Returns the freed
+    /// bytes.
+    ///
+    /// # Errors
+    /// Returns an [`OfflineError`] when a file or the index cannot be changed; a song whose
+    /// file could not be deleted stays listed.
+    pub fn remove_song(&self, video: &VideoId) -> Result<u64, OfflineError> {
+        self.store.remove_song(&self.root, video.as_str())
+    }
+
+    /// Remove a saved album or playlist. Its songs go too, except those another collection
+    /// holds, that the user saved by themselves, or that smart downloads keep. Returns the
+    /// freed bytes.
+    ///
+    /// # Errors
+    /// Returns an [`OfflineError`] when a file or the index cannot be changed.
+    pub fn remove_collection(&self, collection: &CollectionRef) -> Result<u64, OfflineError> {
+        let (kind, id) = match collection {
+            CollectionRef::Album(id) => ("album", id),
+            CollectionRef::Playlist(id) => ("playlist", id),
+        };
+        self.store.remove_collection(&self.root, kind, &id.0)
+    }
+
+    /// Remove every saved and queued song, every saved collection and every cover. The local
+    /// play counts for smart downloads stay. Returns the freed bytes.
+    ///
+    /// # Errors
+    /// Returns an [`OfflineError`] when a file or the index cannot be changed.
+    pub fn remove_all(&self) -> Result<u64, OfflineError> {
+        self.store.remove_all(&self.root)
+    }
+
+    /// Sign-out wipe (criterion 23): close the index and delete the cache folder completely,
+    /// with songs, covers, index, play counts and queue. Returns how many files were removed.
+    /// The cache cannot be used afterwards; every call fails with [`OfflineError::Closed`].
+    ///
+    /// # Errors
+    /// Returns [`OfflineError::Io`] when the folder cannot be deleted.
+    pub fn wipe(&self) -> Result<u64, OfflineError> {
+        self.store.wipe(&self.root)
     }
 }

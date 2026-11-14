@@ -44,7 +44,7 @@ Cross-spec ids written `<spec>#?` name the owner's task by its ADR 0004 Decision
   - Wave: 1
   - Checks: tests with a stray `.part`, a missing blob and a truncated index.
 
-- [ ] 6. Remove songs and wipe the cache
+- [x] 6. Remove songs and wipe the cache
   - Crate and files: `nemo-ytm`: `src/offline/store.rs`.
   - Does: Removes one song, a collection (keeping songs another collection or a user save still holds) or the whole cache, deleting the files and returning freed bytes. `wipe` closes the connection, removes `<root>/offline` completely (songs, art, index, play counts, queue) and returns the file count.
   - _Requirements: 9, 23_
