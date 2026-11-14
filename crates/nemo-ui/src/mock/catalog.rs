@@ -107,6 +107,7 @@ impl Catalog for MockCatalog {
             .map(|p| PlaylistDetail {
                 summary: playlist_summary(p),
                 tracks: (0..12).map(|i| track(p * 5 + i * 3)).collect(),
+                edit: None,
             })
             .ok_or(CatalogError::NotFound);
         Box::pin(async move { result })

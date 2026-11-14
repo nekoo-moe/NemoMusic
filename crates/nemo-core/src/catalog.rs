@@ -4,7 +4,11 @@
 //! future that any executor can poll (the UI runs them on its own executor).
 
 use crate::BoxFuture;
-use crate::track::{Thumbnail, Track};
+use crate::track::{Thumbnail, Track, VideoId};
+
+mod playlist_edit;
+
+pub use playlist_edit::{PlaylistEditInfo, PlaylistEditor, Privacy, SetVideoId};
 
 /// Opaque id of an album, artist or playlist page. Treat it as untrusted text.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -91,6 +95,8 @@ pub struct PlaylistDetail {
     pub summary: PlaylistSummary,
     /// Tracks in playlist order.
     pub tracks: Vec<Track>,
+    /// Editing data, present only when the signed-in user owns the playlist.
+    pub edit: Option<PlaylistEditInfo>,
 }
 
 /// One entry of a home-feed shelf.
@@ -254,6 +260,23 @@ pub enum CatalogError {
     /// The page does not exist.
     #[error("not found")]
     NotFound,
+    /// YouTube Music refused a change. The text is fixed; it never holds the response body.
+    #[error("YouTube Music refused this change: {0}")]
+    Rejected(String),
+    /// YouTube Music asked to slow down (HTTP 429). Nothing is retried automatically.
+    #[error("too many requests; try again later")]
+    RateLimited,
+}
+
+/// The user's rating of a song.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LikeStatus {
+    /// Liked. Replaces a dislike.
+    Liked,
+    /// Disliked. Replaces a like.
+    Disliked,
+    /// Neither liked nor disliked.
+    Indifferent,
 }
 
 /// The catalog. Human-paced use only: callers must not fire bulk requests.
@@ -334,19 +357,35 @@ pub trait Catalog: Send + Sync {
         Box::pin(async { Err(CatalogError::Unavailable("podcasts".to_owned())) })
     }
 
-    /// Like (`liked = true`) or remove the like of a song. Needs a signed-in session: the
-    /// default, and every anonymous catalog, says it is not available.
-    fn rate_song<'a>(
+    /// Set the rating of a song. Needs a signed-in session: the default, and every anonymous
+    /// catalog, says it is not available. It never calls [`Catalog::rate_song`], so a catalog
+    /// that implements neither method gets an error, not a loop.
+    fn set_rating<'a>(
         &'a self,
-        video_id: &'a crate::track::VideoId,
-        liked: bool,
+        video_id: &'a VideoId,
+        status: LikeStatus,
     ) -> BoxFuture<'a, Result<(), CatalogError>> {
-        let _ = (video_id, liked);
+        let _ = (video_id, status);
         Box::pin(async {
             Err(CatalogError::Unavailable(
                 "likes need a signed-in account".to_owned(),
             ))
         })
+    }
+
+    /// Like (`liked = true`) or remove the like of a song. The default goes through
+    /// [`Catalog::set_rating`] with [`LikeStatus::Liked`] or [`LikeStatus::Indifferent`].
+    fn rate_song<'a>(
+        &'a self,
+        video_id: &'a VideoId,
+        liked: bool,
+    ) -> BoxFuture<'a, Result<(), CatalogError>> {
+        let status = if liked {
+            LikeStatus::Liked
+        } else {
+            LikeStatus::Indifferent
+        };
+        self.set_rating(video_id, status)
     }
 }
 
@@ -417,6 +456,18 @@ mod tests {
             unavailable("mood playlists")
         );
         assert_eq!(ready(Bare.podcast(&id)), unavailable("podcasts"));
+    }
+
+    #[test]
+    fn a_catalog_without_rating_methods_errors_instead_of_looping() {
+        let video = VideoId::parse("dQw4w9WgXcQ").expect("valid id");
+        let likes = "likes need a signed-in account";
+        assert_eq!(ready(Bare.rate_song(&video, true)), unavailable(likes));
+        assert_eq!(ready(Bare.rate_song(&video, false)), unavailable(likes));
+        assert_eq!(
+            ready(Bare.set_rating(&video, LikeStatus::Disliked)),
+            unavailable(likes)
+        );
     }
 
     #[test]
