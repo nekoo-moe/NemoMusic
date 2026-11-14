@@ -37,8 +37,9 @@ impl Seek for MediaAdapter {
 }
 
 impl MediaSource for MediaAdapter {
+    /// What the inner source reports, so a live stream is never seeked.
     fn is_seekable(&self) -> bool {
-        true
+        self.inner.is_seekable()
     }
 
     fn byte_len(&self) -> Option<u64> {
@@ -159,5 +160,43 @@ mod tests {
         a.seek(SeekFrom::Start(4)).expect("seek");
         a.read_exact(&mut two[..1]).expect("read");
         assert_eq!(two[0], 5);
+    }
+
+    /// A live stream: reads work, but it must not be seeked.
+    struct LiveSource(MemorySource);
+
+    impl Read for LiveSource {
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+            self.0.read(buf)
+        }
+    }
+
+    impl Seek for LiveSource {
+        fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+            self.0.seek(pos)
+        }
+    }
+
+    impl ByteSource for LiveSource {
+        fn byte_len(&self) -> Option<u64> {
+            None
+        }
+
+        fn is_seekable(&self) -> bool {
+            false
+        }
+    }
+
+    #[test]
+    fn adapter_forwards_a_non_seekable_source() {
+        let a = MediaAdapter::new(Box::new(LiveSource(MemorySource::new(vec![1, 2]))));
+        assert!(!a.is_seekable());
+        assert_eq!(a.byte_len(), None);
+    }
+
+    #[test]
+    fn sources_are_seekable_by_default() {
+        let f = MemorySource::new(Vec::new());
+        assert!(ByteSource::is_seekable(&f));
     }
 }
