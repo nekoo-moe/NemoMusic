@@ -1,5 +1,10 @@
 //! The [`Message`] the app handles and the [`Job`]s that produce them.
 
+#[cfg(doc)]
+use crate::explore::MOODS;
+#[cfg(doc)]
+use crate::home;
+
 use super::art::ArtSpec;
 use super::model::{
     AccountMsg, CompactTab, DetailData, DetailKey, HomeFilter, LibFilter, ListSource, NpTab,

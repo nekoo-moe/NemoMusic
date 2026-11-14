@@ -29,6 +29,9 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::Instant;
 
+#[cfg(doc)]
+use super::run;
+
 mod account;
 mod art;
 mod dispatch;

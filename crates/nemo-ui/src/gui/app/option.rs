@@ -1,5 +1,8 @@
 //! Hooks and options the parent passes in when it builds the app.
 
+#[cfg(doc)]
+use super::message::Message;
+
 use crate::explore::SleepChoice;
 use crate::route::Route;
 use crate::settings::UiSettings;
