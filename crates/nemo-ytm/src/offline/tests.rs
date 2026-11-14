@@ -7,6 +7,7 @@ use rusqlite::Connection;
 
 use super::*;
 
+mod mode;
 mod remove;
 
 struct FakeClock(AtomicI64);
