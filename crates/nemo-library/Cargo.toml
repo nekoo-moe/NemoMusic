@@ -13,6 +13,8 @@ workspace = true
 [dependencies]
 nemo-core.workspace = true
 serde_json.workspace = true
+# NFKC for playlist-import matching, the version nemo-lyrics already builds.
+unicode-normalization = { version = "=0.1.26", default-features = false }
 # lofty 0.25.5 does not compile with default-features = false (missing Id3v2Error import),
 # so the default id3v2 compression feature stays on.
 lofty = "=0.25.5"
