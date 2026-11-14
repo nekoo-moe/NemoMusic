@@ -27,12 +27,13 @@ NemoMusic is a desktop music player in Rust that treats the signal path with res
 ## Local only (owner decision, 2026-11-10)
 - NemoMusic runs entirely on the user's computer. The project owns and runs NO server: no backend, relay, account service or telemetry endpoint.
 - The user signs in with a Google account. All library and account data comes from YouTube Music and that account, and is stored locally.
-- Third-party public services are allowed (YouTube Music, lyrics providers, SponsorBlock). Every host the app contacts must be listed in the README ("network egress list"). Adding a host needs owner approval.
+- Third-party public services are allowed (YouTube Music, SoundCloud, lyrics providers, SponsorBlock, and the services approved on 2026-11-14 under Scope). Every host the app contacts must be listed in the README ("network egress list"). Adding a host needs owner approval.
 - Sign-out wipes all local credentials and cached account data.
 
 ## What "lossless" means here
 - YouTube Music serves lossy audio only (up to about 256 kbps AAC or Opus on Premium High). It has no lossless tier.
 - For YouTube Music, "lossless" in NemoMusic means a bit-perfect output path: the decoded stream is delivered to the device without added processing. The source stays lossy.
+- SoundCloud serves lossy audio only (MP3, AAC or Opus). The same rules apply to it.
 - True lossless applies only to local FLAC, ALAC and WAV files.
 
 ## Scope
@@ -48,21 +49,34 @@ NemoMusic is a desktop music player in Rust that treats the signal path with res
 - Time-synced lyrics from several open providers with a fallback chain (ADR `docs/adr/0002-lyrics-providers.md`).
 - Ad blocking and SponsorBlock, each with an on/off switch (ADR `docs/adr/0003-adblock-sponsorblock.md`).
 - UI in the Material + Liquid Glass design language (`design.md`).
+- Local file library (FLAC, ALAC, WAV, others) and local playlists, with the true-lossless badge (owner, 2026-11-14).
 
 ### Later
-- Local file library (FLAC, ALAC, WAV, others) with true-lossless badge. (MVP inclusion is an open decision.)
 - Linux bit-perfect output (direct ALSA `hw:` device) and macOS (CoreAudio) output.
-- Optional opt-in DSP (EQ, ReplayGain) with clear on/off state.
-- Offline cache of audio (open decision, see below).
 - Focus/session features (timers, quiet mode).
 
+### Approved additions (owner, 2026-11-14)
+Each one goes through its own spec in `.kiro/specs/<name>/` (`workflow.md` section 1). Anything that alters samples is off by default and shown in the signal path (principle 1). Anything that shares data, sends notifications or uses the microphone is opt-in and off by default (principles 4 and 5).
+- `local-library`: local files and playlists (M3U), folder scan, tags, ReplayGain (opt-in), CUE sheets.
+- `offline-cache`: save songs, albums and playlists for offline listening, plus capped smart downloads of the most-played songs (see coc.md).
+- `soundcloud`: SoundCloud as a second source.
+- `audio-effects`: ten-band equalizer with presets and AutoEq headphone profiles, crossfade, delay and reverb.
+- `output-devices`: output device picker and WASAPI exclusive mode. `cast`: play on Cast or DLNA devices.
+- `now-playing-styles`: Classic, Material 3 Expressive and an Apple Music-style Now Playing, with animated cover art where available.
+- `lyrics-plus`: lyrics editor (line or word timing), romanization, a lyrics excerpt as an image, Spotify and YouTube transcript sources, AI translation.
+- `listening-stats`: local listening history, charts, listening clock, a listening receipt, a year in music and monthly recap playlists.
+- `account-actions`: dislike, playlist editing synced with YouTube Music, several accounts, Premium quality, preferred audio language, notifications from followed artists.
+- `youtube-extras`: search all of YouTube, live stations, comments, Return YouTube Dislike, chart data. `video-playback`: video up to 1080p with subtitles.
+- `integrations`: OS media controls and media keys, Last.fm scrobbling, Discord Rich Presence.
+- `song-recognition`, `ai-features` (song suggestions and a reading of your taste), `playlist-import` (from Spotify and other apps), `listen-together` (rooms compatible with Metrolist).
+
 ### Explicit non-goals
-- Claiming or simulating lossless for YouTube streams (no upsampling, no "enhanced" labels).
-- Social features, feeds, sharing, comments, ads.
+- Claiming or simulating lossless for YouTube or SoundCloud streams (no upsampling, no "enhanced" labels).
+- Social feeds, follower counts, engagement badges and ads. Allowed and opt-in (owner, 2026-11-14): YouTube comments in Now Playing, Listen Together rooms, and a short lyrics excerpt shared as an image.
 - Mobile apps and a web version.
-- Audio ripping or bulk downloading tools.
-- Streaming services other than YouTube Music in MVP.
-- Telemetry or analytics enabled by default.
+- Audio ripping or bulk downloading tools. The offline cache is not one: it keeps songs inside the app and never exports them (coc.md).
+- Streaming services other than YouTube Music and SoundCloud.
+- Telemetry or analytics enabled by default. Listening stats are computed and kept on this computer only.
 - Any server run by the project.
 
 ## Quality bar: "done" means
@@ -88,12 +102,13 @@ Look:
 ## Risks (do not hide)
 - Access to YouTube Music is unofficial (no public API for third-party players) and may breach YouTube's Terms of Service. Accounts could be limited, and access could break without notice.
 - Owner decision 2026-11-10: this risk is accepted, including ad blocking and SponsorBlock. Ad blocking means the app does not request or play ads. It also means less income for artists and rights holders, and it may get an account restricted.
+- Owner decision 2026-11-14: the same kind of risk is accepted for the approved additions that use unofficial access: SoundCloud, the offline cache, Premium quality through the signed-in session, Spotify lyrics and animated covers through the user's own Spotify sign-in, song recognition through a Shazam-compatible service, and Listen Together rooms compatible with Metrolist. Each feature names its risk in the README and in its own settings.
 - README and first-run screen must state this plainly.
-- NemoMusic must not bypass DRM or Premium audio-quality limits.
+- NemoMusic must not bypass DRM or Premium audio-quality limits. Premium quality is used only for accounts that have Premium.
 
 ## Open decisions for the owner (agents must not decide these)
-1. Is offline caching of YouTube audio allowed at all, and if yes, how long and where?
-2. Is the local-files mode part of MVP or later?
+1. Offline caching of YouTube audio: DECIDED (2026-11-14), allowed inside the app only: no export, a size limit the user sets, deleted on sign-out; smart downloads are capped (coc.md). The `offline-cache` spec sets the numbers.
+2. Local-files mode: DECIDED (2026-11-14), part of MVP.
 3. Login: DECIDED, Google account, local only. STILL OPEN: the technical method (embedded sign-in, OAuth, cookie import). See ADR 0001.
 4. Name and branding: is "NemoMusic" final? Logo, icon, palette direction.
 5. License of the project (the repo has a LICENSE file; confirm it is the intended one) and policy for third-party dependencies.
@@ -101,7 +116,7 @@ Look:
 7. Minimum supported Windows version and reference test hardware (DAC, headphones).
 8. Distribution: installer, portable zip, or store; auto-update yes or no.
 9. SponsorBlock data is CC BY-NC-SA 4.0 (ADR 0003). NemoMusic must stay non-commercial while it uses that data. Confirm.
-10. Pass the signed-in cookies to `yt-dlp` so Premium accounts get Premium audio quality? ADR 0001 says no by default (account-restriction risk), so a signed-in Premium user gets the anonymous stream quality until you decide.
+10. Pass the signed-in cookies to `yt-dlp` so Premium accounts get Premium audio quality: DECIDED (2026-11-14), yes. The `account-actions` spec sets the switch and its default.
 11. Approve opt-in NetEase and QQ lyrics (unofficial, ToS unverified) and the hosts `lrclib.net` and `sponsor.ajay.app` for the egress list (ADR 0002, 0003).
 12. Ad blocking and SponsorBlock default OFF with a first-run choice (ADRs recommend this, matching the no-pre-checked-consent rule). Confirm.
 
