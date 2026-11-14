@@ -235,7 +235,7 @@ Cross-spec ids written `<spec>#?` point at the task of that spec that adds the n
   - Wave: 2
   - Checks: `cargo tree -p nemo-ui --edges normal` shows only `nemo-core` among `nemo-*` crates.
 
-- [ ] 28. Build the lyrics editor model
+- [x] 28. Build the lyrics editor model
   - Crate and files: `nemo-ui`: new `src/editor.rs` (`EditorModel`).
   - Does: Pure state for the tap pass (start = `PlayerSnapshot.position` at the key event, then next line), step back, re-tap, 50 ms nudge, and the optional word pass. Saving names the first line with no start.
   - _Requirements: 2, 3, 4, 6_
