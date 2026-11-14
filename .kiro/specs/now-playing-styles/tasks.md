@@ -26,7 +26,7 @@ Cross-spec ids written `<spec>#?` point at the task of that spec that adds the n
   - Wave: 1
   - Checks: migration test; eviction at the cap; miss expiry with a fake clock; wipe test finds no clip and no row.
 
-- [ ] 4. Dispatch the Now Playing views on the style
+- [x] 4. Dispatch the Now Playing views on the style
   - Crate and files: `nemo-ui`: `src/gui/views/now_playing.rs`, `src/gui/views/pane.rs`.
   - Does: `view` picks the builder per style for the right pane, full-screen Now Playing and the compact layout; `M3Expressive` is today's code unchanged. Playback, lyrics position, scroll spring and `compact_tab` live in `App`, so a style change restarts nothing.
   - _Requirements: 4, 5, 6, 7, 9_
