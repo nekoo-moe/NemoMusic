@@ -95,6 +95,7 @@ pub fn track_from_path(path: PathBuf) -> Track {
         origin: Origin::Local,
         video_id: None,
         artwork: Artwork::LocalFile(path.clone()),
+        source_url: None,
         local_path: Some(path),
     }
 }

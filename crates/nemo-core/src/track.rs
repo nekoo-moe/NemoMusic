@@ -174,6 +174,9 @@ pub struct Track {
     pub local_path: Option<PathBuf>,
     /// Cover art.
     pub artwork: Artwork,
+    /// The page of a track from a site other than YouTube Music (SoundCloud), which the URL
+    /// resolver turns into a stream. `None` for YouTube Music and local tracks.
+    pub source_url: Option<MediaUrl>,
 }
 
 #[cfg(test)]

@@ -97,6 +97,7 @@ fn build_track(
         video_id: Some(video),
         local_path: None,
         artwork: artwork(thumbnails),
+        source_url: None,
     })
 }
 
