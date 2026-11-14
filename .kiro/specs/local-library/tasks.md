@@ -11,7 +11,7 @@ Cross-spec ids written `<spec>#?` name the owner's task by its ADR 0004 Decision
   - Checks: unit tests for `Default` values (no span, no gain). Used by nemo-audio `prepare` (row 16).
   - Steering: ADR 0004: add `library.rs` to the expected `nemo-core` additions and record that folder watching was not built (design, "Departure").
 
-- [ ] 2. Add the library service types to `nemo-core`
+- [x] 2. Add the library service types to `nemo-core`
   - Crate and files: `nemo-core`: `src/library.rs`. Touches nemo-core/src/library.rs.
   - Does: Adds `LocalTrackDetails`, `TrackStatus`, `UnplayableReason`, `LocalPlaylistId`, `PlaylistEntry` (path or streamed `Track`), `LocalPlaylist`, `M3uImport`, `TagEdit`, `TagDiff`, `ScanEvent` (including `Rebuilt`), `ScanSummary`, `ScanReceiver`, `LibraryError` (`thiserror`: `Db`, `Io`, `Tag`, `Cue`, `M3u`, `Corrupt`, `Busy`) and the `LocalLibraryService` trait with rename, reorder, delete and entry add and remove. Error texts carry no path or tag.
   - _Requirements: none (groundwork)_

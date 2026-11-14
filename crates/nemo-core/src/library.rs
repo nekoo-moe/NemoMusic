@@ -1,13 +1,23 @@
-//! Local library playback types: CUE spans, `ReplayGain` values and the loudness meter.
+//! Local library types: CUE spans, `ReplayGain` values, the loudness meter, and the library
+//! service the UI uses (folders, scan, track details, local playlists, M3U, tag edits).
 //!
-//! `nemo-library` implements [`LocalTrackLookup`]; `nemo-audio` calls it while preparing a
-//! song and implements [`LoudnessMeter`]. No I/O happens in this module.
+//! `nemo-library` implements [`LocalTrackLookup`] and [`LocalLibraryService`]; `nemo-audio`
+//! calls the lookup while preparing a song and implements [`LoudnessMeter`]. No I/O happens in
+//! this module.
 
 use std::path::Path;
 use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
 use crate::track::Track;
+
+mod service;
+
+pub use service::{
+    LibraryError, LocalLibraryService, LocalPlaylist, LocalPlaylistId, LocalTrackDetails,
+    M3uImport, PlaylistEntry, ScanEvent, ScanReceiver, ScanSummary, TagDiff, TagEdit, TrackStatus,
+    UnplayableReason,
+};
 
 /// A time span of one audio file, such as one track of a CUE sheet.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -102,7 +112,10 @@ pub trait LoudnessMeter: Send + Sync {
 
 #[cfg(test)]
 mod tests {
-    use super::{LocalPlayback, LoudnessError, ReplayGainValues, TrackSpan};
+    use super::{
+        LibraryError, LocalPlayback, LoudnessError, ReplayGainValues, ScanSummary, TagEdit,
+        TrackSpan, TrackStatus,
+    };
 
     #[test]
     fn default_playback_has_no_span_and_no_gain() {
@@ -137,5 +150,28 @@ mod tests {
             let text = err.to_string();
             assert!(!text.contains('/') && !text.contains('\\'), "{text}");
         }
+    }
+
+    #[test]
+    fn library_errors_hold_no_path() {
+        for err in [
+            LibraryError::Db,
+            LibraryError::Io(std::io::ErrorKind::NotFound),
+            LibraryError::Tag("the file is read-only"),
+            LibraryError::Cue,
+            LibraryError::M3u,
+            LibraryError::Corrupt,
+            LibraryError::Busy,
+        ] {
+            let text = err.to_string();
+            assert!(!text.contains('/') && !text.contains('\\'), "{text}");
+        }
+    }
+
+    #[test]
+    fn defaults_are_playable_and_empty() {
+        assert_eq!(TrackStatus::default(), TrackStatus::Playable);
+        assert_eq!(TagEdit::default().title, None);
+        assert_eq!(ScanSummary::default().added, 0);
     }
 }
