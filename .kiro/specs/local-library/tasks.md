@@ -35,7 +35,7 @@ Cross-spec ids written `<spec>#?` name the owner's task by its ADR 0004 Decision
   - Wave: 1
   - Checks: pass: (a), (b) and (c) hold, so task 6 uses `opus-decoder` and needs no C toolchain. Fail on (a) or (c): task 6 uses `symphonia-adapter-libopus` =0.3.0 (CMake and a C compiler, owner accepted 2026-11-14), and task 6 adds the libopus licence notice and the CMake build note. Fail on (b) for Ogg: stop and ask the owner before task 6, because criterion 9 names Ogg Opus. Test vectors are downloaded to scratch, not committed. No owner needed unless (b) fails.
 
-- [ ] 5. Decode ALAC, Vorbis and AIFF
+- [x] 5. Decode ALAC, Vorbis and AIFF
   - Crate and files: `nemo-audio`: `Cargo.toml` (`symphonia` features `alac`, `vorbis`, `ogg`, `aiff`), `src/decoder.rs` (`codec_from_id`), `tests/golden/`; `nemo-library`: `Cargo.toml` (same features, so the scan's probe agrees with the player). Touches nemo-audio/src/decoder.rs.
   - Does: Turns on the four `symphonia` features and maps the new codec ids. Adds ALAC and AIFF fixtures made from the existing WAV fixture and a short Ogg Vorbis fixture, with SHA-256 checksums.
   - _Requirements: 9, 12_
@@ -43,6 +43,7 @@ Cross-spec ids written `<spec>#?` name the owner's task by its ADR 0004 Decision
   - Wave: 1
   - Checks: `cargo test -p nemo-audio --test bit_exact`; golden tests: ALAC and AIFF decode to samples identical to the WAV fixture; Vorbis matches a reference decode within a stated tolerance (lossy, not bit-exact).
   - Steering: `tech.md` Decode row: add features `alac`, `vorbis`, `ogg`, `aiff`.
+  - Done: `nemo-library` has no `symphonia` dependency and no probe yet, so its `Cargo.toml` was left alone; task 12, which adds the probe, adds `symphonia` with the same features. `scan.rs` `AUDIO_EXTENSIONS` does not list `aiff` or `aif` yet (task 12).
 
 - [ ] 6. Add the Opus decoder through one codec registry
   - Crate and files: `nemo-audio`: `Cargo.toml`, `src/codecs.rs` (new, `build_codecs()`), `src/decoder.rs`, `src/stream_decoder.rs`, `tests/golden/`; `nemo-library`: treat the Opus codec id as playable in the scan probe. Touches nemo-audio/src/decoder.rs.
@@ -96,7 +97,7 @@ Cross-spec ids written `<spec>#?` name the owner's task by its ADR 0004 Decision
   - Checks: temp-folder tests for add, change, remove and folder removal (files on disk unchanged); a log-capture test that no path or tag is written at info level or above. No live watching.
 
 - [ ] 12. Read all tag fields and mark unplayable files
-  - Crate and files: `nemo-library`: `src/tags.rs`, `src/scan.rs`.
+  - Crate and files: `nemo-library`: `src/tags.rs`, `src/scan.rs`, `Cargo.toml` (`symphonia` =0.6.1 with the `nemo-audio` features, moved here from task 5).
   - Does: Reads title, artist, album, album artist, track and disc number, year, genre, duration and embedded cover, with the file name as the title fallback. Probes and decodes the first packet; a file that fails is stored as `Unplayable` with its reason, so "playable" means the player's decoders accept it.
   - _Requirements: 7, 8, 9_
   - Depends on: local-library#11, local-library#6
