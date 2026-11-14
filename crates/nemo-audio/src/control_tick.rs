@@ -7,6 +7,7 @@ use nemo_core::player::{PlayState, PlayerEvent};
 
 use crate::control::{Core, NextState, Run, micros};
 use crate::pipeline::{FeedCmd, FeedEvent, Job, plan_stages};
+use crate::replay_gain::ReplayGain;
 
 impl Core {
     /// One round of housekeeping. Called after every message and at least every few ms.
@@ -148,6 +149,8 @@ impl Core {
         };
         let mut run = Run::new(slot.token, slot.entry, slot.track, Duration::ZERO);
         run.stages = plan_stages(format, out);
+        let replay_gain = ReplayGain::plan(&self.shared.replay_gain.get(), &prepared.playback.gain);
+        run.stages.extend(replay_gain.map(|g| g.stage()));
         run.duration = prepared.duration().or(run.track.duration);
         run.source = Some(prepared.info);
         run.loaded = true;
@@ -157,6 +160,7 @@ impl Core {
             start: Duration::ZERO,
             span: prepared.playback.span,
             segments: Vec::new(),
+            replay_gain,
         }));
         self.following = Some(run);
         self.fetch_segments();

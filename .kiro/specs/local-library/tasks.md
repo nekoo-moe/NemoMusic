@@ -56,7 +56,7 @@ Cross-spec ids written `<spec>#?` name the owner's task by its ADR 0004 Decision
   - Steering: `tech.md` Opus decode row: the chosen crate (and, for the fallback, `opusic-sys` 0.7.7 BSD-3-Clause and the CMake need), replacing the `opus` or `audiopus` wording, `audiopus` recorded as rejected. README: the libopus licence notice, only if the fallback is chosen.
   - Done: `nemo-library` has no probe yet, so nothing there changed; task 12, which adds the probe, treats the Opus codec id as playable (`.opus` and `.ogg` are already in `AUDIO_EXTENSIONS`, `.webm` is not). `stream_decoder.rs` and `decode_file` both build their decoder through `codecs.rs`. A lossy codec now states no bit depth even when the container does (FFmpeg's WebM muxer writes 16 for Opus). The README also gets the CMake build note.
 
-- [ ] 7. Let streams play as Opus
+- [x] 7. Let streams play as Opus
   - Crate and files: `nemo-audio`: `src/decoder.rs` (`supported_stream_codecs()`). Touches nemo-audio/src/decoder.rs.
   - Does: Adds `Codec::Opus` to `supported_stream_codecs()` (owner approved 2026-11-14), so the YouTube and SoundCloud rankers can pick Opus. Separate PR so the change of stream choice is easy to review and revert.
   - _Requirements: none (groundwork)_
@@ -170,13 +170,14 @@ Cross-spec ids written `<spec>#?` name the owner's task by its ADR 0004 Decision
   - Wave: 2
   - Checks: unit tests; `cargo test -p nemo-audio --test bit_exact`; with crossfade on, CUE tracks still join frame for frame.
 
-- [ ] 21. Apply ReplayGain as an off-by-default stage
+- [x] 21. Apply ReplayGain as an off-by-default stage
   - Crate and files: `nemo-audio`: `src/feeder.rs`, `src/prepare.rs`, `src/replay_gain.rs` (new). Touches nemo-audio/src/prepare.rs.
   - Does: When the setting is on and the song has a value, prepare picks track or album gain plus pre-gain, lowers it so peak x gain stays at or below 1.0, and the feeder applies one scalar per block after the song's `Chain` and before the transition mixer, registered as `ProcessingStage::ReplayGain { db }`. Off, or no tag, means the stage is not built: no arithmetic, unity gain, bit-perfect path kept. A change applies from the next song.
   - _Requirements: 15, 16, 17_
   - Depends on: local-library#19, audio-effects#? (row 3, `ProcessingStage::ReplayGain`)
   - Wave: 2
   - Checks: `cargo test -p nemo-audio --test bit_exact` with ReplayGain off; `rt_no_alloc` run with the gain stage on (callback allocates nothing; feeder preallocates); `proptest` for dB-to-scalar and the peak clamp; `is_bit_perfect` false while the stage is in the path. Alters audio only when enabled, as the approved spec says (`workflow.md` section 8).
+  - Done: the gain is picked on the control thread when it hands the song to the feeder (`ReplayGain::plan` in `src/replay_gain.rs`), not on the prepare thread: the `PrepareDeps` literal lives in `control_cmd.rs`, which lane A owns in wave 3, and the values already arrive in `Prepared.playback`. The setting is a `ReplayGainSwitch` handle passed to `Player::spawn_with_replay_gain` (no `PlayerDeps` field, no nemo-core type); `nemo-app` keeps a clone and sets it in task 32. Track mode falls back to the album gain and album mode to the track gain; the pre-gain is limited to -15 to +15 dB; a gain of exactly 0 dB builds no stage.
 
 - [ ] 22. Measure loudness with `ebur128`
   - Crate and files: `nemo-audio`: `Cargo.toml` (`ebur128` =0.1.11), `src/loudness.rs` (new, `AudioMeter`).
