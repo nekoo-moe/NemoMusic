@@ -10,7 +10,7 @@ Cross-spec ids written `<spec>#?` point at the task of that spec that adds the n
   - Wave: 1
   - Checks: needs the owner (throwaway Spotify account). Pass: one clip found and downloaded, hosts recorded. Fail: the Spotify source stays out; tasks 3, 13 and 15 are dropped, task 16 shows the switch as "Unavailable", and only the interface and still covers ship.
 
-- [ ] 2. Store the style and the animated-cover switches
+- [x] 2. Store the style and the animated-cover switches
   - Crate and files: `nemo-ui`: `src/settings.rs` (`NowPlayingStyle`, `AnimatedCoverSettings`, `UiSettings` fields); `nemo-app`: `src/config.rs`, `src/ui_bridge.rs` (`settings.json`).
   - Does: Three styles with `M3Expressive` as default, so existing users see no change; all animated-cover switches off. A missing or bad value falls back to `M3Expressive` and off.
   - _Requirements: 1, 2, 3, 19_

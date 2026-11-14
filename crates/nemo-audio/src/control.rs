@@ -101,6 +101,8 @@ pub(crate) struct Core {
     pub skips: VecDeque<(u64, u64, Segment)>,
     pub last_skip: Option<(u64, Segment)>,
     pub ignored: HashMap<u64, HashSet<String>>,
+    /// A remote device plays: decode nothing and hold no output device.
+    pub parked: bool,
 }
 
 impl Core {
@@ -127,6 +129,7 @@ impl Core {
             skips: VecDeque::new(),
             last_skip: None,
             ignored: HashMap::new(),
+            parked: false,
         }
     }
 
@@ -234,7 +237,8 @@ impl Core {
 
     // ---- starting and stopping -----------------------------------------------------------
 
-    /// Make queue entry `index` the current track and start opening it at `start`.
+    /// Make queue entry `index` the current track and start opening it at `start`. While parked it
+    /// only moves the queue position and reports the new track.
     pub fn start_track(&mut self, index: usize, start: Duration) {
         let Some(entry) = self.queue.get(index) else {
             self.stop_all();
@@ -253,6 +257,12 @@ impl Core {
         let token = self.new_id();
         self.cur = Some(Run::new(token, entry_id, track.clone(), start));
         self.index = Some(index);
+        if self.parked {
+            // A remote device plays: move through the queue, open nothing.
+            self.notify(&PlayerEvent::TrackChanged(track.id.clone()));
+            self.notify(&PlayerEvent::QueueChanged);
+            return;
+        }
         let pos = &self.shared.pos;
         pos.start.store(u64::MAX, Ordering::SeqCst);
         pos.base_us.store(micros(start), Ordering::SeqCst);

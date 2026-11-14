@@ -28,6 +28,9 @@ pub struct AppPaths {
     pub webview: PathBuf,
     /// Cached account header (name, avatar). Sign-out deletes it.
     pub account: PathBuf,
+    /// Offline cache of saved songs: files with opaque names and `offline.db`. The cache
+    /// creates it, not [`AppPaths::create_all`]; sign-out removes it completely.
+    pub offline: PathBuf,
 }
 
 /// No data directory could be found for this user.
@@ -50,6 +53,7 @@ impl AppPaths {
             bin: root.join("bin"),
             webview: root.join("webview"),
             account: root.join("account"),
+            offline: root.join("offline"),
             root,
         }
     }
@@ -109,11 +113,23 @@ mod tests {
         let root = Path::new("C:/data/NemoMusic");
         let p = AppPaths::under(root);
         for dir in [
-            &p.images, &p.lyrics, &p.library, &p.logs, &p.bin, &p.webview, &p.account,
+            &p.images, &p.lyrics, &p.library, &p.logs, &p.bin, &p.webview, &p.account, &p.offline,
         ] {
             assert!(dir.starts_with(root), "{}", dir.display());
         }
         assert_eq!(p.root, root);
+    }
+
+    #[test]
+    fn offline_cache_has_its_own_folder_under_the_root() {
+        let root = Path::new("C:/data/NemoMusic");
+        let p = AppPaths::under(root);
+        assert_eq!(p.offline, root.join("offline"));
+        for other in [
+            &p.images, &p.lyrics, &p.library, &p.logs, &p.bin, &p.webview, &p.account,
+        ] {
+            assert!(!other.starts_with(&p.offline) && !p.offline.starts_with(other));
+        }
     }
 
     #[test]

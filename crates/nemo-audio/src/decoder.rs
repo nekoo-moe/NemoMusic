@@ -1,4 +1,5 @@
-//! Decode a local FLAC or WAV file into interleaved `f32` frames.
+//! Decode a local audio file (FLAC, ALAC, WAV, AIFF, AAC, MP3, Ogg Vorbis) into interleaved
+//! `f32` frames.
 //!
 //! # Exactness
 //!
@@ -13,9 +14,11 @@ use std::path::Path;
 
 use nemo_core::audio::{AudioFormat, Codec, Origin, StreamInfo};
 use symphonia::core::codecs::audio::AudioCodecId;
+use symphonia::core::codecs::audio::AudioCodecParameters;
 use symphonia::core::codecs::audio::AudioDecoderOptions;
 use symphonia::core::codecs::audio::well_known::{
-    CODEC_ID_AAC, CODEC_ID_FLAC, CODEC_ID_MP3, CODEC_ID_PCM_MULAW, CODEC_ID_PCM_S32LE,
+    CODEC_ID_AAC, CODEC_ID_ALAC, CODEC_ID_FLAC, CODEC_ID_MP3, CODEC_ID_PCM_MULAW,
+    CODEC_ID_PCM_S32LE, CODEC_ID_VORBIS,
 };
 use symphonia::core::errors::Error as SymphoniaError;
 use symphonia::core::formats::probe::Hint;
@@ -77,14 +80,15 @@ impl DecodedAudio {
     }
 }
 
-/// Decode a local FLAC or WAV file completely into memory.
+/// Decode a local audio file completely into memory.
 ///
 /// The whole file is held in memory. Streaming decode is out of scope for this slice.
 ///
 /// # Errors
 ///
-/// Returns [`DecodeError`] when the file cannot be opened, is not FLAC or PCM WAV, has no
-/// audio track, omits its sample rate or channel count, or a packet fails to decode.
+/// Returns [`DecodeError`] when the file cannot be opened, is in a format this build cannot
+/// read, has no audio track, omits its sample rate or channel count, or a packet fails to
+/// decode.
 pub fn decode_file(path: &Path) -> Result<DecodedAudio, DecodeError> {
     let file = File::open(path).map_err(DecodeError::Open)?;
     let mss = MediaSourceStream::new(Box::new(file), MediaSourceStreamOptions::default());
@@ -120,7 +124,7 @@ pub fn decode_file(path: &Path) -> Result<DecodedAudio, DecodeError> {
         .ok()
         .filter(|c| *c > 0)
         .ok_or(DecodeError::UnsupportedLayout("channel count"))?;
-    let bit_depth = params.bits_per_sample.and_then(|b| u8::try_from(b).ok());
+    let bit_depth = stated_bit_depth(params);
     let codec = codec_from_id(params.codec);
     let mut decoder = symphonia::default::get_codecs()
         .make_audio_decoder(params, &AudioDecoderOptions::default())?;
@@ -172,9 +176,95 @@ pub(crate) fn codec_from_id(id: AudioCodecId) -> Codec {
         Codec::Aac
     } else if id == CODEC_ID_MP3 {
         Codec::Mp3
+    } else if id == CODEC_ID_ALAC {
+        Codec::Alac
+    } else if id == CODEC_ID_VORBIS {
+        Codec::Vorbis
     } else if (CODEC_ID_PCM_S32LE..=CODEC_ID_PCM_MULAW).contains(&id) {
         Codec::Pcm
     } else {
         Codec::Unknown
+    }
+}
+
+/// Bit depth the stream states. symphonia 0.6.1 leaves `bits_per_sample` unset for ALAC in
+/// MP4, so for ALAC it is read from the magic cookie, which always states it.
+pub(crate) fn stated_bit_depth(params: &AudioCodecParameters) -> Option<u8> {
+    params
+        .bits_per_sample
+        .and_then(|b| u8::try_from(b).ok())
+        .or_else(|| {
+            (params.codec == CODEC_ID_ALAC)
+                .then_some(params.extra_data.as_deref())
+                .flatten()
+                .and_then(alac_cookie_bit_depth)
+        })
+}
+
+/// The `bitDepth` byte of an ALAC magic cookie, which may follow `frma` and `alac` atom
+/// headers (12 bytes each), as symphonia's own cookie reader allows.
+fn alac_cookie_bit_depth(mut cookie: &[u8]) -> Option<u8> {
+    for atom in [b"frma", b"alac"] {
+        if cookie.get(4..8) == Some(atom.as_slice()) {
+            cookie = cookie.get(12..)?;
+        }
+    }
+    if cookie.len() < 24 {
+        return None;
+    }
+    cookie
+        .get(5)
+        .copied()
+        .filter(|bits| (1..=32).contains(bits))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn cookie(bits: u8) -> Vec<u8> {
+        let mut c = vec![0_u8; 24];
+        c[..4].copy_from_slice(&4096_u32.to_be_bytes());
+        c[5] = bits;
+        c
+    }
+
+    #[test]
+    fn alac_bit_depth_comes_from_the_cookie() {
+        assert_eq!(alac_cookie_bit_depth(&cookie(24)), Some(24));
+        let mut framed = vec![0, 0, 0, 12];
+        framed.extend_from_slice(b"frma");
+        framed.extend_from_slice(b"alac");
+        framed.extend_from_slice(&[0, 0, 0, 36]);
+        framed.extend_from_slice(b"alac");
+        framed.extend_from_slice(&[0; 4]);
+        framed.extend_from_slice(&cookie(16));
+        assert_eq!(alac_cookie_bit_depth(&framed), Some(16));
+    }
+
+    #[test]
+    fn a_short_or_invalid_cookie_states_no_bit_depth() {
+        assert_eq!(alac_cookie_bit_depth(&[0; 10]), None);
+        assert_eq!(alac_cookie_bit_depth(&cookie(0)), None);
+        assert_eq!(alac_cookie_bit_depth(&cookie(40)), None);
+    }
+
+    #[test]
+    fn stated_bits_win_and_other_codecs_never_read_extra_data() {
+        let mut params = AudioCodecParameters::new();
+        params
+            .for_codec(CODEC_ID_FLAC)
+            .with_extra_data(cookie(24).into());
+        assert_eq!(stated_bit_depth(&params), None);
+        params.for_codec(CODEC_ID_ALAC);
+        assert_eq!(stated_bit_depth(&params), Some(24));
+        params.with_bits_per_sample(16);
+        assert_eq!(stated_bit_depth(&params), Some(16));
+    }
+
+    #[test]
+    fn new_codec_ids_map_to_their_codec() {
+        assert_eq!(codec_from_id(CODEC_ID_ALAC), Codec::Alac);
+        assert_eq!(codec_from_id(CODEC_ID_VORBIS), Codec::Vorbis);
     }
 }

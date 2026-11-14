@@ -31,7 +31,7 @@ Cross-spec ids written `<spec>#?` point at the task in that spec that adds the n
   - Checks: `CastError` `Display` holds no URL or token (unit test).
   - Steering: none
 
-- [ ] 4. Add the parked player mode (Park and Unpark)
+- [x] 4. Add the parked player mode (Park and Unpark)
   - Crate and files: `nemo-core`: `src/player.rs` (`PlayerCommand::Park`, `PlayerCommand::Unpark { at }`, `PlayerEvent::ParkedChanged(bool)`). `nemo-audio`: `src/control_cmd.rs`, `src/control.rs`. Touches nemo-core/src/player.rs.
   - Does: `Park` runs `stop_all` and releases the output device; while parked, `start_track` skips `spawn_prepare` and the pipeline and still emits `TrackChanged`, so Next, Previous and queue edits work with no decode. `Unpark { at }` reopens the device and resumes at `at`. The render callback does not change.
   - _Requirements: 13_
