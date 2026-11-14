@@ -4,6 +4,7 @@
 //! it; it depends on no other `nemo-*` crate (see `structure.md`).
 
 pub mod account;
+pub mod ai;
 pub mod audio;
 pub mod catalog;
 pub mod lyrics;

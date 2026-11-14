@@ -2,7 +2,7 @@
 
 Cross-spec ids written `<spec>#?` name the other spec's task by the ADR 0004 Decision 4 row it delivers; the number is filled in once that spec's `tasks.md` is merged. The design names no spike; every task here builds on existing pins.
 
-- [ ] 1. Add the `AiService` contract
+- [x] 1. Add the `AiService` contract
   - Crate and files: `nemo-core` (`src/ai.rs` new, `src/lib.rs`); touches nemo-core/src/ai.rs.
   - Does: Adds `AiFeature`, `EndpointScope`, `AiProviderInfo`, `AiProviderConfig` (key as `Secret<String>`), `SongRef`, `TasteSource`, `AiRequest`, `PreviewMessage`, `PayloadPreview`, `SuggestedSong`, `AiAnswer`, `AiResult`, `SavedReading`, `AiError`, `AiService` and `NoAi` (`provider()` is `None`). No I/O.
   - _Requirements: none (groundwork)_
