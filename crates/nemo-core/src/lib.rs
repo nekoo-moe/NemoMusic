@@ -10,6 +10,7 @@ pub mod catalog;
 pub mod downloads;
 pub mod effects;
 pub mod hooks;
+pub mod import;
 pub mod integrations;
 pub mod library;
 pub mod lyrics;

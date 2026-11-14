@@ -2,7 +2,7 @@
 
 Cross-spec ids written `<spec>#?` name the task in that spec that adds the ADR 0004 Decision 4 row given in brackets; the number is filled in once that spec's `tasks.md` is committed.
 
-- [ ] 1. Add `import.rs` with the import types and the `PlaylistImport` trait
+- [x] 1. Add `import.rs` with the import types and the `PlaylistImport` trait
   - Crate and files: `nemo-core` (new nemo-core/src/import.rs, touches nemo-core/src/lib.rs).
   - Does: `ImportedSong`, `Confidence`, `SkippedRow`, `MatchCandidate`, `RowState`, `ImportRow`, `ImportSession`, `ImportError` and the trait (`parse`, `match_next`, `research`, `accepted`, `unmatched_text`). Signatures only, no I/O.
   - _Requirements: none (groundwork)_
