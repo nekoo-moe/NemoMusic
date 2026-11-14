@@ -11,6 +11,7 @@ Tasks in other specs are cited by spec and the ADR 0004 Decision 4 row they own,
   - Wave: 0
   - Checks: needs the owner: a Linux machine for the run, and agreement to ship libmpv. The result is written into the design's Risks section.
   - Steering: none.
+  - Status (2026-11-14): Windows half stopped at the binding. `libmpv2` 7.0.1 has no software render API and links libmpv at load time, and the only checkable Windows build (shinchiro, `20261111`) is GPL. Waiting on the owner: extend the `code.md` unsafe rule to an `ffi` module of `nemo-video` (own FFI over `libloading`), or pick another route; and accept a GPL build or ask for an LGPL one. Linux half needs the owner's machine. Details in design Risks.
 
 - [ ] 2. Add the video types and traits
   - Crate and files: `nemo-core` (new `src/video.rs`, `src/lib.rs`). Touches nemo-core/src/video.rs and nemo-core/src/lib.rs.
