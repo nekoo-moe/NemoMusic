@@ -19,7 +19,7 @@ Cross-spec ids written `<spec>#?` name the owner's task by its ADR 0004 Decision
   - Wave: 0
   - Checks: unit test that `LibraryError` display strings contain no path. Used by playlist-import and listening-stats (`create_playlist`, `add_tracks`).
 
-- [ ] 3. Make `FileSource` the shared file reader
+- [x] 3. Make `FileSource` the shared file reader
   - Crate and files: `nemo-audio`: `src/source.rs`, `tests/file_source.rs` (new), fixtures in `tests/fixtures/`.
   - Does: Documents `FileSource` as the one `ByteSource` for local and cached files (row 15), with typed open errors that hold no path. Adds tests that `StreamDecoder::open(FileSource, None)` probes an AAC-in-MP4 file and an existing FLAC file with no container hint, and that seek and length match the file.
   - _Requirements: none (groundwork)_
