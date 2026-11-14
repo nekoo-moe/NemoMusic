@@ -60,7 +60,7 @@ Cross-spec ids written `<spec>#?` name the owner's task by its ADR 0004 Decision
   - Wave: 1
   - Checks: loopback `test_server.rs` serving ranges: resume continues from the `.part` length, pause stops within one chunk, a short body fails, saved bytes equal the served bytes.
 
-- [ ] 8. Pin saved lyrics in the lyrics cache
+- [x] 8. Pin saved lyrics in the lyrics cache
   - Crate and files: `nemo-lyrics`: `src/cache.rs` (migration adds a `pinned` flag), the `LyricsService` implementation. Touches nemo-lyrics/src/cache.rs; order with lyrics-plus tasks on the same file.
   - Does: Implements `keep_offline`: a pinned entry skips expiry until unpinned.
   - _Requirements: 17_

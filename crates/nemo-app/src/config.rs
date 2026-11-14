@@ -3,6 +3,7 @@
 //! Defaults follow the owner decisions: ad blocking and SponsorBlock are off until the user
 //! turns them on (no pre-checked consent), the glass tier starts at Low (Intel HD 530 class GPUs).
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -68,6 +69,9 @@ pub struct Settings {
     pub now_playing_style: String,
     /// Animated-cover switches, all off by default.
     pub animated_covers: AnimatedCovers,
+    /// The opt-in rows, by `OptInInfo.id`. A missing id means the user never touched the row,
+    /// so the feature's default holds (see `opt_in_gate`).
+    pub opt_ins: BTreeMap<String, OptInChoice>,
 }
 
 /// Stored animated-cover switches. A missing field is off.
@@ -76,6 +80,16 @@ pub struct Settings {
 pub struct AnimatedCovers {
     /// Spotify Canvas clips in place of the still cover.
     pub spotify_canvas: bool,
+}
+
+/// The stored answer of one opt-in row (ADR 0004, "Opt-in settings pattern").
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct OptInChoice {
+    /// The switch.
+    pub enabled: bool,
+    /// The `OptInInfo.version` the user confirmed in the panel; 0 when never confirmed.
+    pub confirmed_version: u32,
 }
 
 impl Default for Settings {
@@ -97,6 +111,7 @@ impl Default for Settings {
             corner_style: String::new(),
             now_playing_style: String::new(),
             animated_covers: AnimatedCovers::default(),
+            opt_ins: BTreeMap::new(),
         }
     }
 }
@@ -208,6 +223,26 @@ mod tests {
         )
         .expect("write");
         assert_eq!(Settings::load(&root), Settings::default());
+        std::fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[test]
+    fn opt_in_choices_round_trip_and_an_old_file_has_none() {
+        let root = temp_root("opt-ins");
+        let s = Settings {
+            opt_ins: BTreeMap::from([(
+                "lastfm".to_owned(),
+                OptInChoice {
+                    enabled: true,
+                    confirmed_version: 2,
+                },
+            )]),
+            ..Settings::default()
+        };
+        s.save(&root).expect("save");
+        assert_eq!(Settings::load(&root), s);
+        std::fs::write(root.join(CONFIG_FILE), r#"{"volume_percent": 40}"#).expect("write");
+        assert!(Settings::load(&root).opt_ins.is_empty());
         std::fs::remove_dir_all(root).expect("cleanup");
     }
 

@@ -5,12 +5,13 @@ use std::sync::Arc;
 use nemo_audio::decoder::supported_stream_codecs;
 use nemo_audio::player::{Player, PlayerDeps};
 use nemo_audio::sink::CpalSinkFactory;
-use nemo_core::account::{AccountService, NoAccount};
+use nemo_core::account::{AccountService, NoAccount, SignOutWipe};
 use nemo_core::integrations::NoIntegrations;
 use nemo_core::notify::NoNotifier;
 use nemo_core::player::PlayerCommand;
 use nemo_core::segment::SegmentSource;
 use nemo_core::services::Backend;
+use nemo_core::stream::StreamRequest;
 use nemo_library::catalog::LOCAL_ALBUM_PREFIX;
 use nemo_library::{LocalCatalog, LocalLibrary};
 use nemo_lyrics::LyricsHub;
@@ -18,7 +19,6 @@ use nemo_ytm::account::{
     AccountCatalog, AccountConfig, GoogleAccount, SessionSlot, default_helper_path,
 };
 use nemo_ytm::catalog::YtmCatalog;
-use nemo_ytm::credentials::PlatformStore;
 use nemo_ytm::images::ImageCache;
 use nemo_ytm::resolver::default_chain;
 use nemo_ytm::session::YtmSessionBackend;
@@ -93,6 +93,10 @@ pub fn build(
 
     let player = Player::spawn(PlayerDeps {
         resolver,
+        // Automatic language, no Premium, no codec hint until the account settings build it.
+        request: StreamRequest::default(),
+        // No library store yet: every local file plays whole.
+        local: None,
         opener: Arc::new(HttpStreamOpener::default()),
         segments,
         sink_factory: Arc::new(CpalSinkFactory::new(settings.output_device.clone())),
@@ -121,7 +125,7 @@ pub fn build(
 
 /// The Google account service, or `NoAccount` when the OS credential store or the helper is missing.
 fn build_account(paths: &AppPaths, handle: &Handle, slot: &SessionSlot) -> Arc<dyn AccountService> {
-    let store = match PlatformStore::new() {
+    let store = match nemo_secrets::open_platform_store() {
         Ok(store) => store,
         Err(err) => {
             tracing::warn!(error = %err, "sign-in disabled");
@@ -135,13 +139,23 @@ fn build_account(paths: &AppPaths, handle: &Handle, slot: &SessionSlot) -> Arc<d
         webview_dir: paths.webview.clone(),
         cache_file: paths.account.join("account.json"),
     };
-    Arc::new(GoogleAccount::new(
+    let account = GoogleAccount::new(
         config,
-        Arc::new(store),
+        store,
         Arc::new(YtmSessionBackend::new(handle.clone())),
         slot.clone(),
         handle.clone(),
-    ))
+    );
+    for step in sign_out_steps() {
+        account.register_wipe(step);
+    }
+    Arc::new(account)
+}
+
+/// The one place where crates that keep account data register their sign-out step
+/// (ADR 0004, Decision 3). Sign-out runs them in this order, then removes the session.
+fn sign_out_steps() -> Vec<Arc<dyn SignOutWipe>> {
+    Vec::new()
 }
 
 /// Rescan the local library on its own thread so the window opens at once.

@@ -7,10 +7,11 @@ use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
+use nemo_core::library::LocalTrackLookup;
 use nemo_core::player::{PlayerCommand, PlayerEvent, PlayerSnapshot};
 use nemo_core::segment::{Segment, SegmentSource};
 use nemo_core::services::{EventReceiver, PlayerControl, StreamOpener};
-use nemo_core::stream::StreamResolver;
+use nemo_core::stream::{StreamRequest, StreamResolver};
 
 use crate::control::Core;
 use crate::prepare::Prepared;
@@ -21,12 +22,19 @@ use crate::sink::SinkFactory;
 pub struct PlayerDeps {
     /// Turns a video id into a stream.
     pub resolver: Arc<dyn StreamResolver>,
+    /// What every stream is resolved with (audio language, Premium, codec hint). The prepare
+    /// thread passes it to [`StreamResolver::resolve_with`]; the audio callback never reads it.
+    /// [`StreamRequest::default`] resolves exactly as [`StreamResolver::resolve`] does.
+    pub request: StreamRequest,
     /// Opens a resolved stream for reading.
     pub opener: Arc<dyn StreamOpener>,
     /// SponsorBlock segments. `None` switches skipping off for good.
     pub segments: Option<Arc<dyn SegmentSource>>,
     /// Opens the output sink.
     pub sink_factory: Arc<dyn SinkFactory>,
+    /// Span and gain of local library tracks (a CUE track plays one span of its file). Asked on
+    /// the prepare thread only, never in the audio callback. `None` plays every file whole.
+    pub local: Option<Arc<dyn LocalTrackLookup>>,
 }
 
 /// Messages to the control thread.

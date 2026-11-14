@@ -45,7 +45,7 @@ Cross-spec ids written `<spec>#?` name the owner's task by its ADR 0004 Decision
   - Steering: `tech.md` Decode row: add features `alac`, `vorbis`, `ogg`, `aiff`.
   - Done: `nemo-library` has no `symphonia` dependency and no probe yet, so its `Cargo.toml` was left alone; task 12, which adds the probe, adds `symphonia` with the same features. `scan.rs` `AUDIO_EXTENSIONS` does not list `aiff` or `aif` yet (task 12).
 
-- [ ] 6. Add the Opus decoder through one codec registry
+- [x] 6. Add the Opus decoder through one codec registry
   - Crate and files: `nemo-audio`: `Cargo.toml`, `src/codecs.rs` (new, `build_codecs()`), `src/decoder.rs`, `src/stream_decoder.rs`, `tests/golden/`; `nemo-library`: treat the Opus codec id as playable in the scan probe. Touches nemo-audio/src/decoder.rs.
   - Does: Registers the decoder the spike chose next to the default `symphonia` decoders behind `build_codecs()`, so `StreamDecoder` keeps one code path and either decoder can be swapped. Maps `Codec::Opus`. Adds Ogg Opus and WebM Opus fixtures.
   - Spike result (task 4, design Risks): `opus-decoder` failed the mono half of the RFC 8251 vectors, so this task uses the fallback `symphonia-adapter-libopus` =0.3.0. The adapter drops the OpusHead pre-skip itself; the fixtures check the decoded length for Ogg and WebM.
@@ -54,6 +54,7 @@ Cross-spec ids written `<spec>#?` name the owner's task by its ADR 0004 Decision
   - Wave: 1
   - Checks: `cargo test -p nemo-audio --test bit_exact`; Opus fixtures match a reference decode within a stated tolerance; a failed decoder build plays nothing and logs without paths. Not yet in `supported_stream_codecs()` (task 7).
   - Steering: `tech.md` Opus decode row: the chosen crate (and, for the fallback, `opusic-sys` 0.7.7 BSD-3-Clause and the CMake need), replacing the `opus` or `audiopus` wording, `audiopus` recorded as rejected. README: the libopus licence notice, only if the fallback is chosen.
+  - Done: `nemo-library` has no probe yet, so nothing there changed; task 12, which adds the probe, treats the Opus codec id as playable (`.opus` and `.ogg` are already in `AUDIO_EXTENSIONS`, `.webm` is not). `stream_decoder.rs` and `decode_file` both build their decoder through `codecs.rs`. A lossy codec now states no bit depth even when the container does (FFmpeg's WebM muxer writes 16 for Opus). The README also gets the CMake build note.
 
 - [ ] 7. Let streams play as Opus
   - Crate and files: `nemo-audio`: `src/decoder.rs` (`supported_stream_codecs()`). Touches nemo-audio/src/decoder.rs.
@@ -152,13 +153,14 @@ Cross-spec ids written `<spec>#?` name the owner's task by its ADR 0004 Decision
   - Wave: 2
   - Checks: service tests over a temp library; `playback` returns the span of a CUE track and `None` for an unknown track.
 
-- [ ] 19. Play CUE spans in the player
+- [x] 19. Play CUE spans in the player
   - Crate and files: `nemo-audio`: `src/prepare.rs` (`PrepareDeps.local`), `src/feeder.rs`, `tests/fixtures/` (FLAC with a 3-track CUE). Touches nemo-audio/src/prepare.rs; land before offline-cache#13 and soundcloud's `prepare` branch, one at a time.
   - Does: The prepare thread asks `LocalTrackLookup` for span and gain (never the callback). The feeder seeks to `span.start` with `SeekMode::Accurate` and ends the job at `span.end` by counting frames. Nothing new runs in the `cpal` callback.
   - _Requirements: 10, 22_
   - Depends on: local-library#1
   - Wave: 2
   - Checks: `cargo test -p nemo-audio --test bit_exact`; `rt_no_alloc` (counting allocator) with a local-file run; the three CUE tracks played in a row equal the whole file frame for frame.
+  - Done: the FLAC is written from code (`flac_bytes`, as the other player fixtures are) in `tests/player_cue.rs`, and its three spans are those of the CUE sheet in the test's comment; the CUE parser is task 14. `PlayerDeps` gains `local` (`nemo-app` passes `None` until task 24), `Job` carries the span to the feeder, and the reported duration is the span's length.
 
 - [ ] 20. Join CUE tracks and gapless albums without a fade
   - Crate and files: `nemo-library`: `src/gapless.rs` (new); `nemo-app`: inject the policy.
