@@ -44,7 +44,7 @@ Cross-spec ids written `<spec>#?` point at the task of that spec that adds the n
   - Checks: a test that `Debug` of every new type prints no secret.
   - Steering: `structure.md` lists `nemo-core/src/spotify.rs`.
 
-- [ ] 6. Add the animated-art source contract
+- [x] 6. Add the animated-art source contract
   - Crate and files: `nemo-core`: new `src/animated_art.rs`, `src/lib.rs`. Touches nemo-core/src/animated_art.rs and lib.rs.
   - Does: Adds `ArtSourceId`, `ArtQuery`, `AnimatedArt`, `ArtLookup`, `ArtSourceInfo`, `AnimatedArtError` (`SignedOut`, `Offline`, `Refused(status)`, `Unsupported`, `TooLarge`, `Store`) and `AnimatedArtSource`, as now-playing-styles needs them. No Apple Music variant.
   - _Requirements: none (groundwork)_
