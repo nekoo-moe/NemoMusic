@@ -27,7 +27,16 @@ bytes exactly):
 | `aiff-24.aiff` | `ffmpeg -i src-24.wav -c:a pcm_s24be -map_metadata -1 -fflags +bitexact aiff-24.aiff` |
 | `vorbis-tone.ogg` | `ffmpeg -i tone-16.wav -c:a libvorbis -q:a 4 -map_metadata -1 -fflags +bitexact -flags:a +bitexact vorbis-tone.ogg` |
 | `vorbis-tone-ref.s16` | `ffmpeg -c:a libvorbis -i vorbis-tone.ogg -f s16le vorbis-tone-ref.s16` (libvorbis reference decode, 16-bit little-endian) |
+| `opus-tone.opus` | `ffmpeg -i tone-16.wav -c:a libopus -b:a 96k -map_metadata -1 -fflags +bitexact -flags:a +bitexact opus-tone.opus` (Ogg Opus) |
+| `opus-tone.webm` | `ffmpeg -i tone-16.wav -c:a libopus -b:a 96k -map_metadata -1 -fflags +bitexact -flags:a +bitexact opus-tone.webm` (WebM Opus) |
+| `opus-tone-ref.s16` | `ffmpeg -c:a libopus -i opus-tone.opus -f s16le opus-tone-ref.s16` (libopus reference decode, 16-bit little-endian; the WebM file decodes to the same bytes) |
 
 The Ogg file's last page has granule position 12 000, so a correct decode is 12 000 frames.
 FFmpeg's Ogg reader drops the last 128 of them, so the reference holds 11 872 frames; the test
 compares those and checks the length against the granule position.
+
+Both Opus files hold the same 13 packets of 960 frames, with an OpusHead pre-skip of 312 frames.
+The reference holds all 12 000 frames. The Ogg file decodes to exactly 12 000 frames: the pre-skip
+is dropped and the last page's granule position trims the end padding. symphonia 0.6.1's Matroska
+reader ignores `DiscardPadding`, so the WebM file decodes to 12 168 frames (the pre-skip dropped,
+the padding of the last packet kept); the test compares the first 12 000 and checks the length.
