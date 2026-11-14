@@ -30,6 +30,7 @@ pub mod mix;
 pub mod pipeline;
 pub mod player;
 pub mod render;
+pub mod replay_gain;
 pub mod resample;
 pub mod ring;
 pub mod sink;

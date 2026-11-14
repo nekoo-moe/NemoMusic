@@ -16,6 +16,7 @@ use nemo_core::segment::Segment;
 
 use crate::feeder::Feeder;
 use crate::render::{UNITY_GAIN_BITS, apply_gain, render};
+use crate::replay_gain::ReplayGain;
 use crate::ring::{Consumer, new_ring};
 use crate::sink::{AudioSink, RenderCallback, SinkError};
 use crate::stream_decoder::StreamDecoder;
@@ -95,6 +96,9 @@ pub struct Job {
     pub span: Option<TrackSpan>,
     /// Segments known already (usually empty; `SetSegments` adds them later).
     pub segments: Vec<Segment>,
+    /// The song's `ReplayGain` stage, applied by the feeder after the song's `Chain`. `None`
+    /// (the setting off, or no stored value) means no arithmetic.
+    pub replay_gain: Option<ReplayGain>,
 }
 
 /// What the feeder reports.

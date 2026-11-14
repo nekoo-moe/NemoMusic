@@ -18,6 +18,7 @@ use crate::pipeline::{FeedCmd, Job, Pipeline, gain_stage, plan_stages};
 use crate::player::{Msg, PlayerDeps, Shared};
 use crate::prepare::{Prepared, spawn_segments};
 use crate::render::UNITY_GAIN_BITS;
+use crate::replay_gain::ReplayGain;
 
 /// How often the control thread wakes when no message arrives.
 const TICK: Duration = Duration::from_millis(5);
@@ -376,6 +377,8 @@ impl Core {
             return;
         };
         cur.stages = plan_stages(format, pipe.output_info().format);
+        let replay_gain = ReplayGain::plan(&self.shared.replay_gain.get(), &prepared.playback.gain);
+        cur.stages.extend(replay_gain.map(|g| g.stage()));
         cur.duration = prepared.duration().or(cur.track.duration);
         cur.source = Some(prepared.info);
         cur.loaded = true;
@@ -385,6 +388,7 @@ impl Core {
             start: cur.start,
             span: prepared.playback.span,
             segments: Vec::new(),
+            replay_gain,
         }));
         for id in self.ignored.get(&cur.entry).into_iter().flatten() {
             pipe.send(FeedCmd::Ignore {
