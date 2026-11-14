@@ -2,7 +2,7 @@
 
 Cross-spec ids written `<spec>#?` name the task in that spec that adds the ADR 0004 Decision 4 row given in brackets; the number is filled in once that spec's `tasks.md` is committed. The `UrlResolver` trait, `Transport` and `HlsSource` are owned by the soundcloud spec (ADR 0004 rows 10 to 12) and land there in Waves 0 and 1.
 
-- [ ] 1. Add search scope, video and channel types and the defaulted `Catalog` methods
+- [x] 1. Add search scope, video and channel types and the defaulted `Catalog` methods
   - Crate and files: `nemo-core` (touches nemo-core/src/catalog.rs).
   - Does: `SearchScope` (default `Music`), `ChannelRef`, `VideoSummary`, `ChannelSummary`, `ChannelDetail`, `SearchResults.{videos, channels}` with `Default`, and `Catalog::{search_scoped, channel, live_streams}` defaulting to `CatalogError::Unavailable`, so every existing catalog keeps building.
   - _Requirements: 5_

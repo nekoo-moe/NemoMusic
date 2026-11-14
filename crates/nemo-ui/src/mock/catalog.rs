@@ -50,6 +50,7 @@ impl Catalog for MockCatalog {
                 albums,
                 artists,
                 playlists,
+                ..SearchResults::default()
             })
         })
     }
@@ -364,6 +365,7 @@ impl Catalog for SeededCatalog {
                     .take(3)
                     .map(playlist_summary)
                     .collect(),
+                ..SearchResults::default()
             }
         };
         Box::pin(async move { Ok(result) })

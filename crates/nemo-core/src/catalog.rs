@@ -7,8 +7,10 @@ use crate::BoxFuture;
 use crate::track::{Thumbnail, Track, VideoId};
 
 mod playlist_edit;
+mod video;
 
 pub use playlist_edit::{PlaylistEditInfo, PlaylistEditor, Privacy, SetVideoId};
+pub use video::{ChannelDetail, ChannelRef, ChannelSummary, SearchScope, VideoSummary};
 
 /// Opaque id of an album, artist or playlist page. Treat it as untrusted text.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -64,6 +66,10 @@ pub struct SearchResults {
     pub artists: Vec<ArtistSummary>,
     /// Matching playlists.
     pub playlists: Vec<PlaylistSummary>,
+    /// Matching videos ([`SearchScope::AllOfYoutube`] only).
+    pub videos: Vec<VideoSummary>,
+    /// Matching channels ([`SearchScope::AllOfYoutube`] only).
+    pub channels: Vec<ChannelSummary>,
 }
 
 /// An album page.
@@ -387,91 +393,31 @@ pub trait Catalog: Send + Sync {
         };
         self.set_rating(video_id, status)
     }
+
+    /// Search in a scope. Optional: the default says it is not available.
+    fn search_scoped<'a>(
+        &'a self,
+        query: &'a str,
+        scope: SearchScope,
+    ) -> BoxFuture<'a, Result<SearchResults, CatalogError>> {
+        let _ = (query, scope);
+        Box::pin(async { Err(CatalogError::Unavailable("search scope".to_owned())) })
+    }
+
+    /// Load a YouTube channel page. Optional: the default says it is not available.
+    fn channel<'a>(
+        &'a self,
+        id: &'a BrowseId,
+    ) -> BoxFuture<'a, Result<ChannelDetail, CatalogError>> {
+        let _ = id;
+        Box::pin(async { Err(CatalogError::Unavailable("channels".to_owned())) })
+    }
+
+    /// The YouTube live streams to show. Optional: the default says it is not available.
+    fn live_streams(&self) -> BoxFuture<'_, Result<Vec<VideoSummary>, CatalogError>> {
+        Box::pin(async { Err(CatalogError::Unavailable("live streams".to_owned())) })
+    }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// A catalog that implements only the required methods.
-    struct Bare;
-
-    impl Catalog for Bare {
-        fn search<'a>(&'a self, _: &'a str) -> BoxFuture<'a, Result<SearchResults, CatalogError>> {
-            Box::pin(async { Ok(SearchResults::default()) })
-        }
-        fn album<'a>(
-            &'a self,
-            _: &'a BrowseId,
-        ) -> BoxFuture<'a, Result<AlbumDetail, CatalogError>> {
-            Box::pin(async { Err(CatalogError::NotFound) })
-        }
-        fn artist<'a>(
-            &'a self,
-            _: &'a BrowseId,
-        ) -> BoxFuture<'a, Result<ArtistDetail, CatalogError>> {
-            Box::pin(async { Err(CatalogError::NotFound) })
-        }
-        fn playlist<'a>(
-            &'a self,
-            _: &'a BrowseId,
-        ) -> BoxFuture<'a, Result<PlaylistDetail, CatalogError>> {
-            Box::pin(async { Err(CatalogError::NotFound) })
-        }
-    }
-
-    fn ready<T>(mut future: BoxFuture<'_, T>) -> T {
-        use std::task::{Context, Poll, Waker};
-        match future
-            .as_mut()
-            .poll(&mut Context::from_waker(Waker::noop()))
-        {
-            Poll::Ready(value) => value,
-            Poll::Pending => panic!("default catalog methods answer at once"),
-        }
-    }
-
-    fn unavailable<T>(what: &str) -> Result<T, CatalogError> {
-        Err(CatalogError::Unavailable(what.to_owned()))
-    }
-
-    #[test]
-    fn every_added_page_defaults_to_unavailable() {
-        let id = BrowseId("x".to_owned());
-        assert_eq!(ready(Bare.home_feed()), unavailable("home feed"));
-        assert_eq!(
-            ready(Bare.library_playlists()),
-            unavailable("library playlists")
-        );
-        assert_eq!(ready(Bare.liked_songs()), unavailable("liked songs"));
-        assert_eq!(ready(Bare.library_albums()), unavailable("library albums"));
-        assert_eq!(
-            ready(Bare.library_artists()),
-            unavailable("library artists")
-        );
-        assert_eq!(ready(Bare.history()), unavailable("history"));
-        assert_eq!(ready(Bare.explore()), unavailable("explore"));
-        assert_eq!(
-            ready(Bare.mood_playlists(&id)),
-            unavailable("mood playlists")
-        );
-        assert_eq!(ready(Bare.podcast(&id)), unavailable("podcasts"));
-    }
-
-    #[test]
-    fn a_catalog_without_rating_methods_errors_instead_of_looping() {
-        let video = VideoId::parse("dQw4w9WgXcQ").expect("valid id");
-        let likes = "likes need a signed-in account";
-        assert_eq!(ready(Bare.rate_song(&video, true)), unavailable(likes));
-        assert_eq!(ready(Bare.rate_song(&video, false)), unavailable(likes));
-        assert_eq!(
-            ready(Bare.set_rating(&video, LikeStatus::Disliked)),
-            unavailable(likes)
-        );
-    }
-
-    #[test]
-    fn shelf_kind_defaults_to_cards() {
-        assert_eq!(ShelfKind::default(), ShelfKind::Cards);
-    }
-}
+mod tests;
