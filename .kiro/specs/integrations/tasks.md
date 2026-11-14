@@ -2,7 +2,7 @@
 
 Cross-spec ids written `<spec>#?` name the other spec's task by the ADR 0004 Decision 4 row it delivers; the number is filled in once that spec's `tasks.md` is merged.
 
-- [ ] 1. Add `OptInInfo`, the shared opt-in data type
+- [x] 1. Add `OptInInfo`, the shared opt-in data type
   - Crate and files: `nemo-core` (`src/opt_in.rs` new, `src/lib.rs`); touches nemo-core/src/opt_in.rs.
   - Does: Adds `OptInInfo { id, title, sends, hosts, risk, version, default_on }` with rustdoc that repeats the ADR 0004 opt-in rules (off by default except media controls, risk text names the real risk). No I/O.
   - _Requirements: none (groundwork)_
@@ -27,7 +27,7 @@ Cross-spec ids written `<spec>#?` name the other spec's task by the ADR 0004 Dec
   - Wave: 0
   - Checks: a counting fake host sees zero requests while a switch is off or unconfirmed; raising `version` makes the gate closed again; egress-list test passes.
 
-- [ ] 4. Add `PlayRule`, the shared play-count rule
+- [x] 4. Add `PlayRule`, the shared play-count rule
   - Crate and files: `nemo-core` (`src/hooks.rs` new, `src/lib.rs`); touches nemo-core/src/hooks.rs.
   - Does: Adds `PlayRule::{MIN_TRACK, MAX_THRESHOLD, threshold, counts}`: a track over 30 s counts at half its length or 4 minutes, an unknown length at 4 minutes. Pure.
   - _Requirements: 14, 15_
@@ -44,7 +44,7 @@ Cross-spec ids written `<spec>#?` name the other spec's task by the ADR 0004 Dec
   - Wave: 0
   - Checks: table tests (pause, seek forward and back, repeat one, gapless handover, skip); `proptest` that heard time never exceeds wall time. listening-stats reuses these tests.
 
-- [ ] 6. Add the `OsNotifier` contract
+- [x] 6. Add the `OsNotifier` contract
   - Crate and files: `nemo-core` (`src/notify.rs` new, `src/lib.rs`); touches nemo-core/src/notify.rs.
   - Does: Adds `NotificationGroup`, `OsNotification`, `NotificationAction`, `NotificationEvent`, `NotifyUnavailable`, `NotifierState`, `NotifyError`, `NotificationReceiver`, `OsNotifier` and `NoNotifier`. No I/O.
   - _Requirements: 31_

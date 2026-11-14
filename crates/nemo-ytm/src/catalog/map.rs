@@ -191,6 +191,7 @@ pub(crate) fn map_playlist_page(
     Some(PlaylistDetail {
         summary,
         tracks: map_songs(&raw.songs),
+        edit: None,
     })
 }
 

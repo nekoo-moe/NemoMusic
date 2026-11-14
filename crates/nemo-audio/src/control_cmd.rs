@@ -7,7 +7,7 @@ use std::time::Duration;
 use nemo_core::player::{PlayState, PlayerCommand, PlayerEvent, RepeatMode};
 use nemo_core::track::Track;
 
-use crate::control::{Core, NextSlot, NextState, micros};
+use crate::control::{Core, NextSlot, NextState, Run, micros};
 use crate::pipeline::FeedCmd;
 use crate::prepare::{PrepareDeps, spawn_prepare};
 use crate::render::gain_for_percent;
@@ -50,6 +50,38 @@ impl Core {
             PlayerCommand::SetSkipSegments(on) => self.set_skip(on),
             PlayerCommand::UndoSkip => self.undo_skip(),
             PlayerCommand::SetRepeat(mode) => self.set_repeat(mode),
+            PlayerCommand::Park => self.park(),
+            PlayerCommand::Unpark { at } => self.unpark(at),
+        }
+    }
+
+    /// Release the output device and stop decoding, keeping the queue position. The current
+    /// entry stays current (unloaded), so Next, Previous and queue edits work while parked.
+    fn park(&mut self) {
+        if self.parked {
+            return;
+        }
+        let index = self.index;
+        let current = self.cur.take().map(|c| (c.entry, c.track));
+        self.stop_all();
+        self.parked = true;
+        self.index = index;
+        if let Some((entry, track)) = current {
+            let token = self.new_id();
+            self.cur = Some(Run::new(token, entry, track, Duration::ZERO));
+        }
+        self.notify(&PlayerEvent::ParkedChanged(true));
+    }
+
+    /// Leave the parked mode and play the current entry from `at` on the local device.
+    fn unpark(&mut self, at: Duration) {
+        if !self.parked {
+            return;
+        }
+        self.parked = false;
+        self.notify(&PlayerEvent::ParkedChanged(false));
+        if let Some(index) = self.index {
+            self.start_track(index, at);
         }
     }
 

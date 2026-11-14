@@ -25,6 +25,42 @@ impl GlassTier {
     }
 }
 
+/// Which look draws the Now Playing pane and full-screen view (now-playing-styles spec). Only the
+/// arrangement changes; playback, the badge and the signal path are the same in every style.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum NowPlayingStyle {
+    /// A calm column: still cover, titles, seek bar, controls; lyrics on a tab.
+    Classic,
+    /// Today's Material 3 Expressive look. Default, so existing users see no change.
+    #[default]
+    M3Expressive,
+    /// Large lyrics that fill word by word over the cover.
+    AppleMusic,
+}
+
+impl NowPlayingStyle {
+    /// All styles in settings order.
+    pub const ALL: [Self; 3] = [Self::Classic, Self::M3Expressive, Self::AppleMusic];
+
+    /// Label for the settings control (requirements, criterion 1).
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Classic => "Classic",
+            Self::M3Expressive => "Material 3 Expressive",
+            Self::AppleMusic => "Apple Music",
+        }
+    }
+}
+
+/// Animated-cover sources the user turned on. Every switch is off by default; nothing is
+/// requested while a switch is off.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct AnimatedCoverSettings {
+    /// Show Spotify Canvas clips in place of the still cover.
+    pub spotify_canvas: bool,
+}
+
 /// Settings the UI owns a view of.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UiSettings {
@@ -50,6 +86,10 @@ pub struct UiSettings {
     pub accent_intensity: AccentIntensity,
     /// Corner roundness.
     pub corner_style: CornerStyle,
+    /// Look of the Now Playing surfaces.
+    pub now_playing_style: NowPlayingStyle,
+    /// Animated-cover switches.
+    pub animated_covers: AnimatedCoverSettings,
 }
 
 impl Default for UiSettings {
@@ -67,6 +107,8 @@ impl Default for UiSettings {
             base: BaseMode::Dark,
             accent_intensity: AccentIntensity::Standard,
             corner_style: CornerStyle::Soft,
+            now_playing_style: NowPlayingStyle::M3Expressive,
+            animated_covers: AnimatedCoverSettings::default(),
         }
     }
 }
@@ -147,6 +189,15 @@ mod tests {
         assert_eq!(s.theme, ThemeChoice::Sakura);
         assert!(s.opaque_chrome(), "light mode uses the tonal bar");
         assert_eq!(s.corner_style, CornerStyle::Round);
+    }
+
+    #[test]
+    fn now_playing_defaults_to_the_m3_style_with_no_animated_cover() {
+        let s = UiSettings::default();
+        assert_eq!(s.now_playing_style, NowPlayingStyle::M3Expressive);
+        assert!(!s.animated_covers.spotify_canvas);
+        let labels = NowPlayingStyle::ALL.map(NowPlayingStyle::label);
+        assert_eq!(labels, ["Classic", "Material 3 Expressive", "Apple Music"]);
     }
 
     #[test]

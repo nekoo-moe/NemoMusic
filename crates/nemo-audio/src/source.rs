@@ -46,18 +46,47 @@ impl MediaSource for MediaAdapter {
     }
 }
 
-/// A local file as a [`ByteSource`].
+/// Opening a [`FileSource`] failed. The text never holds the path, so it is safe to log and show.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum FileOpenError {
+    /// No file exists at the path.
+    #[error("the audio file does not exist")]
+    NotFound,
+    /// The file exists but may not be read.
+    #[error("no permission to read the audio file")]
+    PermissionDenied,
+    /// Any other failure, by its I/O error kind.
+    #[error("the audio file could not be opened ({0:?})")]
+    Other(io::ErrorKind),
+}
+
+impl From<io::Error> for FileOpenError {
+    fn from(err: io::Error) -> Self {
+        match err.kind() {
+            io::ErrorKind::NotFound => Self::NotFound,
+            io::ErrorKind::PermissionDenied => Self::PermissionDenied,
+            kind => Self::Other(kind),
+        }
+    }
+}
+
+/// A file on this computer as a [`ByteSource`].
+///
+/// The one reader for every file the player opens: local library files and songs saved by the
+/// offline cache. Pass it to [`StreamDecoder::open`](crate::stream_decoder::StreamDecoder::open)
+/// with no container hint; the probe finds the format from the bytes. Reads and seeks block, so
+/// it is used on the prepare and decode threads only, never in the audio callback.
 pub struct FileSource {
     file: File,
     len: Option<u64>,
 }
 
 impl FileSource {
-    /// Open a local file for reading.
+    /// Open a file for reading. The length is read once, here.
     ///
     /// # Errors
-    /// Returns the I/O error when the file cannot be opened.
-    pub fn open(path: &Path) -> io::Result<Self> {
+    /// [`FileOpenError`] when the file cannot be opened; it holds no path.
+    pub fn open(path: &Path) -> Result<Self, FileOpenError> {
         let file = File::open(path)?;
         let len = file.metadata().ok().map(|m| m.len());
         Ok(Self { file, len })

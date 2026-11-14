@@ -14,7 +14,7 @@ use symphonia::core::io::{MediaSourceStream, MediaSourceStreamOptions};
 use symphonia::core::meta::MetadataOptions;
 use symphonia::core::units::{Time, TimeBase};
 
-use crate::decoder::{DecodeError, codec_from_id};
+use crate::decoder::{DecodeError, codec_from_id, stated_bit_depth};
 use crate::source::MediaAdapter;
 
 /// Facts about an opened stream.
@@ -85,7 +85,7 @@ impl StreamDecoder {
         let format = AudioFormat {
             sample_rate,
             channels,
-            bit_depth: params.bits_per_sample.and_then(|b| u8::try_from(b).ok()),
+            bit_depth: stated_bit_depth(params),
         };
         let info = SourceInfo {
             codec: codec_from_id(params.codec),
