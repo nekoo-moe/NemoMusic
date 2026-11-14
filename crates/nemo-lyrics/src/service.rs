@@ -256,6 +256,12 @@ impl LyricsService for LyricsHub {
         }
     }
 
+    fn keep_offline(&self, track_key: &str, keep: bool) {
+        if let Err(e) = self.inner.cache.set_pinned(track_key, keep) {
+            tracing::warn!(error = %e, "lyrics pin write failed");
+        }
+    }
+
     fn credit(&self, track_key: &str, provider: ProviderId) -> Option<LyricsCredit> {
         self.inner
             .cache

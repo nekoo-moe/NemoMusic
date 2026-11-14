@@ -11,6 +11,7 @@ pub mod kit;
 pub mod library;
 pub mod lyrics;
 pub mod now_playing;
+pub mod opt_in;
 pub mod overlays;
 pub mod pane;
 pub mod panels;

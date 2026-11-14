@@ -21,7 +21,6 @@ use nemo_core::catalog::{BrowseId, Catalog, FeedItem, FeedShelf};
 use nemo_core::secret::Secret;
 use nemo_ytm::account::{AccountConfig, GoogleAccount, SessionSlot};
 use nemo_ytm::catalog::YtmCatalog;
-use nemo_ytm::credentials::PlatformStore;
 use nemo_ytm::diagnostics::id_kind;
 use nemo_ytm::session::{SessionBackend, SessionCatalog};
 
@@ -89,7 +88,7 @@ fn open_every_kind_of_playlist() {
                 webview_dir: scratch.join("webview"),
                 cache_file: cache,
             },
-            Arc::new(PlatformStore::new().expect("credential store")),
+            nemo_secrets::open_platform_store().expect("credential store"),
             Arc::new(Capture {
                 handle: runtime.handle().clone(),
                 caught: Arc::clone(&caught),

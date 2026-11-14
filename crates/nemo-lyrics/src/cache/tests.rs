@@ -227,3 +227,86 @@ fn instrumental_and_unsynced_round_trip() {
         Some(EntryStatus::Hit { doc, score: 100 })
     );
 }
+
+#[test]
+fn an_expired_pinned_hit_is_still_served_until_unpinned() {
+    let f = Fixture::new("pin");
+    f.cache.put_hit("k", P, &sample_doc(), 90).expect("put");
+    f.cache.put_hit("other", P, &sample_doc(), 90).expect("put");
+    f.cache.set_pinned("k", true).expect("pin");
+    f.advance(HIT_TTL + Duration::from_secs(1));
+    assert!(matches!(
+        f.cache.get("k", P).expect("get").map(|e| e.status),
+        Some(EntryStatus::Hit { .. })
+    ));
+    assert!(f.cache.get("other", P).expect("get").is_none());
+    f.cache.set_pinned("k", false).expect("unpin");
+    assert!(f.cache.get("k", P).expect("get").is_none());
+}
+
+#[test]
+fn only_hits_are_pinned() {
+    let f = Fixture::new("pinmiss");
+    f.cache.put_miss("k", P).expect("put");
+    f.cache.put_error("k", Q, None).expect("put");
+    f.cache.set_pinned("k", true).expect("pin");
+    f.advance(MISS_TTL + Duration::from_secs(1));
+    assert!(f.cache.get("k", P).expect("get").is_none());
+    assert!(f.cache.get("k", Q).expect("get").is_none());
+}
+
+#[test]
+fn a_refreshed_hit_keeps_its_pin_and_a_miss_drops_it() {
+    let f = Fixture::new("pinput");
+    f.cache.put_hit("k", P, &sample_doc(), 90).expect("put");
+    f.cache.set_pinned("k", true).expect("pin");
+    f.cache.put_hit("k", P, &sample_doc(), 95).expect("refresh");
+    f.advance(HIT_TTL + Duration::from_secs(1));
+    assert!(f.cache.get("k", P).expect("get").is_some());
+    f.cache.put_miss("k", P).expect("miss");
+    f.advance(MISS_TTL + Duration::from_secs(1));
+    assert!(f.cache.get("k", P).expect("get").is_none());
+}
+
+#[test]
+fn an_existing_cache_file_gets_the_pinned_flag() {
+    let dir = std::env::temp_dir().join(format!(
+        "nemo-lyrics-cache-migrate-{}-{}",
+        std::process::id(),
+        SystemClock.now_secs()
+    ));
+    std::fs::create_dir_all(&dir).expect("dir");
+    {
+        // The layout before the pinned flag, with one row in it.
+        let old = Connection::open(dir.join(DB_FILE)).expect("old");
+        old.execute_batch(
+            "CREATE TABLE lyrics_cache (
+                 track_key TEXT NOT NULL, provider TEXT NOT NULL, status TEXT NOT NULL,
+                 granularity TEXT, body BLOB, score INTEGER,
+                 fetched_at INTEGER NOT NULL, expires_at INTEGER NOT NULL,
+                 PRIMARY KEY (track_key, provider)
+             );
+             INSERT INTO lyrics_cache (track_key, provider, status, fetched_at, expires_at)
+             VALUES ('k', 'TestProvider', 'miss', 0, 9000000000);",
+        )
+        .expect("old layout");
+    }
+    let clock = Arc::new(TestClock(AtomicI64::new(1_000_000)));
+    let cache = LyricsCache::open_with_clock(&dir, clock.clone()).expect("open");
+    assert_eq!(
+        cache.get("k", P).expect("get").map(|e| e.status),
+        Some(EntryStatus::Miss)
+    );
+    cache.set_pinned("k", true).expect("pin");
+    let version: i64 = cache
+        .lock()
+        .query_row("PRAGMA user_version", [], |r| r.get(0))
+        .expect("version");
+    assert_eq!(version, 1);
+    drop(cache);
+    // Opening again runs no change twice.
+    let again = LyricsCache::open_with_clock(&dir, clock).expect("reopen");
+    assert!(again.get("k", P).expect("get").is_some());
+    drop(again);
+    let _ = std::fs::remove_dir_all(&dir);
+}

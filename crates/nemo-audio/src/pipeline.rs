@@ -11,6 +11,7 @@ use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
 use nemo_core::audio::{AudioFormat, OutputInfo, ProcessingStage};
+use nemo_core::library::TrackSpan;
 use nemo_core::segment::Segment;
 
 use crate::feeder::Feeder;
@@ -89,6 +90,9 @@ pub struct Job {
     pub decoder: StreamDecoder,
     /// Where in the track to start.
     pub start: Duration,
+    /// The part of the file to play (a CUE track). `None` plays the whole stream. `start`,
+    /// seeks and reported positions count from the span start.
+    pub span: Option<TrackSpan>,
     /// Segments known already (usually empty; `SetSegments` adds them later).
     pub segments: Vec<Segment>,
 }
