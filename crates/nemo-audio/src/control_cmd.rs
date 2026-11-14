@@ -307,6 +307,7 @@ impl Core {
             resolver: Arc::clone(&self.deps.resolver),
             request: self.deps.request.clone(),
             opener: Arc::clone(&self.deps.opener),
+            local: self.deps.local.clone(),
         };
         spawn_prepare(deps, self.tx.clone(), token, track);
     }

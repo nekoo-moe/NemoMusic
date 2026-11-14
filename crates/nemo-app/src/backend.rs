@@ -94,6 +94,8 @@ pub fn build(
         resolver,
         // Automatic language, no Premium, no codec hint until the account settings build it.
         request: StreamRequest::default(),
+        // No library store yet: every local file plays whole.
+        local: None,
         opener: Arc::new(HttpStreamOpener::default()),
         segments,
         sink_factory: Arc::new(CpalSinkFactory::new(settings.output_device.clone())),

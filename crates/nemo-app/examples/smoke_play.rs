@@ -54,6 +54,7 @@ fn main() {
     let player = Player::spawn(PlayerDeps {
         resolver: Arc::new(resolver),
         request: StreamRequest::default(),
+        local: None,
         opener: Arc::new(HttpStreamOpener::default()),
         segments: None,
         sink_factory: Arc::new(CpalSinkFactory::new(None)),

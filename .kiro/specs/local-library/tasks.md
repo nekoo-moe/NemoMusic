@@ -152,13 +152,14 @@ Cross-spec ids written `<spec>#?` name the owner's task by its ADR 0004 Decision
   - Wave: 2
   - Checks: service tests over a temp library; `playback` returns the span of a CUE track and `None` for an unknown track.
 
-- [ ] 19. Play CUE spans in the player
+- [x] 19. Play CUE spans in the player
   - Crate and files: `nemo-audio`: `src/prepare.rs` (`PrepareDeps.local`), `src/feeder.rs`, `tests/fixtures/` (FLAC with a 3-track CUE). Touches nemo-audio/src/prepare.rs; land before offline-cache#13 and soundcloud's `prepare` branch, one at a time.
   - Does: The prepare thread asks `LocalTrackLookup` for span and gain (never the callback). The feeder seeks to `span.start` with `SeekMode::Accurate` and ends the job at `span.end` by counting frames. Nothing new runs in the `cpal` callback.
   - _Requirements: 10, 22_
   - Depends on: local-library#1
   - Wave: 2
   - Checks: `cargo test -p nemo-audio --test bit_exact`; `rt_no_alloc` (counting allocator) with a local-file run; the three CUE tracks played in a row equal the whole file frame for frame.
+  - Done: the FLAC is written from code (`flac_bytes`, as the other player fixtures are) in `tests/player_cue.rs`, and its three spans are those of the CUE sheet in the test's comment; the CUE parser is task 14. `PlayerDeps` gains `local` (`nemo-app` passes `None` until task 24), `Job` carries the span to the feeder, and the reported duration is the span's length.
 
 - [ ] 20. Join CUE tracks and gapless albums without a fade
   - Crate and files: `nemo-library`: `src/gapless.rs` (new); `nemo-app`: inject the policy.
