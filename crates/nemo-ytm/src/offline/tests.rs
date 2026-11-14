@@ -7,6 +7,8 @@ use rusqlite::Connection;
 
 use super::*;
 
+mod remove;
+
 struct FakeClock(AtomicI64);
 
 impl Clock for FakeClock {
@@ -76,7 +78,7 @@ fn open_creates_the_folders_and_every_table() {
     ] {
         assert!(tables.contains(table), "{table}");
     }
-    assert_eq!(migrations(&d), vec![(1, 100)]);
+    assert_eq!(migrations(&d), vec![(1, 100), (2, 100)]);
     assert_eq!(cache.saved_count(), Ok(0));
 }
 
@@ -96,7 +98,7 @@ fn reopening_keeps_rows_and_runs_no_migration_twice() {
         .expect("insert");
     let cache = OfflineCache::open(&d.0, clock(999)).expect("again");
     assert_eq!(cache.saved_count(), Ok(1));
-    assert_eq!(migrations(&d), vec![(1, 100)]);
+    assert_eq!(migrations(&d), vec![(1, 100), (2, 100)]);
 }
 
 #[test]
@@ -106,7 +108,7 @@ fn an_empty_index_file_is_migrated() {
     std::fs::write(d.0.join("offline.db"), b"").expect("empty file");
     let cache = OfflineCache::open(&d.0, clock(5)).expect("open");
     assert_eq!(cache.saved_count(), Ok(0));
-    assert_eq!(migrations(&d), vec![(1, 5)]);
+    assert_eq!(migrations(&d), vec![(1, 5), (2, 5)]);
 }
 
 #[test]
@@ -166,7 +168,12 @@ fn paths_never_reach_debug_output_or_error_texts() {
         .expect("path");
     assert_eq!(format!("{path:?}"), "[redacted]");
     assert!(!format!("{cache:?}").contains("nemo-offline"));
-    for err in [OfflineError::Db, OfflineError::Io, OfflineError::Random] {
+    for err in [
+        OfflineError::Db,
+        OfflineError::Io,
+        OfflineError::Random,
+        OfflineError::Closed,
+    ] {
         let text = err.to_string();
         assert!(!text.contains('/') && !text.contains('\\'), "{text}");
     }
@@ -239,7 +246,7 @@ fn assert_reset(d: &Dir) {
     assert!(cache.take_reset_notice(), "told once");
     assert!(!cache.take_reset_notice(), "not told twice");
     assert_eq!(cache.saved_count(), Ok(0));
-    assert_eq!(migrations(d), vec![(1, 7)]);
+    assert_eq!(migrations(d), vec![(1, 7), (2, 7)]);
     for folder in ["blobs", "tmp", "art"] {
         let entries = std::fs::read_dir(d.0.join(folder)).expect("folder").count();
         assert_eq!(entries, 0, "{folder}");

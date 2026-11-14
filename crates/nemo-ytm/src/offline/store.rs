@@ -7,12 +7,14 @@
 
 use std::collections::HashSet;
 use std::path::Path;
-use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::sync::{Mutex, PoisonError};
 
 use nemo_core::track::VideoId;
 use rusqlite::{Connection, ErrorCode, params};
 
 use super::{Clock, OfflineError, StartupCleanup, is_opaque_name};
+
+mod remove;
 
 /// The index file inside the cache folder.
 pub(super) const DB_FILE: &str = "offline.db";
@@ -26,7 +28,14 @@ pub(super) const ART: &str = "art";
 pub(super) const FOLDERS: [&str; 3] = [BLOBS, TMP, ART];
 
 /// Migrations in order; migration `n` is at index `n - 1`.
-const MIGRATIONS: [&str; 1] = [MIGRATION_1];
+const MIGRATIONS: [&str; 2] = [MIGRATION_1, MIGRATION_2];
+
+/// `single`: the user saved the song by itself, not only as part of an album or playlist, so
+/// removing a collection keeps it (offline-cache task 6).
+const MIGRATION_2: &str = "
+ALTER TABLE song ADD COLUMN single INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE queue ADD COLUMN single INTEGER NOT NULL DEFAULT 0;
+";
 
 /// The first layout. File columns hold opaque names only, never a path.
 const MIGRATION_1: &str = "
@@ -111,9 +120,9 @@ impl From<rusqlite::Error> for OpenError {
     }
 }
 
-/// The open index. One connection guarded by a mutex.
+/// The open index. One connection guarded by a mutex; `None` once [`Store::wipe`] closed it.
 pub(super) struct Store {
-    conn: Mutex<Connection>,
+    conn: Mutex<Option<Connection>>,
 }
 
 impl Store {
@@ -160,7 +169,7 @@ impl Store {
         )?;
         migrate(&mut conn, clock)?;
         Ok(Self {
-            conn: Mutex::new(conn),
+            conn: Mutex::new(Some(conn)),
         })
     }
 
@@ -177,13 +186,14 @@ impl Store {
     }
 
     fn remove_stray_parts(&self, tmp: &Path) -> Result<u64, OfflineError> {
-        let known: HashSet<String> = {
-            let conn = self.lock();
+        let known: HashSet<String> = self.with_conn(|conn| {
             let mut stmt =
                 conn.prepare("SELECT part_file FROM queue WHERE part_file IS NOT NULL")?;
-            stmt.query_map([], |row| row.get(0))?
-                .collect::<Result<_, _>>()?
-        };
+            let names = stmt
+                .query_map([], |row| row.get(0))?
+                .collect::<Result<_, _>>()?;
+            Ok(names)
+        })?;
         let mut removed = 0;
         for entry in std::fs::read_dir(tmp)? {
             let entry = entry?;
@@ -200,41 +210,58 @@ impl Store {
     }
 
     fn unsave_missing(&self, blobs: &Path) -> Result<Vec<VideoId>, OfflineError> {
-        let mut conn = self.lock();
-        let rows: Vec<(String, String)> = {
-            let mut stmt = conn.prepare("SELECT video_id, file FROM song")?;
-            stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
-                .collect::<Result<_, _>>()?
-        };
-        let missing: Vec<String> = rows
-            .into_iter()
-            .filter(|(_, file)| !is_opaque_name(file) || !blobs.join(file).is_file())
-            .map(|(video_id, _)| video_id)
-            .collect();
-        let tx = conn.transaction()?;
-        for video_id in &missing {
-            // Segments go with the row (`ON DELETE CASCADE`).
-            tx.execute("DELETE FROM song WHERE video_id = ?1", [video_id])?;
-        }
-        tx.commit()?;
-        Ok(missing
-            .iter()
-            .filter_map(|id| VideoId::parse(id).ok())
-            .collect())
+        self.with_conn(|conn| unsave_missing(conn, blobs))
     }
 
-    fn lock(&self) -> MutexGuard<'_, Connection> {
+    /// Run `f` on the open connection.
+    pub(super) fn with_conn<T>(
+        &self,
+        f: impl FnOnce(&mut Connection) -> Result<T, OfflineError>,
+    ) -> Result<T, OfflineError> {
         // A poisoned lock only means another thread panicked mid-statement; SQLite stays valid.
-        self.conn.lock().unwrap_or_else(PoisonError::into_inner)
+        let mut guard = self.conn.lock().unwrap_or_else(PoisonError::into_inner);
+        let conn = guard.as_mut().ok_or(OfflineError::Closed)?;
+        f(conn)
+    }
+
+    /// Close the connection. Every later call fails with [`OfflineError::Closed`].
+    pub(super) fn close(&self) {
+        let mut guard = self.conn.lock().unwrap_or_else(PoisonError::into_inner);
+        // Dropping the connection closes it; SQLite checkpoints the WAL on the last close.
+        drop(guard.take());
     }
 
     /// How many songs are saved.
     pub(super) fn saved_count(&self) -> Result<u64, OfflineError> {
-        let count: i64 = self
-            .lock()
-            .query_row("SELECT COUNT(*) FROM song", [], |row| row.get(0))?;
+        let count: i64 = self.with_conn(|conn| {
+            Ok(conn.query_row("SELECT COUNT(*) FROM song", [], |row| row.get(0))?)
+        })?;
         Ok(u64::try_from(count).unwrap_or(0))
     }
+}
+
+/// Mark songs whose file is missing as unsaved; returns their ids.
+fn unsave_missing(conn: &mut Connection, blobs: &Path) -> Result<Vec<VideoId>, OfflineError> {
+    let rows: Vec<(String, String)> = {
+        let mut stmt = conn.prepare("SELECT video_id, file FROM song")?;
+        stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+            .collect::<Result<_, _>>()?
+    };
+    let missing: Vec<String> = rows
+        .into_iter()
+        .filter(|(_, file)| !is_opaque_name(file) || !blobs.join(file).is_file())
+        .map(|(video_id, _)| video_id)
+        .collect();
+    let tx = conn.transaction()?;
+    for video_id in &missing {
+        // Segments go with the row (`ON DELETE CASCADE`).
+        tx.execute("DELETE FROM song WHERE video_id = ?1", [video_id])?;
+    }
+    tx.commit()?;
+    Ok(missing
+        .iter()
+        .filter_map(|id| VideoId::parse(id).ok())
+        .collect())
 }
 
 /// Run every migration newer than the last one recorded. An index written by a newer version
