@@ -11,7 +11,7 @@ Cross-spec ids written `<spec>#?` name the other spec's task by the ADR 0004 Dec
   - Checks: unit test that `default_on` is false for every `OptInInfo` built in tests except one marked media controls.
   - Steering: `structure.md`, add the `opt_in` module to the `nemo-core` entry.
 
-- [ ] 2. Add the shared `OptInRow` settings component
+- [x] 2. Add the shared `OptInRow` settings component
   - Crate and files: `nemo-ui` (`src/gui/views/opt_in.rs` new, `src/copy.rs`).
   - Does: Draws title, switch, "What is sent", "To" and "Risk" from an `OptInInfo`. Turning the switch on opens a confirm panel with "Turn on" and "Cancel", neither pre-selected; turning off is one click with a "what stays" line and an optional "Delete now". Shows hosts in use and one status line after turn-on.
   - _Requirements: 30_
@@ -19,7 +19,7 @@ Cross-spec ids written `<spec>#?` name the other spec's task by the ADR 0004 Dec
   - Wave: 0
   - Checks: `iced_test` snapshots (off, panel open, on); keyboard order and visible focus; no animation under reduced motion; readable at 200% text scale; `design.md` checklist with a screenshot.
 
-- [ ] 3. Add the opt-in gate and the egress-list check in `nemo-app`
+- [x] 3. Add the opt-in gate and the egress-list check in `nemo-app`
   - Crate and files: `nemo-app` (`src/opt_in_gate.rs` new, `src/config.rs`).
   - Does: Stores `enabled` and `confirmed_version` per `OptInInfo.id` in the config file. Exposes one check, "build this service only when the switch is on and `confirmed_version == version`", that every opt-in service is built through. A test compares every `OptInInfo.hosts` entry with the README egress list.
   - _Requirements: none (groundwork)_

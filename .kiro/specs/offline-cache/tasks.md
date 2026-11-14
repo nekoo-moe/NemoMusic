@@ -27,7 +27,7 @@ Cross-spec ids written `<spec>#?` name the owner's task by its ADR 0004 Decision
   - Wave: 0
   - Checks: the `paths.rs` tests cover the new folder.
 
-- [ ] 4. Create the offline index and file layout
+- [x] 4. Create the offline index and file layout
   - Crate and files: `nemo-ytm`: `Cargo.toml` (`rusqlite` =0.41.1 bundled, `getrandom` =0.3.4), `src/offline.rs` (new), `src/offline/store.rs` (new).
   - Does: Opens `offline.db` with migration 1: `song`, `segment`, `queue`, `play_count`, `collection`, `collection_song` and art rows. Files go to `blobs/`, `tmp/` and `art/` with random opaque names, plain files with no encryption. Adds the small `Clock` trait of the module.
   - _Requirements: 21, 22_
@@ -60,7 +60,7 @@ Cross-spec ids written `<spec>#?` name the owner's task by its ADR 0004 Decision
   - Wave: 1
   - Checks: loopback `test_server.rs` serving ranges: resume continues from the `.part` length, pause stops within one chunk, a short body fails, saved bytes equal the served bytes.
 
-- [ ] 8. Pin saved lyrics in the lyrics cache
+- [x] 8. Pin saved lyrics in the lyrics cache
   - Crate and files: `nemo-lyrics`: `src/cache.rs` (migration adds a `pinned` flag), the `LyricsService` implementation. Touches nemo-lyrics/src/cache.rs; order with lyrics-plus tasks on the same file.
   - Does: Implements `keep_offline`: a pinned entry skips expiry until unpinned.
   - _Requirements: 17_

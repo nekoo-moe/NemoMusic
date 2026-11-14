@@ -25,6 +25,7 @@ pub mod home_feed;
 pub mod http;
 pub mod images;
 pub mod innertube;
+pub mod offline;
 pub(crate) mod pages;
 pub mod raw;
 pub mod resolver;
