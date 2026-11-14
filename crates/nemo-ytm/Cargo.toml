@@ -17,6 +17,10 @@ serde_json.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+# Offline cache index (offline-cache design), the same SQLite build as nemo-lyrics.
+rusqlite = { version = "=0.41.1", features = ["bundled"] }
+# Random opaque file names for the offline cache.
+getrandom = { version = "=0.3.4", default-features = false }
 # Runtime pieces: process spawn and timeout (yt-dlp), `sync` for the lazy catalog client, `macros` for `join!`.
 tokio = { version = "=1.54.1", default-features = false, features = ["process", "time", "rt", "io-util", "sync", "macros"] }
 # HTTP: Windows-native TLS (SChannel), so no cmake or NASM is needed. Blocking client for the stream reader,
