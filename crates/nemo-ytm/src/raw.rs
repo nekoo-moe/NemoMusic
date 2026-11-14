@@ -3,7 +3,7 @@
 //! `ytmapi-rs` 0.3.4 parses a fixed set of page layouts and fails on the whole page when one
 //! part is unknown. The pages added for the account (library, history, explore, moods, podcasts)
 //! are therefore requested as raw JSON through its public `Query` trait and read by the tolerant
-//! parsers in [`crate::feeds`]. Request shapes follow `ytmusicapi` (`mixins/browsing.py`,
+//! parsers in `crate::feeds`. Request shapes follow `ytmusicapi` (`mixins/browsing.py`,
 //! `mixins/library.py`, `mixins/explore.py`, `mixins/podcasts.py`): a `browseId` plus optional
 //! `params`, or a continuation token in the query string.
 

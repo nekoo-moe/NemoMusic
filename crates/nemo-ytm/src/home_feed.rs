@@ -1,7 +1,7 @@
 //! Account header and the flat home feed of the older `Catalog::home` contract.
 //!
 //! `ytmapi-rs` 0.3.4 has no account-menu query, so this module adds it through its public
-//! `Query` trait. The richer home page lives in [`crate::feeds`]; [`legacy_shelves`] flattens it
+//! `Query` trait. The richer home page lives in `crate::feeds`; [`legacy_shelves`] flattens it
 //! for callers that only know [`Shelf`].
 
 use std::borrow::Cow;
