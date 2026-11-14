@@ -409,6 +409,7 @@ fn info_tab(app: &App, width: f32) -> Element<'_, Message> {
         match track.origin {
             nemo_core::audio::Origin::Local => "Your music folder".to_owned(),
             nemo_core::audio::Origin::YoutubeMusic => "YouTube Music (lossy)".to_owned(),
+            nemo_core::audio::Origin::SoundCloud => "SoundCloud (lossy)".to_owned(),
         },
     ));
     c = c.push(

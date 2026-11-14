@@ -278,7 +278,7 @@ impl Catalog for MockCatalog {
 #[must_use]
 pub fn signal_path(track: &Track) -> SignalPath {
     match track.origin {
-        Origin::YoutubeMusic => {
+        Origin::YoutubeMusic | Origin::SoundCloud => {
             let out = AudioFormat {
                 sample_rate: 48_000,
                 channels: 2,
@@ -286,7 +286,7 @@ pub fn signal_path(track: &Track) -> SignalPath {
             };
             SignalPath {
                 source: StreamInfo {
-                    origin: Origin::YoutubeMusic,
+                    origin: track.origin,
                     codec: Codec::Aac,
                     bitrate_kbps: Some(129),
                     format: Some(AudioFormat {

@@ -121,6 +121,7 @@ pub fn track_row<'a>(
             match track.origin {
                 Origin::Local => "Local".to_owned(),
                 Origin::YoutubeMusic => "YouTube".to_owned(),
+                Origin::SoundCloud => "SoundCloud".to_owned(),
             }
         };
         line = line.push(
