@@ -38,6 +38,9 @@ pub struct PlayerDeps {
 }
 
 /// Messages to the control thread.
+// A command (a whole `Track`) is the largest variant; each message is moved once through the
+// channel, so boxing it would only add an allocation.
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum Msg {
     /// A command from the UI.
     Cmd(PlayerCommand),

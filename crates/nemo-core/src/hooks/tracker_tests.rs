@@ -20,6 +20,7 @@ fn track(id: &str, secs: u64) -> Track {
         video_id: None,
         local_path: None,
         artwork: Artwork::default(),
+        source_url: None,
     }
 }
 

@@ -13,7 +13,7 @@ use nemo_core::effects::{EffectsSettings, EffectsStatus, TransitionMode, Transit
 use nemo_core::player::{PlayState, PlayerCommand, PlayerEvent};
 use nemo_core::secret::Secret;
 use nemo_core::services::{ByteSource, EventReceiver, PlayerControl, StreamOpener};
-use nemo_core::stream::{ResolvedStream, StreamError, StreamRequest, StreamResolver};
+use nemo_core::stream::{ResolvedStream, StreamError, StreamRequest, StreamResolver, Transport};
 use nemo_core::track::{Artwork, Track, TrackId, VideoId};
 
 use crate::player::{Player, PlayerDeps};
@@ -49,6 +49,10 @@ impl Recorder {
                     format: None,
                 },
                 expires_at: None,
+                transport: Transport::File,
+                preview: false,
+                audio_language: None,
+                audio_tracks: Vec::new(),
             })
         })
     }
@@ -160,6 +164,7 @@ fn video_track() -> Track {
         video_id: Some(VideoId::parse("TestTrack01").expect("valid id")),
         local_path: None,
         artwork: Artwork::None,
+        source_url: None,
     }
 }
 

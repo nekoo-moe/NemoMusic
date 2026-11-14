@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use nemo_core::audio::{Codec, Origin, StreamInfo};
 use nemo_core::secret::Secret;
+use nemo_core::stream::Transport;
 
 use super::*;
 use crate::test_server::{Request, Response, TestServer, range_response};
@@ -273,6 +274,10 @@ fn plain_http_is_refused_by_the_public_opener() {
             format: None,
         },
         expires_at: None,
+        transport: Transport::File,
+        preview: false,
+        audio_language: None,
+        audio_tracks: Vec::new(),
     };
     let error = HttpStreamOpener::new()
         .open(&stream)

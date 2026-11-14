@@ -92,6 +92,7 @@ fn track(id: &str) -> Option<Track> {
         video_id: Some(video),
         local_path: None,
         artwork: Artwork::None,
+        source_url: None,
     })
 }
 

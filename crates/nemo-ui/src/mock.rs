@@ -183,6 +183,7 @@ pub fn track(n: usize) -> Track {
             .flatten(),
         local_path: local.then(|| PathBuf::from(format!("mock/music/track-{n:02}.flac"))),
         artwork: cover_artwork(album),
+        source_url: None,
     }
 }
 
