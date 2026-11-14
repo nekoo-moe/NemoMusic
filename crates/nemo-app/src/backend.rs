@@ -6,6 +6,8 @@ use nemo_audio::decoder::supported_stream_codecs;
 use nemo_audio::player::{Player, PlayerDeps};
 use nemo_audio::sink::CpalSinkFactory;
 use nemo_core::account::{AccountService, NoAccount};
+use nemo_core::integrations::NoIntegrations;
+use nemo_core::notify::NoNotifier;
 use nemo_core::player::PlayerCommand;
 use nemo_core::segment::SegmentSource;
 use nemo_core::services::Backend;
@@ -110,6 +112,8 @@ pub fn build(
             lyrics: Arc::new(lyrics),
             images: Arc::new(images),
             account,
+            integrations: Arc::new(NoIntegrations),
+            notifier: Arc::new(NoNotifier),
         },
         local,
     })

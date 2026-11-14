@@ -11,10 +11,12 @@ use std::time::Duration;
 use crate::BoxFuture;
 use crate::account::AccountService;
 use crate::catalog::Catalog;
+use crate::integrations::IntegrationsService;
 use crate::lyrics::{
     Granularity, LyricsCandidate, LyricsCredit, LyricsDoc, LyricsQuery, ProviderId,
 };
 use crate::lyrics_plus::LineMeta;
+use crate::notify::OsNotifier;
 use crate::player::{PlayerCommand, PlayerEvent, PlayerSnapshot};
 use crate::stream::{ResolvedStream, StreamError};
 use crate::track::Artwork;
@@ -202,4 +204,10 @@ pub struct Backend {
     pub images: Arc<dyn ImageSource>,
     /// Google account sign-in.
     pub account: Arc<dyn AccountService>,
+    /// OS media controls, Last.fm and Discord presence. [`NoIntegrations`](crate::integrations::NoIntegrations) until the app builds
+    /// the real service.
+    pub integrations: Arc<dyn IntegrationsService>,
+    /// OS notifications. [`NoNotifier`](crate::notify::NoNotifier) until the app builds the real
+    /// notifier.
+    pub notifier: Arc<dyn OsNotifier>,
 }
