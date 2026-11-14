@@ -203,7 +203,7 @@ Cross-spec ids written `<spec>#?` name the owner's task by its ADR 0004 Decision
   - Wave: 2
   - Checks: a test that sign-out leaves `library.db` in place; a check that no new host is contacted (no network client in the library path).
 
-- [ ] 25. Keep the lossless badge honest for local formats
+- [x] 25. Keep the lossless badge honest for local formats
   - Crate and files: `nemo-core`: `src/audio.rs`; `nemo-ui`: signal-path view. Touches nemo-core/src/audio.rs.
   - Does: The true-lossless badge shows only for local FLAC, ALAC and WAV on a bit-perfect path, with the real rate and depth; otherwise codec and format with the reason in the signal-path view. Opus, Vorbis, MP3 and AAC never read "lossless"; facts not read show "Unknown". AIFF follows criterion 12 and gets no badge unless the owner adds it.
   - _Requirements: 12, 13, 14_

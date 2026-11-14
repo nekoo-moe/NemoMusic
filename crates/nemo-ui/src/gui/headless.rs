@@ -211,6 +211,8 @@ pub struct Scenario {
     pub loading_detail: bool,
     /// Pick this lyrics provider in the switcher (index into the candidates).
     pub lyrics_pick: Option<usize>,
+    /// Report the output device as opened in shared mode (through the system mixer).
+    pub shared_output: bool,
 }
 
 /// Which state of the sign-in sheet a snapshot shows.
@@ -267,6 +269,7 @@ impl Default for Scenario {
             sleep: false,
             loading_detail: false,
             lyrics_pick: None,
+            shared_output: false,
         }
     }
 }
@@ -324,6 +327,13 @@ pub fn build_app(backend: &Backend, scenario: &Scenario) -> App {
     }
     if scenario.queue_open {
         run(&mut app, Message::Ui(Event::ToggleQueue));
+    }
+    if scenario.shared_output {
+        let mut snap = app.ui.snapshot.clone();
+        if let Some(path) = snap.signal_path.as_mut() {
+            path.output.mode = nemo_core::audio::OutputMode::Shared;
+        }
+        app.dispatch(Event::Snapshot(snap));
     }
     if scenario.signal_open {
         run(&mut app, Message::Ui(Event::ToggleSignalPath));
