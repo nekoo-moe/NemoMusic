@@ -1,0 +1,61 @@
+# cargo-deny config for NemoMusic. Enforces code.md "Dependencies":
+# committed deny.toml, `cargo deny check` + `cargo audit` must pass, and the
+# license allowlist. Run from the repo root: `cargo deny check`.
+
+# code.md: CI targets Windows and Linux (x86_64); check the dep graph for both.
+[graph]
+targets = [
+    "x86_64-pc-windows-msvc",
+    "x86_64-unknown-linux-gnu",
+]
+all-features = true
+
+# code.md "Dependencies": license allowlist is exactly these; anything else
+# needs an explicit exception with a reason below. Do not add to `allow`.
+[licenses]
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "Zlib",
+]
+# The nemo-* workspace crates set `publish = false` (workspace Cargo.toml) and
+# carry no SPDX license field; the repo LICENSE is GPL-3.0. Treat them as
+# private so GPL-3.0 is not matched against the allowlist.
+exceptions = [
+    # BSL-1.0: clipboard-win and error-code, pulled in by iced_winit -> window_clipboard (Windows clipboard).
+    { name = "clipboard-win", allow = ["BSL-1.0"] },
+    { name = "error-code", allow = ["BSL-1.0"] },
+    # CC0-1.0: hexf-parse, pulled in by naga (wgpu shader front end in iced_wgpu).
+    { name = "hexf-parse", allow = ["CC0-1.0"] },
+    # Apache-2.0 WITH LLVM-exception: target-lexicon, build-time via cfg-expr -> system-deps (gtk/webkit2gtk-sys on Linux).
+    { name = "target-lexicon", allow = ["Apache-2.0 WITH LLVM-exception"] },
+]
+
+[licenses.private]
+ignore = true
+
+# code.md "Dependencies": the iced/wgpu tree ships duplicate transitive
+# versions we cannot fix, so warn rather than deny on multiple versions.
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+allow-wildcard-paths = true
+
+# code.md "Dependencies": pin versions in Cargo.lock; only crates.io is allowed.
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+
+# code.md "Dependencies": `cargo deny check` + `cargo audit` must pass. No
+# `ignore` entries for vulnerabilities. Narrowest setting that still passes for
+# unmaintained/unsound advisories on transitive deps; IDs listed in the report.
+[advisories]
+version = 2
+yanked = "deny"
+unmaintained = "workspace"
