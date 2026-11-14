@@ -35,6 +35,7 @@ pub mod ring;
 pub mod sink;
 pub mod source;
 pub mod stream_decoder;
+pub mod transition;
 
 mod control;
 mod control_cmd;
