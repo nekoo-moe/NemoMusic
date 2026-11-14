@@ -132,6 +132,7 @@ Live: a playlist reload that fails 3 times in a row, or an `#EXT-X-ENDLIST` line
 
 ## Steering and README changes
 
+- Opt-in: "All of YouTube" search, comments, dislike counts and the YouTube captions provider each use the shared `OptInRow` and `OptInInfo` (ADR 0004, "Opt-in settings pattern"). Hosts: `www.youtube.com`, and `returnyoutubedislikeapi.com` for dislike counts only. The texts are in criteria 10, 17, 27 and 30.
 - `tech.md`: no new crate and no new row for captions (`serde_json` and `yt-dlp` are decided). If `m3u8-rs` 6.0.1 is not yet added by the `soundcloud` task, this one adds its row (MIT, released 2026-07-30, `rust-version` unverified).
 - `structure.md`: no new crate or edge.
 - README egress list: add `returnyoutubedislikeapi.com` (only when dislike counts are on; sent: the video ID and the IP). `www.youtube.com` and `music.youtube.com` are listed already; note that `www.youtube.com` is also used for comments, all-YouTube search and captions (fetched by `yt-dlp`, only when the captions provider is on or a subtitle is picked) when those are on.

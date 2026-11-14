@@ -99,6 +99,7 @@ Needed from `video-playback` (defined there, ADR 0004 row 39): `ClipPlayer` with
 
 ## Steering and README changes
 
+- Opt-in: the Spotify Canvas switch uses the shared `OptInRow` and `OptInInfo` (ADR 0004, "Opt-in settings pattern"), replacing `ArtSourceInfo` on the settings screen. It repeats the Spotify account warning (criterion 20); hosts are the Canvas hosts below, unverified until the spike.
 - `design.md`: add an "Apple Music style" subsection to sections 8, 9 and 10 with the four exceptions of criterion 18 and the table above, and a line in section 9 that an animated cover only fills the cover slot and never the backdrop. The change rule of `design.md` needs the owner's approval, given by approving this spec.
 - `structure.md`: the new `nemo-ui` view files; `nemo-spotify` (from lyrics-plus).
 - `tech.md`: no new row in this spec. The video decoder row belongs to `video-playback`.

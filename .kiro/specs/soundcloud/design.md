@@ -108,6 +108,7 @@ Needed from other designs: the Opus decoder (`local-library`), the shared opt-in
 
 ## Steering and README changes
 
+- Opt-in: the SoundCloud switch uses the shared `OptInRow` and `OptInInfo` (ADR 0004, "Opt-in settings pattern"). Sends: search text and page URLs, through `yt-dlp`. Hosts: the four below, shown before the first request. Risk text: the draft in Risks. `version` 1.
 - `tech.md`: row for `m3u8-rs` 6.0.1 (MIT, released 2026-07-30, `rust-version` unverified, pure Rust, parser only; verify its `nom` version against `Cargo.lock` `nom` 8.0.0). No new row for `yt-dlp` (already decided). Note that `symphonia` fMP4 and Opus support is checked in the spike.
 - `structure.md`: add `nemo-soundcloud` (depends on `nemo-core` only); no new edge.
 - README egress list: `soundcloud.com`, `api-v2.soundcloud.com`, `*.sndcdn.com`, `playback.media-streaming.soundcloud.cloud`, each marked "only when SoundCloud is on"; final list from the capture, approved by the owner.

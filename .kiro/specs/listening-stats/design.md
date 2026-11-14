@@ -130,6 +130,7 @@ Export writes to `dest.tmp` in the same folder, then renames. Columns: `started_
 
 ## Steering and README changes
 
+- Opt-in: the recording switch and the monthly-recaps switch use the shared `OptInRow` and `OptInInfo` (ADR 0004, "Opt-in settings pattern"). Sends: nothing; hosts: none; the risk text says the history stays on this computer, survives sign-out and is deleted by "Clear stats".
 - `tech.md`: add `chrono` =0.4.45 (MIT OR Apache-2.0, 2026-06-04, `clock` feature, already in `Cargo.lock`); `ab_glyph` =0.2.32 (Apache-2.0, 2025-09-28, already locked; direct dependency of `nemo-stats`); `rusqlite`, `image`, `sha2`, `unicode-normalization` and `tokio` are existing pins. Confirm `rusqlite` 0.41.1 stays pinned (0.42.0 exists since 2026-11-11).
 - `structure.md`: new crate `nemo-stats`, edge `nemo-app -> nemo-stats`, it depends on `nemo-core` only; note `Backend.stats`.
 - README egress list: no new host. README privacy text: stats are off until switched on, stay local, survive sign-out, export is a file the user saves.

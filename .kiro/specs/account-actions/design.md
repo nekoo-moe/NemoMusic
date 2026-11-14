@@ -170,6 +170,7 @@ Traits I need from other designs: `OsNotifier` (integrations design, `notify.rs`
 
 ## Steering and README changes
 
+- Opt-in: the Premium audio switch, "Notify me about new releases" and "OS notifications for new releases" each use the shared `OptInRow` and `OptInInfo` (ADR 0004, "Opt-in settings pattern"). Premium sends the session to `yt-dlp` (`www.youtube.com`, `*.googlevideo.com`); release notices query `music.youtube.com`; OS notifications send nothing off the computer and say who can read the text (integrations design).
 - `tech.md`: replace rows "Credential store crates" and "Credential store" with: crates `keyring-core` =1.0.1 (MIT OR Apache-2.0, MSRV 1.85), `windows-native-keyring-store` =1.1.0 (MIT OR Apache-2.0, MSRV 1.88, released 2026-05-24), `zbus-secret-service-keyring-store` =1.0.1 (MIT OR Apache-2.0, MSRV 1.88, released 2026-08-15), now owned by `nemo-secrets`. Opus row: note that Premium plays AAC until the decoder lands.
 - `structure.md`: add `nemo-secrets` (depends on `nemo-core` only); `nemo-app` depends on it; `nemo-ytm` loses its keyring dependencies; `nemo-core` gets feature `test-util`.
 - README egress list: no new host (`music.youtube.com`, `www.youtube.com`, `accounts.google.com` are listed).

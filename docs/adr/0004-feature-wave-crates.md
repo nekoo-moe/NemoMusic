@@ -87,7 +87,7 @@ Checked against the 17 designs on 2026-11-14. One spec owns each item and define
 | 28 | `releases.rs`: `ReleaseFeed`, `ReleaseNotice` | account-actions | integrations (OS notifications) |
 | 29 | `notify.rs`: `OsNotifier`, `OsNotification`, `NotifierState`, `NotificationEvent` (new) | integrations | account-actions (release notices) |
 | 30 | `hooks.rs`: `PlayRule`, `PlayTracker`, `PlayHookEvent`, `FinishedPlay`, `PlayObserver` | integrations | listening-stats, offline-cache (`record_play`) |
-| 31 | `integrations.rs`: `IntegrationsService`, `IntegrationInfo`, `LastFmStatus`, `NativeWindow`, `NoIntegrations`, `Backend.integrations` | integrations | nemo-ui, nemo-app |
+| 31 | `integrations.rs`: `IntegrationsService`, `LastFmStatus`, `NativeWindow`, `NoIntegrations`, `Backend.{integrations, notifier}` | integrations | nemo-ui, nemo-app |
 | 32 | `stats.rs`: `StatsService`, `StatsPeriod`, `RankedSong`, `RankedName`, `HourClock`, `YearSummary`, `Recap`, `Receipt`, `NoStats`, `Backend.stats` | listening-stats | ai-features (taste input), nemo-ui |
 | 33 | `ai.rs`: `AiService`, `Translator`, `AiRequest`, `PayloadPreview`, `AiAnswer`, `AiError`, `NoAi`, `NoTranslator`, `Backend.{ai, translator}` | ai-features | lyrics-plus (translation), nemo-ui |
 | 34 | `lyrics_plus.rs`: `OwnLyrics`, `OwnLyricsDraft`, `Romanizer`, `RomanLang`, `Romanization`, `LyricsTranslation`, `LangTag`, `Translation`, `LineMeta`, `LyricsService::line_meta` | lyrics-plus | now-playing-styles (`LineMeta`), nemo-ui |
@@ -99,14 +99,44 @@ Checked against the 17 designs on 2026-11-14. One spec owns each item and define
 | 40 | `recognize.rs`: `Recognizer`, `InputSource`, `RecognizedSong`, `RecognitionState`, `CancelFlag`, `HistoryEntry`, `RecognizeError` | song-recognition | nemo-ui, nemo-app |
 | 41 | `remote.rs`: `RemotePlayback`, `RemoteSlot`, `RemoteLease`, `RemoteKind`, `RoomRole`, `RemoteMode`, `RemoteStatus`, `CommandGate`, `RemoteBusy`; `cast.rs`: `CastControl`, `CastDevice`, `CastDeviceId` (renamed from `DeviceId`), `DeviceKind`, `CastEvent`, `Discovery` | cast | listen-together (`RemotePlayback`, `RoomRole`), nemo-app (gate), integrations hub |
 | 42 | `together.rs`: `RoomControl`, `RoomStatus`, `Member`, `MemberId`, `RoomEvent`, `LinkState`, `RoomError` | listen-together | nemo-ui, nemo-app |
+| 43 | `opt_in.rs`: `OptInInfo` (renamed from `IntegrationInfo`; replaces `AiProviderInfo`, `ArtSourceInfo` and the risk note of `ProviderInfo::opt_in` in the settings screens; see "Opt-in settings pattern") | integrations | every design in the pattern table, nemo-ui `OptInRow` |
 
-Result: 42 rows. Every item has one owner. Rows 3 (`ReplayGain`), 22, 27 (`create`), 29 and 39 were gaps that two designs relied on and nobody defined. Two items were defined under two names and were merged: `DeviceId` (output-devices wins, cast uses `CastDeviceId`) and the translator contract (ai-features `Translator` wins, lyrics-plus calls it).
+Result: 43 rows. Every item has one owner. Rows 3 (`ReplayGain`), 22, 27 (`create`), 29 and 39 were gaps that two designs relied on and nobody defined. Two items were defined under two names and were merged: `DeviceId` (output-devices wins, cast uses `CastDeviceId`) and the translator contract (ai-features `Translator` wins, lyrics-plus calls it).
 
 Four rules from the map:
 - `ResolvedStream` gets four new fields from two designs (`transport`, `preview` from soundcloud; `audio_language`, `audio_tracks` from account-actions), and `Track` gets `source_url`. They land in one task that adds all of them with `Default`, so no later task edits every struct literal again.
 - Two rankers exist on purpose: `rank_audio` (account-actions) picks among YouTube Music formats; `rank_formats` (soundcloud) picks among `yt-dlp` formats of other sites and live streams. They do not merge. The owner's listening test sets the soundcloud factors.
 - Every `PlayerCommand` addition is handled in `nemo-audio/src/control_cmd.rs`. Commands from rows 1, 5, 6 and 7 are independent, so their tasks may land in any order, but only one task at a time edits `player.rs`.
 - Position and play counting while parked or casting: `PlayTracker` reads `RemotePlayback::remote_status().position` instead of `PlayerControl::position()` when the mode is not `Local`.
+
+## Opt-in settings pattern
+One pattern for every feature that sends data off this computer, reaches a new host, or records what the user plays. It replaces the separate texts and structs the designs invented (`IntegrationInfo`, `AiProviderInfo`, `ArtSourceInfo`, `ProviderInfo::opt_in`).
+
+1. **Off by default.** The switch is off on a new install. Nothing is requested, built or started while it is off. The only exception is OS media controls, which send nothing off the computer (integrations, criterion 9).
+2. **One data type, `OptInInfo`, in `nemo-core/src/opt_in.rs`** (owner: integrations, renamed from `IntegrationInfo`): `id`, `title`, `sends` (plain text: what leaves the computer), `hosts` (exact host names, or "the endpoint you set" and "the server you type" when the user supplies it), `risk` (plain text), `version` (a number), `default_on` (false except media controls). Services return it; `nemo-ui` never knows a service by name.
+3. **One component, `OptInRow`, in `nemo-ui/src/gui/views/opt_in.rs`.** It shows the title, the switch, then "What is sent", "To" and "Risk" in plain text. Turning the switch on does not turn it on yet: a panel with the same three texts opens, with "Turn on" and "Cancel", neither pre-selected, reachable by keyboard.
+4. **Shown before the first request.** The confirmation is stored as `confirmed_version`. `nemo-app` builds the service only when the switch is on and `confirmed_version == version`. A new host or new data raises `version`, so the panel shows again before the next request. A test with a counting fake host proves zero requests while the switch is off or unconfirmed.
+5. **Risk text names the real risk.** Unofficial access: "may breach the service's terms and the account can be restricted". Public data: where it shows (Last.fm profile, Discord profile). Text sent to a third party: whose terms apply. Local screen text: who can read it (notifications). Never "safe", never a promise about the other side.
+6. **Turning off is one click, no panel.** Requests stop at once. The row says what stays on this computer and offers "Delete now" where data is kept.
+7. **After turn-on** the row shows the hosts in use and one status line ("Connected", "yt-dlp missing"). Every `hosts` entry also appears in the README egress list with "only when <feature> is on". A test in `nemo-app` compares the two lists.
+8. **User-supplied hosts** (AI endpoint, Listen Together server) show the typed host in the panel, and a different host asks again.
+9. **Accessibility.** Keyboard order, visible focus, no animation under reduced motion, readable at 200% text scale (`design.md` checklist).
+
+Where each design points here (one line in its "Steering and README changes"):
+
+| Feature | Sent | Hosts | Design |
+|---|---|---|---|
+| SoundCloud | search text and page URLs, through `yt-dlp` | `soundcloud.com`, `api-v2.soundcloud.com`, `*.sndcdn.com`, `playback.media-streaming.soundcloud.cloud` | soundcloud |
+| Smart downloads | background fetches of songs played often, and takedown checks | `www.youtube.com`, `*.googlevideo.com` | offline-cache |
+| Premium audio, release notices, OS release notifications | the session to `yt-dlp`; the followed-artist check; (notifications: nothing leaves) | `www.youtube.com`, `music.youtube.com`, `*.googlevideo.com` | account-actions, integrations |
+| All of YouTube search, comments, dislike counts, YouTube captions | queries, comment text, video id | `www.youtube.com`, `returnyoutubedislikeapi.com` | youtube-extras |
+| Spotify lyrics, animated covers | the user's `sp_dc` session, track title and artist | `accounts.spotify.com`, `open.spotify.com`, `spclient.wg.spotify.com`, `api-partner.spotify.com`, the Canvas host (unverified) | lyrics-plus, now-playing-styles |
+| AI provider, AI translation | seed songs, taste data, lyric lines | the endpoint you set | ai-features, lyrics-plus |
+| Last.fm, Discord presence | plays and titles; the title and artist to the local Discord app | `ws.audioscrobbler.com` (and `www.last.fm` in the browser); none for Discord | integrations |
+| Song recognition | an audio fingerprint; then the matched title and artist as a YouTube Music search | `amp.shazam.com`, `music.youtube.com` | song-recognition |
+| Listen Together | display name, room code, track ids, titles | the server you type | listen-together |
+| Cast | the playing stream, to a device on the local network | none on the internet | cast |
+| Listening stats | nothing (recording is local) | none | listening-stats |
 
 ## Consequences
 - `nemo-ytm` loses its credential module to `nemo-secrets` and `nemo-core`; its sign-in flow is otherwise unchanged.

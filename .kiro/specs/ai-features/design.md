@@ -132,6 +132,7 @@ Parsing is strict: `choices[0].message.content` must be a string. A surrounding 
 
 ## Steering and README changes
 
+- Opt-in: the AI provider entry and each AI feature switch use the shared `OptInRow` and `OptInInfo` (ADR 0004, "Opt-in settings pattern"). Hosts: "the endpoint you set", named by the typed host; a different host asks again. The per-request preview of this design is an addition to the pattern, not a replacement.
 - `tech.md`: no new crate. `nemo-ai` uses existing pins `reqwest` =0.13.5 (`native-tls`, no default features), `url` =2.5.8, `rusqlite` =0.41.1, `serde_json`, `tokio` =1.54.1 (`rt`, `time`, `sync`), `thiserror`, `tracing`. Add one row "AI client" that names these and the endpoint rules.
 - `structure.md`: new crate `nemo-ai`, edge `nemo-app -> nemo-ai`, depends on `nemo-core` only; new `nemo-core` module `ai`.
 - README egress list: "the endpoint you set" for AI (no fixed host), with the risk text: what you send leaves this computer for that host, and its owner's terms apply; plain HTTP on a LAN is unencrypted.

@@ -111,6 +111,7 @@ pub trait Jitter: Send + Sync { fn pause(&self) -> Duration; }   // 10..=30 s
 
 ## Steering and README changes
 
+- Opt-in: the smart-downloads switch uses the shared `OptInRow` and `OptInInfo` (ADR 0004, "Opt-in settings pattern"). Sends: background fetches of songs played often and takedown checks. Hosts: `www.youtube.com`, `*.googlevideo.com`. Risk: possible account restriction, deletion on takedown. Saving a song by hand is a user action and needs no switch.
 - `tech.md`: replace the line "build no audio cache" with the decided rule (cache in `nemo-ytm`, plain files, caps). Add rows: `fs4` 1.1.0 (MIT OR Apache-2.0), `getrandom` 0.3.4 (MIT OR Apache-2.0, already in `Cargo.lock`), and `rusqlite` 0.41.1 now also in `nemo-ytm`.
 - `structure.md`: `nemo-ytm` owns `offline/` and `offline.db`; `nemo-app` wires `OfflineStore`, `DownloadService` and `NetworkMode`; no new crate-to-crate edge.
 - README: egress table gets no new host. Change the "When" of `www.youtube.com` and `*.googlevideo.com` to include "when songs are saved offline or checked". Add the offline-cache risk text (account restriction, deletion on takedown, sign-out wipe).

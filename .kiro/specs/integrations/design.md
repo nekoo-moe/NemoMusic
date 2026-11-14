@@ -8,7 +8,7 @@ Only OS media controls are on by default (criterion 9), since nothing leaves the
 
 ## Affected Crates
 
-- `nemo-core`: `hooks.rs` (`PlayRule`, `PlayTracker`, `PlayHookEvent`, `FinishedPlay`, `PlayObserver`), `integrations.rs` (`IntegrationsService`, `IntegrationInfo`, `LastFmStatus`, `NativeWindow`, `NoIntegrations`), `notify.rs` (`OsNotifier` and its types, `NoNotifier`), and `Backend.integrations` and `Backend.notifier`.
+- `nemo-core`: `hooks.rs` (`PlayRule`, `PlayTracker`, `PlayHookEvent`, `FinishedPlay`, `PlayObserver`), `integrations.rs` (`IntegrationsService`, `LastFmStatus`, `NativeWindow`, `NoIntegrations`), `opt_in.rs` (`OptInInfo`, shared by every opt-in feature, ADR 0004), `notify.rs` (`OsNotifier` and its types, `NoNotifier`), and `Backend.integrations` and `Backend.notifier`.
 - `nemo-integrations` (new): `media.rs` (souvlaki wrapper, event mapping, cover files), `lastfm/` (`api.rs` signing and calls, `auth.rs`, `queue.rs` SQLite, `worker.rs`), `discord.rs`, `notify/` (`compose.rs` pure text rules, `windows.rs`, `linux.rs`, `mod.rs`), `info.rs` (texts, hosts), `service.rs`.
 - `nemo-app`: `play_hub.rs` (hub thread, observer list, flush at exit), wiring in `backend.rs`, `paths.integrations`, a callback that opens only `https://www.last.fm/` URLs in the default browser (`open` crate), and the window handle hand-over.
 - `nemo-ui`: Settings section "Integrations" (three rows in the shared opt-in pattern, key and secret fields, connect, disconnect, queue length); `UiOptions::on_window_ready` that reports the native window id once iced has the window (iced `window::run`; the exact call is unverified for 0.14).
@@ -68,12 +68,13 @@ impl PlayTracker {
 
 // nemo-core/src/integrations.rs
 pub struct NativeWindow(pub usize);          // HWND on Windows, unused elsewhere
-pub struct IntegrationInfo { pub id: &'static str, pub title: &'static str, pub sends: &'static str,
-    pub hosts: &'static [&'static str], pub risk: &'static str, pub default_on: bool }
+// nemo-core/src/opt_in.rs: the one type behind every opt-in row (ADR 0004, "Opt-in settings pattern")
+pub struct OptInInfo { pub id: &'static str, pub title: &'static str, pub sends: &'static str,
+    pub hosts: &'static [&'static str], pub risk: &'static str, pub version: u32, pub default_on: bool }
 pub enum LastFmStatus { NoKeys, Ready, AwaitingApproval, Connected { user: String }, NeedsReconnect }
 pub enum IntegrationError { Unavailable(String), Network(String), Rejected(String), Storage(String) }
 pub trait IntegrationsService: Send + Sync {
-    fn infos(&self) -> Vec<IntegrationInfo>;
+    fn infos(&self) -> Vec<OptInInfo>;
     fn media_controls(&self) -> bool;
     fn set_media_controls(&self, on: bool);
     fn discord(&self) -> bool;                 // false and not offered while no application id is built in
@@ -154,6 +155,7 @@ pub fn sign(params: &[(&str, &str)], secret: &str) -> String;
 
 ## Steering and README changes
 
+- Opt-in: Last.fm and Discord presence use the shared `OptInRow` and `OptInInfo` (ADR 0004, "Opt-in settings pattern"); this design owns `OptInInfo` (`nemo-core/src/opt_in.rs`). OS media controls are the one default-on row (nothing leaves the computer). OS notifications are called by features that have their own switch.
 - `tech.md`: `souvlaki` =0.9.3 (MIT, 2026-10-27, MSRV 1.87, `default-features = false`, `use_zbus` on Linux); `md-5` =0.11.0 (MIT OR Apache-2.0, 2026-03-27, MSRV 1.85); `discord-rich-presence` =1.1.0 (MIT, 2026-01-26, MSRV unlisted); `open` =5.4.5 (MIT, 2026-10-22, MSRV 1.62); existing pins: `reqwest`, `rusqlite`, `url`, `image`, `tokio`. Linux package list: no change if `use_zbus` passes `deny`.
 - `structure.md`: new crate `nemo-integrations`, edge `nemo-app -> nemo-integrations`, depends on `nemo-core` only; new `nemo-core` modules `hooks` and `integrations`; `nemo-app/src/play_hub.rs`.
 - `tech.md` rows for notifications: `tauri-winrt-notification` =0.8.1 (MIT OR Apache-2.0, released 2026-07-17, MSRV 1.82, Windows only; depends on `windows` ^0.62 which `Cargo.lock` has as 0.62.2, `windows-version` 0.1 and `thiserror`; no C toolchain expected, unverified); `zbus` =5.19.0 (MIT, released 2026-08-09, MSRV 1.87, Linux only; already built for the Secret Service store, same feature set `async-io` and `blocking-api`).

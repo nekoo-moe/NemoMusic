@@ -94,6 +94,7 @@ impl ServerAddress { pub fn parse(text: &str) -> Result<Self, RoomError>; }
 
 ## Steering and README changes
 
+- Opt-in: the Listen Together switch uses the shared `OptInRow` and `OptInInfo` (ADR 0004, "Opt-in settings pattern"), with the server address field. Hosts: "the server you type"; a different server asks again. Risk text includes the `ws://` LAN warning.
 - `tech.md` rows (add): `tokio-tungstenite` =0.30.0 (MIT, 2026-07-11, MSRV 1.85, feature `native-tls`, expected to reuse `tokio-native-tls` 0.3.1 from `Cargo.lock`; confirm the feature name); `prost` =0.14.6 (Apache-2.0, 2026-11-12, MSRV 1.85); build-dependencies `prost-build` =0.14.6 (Apache-2.0) and `protox` =0.10.0 (MIT OR Apache-2.0, 2026-10-07, MSRV 1.85), so no `protoc` is needed on Windows; `flate2` 1.1.11, `crc32fast` 1.5.5 and `rusqlite` 0.41.1 as already locked. The vendored `listentogether.proto` is GPL-3.0 and sits in `crates/nemo-together/proto/` with its source commit.
 - `structure.md`: add `nemo-together` (depends on `nemo-core` only) to layout, ownership and the graph.
 - README egress list: no default host. Text: the user types the room server; the app sends display name, room code, track ids, titles and play state, and the IP address shows to the server. A host is named only when it becomes a listed choice.
