@@ -208,6 +208,8 @@ impl Core {
             underruns: self.total_underruns(),
             skip_segments: self.skip,
             repeat: self.repeat,
+            // Live streams are not played yet (youtube-extras).
+            live: false,
         };
         *self
             .shared

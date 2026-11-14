@@ -152,6 +152,8 @@ pub struct PlayerSnapshot {
     pub skip_segments: bool,
     /// The repeat mode.
     pub repeat: RepeatMode,
+    /// The current track is a live stream: it has no length and cannot be seeked.
+    pub live: bool,
 }
 
 impl Default for PlayerSnapshot {
@@ -167,6 +169,7 @@ impl Default for PlayerSnapshot {
             underruns: 0,
             skip_segments: false,
             repeat: RepeatMode::Off,
+            live: false,
         }
     }
 }
@@ -192,5 +195,6 @@ mod tests {
         assert_eq!(s.state, PlayState::Stopped);
         assert_eq!(s.volume_percent, 100);
         assert!(s.current.is_none() && s.queue.is_empty() && !s.skip_segments);
+        assert!(!s.live);
     }
 }
