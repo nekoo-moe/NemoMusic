@@ -29,9 +29,9 @@ Tasks in other specs are cited by spec and the ADR 0004 Decision 4 row they own,
   - Checks: tests with `MemoryStore`: two scopes do not see each other's keys, `delete` reports whether the key existed, a key that is too long after prefixing is refused.
   - Steering: none.
 
-- [ ] 4. Add `SignOutWipe`, `WipeScope` and `WipeError`
+- [x] 4. Add `SignOutWipe`, `WipeScope` and `WipeError`
   - Crate and files: `nemo-core` (`src/account.rs`). Touches nemo-core/src/account.rs.
-  - Does: Adds the sign-out step trait with its scope and error types (ADR 0004 row 26), and a list of failed step names on `SignOutReport` so sign-out can report them.
+  - Does: Adds the sign-out step trait with its scope and error types (ADR 0004 row 26), and a list of failed step names on `SignOutReport` so sign-out can report them. `AccountId` lands here too, because `WipeScope::Account` needs it; task 6 adds the rest of row 25.
   - _Requirements: none (groundwork)_
   - Depends on: none
   - Wave: 0

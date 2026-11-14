@@ -255,6 +255,7 @@ impl Shared {
                 credentials_removed,
                 files_removed,
                 ended_remotely: false,
+                ..SignOutReport::default()
             }),
             Err(err) => Err(AccountError::Storage(err.0.to_owned())),
         }
