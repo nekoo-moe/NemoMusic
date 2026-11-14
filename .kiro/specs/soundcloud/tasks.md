@@ -20,7 +20,7 @@ Cross-spec ids written `<spec>#?` name the task in that spec that adds the ADR 0
   - Checks: existing tests pass unchanged apart from literals; bit-exact test.
   - Steering: none
 
-- [ ] 3. Add `ByteSource::is_seekable` and forward it through `MediaAdapter`
+- [x] 3. Add `ByteSource::is_seekable` and forward it through `MediaAdapter`
   - Crate and files: `nemo-core` (touches nemo-core/src/services.rs), `nemo-audio/src/source.rs`.
   - Does: defaulted method returning `true`; `MediaAdapter::is_seekable` reports it to `symphonia` so a live stream is not seeked. No change on the audio callback path.
   - _Requirements: 23_
