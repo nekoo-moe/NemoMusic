@@ -1,6 +1,6 @@
 ## Tasks
 
-- [ ] 1. Add the effects settings types and `GaplessPolicy` to `nemo-core`
+- [x] 1. Add the effects settings types and `GaplessPolicy` to `nemo-core`
   - Crate and files: `nemo-core`: `src/effects.rs` (new), `src/lib.rs` (one `pub mod` line). Touches nemo-core/src/effects.rs and nemo-core/src/lib.rs.
   - Does: Adds every type of ADR 0004 Decision 4 row 2 (`EffectsSettings`, `EqSettings`, `EqFilter`, `FilterKind`, `DelaySettings`, `ReverbSettings`, `PreampMode`, `EffectsStatus`, `TransitionMode`, `SkipFade`, `TransitionSettings`, `TransitionKind`, `TransitionSkipReason`, `EQ_MAX_FILTERS`) and the `GaplessPolicy` trait (row 4), signatures as in the design. `Default` has every `enabled` false and `TransitionMode::Off`; integer units keep `PlayerCommand` `Eq`. No I/O.
   - _Requirements: 1, 5, 16_
