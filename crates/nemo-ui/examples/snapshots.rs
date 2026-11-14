@@ -12,6 +12,8 @@
 mod backdrop;
 #[path = "snapshots/feature.rs"]
 mod feature;
+#[path = "snapshots/np_classic.rs"]
+mod np_classic;
 #[path = "snapshots/opt_in.rs"]
 mod opt_in;
 #[path = "snapshots/screen.rs"]
@@ -83,6 +85,10 @@ fn main() {
                 std::process::exit(1);
             }
         }
+    }
+    if let Err(e) = np_classic::render(&only, &out_dir) {
+        eprintln!("{e}");
+        std::process::exit(1);
     }
     for (name, view, size) in opt_in::shots() {
         if !only.is_empty() && !only.contains(&name) {
