@@ -368,6 +368,8 @@ impl Shared {
     async fn recheck(&self, cookie: Secret<String>) {
         match self.backend.probe(cookie).await {
             Ok(info) => {
+                // The header cache only saves a lookup at the next start; when it cannot be
+                // written, the session still works and the next start asks again.
                 if let Some(dir) = self.config.cache_file.parent() {
                     let _ = std::fs::create_dir_all(dir);
                 }
@@ -375,6 +377,9 @@ impl Shared {
                 self.set_state(AccountState::SignedIn(info));
             }
             Err(AccountError::Rejected) => {
+                // YouTube refused the saved session. `wipe` sets the state to signed out even
+                // when the store fails, and there is no caller to report to here; the next
+                // sign-in overwrites whatever was left.
                 let _ = self.wipe(SignOutReport::default());
             }
             Err(_) => {

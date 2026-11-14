@@ -73,6 +73,7 @@ impl Vault {
                     .set(MANIFEST_KEY, parts.len().to_string().as_bytes())
             });
         if let Err(err) = written {
+            // Best effort: remove the half-written parts. The write error is the one to report.
             let _ = self.wipe();
             return Err(err);
         }
