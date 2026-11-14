@@ -2,7 +2,7 @@
 
 Cross-spec ids written `<spec>#?` name the other spec's task by the ADR 0004 Decision 4 row it delivers; the number is filled in once that spec's `tasks.md` is merged.
 
-- [ ] 1. Add `OptInInfo`, the shared opt-in data type
+- [x] 1. Add `OptInInfo`, the shared opt-in data type
   - Crate and files: `nemo-core` (`src/opt_in.rs` new, `src/lib.rs`); touches nemo-core/src/opt_in.rs.
   - Does: Adds `OptInInfo { id, title, sends, hosts, risk, version, default_on }` with rustdoc that repeats the ADR 0004 opt-in rules (off by default except media controls, risk text names the real risk). No I/O.
   - _Requirements: none (groundwork)_

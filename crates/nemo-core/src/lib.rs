@@ -9,6 +9,7 @@ pub mod audio;
 pub mod catalog;
 pub mod library;
 pub mod lyrics;
+pub mod opt_in;
 pub mod player;
 pub mod secret;
 pub mod secret_store;
