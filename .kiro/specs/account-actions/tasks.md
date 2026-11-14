@@ -74,7 +74,7 @@ Tasks in other specs are cited by spec and the ADR 0004 Decision 4 row they own,
   - Checks: the default `resolve_with` returns what `resolve` returns.
   - Steering: none.
 
-- [ ] 9. Resolve through a `StreamRequest` in `nemo-audio`
+- [x] 9. Resolve through a `StreamRequest` in `nemo-audio`
   - Crate and files: `nemo-audio` (`src/prepare.rs`, `src/player.rs`); `nemo-app` (passes the default request).
   - Does: `PrepareDeps` gains the current `StreamRequest` and `prepare` calls `resolve_with` instead of `resolve`. The default request (automatic language, no Premium, no codec hint) keeps every resolver as it is today. The request is read on the prepare thread, never in the audio callback.
   - _Requirements: none (groundwork)_

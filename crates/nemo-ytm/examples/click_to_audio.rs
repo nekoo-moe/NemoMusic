@@ -24,7 +24,7 @@ use nemo_core::BoxFuture;
 use nemo_core::audio::{Origin, StreamInfo};
 use nemo_core::player::{PlayState, PlayerCommand};
 use nemo_core::services::{ByteSource, StreamOpener};
-use nemo_core::stream::{ResolvedStream, StreamError, StreamResolver};
+use nemo_core::stream::{ResolvedStream, StreamError, StreamRequest, StreamResolver};
 use nemo_core::track::{Artwork, Track, TrackId, VideoId};
 use nemo_ytm::innertube::{ANDROID_VR, InnertubeResolver, VISIONOS};
 use nemo_ytm::stream::HttpStreamOpener;
@@ -192,6 +192,7 @@ fn main() {
     });
     let player = Player::spawn(PlayerDeps {
         resolver: Arc::new(TimedResolver(inner, Arc::clone(&clock))),
+        request: StreamRequest::default(),
         opener: Arc::new(TimedOpener(HttpStreamOpener::new(), Arc::clone(&clock))),
         segments: None,
         sink_factory: Arc::new(CpalSinkFactory::new(None)),

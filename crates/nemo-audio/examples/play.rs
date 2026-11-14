@@ -18,7 +18,7 @@ use nemo_audio::sink::{CpalSinkFactory, list_output_devices};
 use nemo_core::audio::Origin;
 use nemo_core::player::{PlayState, PlayerCommand, PlayerEvent};
 use nemo_core::services::{ByteSource, StreamOpener};
-use nemo_core::stream::{ResolvedStream, StreamError, StreamResolver};
+use nemo_core::stream::{ResolvedStream, StreamError, StreamRequest, StreamResolver};
 use nemo_core::track::{Artwork, Track, TrackId, VideoId};
 
 /// The example plays local files only, so it never resolves or opens a network stream.
@@ -95,6 +95,7 @@ fn run(args: Args) {
     let no_network = Arc::new(NoNetwork);
     let player = Player::spawn(PlayerDeps {
         resolver: no_network.clone(),
+        request: StreamRequest::default(),
         opener: no_network,
         segments: None,
         sink_factory: Arc::new(CpalSinkFactory::new(args.device)),

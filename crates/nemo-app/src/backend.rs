@@ -9,6 +9,7 @@ use nemo_core::account::{AccountService, NoAccount, SignOutWipe};
 use nemo_core::player::PlayerCommand;
 use nemo_core::segment::SegmentSource;
 use nemo_core::services::Backend;
+use nemo_core::stream::StreamRequest;
 use nemo_library::catalog::LOCAL_ALBUM_PREFIX;
 use nemo_library::{LocalCatalog, LocalLibrary};
 use nemo_lyrics::LyricsHub;
@@ -91,6 +92,8 @@ pub fn build(
 
     let player = Player::spawn(PlayerDeps {
         resolver,
+        // Automatic language, no Premium, no codec hint until the account settings build it.
+        request: StreamRequest::default(),
         opener: Arc::new(HttpStreamOpener::default()),
         segments,
         sink_factory: Arc::new(CpalSinkFactory::new(settings.output_device.clone())),

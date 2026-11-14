@@ -8,7 +8,7 @@ use std::time::Duration;
 use nemo_core::audio::{Codec, Origin, StreamInfo};
 use nemo_core::segment::SegmentSource;
 use nemo_core::services::{ByteSource, StreamOpener};
-use nemo_core::stream::{StreamError, StreamResolver};
+use nemo_core::stream::{StreamError, StreamRequest, StreamResolver};
 use nemo_core::track::{Track, VideoId};
 
 use crate::block_on::block_on;
@@ -30,6 +30,8 @@ pub struct Prepared {
 pub struct PrepareDeps {
     /// Stream resolver.
     pub resolver: Arc<dyn StreamResolver>,
+    /// The current stream request, passed to every resolve of this prepare.
+    pub request: StreamRequest,
     /// Stream opener.
     pub opener: Arc<dyn StreamOpener>,
 }
@@ -98,14 +100,15 @@ fn prepare(deps: &PrepareDeps, track: &Track) -> Result<Prepared, String> {
     let Some(video) = &track.video_id else {
         return Err("this track has no playable source".into());
     };
-    let stream = block_on(deps.resolver.resolve(video)).map_err(|e| describe(&e))?;
+    let resolve = || block_on(deps.resolver.resolve_with(video, &deps.request));
+    let stream = resolve().map_err(|e| describe(&e))?;
     let source: Box<dyn ByteSource> = match deps.opener.open(&stream) {
         Ok(source) => source,
         Err(StreamError::NotAvailable | StreamError::Network(_)) => {
             // A stale or refused URL (HTTP 403, 404/410, connection reset): tell the resolver,
             // which drops its cached answer or switches method for this video, and try once more.
             deps.resolver.stream_failed(video);
-            let stream = block_on(deps.resolver.resolve(video)).map_err(|e| describe(&e))?;
+            let stream = resolve().map_err(|e| describe(&e))?;
             let source = deps.opener.open(&stream).map_err(|e| {
                 deps.resolver.stream_failed(video);
                 describe(&e)
