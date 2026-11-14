@@ -7,6 +7,7 @@ pub mod account;
 pub mod ai;
 pub mod audio;
 pub mod catalog;
+pub mod hooks;
 pub mod library;
 pub mod lyrics;
 pub mod opt_in;
