@@ -51,7 +51,12 @@ fn stage_text(stage: &ProcessingStage) -> String {
             khz(*to_hz)
         ),
         ProcessingStage::Gain { db } => format!("Gain {db:+.1}{THIN_SPACE}dB"),
-        ProcessingStage::Equalizer => "Equalizer".to_owned(),
+        ProcessingStage::Equalizer { .. } => "Equalizer".to_owned(),
+        ProcessingStage::Delay { .. } => "Delay".to_owned(),
+        ProcessingStage::Reverb => "Reverb".to_owned(),
+        ProcessingStage::Crossfade { .. } => "Crossfade".to_owned(),
+        ProcessingStage::Clipped { .. } => "Clipping".to_owned(),
+        ProcessingStage::ReplayGain { .. } => "ReplayGain".to_owned(),
         ProcessingStage::Normalize => "Normalize".to_owned(),
         ProcessingStage::Dither => "Dither".to_owned(),
         ProcessingStage::ChannelMix { from, to } => {
