@@ -28,6 +28,7 @@ pub mod services;
 pub mod spotify;
 pub mod stats;
 pub mod stream;
+pub mod together;
 pub mod track;
 
 use std::future::Future;

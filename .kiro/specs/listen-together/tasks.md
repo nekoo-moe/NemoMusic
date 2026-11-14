@@ -12,7 +12,7 @@ Cross-spec ids written `<spec>#?` point at the task in that spec that adds the n
   - Checks: needs Docker on the owner's machine; Metrolist on a phone as a third member if the owner has one. No public server is contacted.
   - Steering: none
 
-- [ ] 2. Add the room control trait and its types to nemo-core
+- [x] 2. Add the room control trait and its types to nemo-core
   - Crate and files: `nemo-core`: new `src/together.rs`, `src/lib.rs`. Touches nemo-core/src/together.rs and nemo-core/src/lib.rs.
   - Does: Adds `LinkState`, `MemberId`, `Member`, `RoomStatus`, `RoomEvent`, `RoomEventReceiver`, the `RoomControl` trait and `RoomError` (`thiserror`, the variants of the design's Error Handling), because the trait returns it (ADR 0004 row 42).
   - _Requirements: none (groundwork)_
