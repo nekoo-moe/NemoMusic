@@ -77,6 +77,7 @@ Cross-spec ids written `<spec>#?` point at the task of that spec that adds the n
   - Depends on: none
   - Wave: 1
   - Checks: Pass: no tofu boxes on a clean Windows 11 and a default Linux desktop. Fail: task 31 bundles a licensed fallback font in `assets/fonts/` (with `LICENSES.md`) or shows a short notice for unsupported scripts.
+  - Status: Windows half done (pass, design Risks); the Linux half needs the owner's Linux Mint machine, so the task stays open.
 
 - [ ] 10. Store own lyrics in the lyrics database
   - Crate and files: `nemo-lyrics`: new `src/own.rs`, `src/cache.rs` (`LyricsCache::init` creates `own_lyrics`).
@@ -266,6 +267,7 @@ Cross-spec ids written `<spec>#?` point at the task of that spec that adds the n
   - Wave: 2
   - Checks: every ink keeps 4.5:1 on the synthetic covers of the `canvas.rs` tests; fixed size; `TooManyLines` on 5 lines.
   - Steering: `tech.md` rows `tiny-skia` =0.11.4 and `cosmic-text` =0.15.0 as direct `nemo-ui` dependencies.
+  - Spike result (task 9, Windows only): system fallback fonts cover all six scripts, so no bundled font on Windows. Japanese kanji fall back to Microsoft YaHei UI (Chinese forms) unless the line's face is named; name it from the line's language. Build `FontSystem` once off the UI thread (2.7 s cold). The Linux result is still open.
 
 - [ ] 32. Save the card as PNG or copy it to the clipboard
   - Crate and files: `nemo-ui`: `src/share.rs` (`save_png`, `copy_to_clipboard`).
