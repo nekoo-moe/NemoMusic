@@ -64,6 +64,53 @@ pub struct SignOutReport {
     pub files_removed: usize,
     /// Whether the session was also ended on Google's side.
     pub ended_remotely: bool,
+    /// Items the registered [`SignOutWipe`] steps removed, all steps together.
+    pub items_removed: usize,
+    /// Names of the [`SignOutWipe`] steps that failed. Sign-out still ran the others.
+    pub failed_steps: Vec<&'static str>,
+}
+
+impl SignOutReport {
+    /// Run one sign-out step for `scope` and add its outcome to the report: the items it
+    /// removed, or its name when it failed. Never stops on a failure, so the caller runs every
+    /// step.
+    pub fn run_step(&mut self, step: &dyn SignOutWipe, scope: WipeScope) {
+        match step.wipe(scope) {
+            Ok(removed) => self.items_removed = self.items_removed.saturating_add(removed),
+            Err(_) => self.failed_steps.push(step.name()),
+        }
+    }
+}
+
+/// One local account slot. A number this app gives the account, not a Google id.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct AccountId(pub u8);
+
+/// Which account data a sign-out step deletes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WipeScope {
+    /// Only the data of this account.
+    Account(AccountId),
+    /// The data of every account.
+    All,
+}
+
+/// A sign-out step failed. The text is fixed: it never holds a path, name or id.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("{0}")]
+pub struct WipeError(pub &'static str);
+
+/// One step of sign-out. Each crate that keeps account data registers one with the account
+/// service, which runs every step when the user signs out (ADR 0004, Decision 3).
+pub trait SignOutWipe: Send + Sync {
+    /// Short, fixed name of the step, such as `"offline"`. Shown when the step fails.
+    fn name(&self) -> &'static str;
+
+    /// Delete the account data this step owns for `scope`. Returns how many items it removed.
+    ///
+    /// # Errors
+    /// Returns a [`WipeError`] when some data could not be deleted.
+    fn wipe(&self, scope: WipeScope) -> Result<usize, WipeError>;
 }
 
 /// Google account sign-in.
@@ -107,5 +154,54 @@ impl AccountService for NoAccount {
 
     fn sign_out(&self) -> BoxFuture<'_, Result<SignOutReport, AccountError>> {
         Box::pin(async { Ok(SignOutReport::default()) })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct Step {
+        name: &'static str,
+        result: Result<usize, WipeError>,
+    }
+
+    impl SignOutWipe for Step {
+        fn name(&self) -> &'static str {
+            self.name
+        }
+
+        fn wipe(&self, _scope: WipeScope) -> Result<usize, WipeError> {
+            self.result
+        }
+    }
+
+    #[test]
+    fn step_names_and_counts_reach_the_report() {
+        let steps = [
+            Step {
+                name: "offline",
+                result: Ok(3),
+            },
+            Step {
+                name: "ai",
+                result: Err(WipeError("cannot delete")),
+            },
+            Step {
+                name: "cast",
+                result: Ok(2),
+            },
+        ];
+        let mut report = SignOutReport::default();
+        for step in &steps {
+            report.run_step(step, WipeScope::Account(AccountId(1)));
+        }
+        assert_eq!(report.items_removed, 5);
+        assert_eq!(report.failed_steps, vec!["ai"]);
+    }
+
+    #[test]
+    fn a_wipe_error_shows_only_its_fixed_text() {
+        assert_eq!(WipeError("cannot delete").to_string(), "cannot delete");
     }
 }
