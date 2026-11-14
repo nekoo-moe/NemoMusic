@@ -14,6 +14,13 @@
 //! - [`chain`]: run providers with timeouts and a per-host limit.
 //! - [`cache`]: SQLite cache and per-track offsets.
 //! - [`service`]: `LyricsHub`, the `LyricsService` implementation.
+#![cfg_attr(
+    test,
+    allow(
+        clippy::duration_suboptimal_units,
+        reason = "tests spell short durations in seconds, as the timings they check"
+    )
+)]
 
 pub mod blapi;
 pub mod cache;

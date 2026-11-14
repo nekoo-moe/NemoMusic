@@ -6,6 +6,15 @@
 //! Services run their network work on a `tokio` runtime handle given at construction and return
 //! futures that any executor can poll (see the app-mvp addendum). No URL is ever logged.
 //! Account cookies, names and ids are never logged either.
+#![cfg_attr(
+    test,
+    allow(
+        clippy::duration_suboptimal_units,
+        unknown_lints,
+        reason = "tests spell short durations in seconds; clippy 1.97 does not know \
+                  assert_is_empty, which the test modules allow for newer clippy"
+    )
+)]
 
 pub mod account;
 pub mod catalog;

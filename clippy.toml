@@ -9,5 +9,6 @@ doc-valid-idents = [
     "ALAC",
     "CoreAudio",
     "PipeWire",
+    "SQLite",
     "..",
 ]
