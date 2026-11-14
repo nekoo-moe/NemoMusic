@@ -3661,6 +3661,7 @@ dependencies = [
  "nemo-core",
  "rusqlite",
  "serde_json",
+ "unicode-normalization",
 ]
 
 [[package]]

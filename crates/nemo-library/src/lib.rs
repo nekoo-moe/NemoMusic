@@ -2,6 +2,7 @@
 //! ([`store`], `library.db`).
 
 pub mod catalog;
+pub mod import;
 pub mod library;
 pub mod scan;
 pub mod store;
