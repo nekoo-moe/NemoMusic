@@ -20,7 +20,7 @@ Cross-spec ids written `<spec>#?` name the task in that spec that adds the ADR 0
   - Checks: none beyond the usual.
   - Steering: none
 
-- [ ] 3. Add `PlayerSnapshot.live`
+- [x] 3. Add `PlayerSnapshot.live`
   - Crate and files: `nemo-core` (touches nemo-core/src/player.rs).
   - Does: a `bool`, false by default. Only one task at a time edits player.rs (ADR 0004 Decision 4, third rule); order against the player.rs tasks of audio-effects, output-devices, account-actions and cast.
   - _Requirements: none (groundwork)_
