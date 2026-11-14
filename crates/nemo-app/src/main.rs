@@ -6,6 +6,7 @@ mod backend;
 mod config;
 mod logging;
 mod merged;
+mod opt_in_gate;
 mod paths;
 mod ui_bridge;
 

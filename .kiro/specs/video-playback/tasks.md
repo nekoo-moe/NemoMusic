@@ -11,7 +11,7 @@ Tasks in other specs are cited by spec and the ADR 0004 Decision 4 row they own,
   - Wave: 0
   - Checks: needs the owner: a Linux machine for the run, and agreement to ship libmpv. The result is written into the design's Risks section.
   - Steering: none.
-  - Status (2026-11-14): Windows half stopped at the binding. `libmpv2` 7.0.1 has no software render API and links libmpv at load time, and the only checkable Windows build (shinchiro, `20261111`) is GPL. Waiting on the owner: extend the `code.md` unsafe rule to an `ffi` module of `nemo-video` (own FFI over `libloading`), or pick another route; and accept a GPL build or ask for an LGPL one. Linux half needs the owner's machine. Details in design Risks.
+  - Status (2026-11-14): Windows half stopped at the binding. `libmpv2` 7.0.1 has no software render API and links libmpv at load time, and the only checkable Windows build (shinchiro, `20261111`) is GPL. The owner then allowed `unsafe` in an `ffi` module of `nemo-video` (`code.md`) and accepts the GPL build (ADR 0004), so the spike goes on with own FFI over `libloading`. Still needed: the software render and frame times on Windows; the iced window, the 10-minute run with the real audio path and the Linux half need the owner's desktop session and Linux machine. Details in design Risks.
 
 - [ ] 2. Add the video types and traits
   - Crate and files: `nemo-core` (new `src/video.rs`, `src/lib.rs`). Touches nemo-core/src/video.rs and nemo-core/src/lib.rs.
@@ -50,13 +50,13 @@ Tasks in other specs are cited by spec and the ADR 0004 Decision 4 row they own,
   - Steering: none.
 
 - [ ] 6. Add the `nemo-video` crate with the libmpv binding
-  - Crate and files: new `nemo-video` (`Cargo.toml`, `src/lib.rs`, `src/binding.rs`); workspace `Cargo.toml` members; `deny.toml` when it exists.
-  - Does: Loads libmpv at run time through the binding task 1 chose and returns `PlayerMissing` when it is absent, so the app starts without it. Sets fixed options: `aid=no`, `ao=null`, `sid=no`, `ytdl=no`, `hwdec=auto-copy-safe`, in-memory cache only with `demuxer-max-bytes` capped and `cache-on-disk=no`. The binding exposes no screenshot or record command.
+  - Crate and files: new `nemo-video` (`Cargo.toml` with `libloading` and its own `[lints]` tables, `src/lib.rs`, `src/ffi.rs` for the binding); workspace `Cargo.toml` members.
+  - Does: Loads libmpv at run time through our own binding over `libloading` (the owner's choice after task 1) and returns `PlayerMissing` when it is absent, so the app starts without it. Sets fixed options: `aid=no`, `ao=null`, `sid=no`, `ytdl=no`, `hwdec=auto-copy-safe`, in-memory cache only with `demuxer-max-bytes` capped and `cache-on-disk=no`. The binding exposes no screenshot or record command.
   - _Requirements: 15, 22, 30_
   - Depends on: video-playback#1, video-playback#2
   - Wave: 1
-  - Checks: a test without libmpv returns `PlayerMissing`; `cargo deny check` with the `libmpv2` exception; `#![forbid(unsafe_code)]` stays unless the owner changed `code.md` (own FFI path). Needs the owner to approve the `deny.toml` exception before merge.
-  - Steering: `tech.md`: "Video" row (libmpv LGPL build loaded at run time, `libmpv2` =7.0.1 or `libloading` =0.9.1, version pinned from the spike) and the `ffmpeg` note (libmpv carries its own FFmpeg, loaded as a binary). `structure.md`: add `nemo-video` (depends on `nemo-core` and its binding only), `nemo-app` depends on it. New ADR 0005: libmpv, its licence and the audio-clock rule. `deny.toml`: the `libmpv2` exception, only if that binding is chosen.
+  - Checks: a test without libmpv returns `PlayerMissing`; `cargo deny check`. `unsafe` only in `src/ffi.rs` with `#![allow(unsafe_code)]` and a `// SAFETY:` comment on every block; the crate sets `unsafe_code = "deny"` in its `[lints]` tables, a copy of the workspace tables, as `nemo-audio` does (`code.md`, Unsafe); every raw pointer is wrapped in a type that frees it on drop.
+  - Steering: `tech.md`: "Video" row (libmpv loaded at run time, GPL or LGPL build; `libloading` =0.9.1, version pinned from the spike; `libmpv2` rejected by the spike) and the `ffmpeg` note (libmpv carries its own FFmpeg, loaded as a binary). `structure.md`: add `nemo-video` (depends on `nemo-core` and `libloading` only), `nemo-app` depends on it. New ADR 0005: libmpv, its licence, the own binding and the audio-clock rule.
 
 - [ ] 7. Render frames into a pool of three
   - Crate and files: `nemo-video` (new `src/frame_pool.rs`, `src/render.rs`).
@@ -236,5 +236,5 @@ Every task meets [section 4 of workflow.md](../../steering/workflow.md#4-definit
 - [ ] `cargo test -p nemo-audio --test bit_exact` passes in every video task, and `rt_no_alloc` keeps passing; no video task changes the audio callback.
 - [ ] libmpv plays no audio (`aid=no`, `ao=null`) and writes nothing to disk in any task.
 - [ ] No video task after task 1 starts before the spike result is in the design's Risks section and has passed on Windows and Linux (criterion 31).
-- [ ] The `libmpv2` `deny.toml` exception is approved by the owner before task 6 merges.
+- [x] The owner allowed `unsafe` in the `ffi` module of `nemo-video` (2026-11-14, `code.md`); no `libmpv2` `deny.toml` exception is needed.
 - [ ] Stream URLs never reach logs, errors or `Debug` output.
