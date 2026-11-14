@@ -16,6 +16,8 @@ use std::time::Duration;
 
 use nemo_core::audio::Origin;
 use nemo_core::catalog::{AlbumSummary, ArtistSummary, BrowseId, PlaylistSummary};
+use nemo_core::integrations::NoIntegrations;
+use nemo_core::notify::NoNotifier;
 use nemo_core::services::Backend;
 use nemo_core::track::{Artwork, Thumbnail, Track, TrackId, VideoId};
 
@@ -280,6 +282,8 @@ pub fn mock_backend() -> Backend {
         lyrics: Arc::new(MockLyrics::default()),
         images: Arc::new(MockImages::default()),
         account: Arc::new(MockAccount::new()),
+        integrations: Arc::new(NoIntegrations),
+        notifier: Arc::new(NoNotifier),
     }
 }
 

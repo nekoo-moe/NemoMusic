@@ -53,7 +53,7 @@ Cross-spec ids written `<spec>#?` name the other spec's task by the ADR 0004 Dec
   - Checks: `NoNotifier` reports `Unavailable(NoService)` and `notify` returns an error.
   - Steering: `structure.md`, add the `notify` module to the `nemo-core` entry.
 
-- [ ] 7. Add `IntegrationsService` and the `Backend` fields
+- [x] 7. Add `IntegrationsService` and the `Backend` fields
   - Crate and files: `nemo-core` (`src/integrations.rs` new, `src/services.rs`, `src/lib.rs`); touches nemo-core/src/integrations.rs and nemo-core/src/services.rs.
   - Does: Adds `IntegrationsService`, `LastFmStatus`, `IntegrationError`, `NativeWindow`, `NoIntegrations`, and `Backend.integrations` and `Backend.notifier` defaulting to `NoIntegrations` and `NoNotifier`.
   - _Requirements: none (groundwork)_
