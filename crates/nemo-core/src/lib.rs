@@ -18,6 +18,7 @@ pub mod notify;
 pub mod opt_in;
 pub mod player;
 pub mod releases;
+pub mod remote;
 pub mod secret;
 pub mod secret_store;
 pub mod segment;
