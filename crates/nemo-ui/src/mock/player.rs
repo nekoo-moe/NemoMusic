@@ -212,8 +212,12 @@ impl PlayerState {
                 self.emit(PlayerEvent::VolumeChanged(v));
             }
             PlayerCommand::SetSkipSegments(on) => self.snapshot.skip_segments = on,
-            // The mock skips no segment and has no remote device to hand playback to.
-            PlayerCommand::UndoSkip | PlayerCommand::Park | PlayerCommand::Unpark { .. } => {}
+            // The mock skips no segment, has no remote device to hand playback to and plays no
+            // stream with several audio tracks.
+            PlayerCommand::UndoSkip
+            | PlayerCommand::Park
+            | PlayerCommand::Unpark { .. }
+            | PlayerCommand::SwitchAudioTrack(_) => {}
             PlayerCommand::SetRepeat(mode) => {
                 self.snapshot.repeat = mode;
                 self.emit(PlayerEvent::RepeatChanged(mode));

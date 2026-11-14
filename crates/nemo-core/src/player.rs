@@ -94,6 +94,11 @@ pub enum PlayerCommand {
         /// Where to resume in the current track (the remote device's position).
         at: Duration,
     },
+    /// Play another audio track of the current video: `Some` names its language as a BCP 47
+    /// tag, `None` asks for the video's original track. The player resolves the current track
+    /// again with that language in its stream request and reopens it at the current position;
+    /// the tracks that follow are resolved with it too. A local track ignores the command.
+    SwitchAudioTrack(Option<String>),
 }
 
 /// Something that happened in the player. Names are past tense.

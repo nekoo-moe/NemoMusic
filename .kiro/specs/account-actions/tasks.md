@@ -83,7 +83,7 @@ Tasks in other specs are cited by spec and the ADR 0004 Decision 4 row they own,
   - Checks: `cargo test -p nemo-audio --test bit_exact`; the counting-allocator test `rt_no_alloc` still passes; a fake resolver records the request it was given.
   - Steering: none.
 
-- [ ] 10. Add `PlayerCommand::SwitchAudioTrack`
+- [x] 10. Add `PlayerCommand::SwitchAudioTrack`
   - Crate and files: `nemo-core` (`src/player.rs`); `nemo-audio` (`src/control_cmd.rs`). Touches nemo-core/src/player.rs; only one task at a time edits it (ADR 0004).
   - Does: Adds `SwitchAudioTrack(Option<String>)` (ADR 0004 row 6). `control_cmd.rs` prepares the current track again with that language in its `StreamRequest` and reopens it at the current position. For a local track the command does nothing.
   - _Requirements: 27_
