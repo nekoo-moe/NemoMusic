@@ -12,6 +12,9 @@ workspace = true
 
 [dependencies]
 nemo-core.workspace = true
+serde_json.workspace = true
 # lofty 0.25.5 does not compile with default-features = false (missing Id3v2Error import),
 # so the default id3v2 compression feature stays on.
 lofty = "=0.25.5"
+# The library database, library.db (local-library design), the same SQLite build as nemo-lyrics.
+rusqlite = { version = "=0.41.1", features = ["bundled"] }
