@@ -1,6 +1,6 @@
 ## Tasks
 
-- [ ] 1. Add the output device types to `nemo-core`
+- [x] 1. Add the output device types to `nemo-core`
   - Crate and files: `nemo-core`: `src/output.rs` (new), `src/lib.rs` (one `pub mod` line). Touches nemo-core/src/output.rs and nemo-core/src/lib.rs.
   - Does: Adds `DeviceId`, `OutputDevice`, `SavedDevice`, `OutputOptions`, `OutputStatus` and `FallbackReason` (ADR 0004 Decision 4 row 5), signatures as in the design. `OutputOptions::default()` has exclusive off, `idle_release_secs` 5 (1 to 60), `exclusive_buffer_ms` 20 (5 to 100) and `auto_resume` off. `Debug` for `DeviceId` prints a hash, never the ID. No I/O.
   - _Requirements: 7, 13, 20, 23, 26_

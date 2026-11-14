@@ -18,6 +18,7 @@ pub mod lyrics;
 pub mod lyrics_plus;
 pub mod notify;
 pub mod opt_in;
+pub mod output;
 pub mod player;
 pub mod releases;
 pub mod remote;
