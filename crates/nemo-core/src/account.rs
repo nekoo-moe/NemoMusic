@@ -53,6 +53,78 @@ pub enum AccountError {
     /// The network request failed.
     #[error("network error: {0}")]
     Network(String),
+    /// Already [`MAX_ACCOUNTS`] accounts are signed in.
+    #[error("no more accounts can be added; sign one out first")]
+    LimitReached,
+    /// No signed-in account has this id.
+    #[error("this account is not signed in")]
+    UnknownAccount,
+}
+
+/// The most accounts that can be signed in at once.
+pub const MAX_ACCOUNTS: usize = 5;
+
+/// Whether an account has YouTube Music Premium.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PremiumStatus {
+    /// Not checked yet, or the check failed.
+    #[default]
+    Unknown,
+    /// The account has Premium.
+    Yes,
+    /// The account has no Premium.
+    No,
+}
+
+/// One signed-in account as the account switcher shows it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AccountEntry {
+    /// The local slot of the account.
+    pub id: AccountId,
+    /// What the UI may show about it.
+    pub info: AccountInfo,
+    /// Whether it has Premium.
+    pub premium: PremiumStatus,
+}
+
+/// Every signed-in account and which one is active.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct AccountList {
+    /// The signed-in accounts, at most [`MAX_ACCOUNTS`].
+    pub accounts: Vec<AccountEntry>,
+    /// The active account, if anyone is signed in.
+    pub active: Option<AccountId>,
+    /// Raised on every switch. An answer to a request made under an older generation is
+    /// dropped.
+    pub generation: u64,
+}
+
+/// Several signed-in accounts and switching between them.
+pub trait AccountSwitcher: Send + Sync {
+    /// The accounts now. Cheap; safe to call every frame.
+    fn list(&self) -> AccountList;
+
+    /// Open the sign-in window for one more account; the others stay signed in.
+    ///
+    /// # Errors
+    /// [`AccountError::LimitReached`] when [`MAX_ACCOUNTS`] are signed in, or the errors of a
+    /// sign-in.
+    fn add_account(&self) -> BoxFuture<'_, Result<AccountEntry, AccountError>>;
+
+    /// Make `id` the active account. Returns the list with the raised generation.
+    ///
+    /// # Errors
+    /// [`AccountError::UnknownAccount`] when no signed-in account has this id, or
+    /// [`AccountError::Storage`] when its session cannot be read.
+    fn switch_to(&self, id: AccountId) -> BoxFuture<'_, Result<AccountList, AccountError>>;
+
+    /// Sign out one account and delete its data; the others stay signed in.
+    ///
+    /// # Errors
+    /// [`AccountError::UnknownAccount`] when no signed-in account has this id, or the errors of
+    /// a sign-out.
+    fn sign_out_account(&self, id: AccountId)
+    -> BoxFuture<'_, Result<SignOutReport, AccountError>>;
 }
 
 /// What sign-out removed, for the confirmation message.
@@ -157,6 +229,27 @@ impl AccountService for NoAccount {
     }
 }
 
+impl AccountSwitcher for NoAccount {
+    fn list(&self) -> AccountList {
+        AccountList::default()
+    }
+
+    fn add_account(&self) -> BoxFuture<'_, Result<AccountEntry, AccountError>> {
+        Box::pin(async { Err(AccountError::Unavailable("not built in".to_owned())) })
+    }
+
+    fn switch_to(&self, _id: AccountId) -> BoxFuture<'_, Result<AccountList, AccountError>> {
+        Box::pin(async { Err(AccountError::UnknownAccount) })
+    }
+
+    fn sign_out_account(
+        &self,
+        _id: AccountId,
+    ) -> BoxFuture<'_, Result<SignOutReport, AccountError>> {
+        Box::pin(async { Err(AccountError::UnknownAccount) })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -203,5 +296,53 @@ mod tests {
     #[test]
     fn a_wipe_error_shows_only_its_fixed_text() {
         assert_eq!(WipeError("cannot delete").to_string(), "cannot delete");
+    }
+
+    fn ready<T>(fut: impl std::future::Future<Output = T>) -> Option<T> {
+        use std::task::{Context, Poll, Waker};
+        match std::pin::pin!(fut).poll(&mut Context::from_waker(Waker::noop())) {
+            Poll::Ready(v) => Some(v),
+            Poll::Pending => None,
+        }
+    }
+
+    #[test]
+    fn no_account_has_an_empty_list_and_switches_nowhere() {
+        let list = NoAccount.list();
+        assert_eq!(list, AccountList::default());
+        assert!(list.accounts.is_empty() && list.active.is_none());
+        assert_eq!(list.generation, 0);
+        assert_eq!(PremiumStatus::default(), PremiumStatus::Unknown);
+        assert_eq!(
+            ready(NoAccount.switch_to(AccountId(0))),
+            Some(Err(AccountError::UnknownAccount))
+        );
+        assert_eq!(
+            ready(NoAccount.sign_out_account(AccountId(0))),
+            Some(Err(AccountError::UnknownAccount))
+        );
+        assert!(matches!(
+            ready(NoAccount.add_account()),
+            Some(Err(AccountError::Unavailable(_)))
+        ));
+        assert_eq!(MAX_ACCOUNTS, 5);
+    }
+
+    #[test]
+    fn account_list_errors_hold_no_name_or_id() {
+        let texts = [
+            AccountError::LimitReached.to_string(),
+            AccountError::UnknownAccount.to_string(),
+        ];
+        assert_eq!(
+            texts,
+            [
+                "no more accounts can be added; sign one out first",
+                "this account is not signed in"
+            ]
+        );
+        for t in texts {
+            assert!(!t.contains('@') && !t.chars().any(|c| c.is_ascii_digit()));
+        }
     }
 }
