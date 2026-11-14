@@ -376,13 +376,14 @@ impl Core {
             return;
         };
         cur.stages = plan_stages(format, pipe.output_info().format);
-        cur.duration = prepared.decoder.info().duration.or(cur.track.duration);
+        cur.duration = prepared.duration().or(cur.track.duration);
         cur.source = Some(prepared.info);
         cur.loaded = true;
         pipe.send(FeedCmd::Load(Job {
             token: cur.token,
             decoder: prepared.decoder,
             start: cur.start,
+            span: prepared.playback.span,
             segments: Vec::new(),
         }));
         for id in self.ignored.get(&cur.entry).into_iter().flatten() {

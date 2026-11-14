@@ -12,6 +12,8 @@
 mod backdrop;
 #[path = "snapshots/feature.rs"]
 mod feature;
+#[path = "snapshots/opt_in.rs"]
+mod opt_in;
 #[path = "snapshots/screen.rs"]
 mod screen;
 #[path = "snapshots/state.rs"]
@@ -78,6 +80,19 @@ fn main() {
             Ok(()) => println!("wrote {}", path.display()),
             Err(e) => {
                 eprintln!("specimen: {e}");
+                std::process::exit(1);
+            }
+        }
+    }
+    for (name, view, size) in opt_in::shots() {
+        if !only.is_empty() && !only.contains(&name) {
+            continue;
+        }
+        let path = out_dir.join(format!("{name}.png"));
+        match render_view_png(view, size, &path) {
+            Ok(()) => println!("wrote {}", path.display()),
+            Err(e) => {
+                eprintln!("{name}: {e}");
                 std::process::exit(1);
             }
         }
