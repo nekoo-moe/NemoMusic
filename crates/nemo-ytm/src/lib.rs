@@ -32,6 +32,7 @@ pub mod resolver;
 pub mod session;
 pub mod sponsorblock;
 pub mod stream;
+pub mod web_search;
 pub mod ytdlp;
 pub(crate) mod ytdlp_install;
 
