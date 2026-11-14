@@ -22,7 +22,7 @@ The user picks which speakers or headphones NemoMusic plays on, from a list on s
 7. THE SYSTEM SHALL save the device by a stable identifier plus its name, not by name only, and SHALL treat two devices with the same name as two devices (the design picks the identifier).
 8. IF the saved device is not present at start, THEN THE SYSTEM SHALL start on the system default device, say so, show the saved choice as "not connected", and return to it when it appears.
 9. WHEN the device in use is unplugged, disabled or fails during playback, THE SYSTEM SHALL pause within 500 ms, say which device was lost, and SHALL NOT move to another device without the user's action.
-10. WHEN the lost device returns, THE SYSTEM SHALL offer to resume. It SHALL resume by itself only if the user turned that on, and that setting SHALL be off by default.
+10. WHEN the lost device returns, THE SYSTEM SHALL offer to resume, and SHALL NOT resume by itself (owner, 2026-11-14).
 11. WHEN a device is added or removed, THE SYSTEM SHALL update the list without a restart.
 12. WHILE the user has not turned exclusive mode on, THE SYSTEM SHALL open devices in shared mode and label the path as shared mode, never as bit-perfect.
 13. THE SYSTEM SHALL offer exclusive mode on Windows only, as a setting that is off by default, with a short text saying that other apps cannot use the device while it is on.
@@ -50,19 +50,23 @@ The user picks which speakers or headphones NemoMusic plays on, from a list on s
 - Surround and speaker layouts above stereo.
 - Software volume in the bit-perfect path.
 
+## Decided
+
+Owner's answers of 2026-11-14, as defaults:
+
+- No automatic resume when a lost device returns (criterion 10).
+- When exclusive mode fails, fall back to shared mode at once and say so plainly (criterion 16). The app does not ask each time.
+- An exclusive device is released 5 seconds after pause or stop (criterion 20, the user can change the delay).
+- The stable device identifier is chosen by the design.
+
 ## Open Questions
 
-These need the owner (workflow.md section 8, coc.md):
+The design settles these (workflow.md section 8); the owner approves them with the design:
 
-1. Should the player resume by itself when a lost device returns (criterion 10)? Default proposed: off.
-2. Exclusive-mode default after the user turns it on: fall back to shared at once (proposed), or ask each time?
-3. Does the owner accept the idle release delay of 5 seconds (criterion 20), or want the device held while the app is open?
-4. Technical, for design: whether `cpal` 0.18.2 can open WASAPI exclusive mode (unverified; tech.md already says it is unverified) or the `wasapi` crate 0.27.0 is needed for the whole Windows path. The `wasapi` README lists shared and exclusive modes, event-driven buffering, device-change notifications and an exclusive-mode format probe; its MSRV is 1.85 and it uses edition 2024.
-5. Technical, for design: the device identifier to save. `cpal` today matches by name only (`open_named`), which fails for two identical devices.
-6. Technical, for design: unsafe code. The `wasapi` crate presents a safe API; if the design needs raw calls, they must sit in an `ffi` or `sys` module of `nemo-audio` (code.md, Unsafe).
-7. Technical, for design: which exclusive formats to try, in what order, and whether 24-bit in a 32-bit container counts as the same bit depth for criterion 17.
-8. Reference hardware for the exclusive-mode test (product.md, Open decision 7).
-
+1. Technical: whether `cpal` 0.18.2 can open WASAPI exclusive mode. Its WASAPI backend opens streams in shared mode only (verified in its source on the master branch), so the `wasapi` crate 0.27.0 is needed for the exclusive path (tech.md already decides it).
+2. Technical: the device identifier to save (`cpal` matches by name only today).
+3. Technical: unsafe code, which exclusive formats to try and in what order, and whether 24-bit in a 32-bit container counts as the same bit depth for criterion 17.
+4. Owner: the reference hardware for the exclusive-mode test (product.md, Open decision 7).
 <!-- Sources:
 .kiro/steering/product.md (MVP, Later, Quality badge rule, Open decision 7), tech.md (Device output, Exclusive mode, ASIO), code.md (Real-time audio thread, Bit-perfect, Unsafe), coc.md (User Privacy)
 crates/nemo-audio/src/cpal_sink.rs (list_output_devices, CpalSink::open_named, OutputMode::Shared); crates/nemo-app/src/config.rs (output_device); crates/nemo-core/src/audio.rs (OutputMode, is_bit_perfect); .kiro/specs/app-mvp/tasks.md (4.2 WASAPI exclusive)
