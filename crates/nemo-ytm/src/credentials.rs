@@ -10,6 +10,7 @@ use std::sync::Arc;
 
 use keyring_core::api::CredentialStoreApi;
 use keyring_core::{Entry, Error as KeyringError};
+use nemo_core::secret_store::{SecretStore, StoreError};
 
 /// Service name for every entry this app writes.
 pub const SERVICE: &str = "NemoMusic";
@@ -19,32 +20,6 @@ pub const PART_BYTES: usize = 2000;
 pub const MAX_PARTS: usize = 16;
 
 const MANIFEST_KEY: &str = "session-manifest";
-
-/// A secret store failed. Texts are fixed: platform errors can name the credential.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-#[error("{0}")]
-pub struct StoreError(pub &'static str);
-
-/// A flat key to bytes store. The real one is the OS store; tests use a map.
-pub trait SecretStore: Send + Sync {
-    /// Write or replace `key`.
-    ///
-    /// # Errors
-    /// Returns a [`StoreError`] when the store refuses the write.
-    fn set(&self, key: &str, value: &[u8]) -> Result<(), StoreError>;
-
-    /// Read `key`; `None` when it does not exist.
-    ///
-    /// # Errors
-    /// Returns a [`StoreError`] when the store cannot be read.
-    fn get(&self, key: &str) -> Result<Option<Vec<u8>>, StoreError>;
-
-    /// Delete `key`; returns whether it existed.
-    ///
-    /// # Errors
-    /// Returns a [`StoreError`] when the store refuses the delete.
-    fn delete(&self, key: &str) -> Result<bool, StoreError>;
-}
 
 /// The credential store of this platform.
 #[cfg(windows)]
@@ -291,49 +266,14 @@ impl Vault {
 }
 
 #[cfg(test)]
-pub(crate) mod fake {
-    use std::collections::BTreeMap;
-    use std::sync::Mutex;
-
-    use super::{SecretStore, StoreError};
-
-    /// A map-backed store that also enforces the 2560-byte limit.
-    #[derive(Default)]
-    pub struct MemoryStore {
-        pub entries: Mutex<BTreeMap<String, Vec<u8>>>,
-        pub fail_writes: Mutex<bool>,
-    }
-
-    impl SecretStore for MemoryStore {
-        fn set(&self, key: &str, value: &[u8]) -> Result<(), StoreError> {
-            if *self.fail_writes.lock().expect("lock") || value.len() > 2560 {
-                return Err(StoreError("write refused"));
-            }
-            self.entries
-                .lock()
-                .expect("lock")
-                .insert(key.to_owned(), value.to_vec());
-            Ok(())
-        }
-
-        fn get(&self, key: &str) -> Result<Option<Vec<u8>>, StoreError> {
-            Ok(self.entries.lock().expect("lock").get(key).cloned())
-        }
-
-        fn delete(&self, key: &str) -> Result<bool, StoreError> {
-            Ok(self.entries.lock().expect("lock").remove(key).is_some())
-        }
-    }
-}
-
-#[cfg(test)]
 #[allow(
     clippy::assert_is_empty,
     clippy::needless_pass_by_value,
     reason = "readable test assertions and helpers"
 )]
 mod tests {
-    use super::fake::MemoryStore;
+    use nemo_core::secret_store::MemoryStore;
+
     use super::*;
 
     fn vault() -> (Vault, Arc<MemoryStore>) {
@@ -357,7 +297,7 @@ mod tests {
         let (vault, store) = vault();
         let cookie = format!("SAPISID=x; big={}", "v".repeat(5000));
         vault.save(&cookie).expect("save");
-        assert_eq!(store.entries.lock().expect("lock").len(), 1 + 3);
+        assert_eq!(store.len(), 1 + 3);
         assert_eq!(
             vault.load().expect("load").as_deref(),
             Some(cookie.as_str())
@@ -369,7 +309,7 @@ mod tests {
         let (vault, store) = vault();
         vault.save(&"a".repeat(4500)).expect("save long");
         vault.save("SAPISID=x;").expect("save short");
-        assert_eq!(store.entries.lock().expect("lock").len(), 2);
+        assert_eq!(store.len(), 2);
         assert_eq!(vault.load().expect("load").as_deref(), Some("SAPISID=x;"));
     }
 
@@ -383,13 +323,9 @@ mod tests {
     fn a_missing_part_or_bad_manifest_loads_as_none() {
         let (vault, store) = vault();
         vault.save(&"a".repeat(4500)).expect("save");
-        store.entries.lock().expect("lock").remove("session-1");
+        store.delete("session-1").expect("delete");
         assert_eq!(vault.load().expect("load"), None);
-        store
-            .entries
-            .lock()
-            .expect("lock")
-            .insert(MANIFEST_KEY.to_owned(), b"99".to_vec());
+        store.set(MANIFEST_KEY, b"99").expect("set");
         assert_eq!(vault.load().expect("load"), None);
     }
 
@@ -397,10 +333,10 @@ mod tests {
     fn a_failed_save_leaves_nothing_behind() {
         let (vault, store) = vault();
         vault.save("SAPISID=x;").expect("first");
-        *store.fail_writes.lock().expect("lock") = true;
+        store.fail_writes(true);
         assert!(vault.save("SAPISID=y;").is_err());
-        *store.fail_writes.lock().expect("lock") = false;
-        assert!(store.entries.lock().expect("lock").is_empty());
+        store.fail_writes(false);
+        assert!(store.is_empty());
     }
 
     #[test]
@@ -408,7 +344,7 @@ mod tests {
         let (vault, store) = vault();
         vault.save(&"a".repeat(4500)).expect("save");
         assert_eq!(vault.wipe().expect("wipe"), 4);
-        assert!(store.entries.lock().expect("lock").is_empty());
+        assert!(store.is_empty());
         assert_eq!(vault.wipe().expect("again"), 0);
     }
 
@@ -417,7 +353,7 @@ mod tests {
         let (vault, store) = vault();
         assert!(vault.save("").is_err());
         assert!(vault.save(&"a".repeat(PART_BYTES * MAX_PARTS + 1)).is_err());
-        assert!(store.entries.lock().expect("lock").is_empty());
+        assert!(store.is_empty());
     }
 
     #[cfg(windows)]

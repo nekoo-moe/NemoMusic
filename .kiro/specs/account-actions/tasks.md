@@ -2,7 +2,7 @@
 
 Tasks in other specs are cited by spec and the ADR 0004 Decision 4 row they own, until their task numbers are fixed. Tasks 1 to 11 are groundwork that other specs wait for. Tasks 1 to 3 move the credential store and keep sign-in behaviour unchanged: same service name `NemoMusic`, same `session-*` keys, same entry modifiers, same error texts.
 
-- [ ] 1. Move the `SecretStore` trait into `nemo-core`
+- [x] 1. Move the `SecretStore` trait into `nemo-core`
   - Crate and files: `nemo-core` (new `src/secret_store.rs`, `src/lib.rs`, `Cargo.toml` feature `test-util`); `nemo-ytm` (`src/credentials.rs`, `Cargo.toml` dev-dependency on `nemo-core` with `test-util`). Touches nemo-core/src/secret_store.rs and nemo-core/src/lib.rs.
   - Does: Moves `SecretStore` and `StoreError` from `credentials.rs` to `nemo-core` and adds `MAX_SECRET_BYTES`, `is_valid_key` and `MemoryStore` (feature `test-util`), which replaces the test-only `fake` store. `Vault`, both platform stores, the key names and the part limits stay where and as they are.
   - _Requirements: none (groundwork)_
