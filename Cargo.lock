@@ -3659,6 +3659,8 @@ version = "0.0.1"
 dependencies = [
  "lofty",
  "nemo-core",
+ "rusqlite",
+ "serde_json",
 ]
 
 [[package]]
