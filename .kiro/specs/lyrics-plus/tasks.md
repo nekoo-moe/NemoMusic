@@ -79,7 +79,7 @@ Cross-spec ids written `<spec>#?` point at the task of that spec that adds the n
   - Checks: Pass: no tofu boxes on a clean Windows 11 and a default Linux desktop. Fail: task 31 bundles a licensed fallback font in `assets/fonts/` (with `LICENSES.md`) or shows a short notice for unsupported scripts.
   - Status: Windows half done (pass, design Risks); the Linux half needs the owner's Linux Mint machine, so the task stays open.
 
-- [ ] 10. Store own lyrics in the lyrics database
+- [x] 10. Store own lyrics in the lyrics database
   - Crate and files: `nemo-lyrics`: new `src/own.rs`, `src/cache.rs` (`LyricsCache::init` creates `own_lyrics`).
   - Does: Implements `OwnLyrics` (`get`, `save`, `save_copy`, `delete`). `save` refuses a missing start with `MissingStart` and never spreads lines; it returns `Line`, or `Word` when every line has words. `clear()` keeps `own_lyrics`, as it keeps `lyrics_offset`.
   - _Requirements: 6, 7, 9, 10_

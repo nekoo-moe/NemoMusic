@@ -8,7 +8,8 @@
 //! said `Retry-After` for more). Expired rows are never returned, except a pinned hit, which is kept
 //! for a song saved offline and never expires. The database runs in WAL mode and
 //! every statement is parameterized. Lyrics are copyrighted text: they stay in this local file.
-//! [`LyricsCache::clear`] drops the cached lyrics but keeps the user's offsets.
+//! [`LyricsCache::clear`] drops the cached lyrics but keeps the user's offsets and the user's own
+//! lyrics (table `own_lyrics`, see [`crate::own`]).
 
 use std::path::Path;
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -134,7 +135,7 @@ impl LyricsCache {
         })
     }
 
-    fn lock(&self) -> MutexGuard<'_, Connection> {
+    pub(crate) fn lock(&self) -> MutexGuard<'_, Connection> {
         // A poisoned lock only means another thread panicked mid-statement; SQLite stays valid.
         self.conn
             .lock()
@@ -481,7 +482,7 @@ mod record;
 
 pub use clock::{Clock, SystemClock};
 pub use error::CacheError;
-use record::{decode_doc, encode_doc, granularity_name};
+pub(crate) use record::{decode_doc, encode_doc, granularity_name};
 
 #[cfg(test)]
 mod tests;
