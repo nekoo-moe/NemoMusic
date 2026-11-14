@@ -1,6 +1,6 @@
 ## Goal
 
-NemoMusic shows up in the operating system as a media player: media keys, the Windows media overlay and Linux media widgets show the current song and control it, even when the window is hidden or minimized. Two opt-in services are added: Last.fm scrobbling and Discord Rich Presence. Each is off by default and tells the user what it sends, and to whom, before it is turned on.
+NemoMusic shows up in the operating system as a media player: media keys, the Windows media overlay and Linux media widgets show the current song and control it, even when the window is hidden or minimized. Two opt-in services are added: Last.fm scrobbling and Discord Rich Presence. Each is off by default and tells the user what it sends, and to whom, before it is turned on. A fourth piece, OS notifications (Windows toast, Linux desktop notification), is a service for other features; its first user is the release notice of `account-actions`.
 
 ## User Stories
 
@@ -9,6 +9,7 @@ NemoMusic shows up in the operating system as a media player: media keys, the Wi
 - As a Last.fm user, I want my plays scrobbled, so that my Last.fm profile stays complete.
 - As a Discord user, I want to show what I play, so that friends can see it, and only if I choose.
 - As a privacy-minded listener, I want every integration off until I turn it on, so that nothing is shared by surprise.
+- As a listener who follows artists, I want one calm desktop notification when new releases appear, and only if I turn it on.
 
 ## Acceptance Criteria
 
@@ -55,6 +56,19 @@ NemoMusic shows up in the operating system as a media player: media keys, the Wi
 29. WHEN a service is turned on, THE SYSTEM SHALL list the host it contacts in Settings. The README egress list SHALL name `ws.audioscrobbler.com` and `www.last.fm` (Last.fm). Discord presence adds no host.
 30. WHEN the user uses only the keyboard, THE SYSTEM SHALL let them reach every switch and button of this feature with a visible focus.
 
+### OS notifications
+
+31. THE SYSTEM SHALL show every desktop notification through one service, `OsNotifier`: a toast on Windows and a freedesktop notification on Linux. No other code path SHALL show an OS notification.
+32. THE SYSTEM SHALL call `OsNotifier` only for a feature whose own switch is on and off by default. For release notices that switch is "OS notifications for new releases" (`account-actions` criterion 32). BEFORE it turns on, THE SYSTEM SHALL say, in the shared opt-in pattern, that artist and release titles are shown on the desktop, that nothing is sent to any server, and the risk: the text can show on a locked screen, be read by people near the screen and stay in the OS notification history.
+33. WHEN a release check finds new releases and the switch is on, THE SYSTEM SHALL show one notification for that check. One release shows "Artist - Title". Several show "N new releases" and up to 3 artist names.
+34. WHILE the NemoMusic window is focused and visible, THE SYSTEM SHALL NOT show the notification, and the releases SHALL stay unseen in the in-app list.
+35. WHEN the user activates a notification and NemoMusic is running, THE SYSTEM SHALL bring the window forward and open the release list. NemoMusic SHALL NOT start itself from a notification.
+36. THE SYSTEM SHALL show notification text as plain text. It SHALL remove control characters, cut the title at 100 and the body at 200 characters, and escape markup. It SHALL NOT put covers, lyrics, tokens or account ids in a notification.
+37. THE SYSTEM SHALL follow the OS Do Not Disturb, Focus Assist and per-app notification settings. It SHALL NOT raise the urgency above normal, play its own sound, or repeat a notification.
+38. IF the OS cannot show notifications (no D-Bus session or notification service, no Start Menu entry with the app id on Windows, or notifications blocked for the app), THEN THE SYSTEM SHALL keep working, show no error dialog, and show one line in Settings that says why.
+39. WHEN the user turns the switch off or signs out, THE SYSTEM SHALL remove its notifications from the OS notification area where the OS allows it.
+40. THE SYSTEM SHALL contact no host for notifications. The README egress list SHALL NOT change.
+
 ## Out of Scope
 
 - A tray icon. The owner decided on 2026-11-14 that there is none: closing the window keeps its current behavior.
@@ -63,6 +77,8 @@ NemoMusic shows up in the operating system as a media player: media keys, the Wi
 - Last.fm love and unlove, recommendations and profile views.
 - OS media controls on macOS.
 - Android Auto and phone remote control.
+- Notification buttons, reply fields, images and sounds, and notifications while NemoMusic is not running (the project runs no server and no background service).
+- OS notifications on macOS.
 
 ## Open Questions
 
@@ -72,6 +88,9 @@ Decided by the owner on 2026-11-14:
 - There is no tray icon (Out of Scope).
 - On Linux, `souvlaki` uses its `zbus` backend (no `libdbus`) if it passes `cargo deny`; otherwise the owner decides again.
 - OS media controls are on by default (criterion 9), because nothing leaves the machine.
+- OS notifications serve `account-actions` release notices only for now (criterion 31 allows later users, each with its own switch).
+
+Left to the design (notifications): the crates and the Windows app id (the design checks them on crates.io and in the installer plan); whether to skip a notification while the window is focused (criterion 34 is the design's proposal for a calm app; the owner may reverse it).
 
 Left to the design: the cover art path for the OS session (criterion 1), whether the Last.fm switch is tied to listening-stats (proposal: independent, the design follows it), and the Discord application name, which the owner picks when registering the id. The design records that Discord's local IPC rate limit is unverified.
 <!-- Sources:
