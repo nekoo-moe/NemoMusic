@@ -38,7 +38,7 @@ Tasks in other specs are cited by spec and the ADR 0004 Decision 4 row they own,
   - Checks: unit test that a fake step's name and count reach the report.
   - Steering: none.
 
-- [ ] 5. Run the registered wipe steps on sign-out
+- [x] 5. Run the registered wipe steps on sign-out
   - Crate and files: `nemo-ytm` (`src/account.rs`); `nemo-app` (wiring).
   - Does: `GoogleAccount` gets `register_wipe(Arc<dyn SignOutWipe>)`. `sign_out` runs every registered step with `WipeScope::All`, keeps going after a failure, names the failed steps in the report, and deletes the `Vault` entries last. `nemo-app` gets the one place where other specs register their steps.
   - _Requirements: 15_
