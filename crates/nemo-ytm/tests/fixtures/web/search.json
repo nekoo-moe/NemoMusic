@@ -1,0 +1,1285 @@
+{
+ "estimatedResults": "11469054",
+ "contents": {
+  "twoColumnSearchResultsRenderer": {
+   "primaryContents": {
+    "sectionListRenderer": {
+     "contents": [
+      {
+       "itemSectionRenderer": {
+        "contents": [
+         {
+          "officialCardViewModel": {
+           "header": {
+            "pageHeaderViewModel": {
+             "title": {
+              "dynamicTextViewModel": {
+               "text": {
+                "content": "Lofi Girl",
+                "styleRuns": [
+                 {
+                  "startIndex": 9,
+                  "styleRunExtensions": {
+                   "styleRunColorMapExtension": {
+                    "colorMap": [
+                     {
+                      "key": "USER_INTERFACE_THEME_DARK",
+                      "value": 4294967295
+                     },
+                     {
+                      "key": "USER_INTERFACE_THEME_LIGHT",
+                      "value": 4279440147
+                     }
+                    ]
+                   }
+                  }
+                 }
+                ],
+                "attachmentRuns": [
+                 {
+                  "startIndex": 9,
+                  "length": 0,
+                  "element": {
+                   "type": {
+                    "imageType": {
+                     "image": {
+                      "sources": [
+                       {
+                        "clientResource": {
+                         "imageName": "AUDIO_BADGE"
+                        },
+                        "width": 24,
+                        "height": 24
+                       }
+                      ],
+                      "processor": {
+                       "borderImageProcessor": {
+                        "imageTint": {
+                         "color": 4294964208
+                        }
+                       }
+                      }
+                     }
+                    }
+                   },
+                   "properties": {
+                    "layoutProperties": {
+                     "height": {
+                      "value": 24,
+                      "unit": "DIMENSION_UNIT_POINT"
+                     },
+                     "width": {
+                      "value": 24,
+                      "unit": "DIMENSION_UNIT_POINT"
+                     },
+                     "margin": {
+                      "left": {
+                       "value": 8,
+                       "unit": "DIMENSION_UNIT_POINT"
+                      }
+                     }
+                    }
+                   }
+                  },
+                  "alignment": "ALIGNMENT_VERTICAL_CENTER"
+                 }
+                ]
+               }
+              }
+             },
+             "image": {
+              "contentPreviewImageViewModel": {
+               "image": {
+                "sources": [
+                 {
+                  "url": "https://yt3.ggpht.com/REcZL_LGu0DaDaC-G7VIbN0uE_5l-i_dw6ZvOETRnY3pRhUmfkOq6C1MLephPZkV4VSzQAhEi_4=s176-c-k-c0x00ffffff-no-rj-mo",
+                  "width": 176,
+                  "height": 176
+                 }
+                ]
+               },
+               "style": "CONTENT_PREVIEW_IMAGE_STYLE_CIRCLE",
+               "layoutMode": "CONTENT_PREVIEW_IMAGE_LAYOUT_MODE_UNKNOWN"
+              }
+             },
+             "metadata": {
+              "contentMetadataViewModel": {
+               "metadataRows": [
+                {
+                 "metadataParts": [
+                  {
+                   "text": {
+                    "content": "@LofiGirl"
+                   }
+                  }
+                 ]
+                },
+                {
+                 "metadataParts": [
+                  {
+                   "text": {
+                    "content": "15.8M subscribers"
+                   }
+                  },
+                  {
+                   "text": {
+                    "content": "484 videos"
+                   }
+                  }
+                 ]
+                }
+               ],
+               "delimiter": "•"
+              }
+             },
+             "background": {
+              "cinematicContainerViewModel": {
+               "backgroundImageConfig": {
+                "image": {
+                 "sources": [
+                  {
+                   "url": "https://yt3.googleusercontent.com/3Cs1MajDc1ZQPwSv5fVtShaPCRp6UIQToMy6zSuybMCHpijWuzyo9rQkN83oqMKVmDjiVuUpA3thGg=w600-h176-p",
+                   "width": 600,
+                   "height": 176
+                  }
+                 ]
+                }
+               },
+               "presentationStyle": "CINEMATIC_CONTAINER_PRESENTATION_STYLE_GRADUAL_BLURRED",
+               "gradualBlurConfig": {
+                "startPercentage": 0.25,
+                "stopPercentage": 0.8,
+                "blurRadius": 10
+               },
+               "fadeToThemeConfig": {
+                "lightThemeStartColor": 14530476,
+                "darkThemeStartColor": 6108200,
+                "midMarkerPosition": 0.55,
+                "midMarkerOpacity": 0.67,
+                "imageOpacity": 0,
+                "lightThemeEndColor": 4292720556,
+                "darkThemeEndColor": 4284298280
+               }
+              }
+             }
+            }
+           },
+           "contents": [
+            {
+             "horizontalShelfViewModel": {
+              "items": [
+               {
+                "lockupViewModel": {
+                 "contentImage": {
+                  "collectionThumbnailViewModel": {
+                   "primaryThumbnail": {
+                    "thumbnailViewModel": {
+                     "image": {
+                      "sources": [
+                       {
+                        "url": "https://i.ytimg.com/vi/mmKguZohAck/hq720.jpg?sqp=-oaymwEXCOgCEMoBSFryq4qpAwkIARUAAIhCGAE=&rs=AOn4CLBD9-XzNK8QVNtELIAiD5iJczXPHg",
+                        "width": 360,
+                        "height": 202
+                       }
+                      ]
+                     },
+                     "overlays": [
+                      {
+                       "thumbnailOverlayBadgeViewModel": {
+                        "thumbnailBadges": [
+                         {
+                          "thumbnailBadgeViewModel": {
+                           "icon": {
+                            "sources": [
+                             {
+                              "clientResource": {
+                               "imageName": "MIX"
+                              }
+                             }
+                            ]
+                           },
+                           "text": "Mix",
+                           "badgeStyle": "THUMBNAIL_OVERLAY_BADGE_STYLE_DEFAULT",
+                           "backgroundColor": {
+                            "lightTheme": 3347213,
+                            "darkTheme": 3347213
+                           }
+                          }
+                         }
+                        ],
+                        "position": "THUMBNAIL_OVERLAY_BADGE_POSITION_BOTTOM_END"
+                       }
+                      },
+                      {
+                       "thumbnailHoverOverlayViewModel": {
+                        "icon": {
+                         "sources": [
+                          {
+                           "clientResource": {
+                            "imageName": "PLAY_ALL"
+                           }
+                          }
+                         ]
+                        },
+                        "text": {
+                         "content": "Play all",
+                         "styleRuns": [
+                          {
+                           "startIndex": 0,
+                           "length": 8
+                          }
+                         ]
+                        },
+                        "style": "THUMBNAIL_HOVER_OVERLAY_STYLE_COVER"
+                       }
+                      }
+                     ],
+                     "backgroundColor": {
+                      "lightTheme": 5841431,
+                      "darkTheme": 5841431
+                     }
+                    }
+                   },
+                   "stackColor": {
+                    "lightTheme": 10056299,
+                    "darkTheme": 9665398
+                   },
+                   "transparentBackgroundColor": true
+                  }
+                 },
+                 "metadata": {
+                  "lockupMetadataViewModel": {
+                   "title": {
+                    "content": "Mix - Lofi Girl"
+                   },
+                   "metadata": {
+                    "contentMetadataViewModel": {
+                     "metadataRows": [
+                      {
+                       "metadataParts": [
+                        {
+                         "text": {
+                          "content": "YouTube"
+                         }
+                        },
+                        {
+                         "text": {
+                          "content": "Playlist"
+                         }
+                        }
+                       ],
+                       "lockupContentMetadataRowExtension": {
+                        "contentType": "METADATA_ROW_CONTENT_TYPE_BYLINE"
+                       }
+                      }
+                     ],
+                     "delimiter": " • "
+                    }
+                   }
+                  }
+                 },
+                 "contentId": "RDEM1-qMCYe8pGt51RoZyWxAYg",
+                 "contentType": "LOCKUP_CONTENT_TYPE_PLAYLIST",
+                 "itemPlayback": {
+                  "inlinePlayerData": {
+                   "onSelect": {
+                    "innertubeCommand": {
+                     "commandMetadata": {
+                      "webCommandMetadata": {
+                       "url": "/watch?v=mmKguZohAck&list=RDEM1-qMCYe8pGt51RoZyWxAYg&start_radio=1",
+                       "webPageType": "WEB_PAGE_TYPE_WATCH",
+                       "rootVe": 3832
+                      }
+                     },
+                     "watchEndpoint": {
+                      "videoId": "mmKguZohAck",
+                      "playlistId": "RDEM1-qMCYe8pGt51RoZyWxAYg",
+                      "params": "OALAAQE%3D",
+                      "continuePlayback": true,
+                      "watchEndpointSupportedOnesieConfig": {
+                       "html5PlaybackOnesieConfig": {
+                        "commonConfig": {
+                         "url": "https://redacted.googlevideo.com/"
+                        }
+                       }
+                      }
+                     }
+                    }
+                   },
+                   "onVisible": {
+                    "innertubeCommand": {
+                     "commandMetadata": {
+                      "webCommandMetadata": {
+                       "url": "/watch?v=mmKguZohAck&list=RDEM1-qMCYe8pGt51RoZyWxAYg&start_radio=1&pp=YAHIAQHwBAD4BACiBhUBAym6i0812Q0s8s2J1Q1xzgFXq4A%3D",
+                       "webPageType": "WEB_PAGE_TYPE_WATCH",
+                       "rootVe": 3832
+                      }
+                     },
+                     "watchEndpoint": {
+                      "videoId": "mmKguZohAck",
+                      "playlistId": "RDEM1-qMCYe8pGt51RoZyWxAYg",
+                      "params": "OALAAQE%3D",
+                      "continuePlayback": true,
+                      "playerParams": "YAHIAQHwBAD4BACiBhUBAym6i0812Q0s8s2J1Q1xzgFXq4A%3D",
+                      "watchEndpointSupportedOnesieConfig": {
+                       "html5PlaybackOnesieConfig": {
+                        "commonConfig": {
+                         "url": "https://redacted.googlevideo.com/"
+                        }
+                       }
+                      }
+                     }
+                    }
+                   }
+                  }
+                 }
+                }
+               }
+              ],
+              "previousButton": {
+               "buttonViewModel": {
+                "iconName": "CHEVRON_LEFT",
+                "accessibilityText": "Previous",
+                "style": "BUTTON_VIEW_MODEL_STYLE_CUSTOM",
+                "buttonSize": "BUTTON_VIEW_MODEL_SIZE_DEFAULT",
+                "state": "BUTTON_VIEW_MODEL_STATE_ACTIVE",
+                "customBackgroundColor": 4284298280,
+                "customFontColor": 4294633184,
+                "customDarkThemeBackgroundColor": 4284298280,
+                "customDarkThemeFontColor": 4294633184
+               }
+              },
+              "nextButton": {
+               "buttonViewModel": {
+                "iconName": "CHEVRON_RIGHT",
+                "accessibilityText": "Next",
+                "style": "BUTTON_VIEW_MODEL_STYLE_CUSTOM",
+                "buttonSize": "BUTTON_VIEW_MODEL_SIZE_DEFAULT",
+                "state": "BUTTON_VIEW_MODEL_STATE_ACTIVE",
+                "customBackgroundColor": 4284298280,
+                "customFontColor": 4294633184,
+                "customDarkThemeBackgroundColor": 4284298280,
+                "customDarkThemeFontColor": 4294633184
+               }
+              },
+              "useHeaderChevrons": false
+             }
+            }
+           ],
+           "backgroundColor": {
+            "lightTheme": 4292720556,
+            "darkTheme": 4284298280
+           },
+           "forceDarkTheme": true,
+           "baseBackgroundColor": {
+            "lightTheme": 4294964208,
+            "darkTheme": 4280027138
+           },
+           "reducedHeight": true
+          }
+         },
+         {
+          "videoRenderer": {
+           "videoId": "rFZHOHl-L8A",
+           "thumbnail": {
+            "thumbnails": [
+             {
+              "url": "https://i.ytimg.com/vi/rFZHOHl-L8A/hq720.jpg?v=6ad62bed&sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDN3Yy-Dw3B9x_HYcTaGXq7gEVppA",
+              "width": 360,
+              "height": 202
+             }
+            ]
+           },
+           "title": {
+            "runs": [
+             {
+              "text": "lofi hip hop radio 📚 beats to relax/study to"
+             }
+            ]
+           },
+           "longBylineText": {
+            "runs": [
+             {
+              "text": "Lofi Girl",
+              "navigationEndpoint": {
+               "commandMetadata": {
+                "webCommandMetadata": {
+                 "url": "/channel/UCSJ4gkVC6NrvII8umztf0Ow",
+                 "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                 "rootVe": 3611,
+                 "apiUrl": "/youtubei/v1/browse"
+                }
+               },
+               "browseEndpoint": {
+                "browseId": "UCSJ4gkVC6NrvII8umztf0Ow",
+                "canonicalBaseUrl": "/channel/UCSJ4gkVC6NrvII8umztf0Ow"
+               }
+              }
+             }
+            ]
+           },
+           "viewCountText": {
+            "runs": [
+             {
+              "text": "8,384"
+             },
+             {
+              "text": " watching"
+             }
+            ]
+           },
+           "navigationEndpoint": {
+            "commandMetadata": {
+             "webCommandMetadata": {
+              "url": "/watch?v=rFZHOHl-L8A&pp=ygUJbG9maSBnaXJs0gcJCccHAYcqIYzv",
+              "webPageType": "WEB_PAGE_TYPE_WATCH",
+              "rootVe": 3832
+             }
+            },
+            "watchEndpoint": {
+             "videoId": "rFZHOHl-L8A",
+             "params": "qgMJbG9maSBnaXJsugMcEhpSREVNMS1xTUNZZThwR3Q1MVJvWnlXeEFZZ7oDCwjm8dyUyfW8iOMBugMkEiJQTGUwWEJlYUFsMUtFbGdVandHdU50dXQwQWRqcnlJNEREugMLCJ6v2ZCF15ialQG6AwsIg5fNiNK-0vjcAboDCgjp073G5obwiSO6AwsIuPfFmpPU_Zj-AboDCgiMtYaRkPTiqAi6AwoIh-Kspv34sOQDugMKCNWXsaq_t6mKCLoDCwjtkeypxIXV1p8BugMKCI7mxIaJraCRJLoDCwiC7t6mmrL7xosBugMLCMGrjNTOooO85wG6AwoIpoLulf_fzs1QugMLCIG-mbiWhIG4jQG6AwoI9vyN0oiG6Z8kugMLCNiVhbv6-p6B8gG6AwsI7eqsg4j1997xAeoDAhAB8gMFDcIrqD0%3D",
+             "playerParams": "ygUJbG9maSBnaXJs0gcJCccHAYcqIYzv",
+             "watchEndpointSupportedOnesieConfig": {
+              "html5PlaybackOnesieConfig": {
+               "commonConfig": {
+                "url": "https://redacted.googlevideo.com/"
+               }
+              }
+             }
+            }
+           },
+           "badges": [
+            {
+             "metadataBadgeRenderer": {
+              "icon": {
+               "iconType": "LIVE"
+              },
+              "style": "BADGE_STYLE_TYPE_LIVE_NOW",
+              "label": "LIVE"
+             }
+            },
+            {
+             "metadataBadgeRenderer": {
+              "icon": {
+               "iconType": "OUTLINE_BAG"
+              },
+              "style": "BADGE_STYLE_TYPE_SIMPLE",
+              "label": "24 products"
+             }
+            }
+           ],
+           "ownerBadges": [
+            {
+             "metadataBadgeRenderer": {
+              "icon": {
+               "iconType": "AUDIO_BADGE"
+              },
+              "style": "BADGE_STYLE_TYPE_VERIFIED_ARTIST",
+              "tooltip": "Official Artist Channel"
+             }
+            }
+           ],
+           "ownerText": {
+            "runs": [
+             {
+              "text": "Lofi Girl",
+              "navigationEndpoint": {
+               "commandMetadata": {
+                "webCommandMetadata": {
+                 "url": "/channel/UCSJ4gkVC6NrvII8umztf0Ow",
+                 "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                 "rootVe": 3611,
+                 "apiUrl": "/youtubei/v1/browse"
+                }
+               },
+               "browseEndpoint": {
+                "browseId": "UCSJ4gkVC6NrvII8umztf0Ow",
+                "canonicalBaseUrl": "/channel/UCSJ4gkVC6NrvII8umztf0Ow"
+               }
+              }
+             }
+            ]
+           },
+           "shortBylineText": {
+            "runs": [
+             {
+              "text": "Lofi Girl",
+              "navigationEndpoint": {
+               "commandMetadata": {
+                "webCommandMetadata": {
+                 "url": "/channel/UCSJ4gkVC6NrvII8umztf0Ow",
+                 "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                 "rootVe": 3611,
+                 "apiUrl": "/youtubei/v1/browse"
+                }
+               },
+               "browseEndpoint": {
+                "browseId": "UCSJ4gkVC6NrvII8umztf0Ow",
+                "canonicalBaseUrl": "/channel/UCSJ4gkVC6NrvII8umztf0Ow"
+               }
+              }
+             }
+            ]
+           },
+           "showActionMenu": false,
+           "shortViewCountText": {
+            "runs": [
+             {
+              "text": "8.3K"
+             },
+             {
+              "text": " watching"
+             }
+            ]
+           },
+           "thumbnailOverlays": [
+            {
+             "thumbnailOverlayToggleButtonRenderer": {
+              "isToggled": false,
+              "untoggledIcon": {
+               "iconType": "WATCH_LATER"
+              },
+              "toggledIcon": {
+               "iconType": "CHECK"
+              },
+              "untoggledTooltip": "Watch later",
+              "toggledTooltip": "Added",
+              "untoggledServiceEndpoint": {
+               "commandMetadata": {
+                "webCommandMetadata": {
+                 "sendPost": true,
+                 "apiUrl": "/youtubei/v1/browse/edit_playlist"
+                }
+               },
+               "playlistEditEndpoint": {
+                "playlistId": "WL"
+               }
+              },
+              "toggledServiceEndpoint": {
+               "commandMetadata": {
+                "webCommandMetadata": {
+                 "sendPost": true,
+                 "apiUrl": "/youtubei/v1/browse/edit_playlist"
+                }
+               },
+               "playlistEditEndpoint": {
+                "playlistId": "WL"
+               }
+              },
+              "untoggledAccessibility": {},
+              "toggledAccessibility": {}
+             }
+            },
+            {
+             "thumbnailOverlayToggleButtonRenderer": {
+              "untoggledIcon": {
+               "iconType": "ADD_TO_QUEUE_TAIL"
+              },
+              "toggledIcon": {
+               "iconType": "PLAYLIST_ADD_CHECK"
+              },
+              "untoggledTooltip": "Add to queue",
+              "toggledTooltip": "Added",
+              "untoggledServiceEndpoint": {
+               "commandMetadata": {
+                "webCommandMetadata": {
+                 "sendPost": true
+                }
+               },
+               "signalServiceEndpoint": {
+                "signal": "CLIENT_SIGNAL"
+               }
+              },
+              "untoggledAccessibility": {},
+              "toggledAccessibility": {}
+             }
+            },
+            {
+             "thumbnailOverlayNowPlayingRenderer": {
+              "text": {
+               "runs": [
+                {
+                 "text": "Now playing"
+                }
+               ]
+              }
+             }
+            },
+            {
+             "thumbnailOverlayLoadingPreviewRenderer": {
+              "text": {
+               "runs": [
+                {
+                 "text": "Keep hovering to play"
+                }
+               ]
+              }
+             }
+            }
+           ],
+           "detailedMetadataSnippets": [
+            {
+             "snippetText": {
+              "runs": [
+               {
+                "text": "Holiday season is approaching 2026 Christmas playlist available now: https://lnk.to/Christmas_lofi02 | Listen on Spotify, ..."
+               }
+              ]
+             },
+             "snippetHoverText": {
+              "runs": [
+               {
+                "text": "From the video description"
+               }
+              ]
+             },
+             "maxOneLine": false
+            }
+           ]
+          }
+         },
+         {
+          "lockupViewModel": {
+           "contentImage": {
+            "collectionThumbnailViewModel": {
+             "primaryThumbnail": {
+              "thumbnailViewModel": {
+               "image": {
+                "sources": [
+                 {
+                  "url": "https://i.ytimg.com/vi/CFGLoQIhmow/hq720.jpg?sqp=-oaymwEXCOgCEMoBSFryq4qpAwkIARUAAIhCGAE=&rs=AOn4CLBfZuToSA2wdLJXhwXADGoRWtOrSQ",
+                  "width": 360,
+                  "height": 202
+                 }
+                ]
+               },
+               "overlays": [
+                {
+                 "thumbnailOverlayBadgeViewModel": {
+                  "thumbnailBadges": [
+                   {
+                    "thumbnailBadgeViewModel": {
+                     "icon": {
+                      "sources": [
+                       {
+                        "clientResource": {
+                         "imageName": "PLAYLISTS"
+                        }
+                       }
+                      ]
+                     },
+                     "text": "17 videos",
+                     "badgeStyle": "THUMBNAIL_OVERLAY_BADGE_STYLE_DEFAULT",
+                     "backgroundColor": {
+                      "lightTheme": 3349011,
+                      "darkTheme": 3349011
+                     }
+                    }
+                   }
+                  ],
+                  "position": "THUMBNAIL_OVERLAY_BADGE_POSITION_BOTTOM_END"
+                 }
+                },
+                {
+                 "thumbnailHoverOverlayViewModel": {
+                  "icon": {
+                   "sources": [
+                    {
+                     "clientResource": {
+                      "imageName": "PLAY_ALL"
+                     }
+                    }
+                   ]
+                  },
+                  "text": {
+                   "content": "Play all",
+                   "styleRuns": [
+                    {
+                     "startIndex": 0,
+                     "length": 8
+                    }
+                   ]
+                  },
+                  "style": "THUMBNAIL_HOVER_OVERLAY_STYLE_COVER"
+                 }
+                }
+               ],
+               "backgroundColor": {
+                "lightTheme": 5844258,
+                "darkTheme": 5844258
+               }
+              }
+             },
+             "stackColor": {
+              "lightTheme": 10056811,
+              "darkTheme": 9665654
+             }
+            }
+           },
+           "metadata": {
+            "lockupMetadataViewModel": {
+             "title": {
+              "content": "Lofi girl best cleaning/studying/relaxing mix🧺📖🧖‍♀️"
+             },
+             "metadata": {
+              "contentMetadataViewModel": {
+               "metadataRows": [
+                {
+                 "metadataParts": [
+                  {
+                   "text": {
+                    "content": "Julie K",
+                    "commandRuns": [
+                     {
+                      "startIndex": 0,
+                      "length": 7,
+                      "onTap": {
+                       "innertubeCommand": {
+                        "commandMetadata": {
+                         "webCommandMetadata": {
+                          "url": "/@julie-annekhoshnevissan8468",
+                          "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                          "rootVe": 3611,
+                          "apiUrl": "/youtubei/v1/browse"
+                         }
+                        },
+                        "browseEndpoint": {
+                         "browseId": "UC2orWxYHA4LrVpmiHj4UzdQ",
+                         "canonicalBaseUrl": "/@julie-annekhoshnevissan8468"
+                        }
+                       }
+                      }
+                     }
+                    ],
+                    "styleRuns": [
+                     {
+                      "startIndex": 0,
+                      "length": 7,
+                      "weightLabel": "FONT_WEIGHT_NORMAL"
+                     }
+                    ]
+                   }
+                  },
+                  {
+                   "text": {
+                    "content": "Playlist",
+                    "commandRuns": [
+                     {
+                      "startIndex": 0,
+                      "length": 8,
+                      "onTap": {
+                       "innertubeCommand": {
+                        "commandMetadata": {
+                         "webCommandMetadata": {
+                          "url": "/@julie-annekhoshnevissan8468",
+                          "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                          "rootVe": 3611,
+                          "apiUrl": "/youtubei/v1/browse"
+                         }
+                        },
+                        "browseEndpoint": {
+                         "browseId": "UC2orWxYHA4LrVpmiHj4UzdQ",
+                         "canonicalBaseUrl": "/@julie-annekhoshnevissan8468"
+                        }
+                       }
+                      }
+                     }
+                    ],
+                    "styleRuns": [
+                     {
+                      "startIndex": 0,
+                      "length": 8,
+                      "weightLabel": "FONT_WEIGHT_NORMAL"
+                     }
+                    ]
+                   }
+                  }
+                 ],
+                 "lockupContentMetadataRowExtension": {
+                  "contentType": "METADATA_ROW_CONTENT_TYPE_BYLINE"
+                 }
+                },
+                {
+                 "isSpacerRow": true
+                },
+                {
+                 "metadataParts": [
+                  {
+                   "text": {
+                    "content": "lofi hip hop mix 📚 beats to relax/study to (Part 1) · 2:50:41",
+                    "commandRuns": [
+                     {
+                      "startIndex": 0,
+                      "length": 65,
+                      "onTap": {
+                       "innertubeCommand": {
+                        "commandMetadata": {
+                         "webCommandMetadata": {
+                          "url": "/watch?v=CFGLoQIhmow&list=PLe0XBeaAl1KElgUjwGuNtut0AdjryI4DD",
+                          "webPageType": "WEB_PAGE_TYPE_WATCH",
+                          "rootVe": 3832
+                         }
+                        },
+                        "watchEndpoint": {
+                         "videoId": "CFGLoQIhmow",
+                         "playlistId": "PLe0XBeaAl1KElgUjwGuNtut0AdjryI4DD",
+                         "watchEndpointSupportedOnesieConfig": {
+                          "html5PlaybackOnesieConfig": {
+                           "commonConfig": {
+                            "url": "https://redacted.googlevideo.com/"
+                           }
+                          }
+                         }
+                        }
+                       }
+                      }
+                     }
+                    ]
+                   }
+                  }
+                 ]
+                },
+                {
+                 "metadataParts": [
+                  {
+                   "text": {
+                    "content": "lofi hip hop mix 📚 beats to relax/study to (Part 2) · 4:05:02",
+                    "commandRuns": [
+                     {
+                      "startIndex": 0,
+                      "length": 65,
+                      "onTap": {
+                       "innertubeCommand": {
+                        "commandMetadata": {
+                         "webCommandMetadata": {
+                          "url": "/watch?v=8b3fqIBrNW0&list=PLe0XBeaAl1KElgUjwGuNtut0AdjryI4DD",
+                          "webPageType": "WEB_PAGE_TYPE_WATCH",
+                          "rootVe": 3832
+                         }
+                        },
+                        "watchEndpoint": {
+                         "videoId": "8b3fqIBrNW0",
+                         "playlistId": "PLe0XBeaAl1KElgUjwGuNtut0AdjryI4DD",
+                         "watchEndpointSupportedOnesieConfig": {
+                          "html5PlaybackOnesieConfig": {
+                           "commonConfig": {
+                            "url": "https://redacted.googlevideo.com/"
+                           }
+                          }
+                         }
+                        }
+                       }
+                      }
+                     }
+                    ]
+                   }
+                  }
+                 ]
+                },
+                {
+                 "metadataParts": [
+                  {
+                   "text": {
+                    "content": "View full playlist",
+                    "commandRuns": [
+                     {
+                      "startIndex": 0,
+                      "length": 18,
+                      "onTap": {
+                       "innertubeCommand": {
+                        "commandMetadata": {
+                         "webCommandMetadata": {
+                          "url": "/playlist?list=PLe0XBeaAl1KElgUjwGuNtut0AdjryI4DD",
+                          "webPageType": "WEB_PAGE_TYPE_PLAYLIST",
+                          "rootVe": 5754,
+                          "apiUrl": "/youtubei/v1/browse"
+                         }
+                        },
+                        "browseEndpoint": {
+                         "browseId": "VLPLe0XBeaAl1KElgUjwGuNtut0AdjryI4DD"
+                        }
+                       }
+                      }
+                     }
+                    ],
+                    "styleRuns": [
+                     {
+                      "startIndex": 0,
+                      "length": 18,
+                      "weightLabel": "FONT_WEIGHT_MEDIUM"
+                     }
+                    ]
+                   }
+                  }
+                 ]
+                },
+                {
+                 "metadataParts": [
+                  {
+                   "text": {
+                    "content": "Lofi girl/relaxing lofi music/cleaning/late night studing/morning.✨️✨️"
+                   },
+                   "maxLines": 2
+                  }
+                 ],
+                 "lockupContentMetadataRowExtension": {
+                  "contentType": "METADATA_ROW_CONTENT_TYPE_DESCRIPTION"
+                 }
+                }
+               ],
+               "delimiter": " • "
+              }
+             }
+            }
+           },
+           "contentId": "PLe0XBeaAl1KElgUjwGuNtut0AdjryI4DD",
+           "contentType": "LOCKUP_CONTENT_TYPE_PLAYLIST",
+           "itemPlayback": {
+            "inlinePlayerData": {
+             "onSelect": {
+              "innertubeCommand": {
+               "commandMetadata": {
+                "webCommandMetadata": {
+                 "url": "/watch?v=CFGLoQIhmow&list=PLe0XBeaAl1KElgUjwGuNtut0AdjryI4DD&pp=0gcJCZQGa94AFGB0",
+                 "webPageType": "WEB_PAGE_TYPE_WATCH",
+                 "rootVe": 3832
+                }
+               },
+               "watchEndpoint": {
+                "videoId": "CFGLoQIhmow",
+                "playlistId": "PLe0XBeaAl1KElgUjwGuNtut0AdjryI4DD",
+                "params": "OAI%3D",
+                "playerParams": "0gcJCZQGa94AFGB0",
+                "watchEndpointSupportedOnesieConfig": {
+                 "html5PlaybackOnesieConfig": {
+                  "commonConfig": {
+                   "url": "https://redacted.googlevideo.com/"
+                  }
+                 }
+                }
+               }
+              }
+             },
+             "onVisible": {
+              "innertubeCommand": {
+               "commandMetadata": {
+                "webCommandMetadata": {
+                 "url": "/watch?v=CFGLoQIhmow&list=PLe0XBeaAl1KElgUjwGuNtut0AdjryI4DD&pp=YAHIAQHwBAD4BACiBhUBAym6i7pReUeUkNc_MFcpNSkqB1o%3D",
+                 "webPageType": "WEB_PAGE_TYPE_WATCH",
+                 "rootVe": 3832
+                }
+               },
+               "watchEndpoint": {
+                "videoId": "CFGLoQIhmow",
+                "playlistId": "PLe0XBeaAl1KElgUjwGuNtut0AdjryI4DD",
+                "playerParams": "YAHIAQHwBAD4BACiBhUBAym6i7pReUeUkNc_MFcpNSkqB1o%3D",
+                "watchEndpointSupportedOnesieConfig": {
+                 "html5PlaybackOnesieConfig": {
+                  "commonConfig": {
+                   "url": "https://redacted.googlevideo.com/"
+                  }
+                 }
+                }
+               }
+              }
+             }
+            }
+           }
+          }
+         },
+         {
+          "videoRenderer": {
+           "videoId": "lTRiuFIWV54",
+           "thumbnail": {
+            "thumbnails": [
+             {
+              "url": "https://i.ytimg.com/vi/lTRiuFIWV54/hq720.jpg?sqp=-oaymwEcCOgCEMoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCT1lB3GDhE5qfAT4fTy1uTXAMKvg",
+              "width": 360,
+              "height": 202
+             }
+            ]
+           },
+           "title": {
+            "runs": [
+             {
+              "text": "1 A.M Study Session 📚 [lofi hip hop]"
+             }
+            ]
+           },
+           "longBylineText": {
+            "runs": [
+             {
+              "text": "Lofi Girl",
+              "navigationEndpoint": {
+               "commandMetadata": {
+                "webCommandMetadata": {
+                 "url": "/channel/UCSJ4gkVC6NrvII8umztf0Ow",
+                 "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                 "rootVe": 3611,
+                 "apiUrl": "/youtubei/v1/browse"
+                }
+               },
+               "browseEndpoint": {
+                "browseId": "UCSJ4gkVC6NrvII8umztf0Ow",
+                "canonicalBaseUrl": "/channel/UCSJ4gkVC6NrvII8umztf0Ow"
+               }
+              }
+             }
+            ]
+           },
+           "publishedTimeText": {
+            "simpleText": "6 years ago"
+           },
+           "lengthText": {
+            "simpleText": "1:01:14"
+           },
+           "viewCountText": {
+            "simpleText": "138,166,841 views"
+           },
+           "navigationEndpoint": {
+            "commandMetadata": {
+             "webCommandMetadata": {
+              "url": "/watch?v=lTRiuFIWV54&list=RDlTRiuFIWV54&start_radio=1&pp=ygUJbG9maSBnaXJsoAcB",
+              "webPageType": "WEB_PAGE_TYPE_WATCH",
+              "rootVe": 3832
+             }
+            },
+            "watchEndpoint": {
+             "videoId": "lTRiuFIWV54",
+             "playlistId": "RDlTRiuFIWV54",
+             "params": "wAEBqgMJbG9maSBnaXJsugMcEhpSREVNMS1xTUNZZThwR3Q1MVJvWnlXeEFZZ7oDCwjA3_jLh-eRq6wBugMLCObx3JTJ9byI4wG6AyQSIlBMZTBYQmVhQWwxS0VsZ1Vqd0d1TnR1dDBBZGpyeUk0RES6AwsIg5fNiNK-0vjcAboDCgjp073G5obwiSO6AwsIuPfFmpPU_Zj-AboDCgiMtYaRkPTiqAi6AwoIh-Kspv34sOQDugMKCNWXsaq_t6mKCLoDCwjtkeypxIXV1p8BugMKCI7mxIaJraCRJLoDCwiC7t6mmrL7xosBugMLCMGrjNTOooO85wG6AwoIpoLulf_fzs1QugMLCIG-mbiWhIG4jQG6AwoI9vyN0oiG6Z8kugMLCNiVhbv6-p6B8gG6AwsI7eqsg4j1997xAeoDAhAB8gMFDcIrqD24BQE%3D",
+             "playerParams": "ygUJbG9maSBnaXJsoAcB",
+             "watchEndpointSupportedOnesieConfig": {
+              "html5PlaybackOnesieConfig": {
+               "commonConfig": {
+                "url": "https://redacted.googlevideo.com/"
+               }
+              }
+             }
+            }
+           },
+           "badges": [
+            {
+             "metadataBadgeRenderer": {
+              "icon": {
+               "iconType": "OUTLINE_BAG"
+              },
+              "style": "BADGE_STYLE_TYPE_SIMPLE",
+              "label": "3 products"
+             }
+            }
+           ],
+           "ownerBadges": [
+            {
+             "metadataBadgeRenderer": {
+              "icon": {
+               "iconType": "AUDIO_BADGE"
+              },
+              "style": "BADGE_STYLE_TYPE_VERIFIED_ARTIST",
+              "tooltip": "Official Artist Channel"
+             }
+            }
+           ],
+           "ownerText": {
+            "runs": [
+             {
+              "text": "Lofi Girl",
+              "navigationEndpoint": {
+               "commandMetadata": {
+                "webCommandMetadata": {
+                 "url": "/channel/UCSJ4gkVC6NrvII8umztf0Ow",
+                 "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                 "rootVe": 3611,
+                 "apiUrl": "/youtubei/v1/browse"
+                }
+               },
+               "browseEndpoint": {
+                "browseId": "UCSJ4gkVC6NrvII8umztf0Ow",
+                "canonicalBaseUrl": "/channel/UCSJ4gkVC6NrvII8umztf0Ow"
+               }
+              }
+             }
+            ]
+           },
+           "shortBylineText": {
+            "runs": [
+             {
+              "text": "Lofi Girl",
+              "navigationEndpoint": {
+               "commandMetadata": {
+                "webCommandMetadata": {
+                 "url": "/channel/UCSJ4gkVC6NrvII8umztf0Ow",
+                 "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                 "rootVe": 3611,
+                 "apiUrl": "/youtubei/v1/browse"
+                }
+               },
+               "browseEndpoint": {
+                "browseId": "UCSJ4gkVC6NrvII8umztf0Ow",
+                "canonicalBaseUrl": "/channel/UCSJ4gkVC6NrvII8umztf0Ow"
+               }
+              }
+             }
+            ]
+           },
+           "showActionMenu": false,
+           "shortViewCountText": {
+            "simpleText": "138M views"
+           },
+           "thumbnailOverlays": [
+            {
+             "thumbnailOverlayResumePlaybackRenderer": {
+              "percentDurationWatched": 0,
+              "videoPlaybackPositionToggleEntityKey": "EgtsVFJpdUZJV1Y1NCDpAigB"
+             }
+            },
+            {
+             "thumbnailOverlayTimeStatusRenderer": {
+              "text": {
+               "simpleText": "1:01:14"
+              },
+              "style": "DEFAULT",
+              "icon": {
+               "iconType": "MUSIC"
+              }
+             }
+            },
+            {
+             "thumbnailOverlayToggleButtonRenderer": {
+              "isToggled": false,
+              "untoggledIcon": {
+               "iconType": "WATCH_LATER"
+              },
+              "toggledIcon": {
+               "iconType": "CHECK"
+              },
+              "untoggledTooltip": "Watch later",
+              "toggledTooltip": "Added",
+              "untoggledServiceEndpoint": {
+               "commandMetadata": {
+                "webCommandMetadata": {
+                 "sendPost": true,
+                 "apiUrl": "/youtubei/v1/browse/edit_playlist"
+                }
+               },
+               "playlistEditEndpoint": {
+                "playlistId": "WL"
+               }
+              },
+              "toggledServiceEndpoint": {
+               "commandMetadata": {
+                "webCommandMetadata": {
+                 "sendPost": true,
+                 "apiUrl": "/youtubei/v1/browse/edit_playlist"
+                }
+               },
+               "playlistEditEndpoint": {
+                "playlistId": "WL"
+               }
+              },
+              "untoggledAccessibility": {},
+              "toggledAccessibility": {}
+             }
+            },
+            {
+             "thumbnailOverlayToggleButtonRenderer": {
+              "untoggledIcon": {
+               "iconType": "ADD_TO_QUEUE_TAIL"
+              },
+              "toggledIcon": {
+               "iconType": "PLAYLIST_ADD_CHECK"
+              },
+              "untoggledTooltip": "Add to queue",
+              "toggledTooltip": "Added",
+              "untoggledServiceEndpoint": {
+               "commandMetadata": {
+                "webCommandMetadata": {
+                 "sendPost": true
+                }
+               },
+               "signalServiceEndpoint": {
+                "signal": "CLIENT_SIGNAL"
+               }
+              },
+              "untoggledAccessibility": {},
+              "toggledAccessibility": {}
+             }
+            },
+            {
+             "thumbnailOverlayNowPlayingRenderer": {
+              "text": {
+               "runs": [
+                {
+                 "text": "Now playing"
+                }
+               ]
+              }
+             }
+            },
+            {
+             "thumbnailOverlayLoadingPreviewRenderer": {
+              "text": {
+               "runs": [
+                {
+                 "text": "Keep hovering to play"
+                }
+               ]
+              }
+             }
+            }
+           ],
+           "detailedMetadataSnippets": [
+            {
+             "snippetText": {
+              "runs": [
+               {
+                "text": "Listen on Spotify, Apple music and more → https://fanlink.tv/"
+               },
+               {
+                "text": "lofigirl",
+                "bold": true
+               },
+               {
+                "text": "-music | Create your lofi avatar now ..."
+               }
+              ]
+             },
+             "snippetHoverText": {
+              "runs": [
+               {
+                "text": "From the video description"
+               }
+              ]
+             },
+             "maxOneLine": true
+            }
+           ]
+          }
+         }
+        ]
+       }
+      },
+      {
+       "continuationItemRenderer": {
+        "trigger": "CONTINUATION_TRIGGER_ON_ITEM_SHOWN",
+        "continuationEndpoint": {
+         "commandMetadata": {
+          "webCommandMetadata": {
+           "sendPost": true,
+           "apiUrl": "/youtubei/v1/search"
+          }
+         },
+         "continuationCommand": {
+          "token": "TOKEN-1",
+          "request": "CONTINUATION_REQUEST_TYPE_SEARCH"
+         }
+        }
+       }
+      }
+     ]
+    }
+   }
+  }
+ }
+}

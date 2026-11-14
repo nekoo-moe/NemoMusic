@@ -1,0 +1,641 @@
+{
+ "header": {
+  "pageHeaderRenderer": {
+   "pageTitle": "Lofi Girl",
+   "content": {
+    "pageHeaderViewModel": {
+     "title": {
+      "dynamicTextViewModel": {
+       "text": {
+        "content": "Lofi Girl",
+        "styleRuns": [
+         {
+          "startIndex": 9,
+          "styleRunExtensions": {
+           "styleRunColorMapExtension": {
+            "colorMap": [
+             {
+              "key": "USER_INTERFACE_THEME_DARK",
+              "value": 4294967295
+             },
+             {
+              "key": "USER_INTERFACE_THEME_LIGHT",
+              "value": 4279440147
+             }
+            ]
+           }
+          }
+         }
+        ],
+        "attachmentRuns": [
+         {
+          "startIndex": 9,
+          "length": 0,
+          "element": {
+           "type": {
+            "imageType": {
+             "image": {
+              "sources": [
+               {
+                "clientResource": {
+                 "imageName": "AUDIO_BADGE"
+                },
+                "width": 24,
+                "height": 24
+               }
+              ]
+             }
+            }
+           },
+           "properties": {
+            "layoutProperties": {
+             "height": {
+              "value": 24,
+              "unit": "DIMENSION_UNIT_POINT"
+             },
+             "width": {
+              "value": 24,
+              "unit": "DIMENSION_UNIT_POINT"
+             },
+             "margin": {
+              "left": {
+               "value": 8,
+               "unit": "DIMENSION_UNIT_POINT"
+              }
+             }
+            }
+           }
+          },
+          "alignment": "ALIGNMENT_VERTICAL_CENTER"
+         }
+        ]
+       },
+       "maxLines": 2
+      }
+     },
+     "image": {
+      "decoratedAvatarViewModel": {
+       "liveData": {
+        "liveBadgeText": "LIVE"
+       }
+      }
+     },
+     "metadata": {
+      "contentMetadataViewModel": {
+       "metadataRows": [
+        {
+         "metadataParts": [
+          {
+           "text": {
+            "content": "@LofiGirl",
+            "styleRuns": [
+             {
+              "weightLabel": "FONT_WEIGHT_MEDIUM",
+              "styleRunExtensions": {
+               "styleRunColorMapExtension": {
+                "colorMap": [
+                 {
+                  "key": "USER_INTERFACE_THEME_LIGHT",
+                  "value": 4279440147
+                 },
+                 {
+                  "key": "USER_INTERFACE_THEME_DARK",
+                  "value": 4294967295
+                 }
+                ]
+               }
+              }
+             }
+            ]
+           },
+           "enableTruncation": true
+          }
+         ]
+        },
+        {
+         "metadataParts": [
+          {
+           "text": {
+            "content": "15.8M subscribers"
+           },
+           "accessibilityLabel": "15.8 million subscribers"
+          },
+          {
+           "text": {
+            "content": "484 videos",
+            "styleRuns": [
+             {
+              "startIndex": 0,
+              "length": 10
+             }
+            ]
+           }
+          }
+         ]
+        }
+       ],
+       "delimiter": "•"
+      }
+     },
+     "description": {
+      "descriptionPreviewViewModel": {
+       "description": {
+        "content": "Lofi House is now available! 🌇 "
+       },
+       "maxLines": 2,
+       "truncationText": {
+        "content": "...more",
+        "styleRuns": [
+         {
+          "startIndex": 0,
+          "length": 7,
+          "weight": 500
+         }
+        ]
+       },
+       "alwaysShowTruncationText": true
+      }
+     }
+    }
+   }
+  }
+ },
+ "metadata": {
+  "channelMetadataRenderer": {
+   "title": "Lofi Girl",
+   "description": "Lofi House is now available! 🌇\n",
+   "rssUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=UCSJ4gkVC6NrvII8umztf0Ow",
+   "channelConversionUrl": "https://www.youtube.com/pagead/viewthroughconversion/962985656/?backend=innertube&cname=1&cver=2_20261112_10_00&data=backend%3Dinnertube%3Bcname%3D1%3Bcver%3D2_20261112_10_00%3Bptype%3Dcview%3Btype%3Dcview%3Butuid%3DSJ4gkVC6NrvII8umztf0Ow&foc_id=SJ4gkVC6NrvII8umztf0Ow&label=followon_cvisit&ptype=cview&utuid=SJ4gkVC6NrvII8umztf0Ow",
+   "externalId": "UCSJ4gkVC6NrvII8umztf0Ow",
+   "keywords": "\"lofi girl\" lofigirl chilledcow \"chilled cow\" lofi lo-fi \"lo fi\" \"lofi hip hop\" \"lo-fi hip hop\" \"lofi beats\" \"lofi radio\" \"lofi playlist\" chillhop \"chill beats\" \"study music\" \"focus music\" \"music to study to\" \"relaxing music\" \"sleep music\" \"lofi sleep\" \"sleep radio\" \"music to sleep to\" \"background music\" \"instrumental beats\" \"calm music\" \"cozy music\" \"anime music\" \"ambient lofi\" \"relaxing beats\" \"study beats\" \"sleepy beats\" \"night music\" \"calm lofi\" \"cozy lofi\" \"homework music\" \"dream music\"",
+   "ownerUrls": [
+    "http://www.youtube.com/@LofiGirl"
+   ],
+   "channelUrl": "https://www.youtube.com/channel/UCSJ4gkVC6NrvII8umztf0Ow",
+   "isFamilySafe": true,
+   "availableCountryCodes": [
+    "ET",
+    "FO",
+    "CV",
+    "VA",
+    "GT",
+    "IQ",
+    "PY",
+    "MN",
+    "NA",
+    "CX",
+    "ZW",
+    "SX",
+    "ZM",
+    "MS",
+    "BZ",
+    "ME",
+    "HT",
+    "DM",
+    "FJ",
+    "ML",
+    "GF",
+    "TN",
+    "TV",
+    "NP",
+    "BO",
+    "FM",
+    "PE",
+    "TL",
+    "BT",
+    "CY",
+    "UZ",
+    "KM",
+    "DK",
+    "JP",
+    "PN",
+    "TC",
+    "LK",
+    "MR",
+    "AW",
+    "DE",
+    "BS",
+    "BJ",
+    "NE",
+    "VC",
+    "GE",
+    "AQ",
+    "GS",
+    "GW",
+    "MA",
+    "GY",
+    "HN",
+    "PK",
+    "ER",
+    "JM",
+    "MO",
+    "SM",
+    "KE",
+    "IN",
+    "LB",
+    "PT",
+    "UM",
+    "RO",
+    "PL",
+    "SZ",
+    "ST",
+    "BF",
+    "SV",
+    "ES",
+    "SJ",
+    "MY",
+    "TO",
+    "VN",
+    "KG",
+    "BB",
+    "BH",
+    "AT",
+    "KY",
+    "SR",
+    "BM",
+    "LV",
+    "NR",
+    "VI",
+    "IS",
+    "BL",
+    "CW",
+    "TM",
+    "GI",
+    "TH",
+    "AX",
+    "NL",
+    "ZA",
+    "SE",
+    "SD",
+    "BG",
+    "MP",
+    "BI",
+    "GA",
+    "TW",
+    "PG",
+    "DZ",
+    "UG",
+    "NO",
+    "HK",
+    "HU",
+    "VU",
+    "PH",
+    "BR",
+    "GR",
+    "MV",
+    "PA",
+    "MK",
+    "MC",
+    "SO",
+    "RW",
+    "IM",
+    "RU",
+    "SI",
+    "KZ",
+    "JE",
+    "CF",
+    "CD",
+    "MM",
+    "AO",
+    "CO",
+    "LC",
+    "GM",
+    "BE",
+    "SB",
+    "CA",
+    "GN",
+    "SL",
+    "KI",
+    "SY",
+    "CU",
+    "WF",
+    "AU",
+    "GL",
+    "HM",
+    "IE",
+    "AD",
+    "MT",
+    "AM",
+    "SC",
+    "CR",
+    "LR",
+    "LT",
+    "SA",
+    "AZ",
+    "WS",
+    "DO",
+    "LA",
+    "MX",
+    "BQ",
+    "GB",
+    "KW",
+    "AG",
+    "VG",
+    "AS",
+    "BA",
+    "IR",
+    "TZ",
+    "YE",
+    "NC",
+    "NI",
+    "TF",
+    "YT",
+    "TK",
+    "CG",
+    "KR",
+    "IT",
+    "LI",
+    "DJ",
+    "MG",
+    "AI",
+    "KP",
+    "CN",
+    "MW",
+    "CL",
+    "EC",
+    "CH",
+    "RE",
+    "PM",
+    "PW",
+    "CK",
+    "BN",
+    "IO",
+    "AF",
+    "CI",
+    "GH",
+    "GQ",
+    "KH",
+    "TJ",
+    "UA",
+    "BD",
+    "US",
+    "AL",
+    "GU",
+    "RS",
+    "CM",
+    "GD",
+    "SG",
+    "GG",
+    "KN",
+    "AE",
+    "FI",
+    "LS",
+    "EH",
+    "SN",
+    "MF",
+    "FK",
+    "HR",
+    "MZ",
+    "SK",
+    "SS",
+    "TG",
+    "SH",
+    "EE",
+    "FR",
+    "IL",
+    "MH",
+    "LY",
+    "TD",
+    "NG",
+    "OM",
+    "PR",
+    "JO",
+    "BW",
+    "TR",
+    "CC",
+    "NF",
+    "NU",
+    "UY",
+    "CZ",
+    "VE",
+    "MD",
+    "MU",
+    "MQ",
+    "BY",
+    "PS",
+    "QA",
+    "EG",
+    "NZ",
+    "GP",
+    "TT",
+    "ID",
+    "LU",
+    "AR",
+    "BV",
+    "PF"
+   ],
+   "androidDeepLink": "android-app://com.google.android.youtube/http/www.youtube.com/channel/UCSJ4gkVC6NrvII8umztf0Ow",
+   "androidAppindexingLink": "android-app://com.google.android.youtube/http/www.youtube.com/channel/UCSJ4gkVC6NrvII8umztf0Ow",
+   "iosAppindexingLink": "ios-app://544007664/vnd.youtube/www.youtube.com/channel/UCSJ4gkVC6NrvII8umztf0Ow",
+   "vanityChannelUrl": "http://www.youtube.com/@LofiGirl"
+  }
+ },
+ "contents": {
+  "twoColumnBrowseResultsRenderer": {
+   "tabs": [
+    {
+     "tabRenderer": {
+      "endpoint": {
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@LofiGirl/featured",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       },
+       "browseEndpoint": {
+        "browseId": "UCSJ4gkVC6NrvII8umztf0Ow",
+        "params": "EghmZWF0dXJlZPIGBAoCMgA%3D",
+        "canonicalBaseUrl": "/@LofiGirl"
+       }
+      },
+      "title": "Home",
+      "selected": true
+     }
+    },
+    {
+     "tabRenderer": {
+      "endpoint": {
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@LofiGirl/videos",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       },
+       "browseEndpoint": {
+        "browseId": "UCSJ4gkVC6NrvII8umztf0Ow",
+        "params": "EgZ2aWRlb3PyBgQKAjoA",
+        "canonicalBaseUrl": "/@LofiGirl"
+       }
+      },
+      "title": "Videos"
+     }
+    },
+    {
+     "tabRenderer": {
+      "endpoint": {
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@LofiGirl/shorts",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       },
+       "browseEndpoint": {
+        "browseId": "UCSJ4gkVC6NrvII8umztf0Ow",
+        "params": "EgZzaG9ydHPyBgUKA5oBAA%3D%3D",
+        "canonicalBaseUrl": "/@LofiGirl"
+       }
+      },
+      "title": "Shorts"
+     }
+    },
+    {
+     "tabRenderer": {
+      "endpoint": {
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@LofiGirl/streams",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       },
+       "browseEndpoint": {
+        "browseId": "UCSJ4gkVC6NrvII8umztf0Ow",
+        "params": "EgdzdHJlYW1z8gYECgJ6AA%3D%3D",
+        "canonicalBaseUrl": "/@LofiGirl"
+       }
+      },
+      "title": "Live"
+     }
+    },
+    {
+     "tabRenderer": {
+      "endpoint": {
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@LofiGirl/releases",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       },
+       "browseEndpoint": {
+        "browseId": "UCSJ4gkVC6NrvII8umztf0Ow",
+        "params": "EghyZWxlYXNlc_IGBQoDsgEA",
+        "canonicalBaseUrl": "/@LofiGirl"
+       }
+      },
+      "title": "Releases"
+     }
+    },
+    {
+     "tabRenderer": {
+      "endpoint": {
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@LofiGirl/podcasts",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       },
+       "browseEndpoint": {
+        "browseId": "UCSJ4gkVC6NrvII8umztf0Ow",
+        "params": "Eghwb2RjYXN0c_IGBQoDugEA",
+        "canonicalBaseUrl": "/@LofiGirl"
+       }
+      },
+      "title": "Podcasts"
+     }
+    },
+    {
+     "tabRenderer": {
+      "endpoint": {
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@LofiGirl/playlists",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       },
+       "browseEndpoint": {
+        "browseId": "UCSJ4gkVC6NrvII8umztf0Ow",
+        "params": "EglwbGF5bGlzdHPyBgoKCEIGCgIQaCIA",
+        "canonicalBaseUrl": "/@LofiGirl"
+       }
+      },
+      "title": "Playlists"
+     }
+    },
+    {
+     "tabRenderer": {
+      "endpoint": {
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@LofiGirl/posts",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       },
+       "browseEndpoint": {
+        "browseId": "UCSJ4gkVC6NrvII8umztf0Ow",
+        "params": "EgVwb3N0c_IGBAoCSgA%3D",
+        "canonicalBaseUrl": "/@LofiGirl"
+       }
+      },
+      "title": "Posts"
+     }
+    },
+    {
+     "tabRenderer": {
+      "endpoint": {
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@LofiGirl/store",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       },
+       "browseEndpoint": {
+        "browseId": "UCSJ4gkVC6NrvII8umztf0Ow",
+        "params": "EgVzdG9yZfIGBAoCGgA%3D",
+        "canonicalBaseUrl": "/@LofiGirl"
+       }
+      },
+      "title": "Store"
+     }
+    },
+    {
+     "expandableTabRenderer": {
+      "endpoint": {
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@LofiGirl/search",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       },
+       "browseEndpoint": {
+        "browseId": "UCSJ4gkVC6NrvII8umztf0Ow",
+        "params": "EgZzZWFyY2jyBgQKAloA",
+        "canonicalBaseUrl": "/@LofiGirl"
+       }
+      },
+      "title": "Search",
+      "selected": false
+     }
+    }
+   ]
+  }
+ }
+}

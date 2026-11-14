@@ -56,7 +56,7 @@ Cross-spec ids written `<spec>#?` name the task in that spec that adds the ADR 0
   - Checks: pass = non-empty json3 for at least one track of two songs. Fail: tasks 9 and 10 still ship, return `Empty` as "no captions", and the owner is told captions rarely work; the music-video id fallback in task 10 is dropped if the audio id always carries them; `pick_track` (task 8) follows the observed naming.
   - Steering: none
 
-- [ ] 7. Spike: live streams and the innertube calls
+- [x] 7. Spike: live streams and the innertube calls
   - Crate and files: none shipped; stripped fixtures in `crates/nemo-ytm/tests/fixtures/web/` (search, browse, next in both comment layouts, comments off) and a 2-second live sample; result written into the design's Risks section.
   - Does: resolve one live stream with the pinned `yt-dlp` (audio-only HLS or muxed only; MPEG-TS or fMP4), and capture `search`, `browse` and `next` answers from `www.youtube.com/youtubei/v1/`.
   - _Requirements: 6, 7_
@@ -99,6 +99,7 @@ Cross-spec ids written `<spec>#?` name the task in that spec that adds the ADR 0
   - Depends on: youtube-extras#3, youtube-extras#7, soundcloud#9 (row 11: `UrlResolver` in nemo-ytm), soundcloud#12 (row 12: `HlsSource` live window), local-library#? (row 14: AAC and Opus decoders and `supported_stream_codecs()`)
   - Wave: 1
   - Checks: TS parser test on the captured 2-second sample; bit-exact test; counting-allocator test with a live source that underruns.
+  - Spike result (task 7): live audio is audio-only HLS of packed audio (ID3 + ADTS AAC), which `symphonia` already decodes: no `ts.rs`. Pick the audio-only format by `vcodec` "none" (`acodec`, `abr` and `tbr` are empty) and prefer format id `234` (AAC-LC 44.1 kHz) over `233` (HE-AAC, decoded at 22.05 kHz without SBR); ignore the ad cue tags. The decode test uses `tests/fixtures/live/` instead of a TS parser test.
   - Steering: none
 
 - [ ] 12. Search all of YouTube
@@ -108,6 +109,7 @@ Cross-spec ids written `<spec>#?` name the task in that spec that adds the ADR 0
   - Depends on: youtube-extras#1, youtube-extras#7
   - Wave: 2
   - Checks: parser tests on the stripped fixtures (video, channel, live badge, mixed); a counting fake proves the two requests are sequential.
+  - Spike result (task 7): no `channelRenderer` was served; channels came as `officialCardViewModel` and playlists as `lockupViewModel` (`LOCKUP_CONTENT_TYPE_PLAYLIST`), so parse those instead of `channelRenderer` and `playlistRenderer`. Live badge: `BADGE_STYLE_TYPE_LIVE_NOW`. Fixture: `tests/fixtures/web/search.json`.
   - Steering: none
 
 - [ ] 13. Open channel pages
@@ -117,6 +119,7 @@ Cross-spec ids written `<spec>#?` name the task in that spec that adds the ADR 0
   - Depends on: youtube-extras#12
   - Wave: 2
   - Checks: parser test on the channel fixture.
+  - Spike result (task 7): uploads are `richGridRenderer` -> `richItemRenderer` -> `lockupViewModel`; tab `params` are present for every tab. Fixtures: `tests/fixtures/web/browse-*.json`.
   - Steering: none
 
 - [ ] 14. List live stations and streams
@@ -135,6 +138,7 @@ Cross-spec ids written `<spec>#?` name the task in that spec that adds the ADR 0
   - Depends on: youtube-extras#2, youtube-extras#7
   - Wave: 2
   - Checks: parser tests in both layouts, replies, comments off; a counting fake proves nothing loads before the panel asks and page two only on "Load more".
+  - Spike result (task 7): only the `commentViewModel` layout was served (also to an old `clientVersion`), so the `commentRenderer` parser has no captured fixture; comment data comes from `frameworkUpdates` mutations joined on the entity keys. Fixtures: `tests/fixtures/web/next-comments-*.json`.
   - Steering: none
 
 - [ ] 16. Add the Return YouTube Dislike client

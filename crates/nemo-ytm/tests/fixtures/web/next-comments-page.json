@@ -1,0 +1,765 @@
+{
+ "onResponseReceivedEndpoints": [
+  {
+   "reloadContinuationItemsCommand": {
+    "targetId": "comments-section",
+    "continuationItems": [
+     {
+      "commentsHeaderRenderer": {
+       "countText": {
+        "runs": [
+         {
+          "text": "2,462,303"
+         },
+         {
+          "text": " Comments"
+         }
+        ]
+       },
+       "createRenderer": {
+        "commentSimpleboxRenderer": {
+         "authorThumbnail": {
+          "thumbnails": [
+           {
+            "url": "https://yt3.ggpht.com/a/default-user=s48-c-k-c0x00ffffff-no-rj",
+            "width": 48,
+            "height": 48
+           }
+          ]
+         },
+         "placeholderText": {
+          "runs": [
+           {
+            "text": "Add a comment..."
+           }
+          ]
+         },
+         "prepareAccountEndpoint": {
+          "commandMetadata": {
+           "webCommandMetadata": {
+            "ignoreNavigation": true
+           }
+          },
+          "modalEndpoint": {
+           "modal": {
+            "modalWithTitleAndButtonRenderer": {
+             "title": {
+              "runs": [
+               {
+                "text": "Want to join the conversation?"
+               }
+              ]
+             },
+             "content": {
+              "runs": [
+               {
+                "text": "Sign in to continue"
+               }
+              ]
+             },
+             "button": {
+              "buttonRenderer": {
+               "style": "STYLE_MONO_FILLED",
+               "size": "SIZE_DEFAULT",
+               "isDisabled": false,
+               "text": {
+                "simpleText": "Sign in"
+               },
+               "navigationEndpoint": {
+                "commandMetadata": {
+                 "webCommandMetadata": {
+                  "url": "https://accounts.google.com/ServiceLogin?service=youtube&uilel=3&passive=true&continue=https%3A%2F%2Fwww.youtube.com%2Fsignin%3Faction_handle_signin%3Dtrue%26app%3Ddesktop%26hl%3Den%26next%3Dhttps%253A%252F%252Fwww.youtube.com%252Fyoutubei%252Fv1%252Fnext%253FprettyPrint%253Dfalse&hl=en",
+                  "webPageType": "WEB_PAGE_TYPE_UNKNOWN",
+                  "rootVe": 83769
+                 }
+                },
+                "signInEndpoint": {
+                 "hack": true
+                }
+               }
+              }
+             }
+            }
+           }
+          }
+         },
+         "avatarSize": "SIMPLEBOX_AVATAR_SIZE_TYPE_DEFAULT",
+         "emojiButton": {
+          "buttonRenderer": {
+           "size": "SIZE_SMALL",
+           "icon": {
+            "iconType": "EMOJI"
+           }
+          }
+         },
+         "disabledText": "Comments are turned off.",
+         "disabledTextUrl": "https://support.google.com/youtube/answer/9706180"
+        }
+       },
+       "sortMenu": {
+        "sortFilterSubMenuRenderer": {
+         "subMenuItems": [
+          {
+           "title": "Top",
+           "selected": true,
+           "serviceEndpoint": {
+            "commandMetadata": {
+             "webCommandMetadata": {
+              "sendPost": true,
+              "apiUrl": "/youtubei/v1/next"
+             }
+            },
+            "continuationCommand": {
+             "token": "TOKEN-3",
+             "request": "CONTINUATION_REQUEST_TYPE_WATCH_NEXT",
+             "command": {
+              "showReloadUiCommand": {
+               "targetId": "comments-section"
+              }
+             }
+            }
+           },
+           "subtitle": "Show featured comments"
+          },
+          {
+           "title": "Newest",
+           "selected": false,
+           "serviceEndpoint": {
+            "commandMetadata": {
+             "webCommandMetadata": {
+              "sendPost": true,
+              "apiUrl": "/youtubei/v1/next"
+             }
+            },
+            "continuationCommand": {
+             "token": "TOKEN-4",
+             "request": "CONTINUATION_REQUEST_TYPE_WATCH_NEXT",
+             "command": {
+              "showReloadUiCommand": {
+               "targetId": "comments-section"
+              }
+             }
+            }
+           },
+           "subtitle": "Show recent comments, including potential spam"
+          }
+         ],
+         "title": "Sort by",
+         "icon": {
+          "iconType": "SORT"
+         },
+         "tooltip": "Sort comments"
+        }
+       },
+       "titleText": {
+        "runs": [
+         {
+          "text": "Comments"
+         }
+        ]
+       },
+       "commentsCount": {
+        "runs": [
+         {
+          "text": "2.4M"
+         }
+        ]
+       },
+       "showSeparator": true,
+       "unicodeEmojisUrl": "https://www.gstatic.com/youtube/img/emojis/emojis-png-7.json"
+      }
+     }
+    ],
+    "slot": "RELOAD_CONTINUATION_SLOT_HEADER"
+   }
+  },
+  {
+   "reloadContinuationItemsCommand": {
+    "targetId": "comments-section",
+    "slot": "RELOAD_CONTINUATION_SLOT_BODY",
+    "continuationItems": [
+     {
+      "commentThreadRenderer": {
+       "replies": {
+        "commentRepliesRenderer": {
+         "contents": [
+          {
+           "continuationItemRenderer": {
+            "trigger": "CONTINUATION_TRIGGER_ON_ITEM_SHOWN",
+            "continuationEndpoint": {
+             "commandMetadata": {
+              "webCommandMetadata": {
+               "sendPost": true,
+               "apiUrl": "/youtubei/v1/next"
+              }
+             },
+             "continuationCommand": {
+              "token": "TOKEN-5",
+              "request": "CONTINUATION_REQUEST_TYPE_WATCH_NEXT"
+             }
+            }
+           }
+          }
+         ],
+         "viewReplies": {
+          "buttonRenderer": {
+           "text": {
+            "runs": [
+             {
+              "text": "692 replies"
+             }
+            ]
+           },
+           "icon": {
+            "iconType": "EXPAND"
+           },
+           "iconPosition": "BUTTON_ICON_POSITION_TYPE_LEFT_OF_TEXT"
+          }
+         },
+         "hideReplies": {
+          "buttonRenderer": {
+           "text": {
+            "runs": [
+             {
+              "text": "692 replies"
+             }
+            ]
+           },
+           "icon": {
+            "iconType": "COLLAPSE"
+           },
+           "iconPosition": "BUTTON_ICON_POSITION_TYPE_LEFT_OF_TEXT"
+          }
+         },
+         "targetId": "comment-replies-item-Ugw-fixture-comment-1"
+        }
+       },
+       "renderingPriority": "RENDERING_PRIORITY_UNKNOWN",
+       "isModeratedElqComment": false,
+       "commentViewModel": {
+        "commentViewModel": {
+         "commentKey": "fixture-key-7",
+         "sharedKey": "fixture-key-1",
+         "toolbarStateKey": "fixture-key-8",
+         "toolbarSurfaceKey": "fixture-key-2",
+         "commentId": "Ugw-fixture-comment-1",
+         "commentSurfaceKey": "fixture-key-3",
+         "sharedSurfaceKey": "fixture-key-6",
+         "inlineRepliesKey": "fixture-key-13"
+        }
+       }
+      }
+     },
+     {
+      "commentThreadRenderer": {
+       "replies": {
+        "commentRepliesRenderer": {
+         "contents": [
+          {
+           "continuationItemRenderer": {
+            "trigger": "CONTINUATION_TRIGGER_ON_ITEM_SHOWN",
+            "continuationEndpoint": {
+             "commandMetadata": {
+              "webCommandMetadata": {
+               "sendPost": true,
+               "apiUrl": "/youtubei/v1/next"
+              }
+             },
+             "continuationCommand": {
+              "token": "TOKEN-6",
+              "request": "CONTINUATION_REQUEST_TYPE_WATCH_NEXT"
+             }
+            }
+           }
+          }
+         ],
+         "viewReplies": {
+          "buttonRenderer": {
+           "text": {
+            "runs": [
+             {
+              "text": "738 replies"
+             }
+            ]
+           },
+           "icon": {
+            "iconType": "EXPAND"
+           },
+           "iconPosition": "BUTTON_ICON_POSITION_TYPE_LEFT_OF_TEXT"
+          }
+         },
+         "hideReplies": {
+          "buttonRenderer": {
+           "text": {
+            "runs": [
+             {
+              "text": "738 replies"
+             }
+            ]
+           },
+           "icon": {
+            "iconType": "COLLAPSE"
+           },
+           "iconPosition": "BUTTON_ICON_POSITION_TYPE_LEFT_OF_TEXT"
+          }
+         },
+         "targetId": "comment-replies-item-Ugw-fixture-comment-2"
+        }
+       },
+       "renderingPriority": "RENDERING_PRIORITY_UNKNOWN",
+       "isModeratedElqComment": false,
+       "commentViewModel": {
+        "commentViewModel": {
+         "commentKey": "fixture-key-10",
+         "sharedKey": "fixture-key-1",
+         "toolbarStateKey": "fixture-key-11",
+         "toolbarSurfaceKey": "fixture-key-4",
+         "commentId": "Ugw-fixture-comment-2",
+         "commentSurfaceKey": "fixture-key-5",
+         "sharedSurfaceKey": "fixture-key-6",
+         "inlineRepliesKey": "fixture-key-13"
+        }
+       }
+      }
+     },
+     {
+      "continuationItemRenderer": {
+       "trigger": "CONTINUATION_TRIGGER_ON_ITEM_SHOWN",
+       "continuationEndpoint": {
+        "commandMetadata": {
+         "webCommandMetadata": {
+          "sendPost": true,
+          "apiUrl": "/youtubei/v1/next"
+         }
+        },
+        "continuationCommand": {
+         "token": "TOKEN-7",
+         "request": "CONTINUATION_REQUEST_TYPE_WATCH_NEXT"
+        }
+       }
+      }
+     }
+    ]
+   }
+  }
+ ],
+ "frameworkUpdates": {
+  "entityBatchUpdate": {
+   "mutations": [
+    {
+     "entityKey": "fixture-key-1",
+     "type": "ENTITY_MUTATION_TYPE_REPLACE",
+     "payload": {
+      "commentSharedEntityPayload": {
+       "key": "fixture-key-1",
+       "strings": {
+        "viewAllRepliesButtonA11y": "View all replies",
+        "expandText": "Read more",
+        "translatingText": "Translating...",
+        "seeOriginalText": "See original (Translated by Google)",
+        "discardDialogTitle": "Discard comment?",
+        "discardDialogAction": "Discard",
+        "discardDialogCancel": "Keep writing",
+        "shortReplyThumbnailA11y": "See Short reply",
+        "collapseText": "Show less",
+        "replyButtonText": "Reply",
+        "smartRepliesAiDisclaimer": "Replies made with AI"
+       },
+       "toolbarShared": {
+        "unlikeButtonA11y": "Unlike",
+        "undislikeButtonA11y": "Remove dislike",
+        "heartButtonA11y": "Heart",
+        "unheartButtonA11y": "Remove heart",
+        "heartedTooltipA11y": "❤ by @RickAstleyYT",
+        "replyButtonA11y": "Reply",
+        "menuButtonA11y": "Action menu",
+        "approveButtonA11y": "Approve",
+        "removeButtonA11y": "Remove",
+        "blockButtonA11y": "Hide user from channel",
+        "spamButtonA11y": "Report spam or abuse",
+        "dislikeCommentButtonA11y": "Dislike this comment",
+        "dislikeReplyButtonA11y": "Dislike this reply",
+        "cancelButtonLabel": "Cancel"
+       },
+       "capabilities": {
+        "supportsIndicatorTouchExpansion": false,
+        "supportsIndicatorPadding": false,
+        "supportsTooltipCommand": false,
+        "supportsSubstitute": false,
+        "supportsUpdate": false,
+        "supportsLogGestureCommand": false,
+        "supportsClickableSpanIncrease": false
+       },
+       "commentEnvironment": {
+        "platformName": "PLATFORM_NAME_IOS"
+       },
+       "clientName": "WEB"
+      }
+     }
+    },
+    {
+     "entityKey": "fixture-key-7",
+     "type": "ENTITY_MUTATION_TYPE_REPLACE",
+     "payload": {
+      "commentEntityPayload": {
+       "key": "fixture-key-7",
+       "properties": {
+        "commentId": "Ugw-fixture-comment-1",
+        "content": {
+         "content": "Invented comment: this song still sounds new."
+        },
+        "publishedTime": "7 years ago",
+        "replyLevel": 0,
+        "authorButtonA11y": "@quiet-listener",
+        "toolbarStateKey": "fixture-key-8",
+        "translateButtonEntityKey": "fixture-key-9"
+       },
+       "author": {
+        "channelId": "UCfixturechannel000002",
+        "displayName": "@quiet-listener",
+        "isVerified": false,
+        "isCurrentUser": false,
+        "isCreator": false,
+        "channelCommand": {
+         "innertubeCommand": {
+          "commandMetadata": {
+           "webCommandMetadata": {
+            "url": "/@fixture",
+            "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+            "rootVe": 3611,
+            "apiUrl": "/youtubei/v1/browse"
+           }
+          },
+          "browseEndpoint": {
+           "browseId": "UCfixturechannel000002",
+           "canonicalBaseUrl": "/@fixture"
+          }
+         }
+        },
+        "isArtist": false
+       },
+       "toolbar": {
+        "likeCountLiked": "72K",
+        "likeCountNotliked": "72K",
+        "replyCount": "692",
+        "likeButtonA11y": "Like this comment along with 72K other people",
+        "engagementToolbarStyle": {
+         "value": "ENGAGEMENT_TOOLBAR_STYLE_VALUE_DEFAULT"
+        },
+        "likeCountA11y": "72K likes",
+        "replyCountA11y": "692 replies",
+        "likeInactiveTooltip": "Like",
+        "likeActiveTooltip": "Unlike",
+        "dislikeInactiveTooltip": "Dislike",
+        "dislikeActiveTooltip": "Remove dislike",
+        "heartActiveTooltip": "❤ by @RickAstleyYT"
+       }
+      }
+     }
+    },
+    {
+     "entityKey": "fixture-key-3",
+     "type": "ENTITY_MUTATION_TYPE_REPLACE",
+     "payload": {
+      "commentSurfaceEntityPayload": {
+       "key": "fixture-key-3",
+       "commentClickOpensComposer": true,
+       "composerDraftEntityKey": "N/A",
+       "publishedTimeCommand": {
+        "innertubeCommand": {
+         "commandMetadata": {
+          "webCommandMetadata": {
+           "url": "/watch?v=dQw4w9WgXcQ&lc=Ugw-fixture-comment-1",
+           "webPageType": "WEB_PAGE_TYPE_WATCH",
+           "rootVe": 3832
+          }
+         },
+         "watchEndpoint": {
+          "videoId": "dQw4w9WgXcQ",
+          "params": "ehpVZ3dQd1RpYnhkZ3FDSFp4a3RkNEFhQUJBZ6ICA8ABAA%3D%3D"
+         }
+        }
+       },
+       "relativeNestingLevel": 0
+      }
+     }
+    },
+    {
+     "entityKey": "fixture-key-9",
+     "type": "ENTITY_MUTATION_TYPE_REPLACE",
+     "payload": {
+      "triStateButtonStateEntityPayload": {
+       "key": "fixture-key-9",
+       "stateIdentifier": "TRI_STATE_IDENTIFIER_UNTOGGLED_STATE"
+      }
+     }
+    },
+    {
+     "entityKey": "fixture-key-2",
+     "type": "ENTITY_MUTATION_TYPE_REPLACE",
+     "payload": {
+      "engagementToolbarSurfaceEntityPayload": {
+       "key": "fixture-key-2",
+       "likeCommand": {
+        "innertubeCommand": {}
+       },
+       "unlikeCommand": {
+        "innertubeCommand": {}
+       },
+       "dislikeCommand": {
+        "innertubeCommand": {}
+       },
+       "undislikeCommand": {
+        "innertubeCommand": {}
+       },
+       "replyCommand": {
+        "innertubeCommand": {
+         "commandMetadata": {
+          "webCommandMetadata": {
+           "ignoreNavigation": true
+          }
+         },
+         "modalEndpoint": {
+          "modal": {
+           "modalWithTitleAndButtonRenderer": {
+            "title": {
+             "runs": [
+              {
+               "text": "Want to join the conversation?"
+              }
+             ]
+            },
+            "content": {
+             "runs": [
+              {
+               "text": "Sign in to continue"
+              }
+             ]
+            },
+            "button": {
+             "buttonRenderer": {
+              "style": "STYLE_MONO_FILLED",
+              "size": "SIZE_DEFAULT",
+              "isDisabled": false,
+              "text": {
+               "simpleText": "Sign in"
+              },
+              "navigationEndpoint": {
+               "commandMetadata": {
+                "webCommandMetadata": {
+                 "url": "https://accounts.google.com/ServiceLogin?service=youtube&uilel=3&passive=true&continue=https%3A%2F%2Fwww.youtube.com%2Fsignin%3Faction_handle_signin%3Dtrue%26app%3Ddesktop%26hl%3Den%26next%3Dhttps%253A%252F%252Fwww.youtube.com%252Fyoutubei%252Fv1%252Fnext%253FprettyPrint%253Dfalse&hl=en",
+                 "webPageType": "WEB_PAGE_TYPE_UNKNOWN",
+                 "rootVe": 83769
+                }
+               },
+               "signInEndpoint": {
+                "hack": true
+               }
+              }
+             }
+            }
+           }
+          }
+         }
+        }
+       },
+       "isEngagementToolbar": true
+      }
+     }
+    },
+    {
+     "entityKey": "fixture-key-8",
+     "type": "ENTITY_MUTATION_TYPE_REPLACE",
+     "payload": {
+      "engagementToolbarStateEntityPayload": {
+       "key": "fixture-key-8",
+       "likeState": "TOOLBAR_LIKE_STATE_INDIFFERENT",
+       "heartState": "TOOLBAR_HEART_STATE_UNHEARTED"
+      }
+     }
+    },
+    {
+     "entityKey": "fixture-key-10",
+     "type": "ENTITY_MUTATION_TYPE_REPLACE",
+     "payload": {
+      "commentEntityPayload": {
+       "key": "fixture-key-10",
+       "properties": {
+        "commentId": "Ugw-fixture-comment-2",
+        "content": {
+         "content": "Invented comment number two, with a second line.\nLine two."
+        },
+        "publishedTime": "6 years ago",
+        "replyLevel": 0,
+        "authorButtonA11y": "@night-owl",
+        "toolbarStateKey": "fixture-key-11",
+        "translateButtonEntityKey": "fixture-key-12"
+       },
+       "author": {
+        "channelId": "UCfixturechannel000001",
+        "displayName": "@night-owl",
+        "isVerified": false,
+        "isCurrentUser": false,
+        "isCreator": false,
+        "channelCommand": {
+         "innertubeCommand": {
+          "commandMetadata": {
+           "webCommandMetadata": {
+            "url": "/@fixture",
+            "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+            "rootVe": 3611,
+            "apiUrl": "/youtubei/v1/browse"
+           }
+          },
+          "browseEndpoint": {
+           "browseId": "UCfixturechannel000001",
+           "canonicalBaseUrl": "/@fixture"
+          }
+         }
+        },
+        "isArtist": false
+       },
+       "toolbar": {
+        "likeCountLiked": "570K",
+        "likeCountNotliked": "570K",
+        "replyCount": "738",
+        "likeButtonA11y": "Like this comment along with 570K other people",
+        "engagementToolbarStyle": {
+         "value": "ENGAGEMENT_TOOLBAR_STYLE_VALUE_DEFAULT"
+        },
+        "likeCountA11y": "570K likes",
+        "replyCountA11y": "738 replies",
+        "likeInactiveTooltip": "Like",
+        "likeActiveTooltip": "Unlike",
+        "dislikeInactiveTooltip": "Dislike",
+        "dislikeActiveTooltip": "Remove dislike",
+        "heartActiveTooltip": "❤ by @RickAstleyYT"
+       }
+      }
+     }
+    },
+    {
+     "entityKey": "fixture-key-5",
+     "type": "ENTITY_MUTATION_TYPE_REPLACE",
+     "payload": {
+      "commentSurfaceEntityPayload": {
+       "key": "fixture-key-5",
+       "commentClickOpensComposer": true,
+       "composerDraftEntityKey": "N/A",
+       "publishedTimeCommand": {
+        "innertubeCommand": {
+         "commandMetadata": {
+          "webCommandMetadata": {
+           "url": "/watch?v=dQw4w9WgXcQ&lc=Ugw-fixture-comment-2",
+           "webPageType": "WEB_PAGE_TYPE_WATCH",
+           "rootVe": 3832
+          }
+         },
+         "watchEndpoint": {
+          "videoId": "dQw4w9WgXcQ",
+          "params": "ehpVZ3lFblhmZEMtdW13dlR0OEpGNEFhQUJBZ6ICA8ABAA%3D%3D"
+         }
+        }
+       },
+       "relativeNestingLevel": 0
+      }
+     }
+    },
+    {
+     "entityKey": "fixture-key-12",
+     "type": "ENTITY_MUTATION_TYPE_REPLACE",
+     "payload": {
+      "triStateButtonStateEntityPayload": {
+       "key": "fixture-key-12",
+       "stateIdentifier": "TRI_STATE_IDENTIFIER_UNTOGGLED_STATE"
+      }
+     }
+    },
+    {
+     "entityKey": "fixture-key-4",
+     "type": "ENTITY_MUTATION_TYPE_REPLACE",
+     "payload": {
+      "engagementToolbarSurfaceEntityPayload": {
+       "key": "fixture-key-4",
+       "likeCommand": {
+        "innertubeCommand": {}
+       },
+       "unlikeCommand": {
+        "innertubeCommand": {}
+       },
+       "dislikeCommand": {
+        "innertubeCommand": {}
+       },
+       "undislikeCommand": {
+        "innertubeCommand": {}
+       },
+       "replyCommand": {
+        "innertubeCommand": {
+         "commandMetadata": {
+          "webCommandMetadata": {
+           "ignoreNavigation": true
+          }
+         },
+         "modalEndpoint": {
+          "modal": {
+           "modalWithTitleAndButtonRenderer": {
+            "title": {
+             "runs": [
+              {
+               "text": "Want to join the conversation?"
+              }
+             ]
+            },
+            "content": {
+             "runs": [
+              {
+               "text": "Sign in to continue"
+              }
+             ]
+            },
+            "button": {
+             "buttonRenderer": {
+              "style": "STYLE_MONO_FILLED",
+              "size": "SIZE_DEFAULT",
+              "isDisabled": false,
+              "text": {
+               "simpleText": "Sign in"
+              },
+              "navigationEndpoint": {
+               "commandMetadata": {
+                "webCommandMetadata": {
+                 "url": "https://accounts.google.com/ServiceLogin?service=youtube&uilel=3&passive=true&continue=https%3A%2F%2Fwww.youtube.com%2Fsignin%3Faction_handle_signin%3Dtrue%26app%3Ddesktop%26hl%3Den%26next%3Dhttps%253A%252F%252Fwww.youtube.com%252Fyoutubei%252Fv1%252Fnext%253FprettyPrint%253Dfalse&hl=en",
+                 "webPageType": "WEB_PAGE_TYPE_UNKNOWN",
+                 "rootVe": 83769
+                }
+               },
+               "signInEndpoint": {
+                "hack": true
+               }
+              }
+             }
+            }
+           }
+          }
+         }
+        }
+       },
+       "isEngagementToolbar": true
+      }
+     }
+    },
+    {
+     "entityKey": "fixture-key-11",
+     "type": "ENTITY_MUTATION_TYPE_REPLACE",
+     "payload": {
+      "engagementToolbarStateEntityPayload": {
+       "key": "fixture-key-11",
+       "likeState": "TOOLBAR_LIKE_STATE_INDIFFERENT",
+       "heartState": "TOOLBAR_HEART_STATE_UNHEARTED"
+      }
+     }
+    }
+   ]
+  }
+ }
+}
