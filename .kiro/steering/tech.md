@@ -19,7 +19,7 @@ Priorities: 1) sound quality, 2) beauty, 3) calm daily use. Versions checked on 
 |---|---|---|---|---|
 | Language | Rust, edition 2024, stable toolchain | Memory safety with no GC pauses on the audio thread | C++ (unsafe by default) | decided |
 | Decode | `symphonia` 0.6.1 (MPL-2.0), features `flac`, `wav`, `pcm`, `isomp4`, `aac`, `mkv`, `mp3`, `alac`, `vorbis`, `ogg`, `aiff` | Pure Rust, FLAC/ALAC/WAV/AIFF/AAC/Vorbis/Opus-container/MP3 support, gapless info | `ffmpeg` bindings (large C dependency, build pain on Windows) | decided |
-| Opus decode | `symphonia` lacks an Opus codec; add `opus` or `audiopus` crate behind `nemo-audio` | Needed for YouTube Opus streams | Forcing AAC only (loses the best YouTube stream) | decided (owner ok 2026-11-10); symphonia Opus gap unverified |
+| Opus decode | `symphonia-adapter-libopus` 0.3.0 (MIT OR Apache-2.0), registered beside the `symphonia` decoders in `nemo-audio` (`codecs.rs`). It builds the bundled libopus 1.6.1 through `opusic-sys` 0.7.7 (BSD-3-Clause, notice in the README), so every build needs CMake and a C compiler (Linux: package `cmake`) | `symphonia` 0.6.1 demuxes Opus in Ogg and WebM but has no Opus decoder; needed for local Opus files and YouTube Opus streams | Pure-Rust `opus-decoder` 0.1.1 (fails 6 of the 12 RFC 8251 vectors in mono, local-library spike 2026-11-14); `audiopus` (last release 2021, rejected); forcing AAC only (loses the best YouTube stream) | decided (owner ok 2026-11-10; libopus with CMake accepted 2026-11-14) |
 | Device output | `cpal` 0.18.2 (shared mode, default path) | Maintained, cross-platform for Linux/macOS later | `rodio` (hides the stream, no bit-perfect control) | decided |
 | Exclusive mode | `wasapi` 0.27.0 directly for WASAPI exclusive on Windows | cpal's WASAPI backend targets shared mode; exclusive needs direct control | Shared mode only (mixer may resample) | decided (owner ok 2026-11-10); cpal/WASAPI exclusive support unverified |
 | ASIO | Optional cargo feature `asio` using cpal's `asio-sys` 0.4.0 | Some DACs ship only ASIO drivers; needs the Steinberg SDK, so keep it opt-in | Mandatory ASIO (licensing and build burden) | decided (owner ok 2026-11-10) |
@@ -82,6 +82,7 @@ Pick: iced. Reason: pure Rust, wgpu gives GPU effects through a custom shader wi
 
 <!-- Sources (crates.io API, queried 2026-11-10):
 https://crates.io/crates/symphonia 0.6.1
+https://crates.io/crates/symphonia-adapter-libopus 0.3.0 (MIT OR Apache-2.0, MSRV 1.89); https://crates.io/crates/opusic-sys 0.7.7 (BSD-3-Clause, bundles libopus 1.6.1, cmake build)
 https://crates.io/crates/cpal 0.18.2
 https://crates.io/crates/wasapi 0.27.0
 https://crates.io/crates/asio-sys 0.4.0
@@ -98,5 +99,5 @@ https://crates.io/crates/egui 0.37.0
 https://crates.io/crates/slint 1.18.1
 https://crates.io/crates/gpui 0.2.2
 https://crates.io/crates/tauri 2.12.5
-Not verified by search: cpal WASAPI exclusive-mode support, symphonia Opus support, slint licensing terms. Confirm before relying on them.
+Not verified by search: cpal WASAPI exclusive-mode support, slint licensing terms. Confirm before relying on them. symphonia's missing Opus decoder was confirmed by the local-library Opus spike (2026-11-14).
 -->
