@@ -2,7 +2,7 @@
 
 Cross-spec ids written `<spec>#?` name the other spec's task by the ADR 0004 Decision 4 row it delivers; the number is filled in once that spec's `tasks.md` is merged. The play rule and tracker (`hooks.rs`) and the play hub belong to integrations and are used here unchanged.
 
-- [ ] 1. Add the `StatsService` contract and `Backend.stats`
+- [x] 1. Add the `StatsService` contract and `Backend.stats`
   - Crate and files: `nemo-core` (`src/stats.rs` new, `src/services.rs`, `src/lib.rs`); touches nemo-core/src/stats.rs and nemo-core/src/services.rs.
   - Does: Adds `StatsService`, `StatsPeriod`, `RankedSong`, `RankedName`, `HourClock`, `YearSummary`, `Recap`, `ExportFormat`, `Receipt`, `StatsError` and `NoStats` (recording off, every query `Unavailable`), and `Backend.stats` defaulting to `NoStats`. No I/O.
   - _Requirements: none (groundwork)_

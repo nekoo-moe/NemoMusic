@@ -11,6 +11,7 @@ use nemo_core::notify::NoNotifier;
 use nemo_core::player::PlayerCommand;
 use nemo_core::segment::SegmentSource;
 use nemo_core::services::Backend;
+use nemo_core::stats::NoStats;
 use nemo_core::stream::StreamRequest;
 use nemo_library::catalog::LOCAL_ALBUM_PREFIX;
 use nemo_library::{LocalCatalog, LocalLibrary};
@@ -119,6 +120,7 @@ pub fn build(
             integrations: Arc::new(NoIntegrations),
             notifier: Arc::new(NoNotifier),
             soundcloud: None,
+            stats: Arc::new(NoStats),
         },
         local,
     })

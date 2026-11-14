@@ -19,6 +19,7 @@ use nemo_core::catalog::{AlbumSummary, ArtistSummary, BrowseId, PlaylistSummary}
 use nemo_core::integrations::NoIntegrations;
 use nemo_core::notify::NoNotifier;
 use nemo_core::services::Backend;
+use nemo_core::stats::NoStats;
 use nemo_core::track::{Artwork, Thumbnail, Track, TrackId, VideoId};
 
 pub use crate::mock_lyrics::{MockLyrics, lyrics_for};
@@ -286,6 +287,7 @@ pub fn mock_backend() -> Backend {
         integrations: Arc::new(NoIntegrations),
         notifier: Arc::new(NoNotifier),
         soundcloud: None,
+        stats: Arc::new(NoStats),
     }
 }
 
