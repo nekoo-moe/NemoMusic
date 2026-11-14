@@ -2,9 +2,10 @@
 //!
 //! 1. The local provider (id [`LOCAL_ID`]) runs first and alone. A usable local result ends the
 //!    lookup: no query leaves the machine for lyrics the user already has.
-//! 2. Remote providers then run in parallel. Each gets a per-provider timeout (default 4 s,
-//!    including the wait for its host), the whole chain has a global budget (default 6 s,
-//!    counted from the start), and at most one request per host is in flight.
+//! 2. Remote providers then run in parallel. Each gets its own timeout
+//!    ([`LyricsProvider::timeout`], default 4 s, including the wait for its host), the whole chain
+//!    has a global budget (default 6 s, counted from the start) that also caps every provider's
+//!    timeout, and at most one request per host is in flight.
 //! 3. Results are judged: a synced doc whose last timestamp is past the track end is a wrong match
 //!    ([`reject_wrong_match`]), a doc that names its matched track must score as acceptable
 //!    ([`score_match`]). The rest go to [`pick_best`].
@@ -60,19 +61,16 @@ impl std::fmt::Debug for ChainEntry {
     }
 }
 
-/// Time limits of a chain run.
+/// Time limits of a chain run. Each provider's own limit is [`LyricsProvider::timeout`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ChainOptions {
-    /// Longest a single remote provider may take, including waiting for its host.
-    pub provider_timeout: Duration,
-    /// Longest the whole run may take.
+    /// Longest the whole run may take. It also caps every provider's timeout.
     pub global_budget: Duration,
 }
 
 impl Default for ChainOptions {
     fn default() -> Self {
         Self {
-            provider_timeout: Duration::from_secs(4),
             global_budget: Duration::from_secs(6),
         }
     }
@@ -201,12 +199,11 @@ fn report(
     })
 }
 
-/// Run the remote providers in parallel under the timeouts and the per-host limit.
+/// Run the remote providers in parallel under their timeouts and the per-host limit.
 async fn run_remote(
     entries: &[ChainEntry],
     remote: &[(usize, &ChainEntry)],
     query: &Arc<LyricsQuery>,
-    options: ChainOptions,
     deadline: Instant,
 ) -> (Vec<Candidate>, Vec<(usize, ProviderReport)>) {
     let mut host_semaphores: HashMap<&'static str, Arc<Semaphore>> = HashMap::new();
@@ -226,8 +223,9 @@ async fn run_remote(
             .iter()
             .filter_map(|h| host_semaphores.get(h).cloned())
             .collect();
-        let limit = options
-            .provider_timeout
+        let limit = entry
+            .provider
+            .timeout()
             .min(deadline.saturating_duration_since(Instant::now()));
         let provider = Arc::clone(&entry.provider);
         let q = Arc::clone(query);
@@ -320,8 +318,9 @@ async fn run_inner(
 
     // Stage 1: local providers, one after another, no network.
     for &(order, entry) in active.iter().filter(|(_, e)| e.provider.id() == LOCAL_ID) {
-        let limit = options
-            .provider_timeout
+        let limit = entry
+            .provider
+            .timeout()
             .min(deadline.saturating_duration_since(Instant::now()));
         let answer = fetch_limited(
             Arc::clone(&entry.provider),
@@ -347,8 +346,7 @@ async fn run_inner(
         .copied()
         .filter(|(_, e)| e.provider.id() != LOCAL_ID)
         .collect();
-    let (fresh, remote_reports) =
-        run_remote(entries, &remote, &shared_query, options, deadline).await;
+    let (fresh, remote_reports) = run_remote(entries, &remote, &shared_query, deadline).await;
     reports.extend(remote_reports);
 
     let mut candidates: Vec<Candidate> = prior.to_vec();

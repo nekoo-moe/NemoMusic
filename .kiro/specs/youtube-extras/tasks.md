@@ -38,7 +38,7 @@ Cross-spec ids written `<spec>#?` name the task in that spec that adds the ADR 0
   - Checks: none beyond the usual.
   - Steering: none
 
-- [ ] 5. Add the defaulted `LyricsProvider::timeout` and honor it in the chain
+- [x] 5. Add the defaulted `LyricsProvider::timeout` and honor it in the chain
   - Crate and files: `nemo-core` (touches nemo-core/src/lyrics.rs), `nemo-lyrics` (fallback chain).
   - Does: `fn timeout(&self) -> Duration` defaulting to 4 s; the chain uses each provider's value instead of the fixed limit. Approved by the owner on 2026-11-14 (third round).
   - _Requirements: none (groundwork for 31)_

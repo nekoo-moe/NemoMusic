@@ -51,7 +51,7 @@ Errors are typed (`thiserror`): `RateLimited { retry_after }`, `Network`, `Parse
 
 ### Fallback chain
 - Order is user-editable. Default: local, YTM, LRCLIB, then enabled opt-ins.
-- Local runs first, alone (no network). Remote providers then run in parallel with a per-provider timeout of 4 s and a global 6 s budget, at most 1 in-flight request per host (LRCLIB asks for sequential requests).
+- Local runs first, alone (no network). Remote providers then run in parallel, each with its own timeout (`LyricsProvider::timeout`, default 4 s; YouTube captions declare 20 s because they run `yt-dlp`; owner, 2026-11-14), and a global 6 s budget that also caps every provider's timeout, at most 1 in-flight request per host (LRCLIB asks for sequential requests). How the 20 s captions run fits the budget is settled where captions join the chain (lyrics-plus task 21).
 - Pick the best result, not the first: rank by granularity (Word > Line > Unsynced), then match score, then chain order. Show the first acceptable result at once and upgrade if a better one arrives within the budget (no flicker after budget).
 - Match score (0-100) on normalized strings (Unicode NFKC, lowercase, strip `(feat. ...)`, `- Remastered`, punctuation): title 40, primary artist 30, album 10 (ignored if missing), duration 20. Duration: full points within 1 s, linear to 0 at 3 s; reject beyond 3 s when both durations are known (LRCLIB itself accepts +-2 s). Accept at score >= 70 and title score > 0. Below that, treat as not found.
 - A synced result whose last timestamp exceeds track duration + 5 s is rejected as a wrong match.
