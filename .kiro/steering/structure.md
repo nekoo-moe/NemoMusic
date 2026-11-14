@@ -71,6 +71,7 @@ Rules:
 - Cross-crate end-to-end tests: `/tests/`.
 - Test audio fixtures: `crates/nemo-audio/tests/fixtures/` (short, under 200 KB each, license noted in `fixtures/README.md`).
 - Benchmarks: `crates/<crate>/benches/`.
+- Offline cache of saved songs: `nemo-ytm` owns the `offline/` module and its index `offline.db`, kept in `AppPaths.offline` with the song files (offline-cache spec).
 - Fonts, icons, shaders: `/assets/` only. Each asset folder has a `LICENSES.md`. No binary blobs elsewhere.
 - Design notes and decisions: `/docs/`. One ADR per file: `docs/adr/0001-short-title.md`.
 - Steering for agents: `/.kiro/steering/`.

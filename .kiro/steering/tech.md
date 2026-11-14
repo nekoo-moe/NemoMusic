@@ -28,6 +28,8 @@ Priorities: 1) sound quality, 2) beauty, 3) calm daily use. Versions checked on 
 | Audio thread queue | `rtrb` 0.4.1 lock-free SPSC ring buffer | No locks or allocation in the callback | `std::sync::mpsc` (allocates, may block) | decided (owner ok 2026-11-10) |
 | Async runtime | `tokio` 1.54.1 | De facto standard; `reqwest` and `ytmapi-rs` depend on it | `async-std` (less maintained) | decided |
 | Library DB | `rusqlite` 0.41.1 (bundled SQLite, WAL mode) | Embedded, one file, sync API fits a worker thread | `sqlx` 0.9.0 (async and compile-time checks, heavier for a local file) | proposed - owner to confirm |
+| Offline cache index | `rusqlite` 0.41.1 (bundled SQLite, WAL mode), also in `nemo-ytm` for `offline.db` (offline-cache spec) | The same SQLite build the lyrics cache uses; one database file per owning crate (ADR 0004, Decision 3) | One metadata file per song (no transactions) | decided (owner, 2026-11-14) |
+| Opaque cache file names | `getrandom` 0.3.4 (MIT OR Apache-2.0, already in `Cargo.lock`), in `nemo-ytm` | 16 random bytes per file name, so the offline folder shows no video id or title | A hash of the video id (anyone with the id can find the file) | decided (owner, 2026-11-14) |
 | Tags | `lofty` 0.25.5 | Reads and writes ID3v2, Vorbis, MP4, APE tags and embedded art | `symphonia` metadata only (read-only, thinner) | decided |
 | YouTube Music | `ytmapi-rs` 0.3.4 for catalog; `yt-dlp` subprocess for stream URL resolution | See below | Pure innertube client for streams | decided (owner ok 2026-11-10) |
 | Utility crates | `thiserror` 2.0.21, `tracing` 0.1.44, `serde` 1.0.229, `serde_json` 1.0.154, `sha2` 0.11.1, dev: `proptest` 1.12.0, `criterion` 0.8.2 (versions from crates.io, 2026-11-10) | Needed by `code.md` (errors, logging, tests) and by the parsers and SponsorBlock hash | Hand-written equivalents | proposed - added by Kiro for the foundation spec, owner may veto |
@@ -56,7 +58,7 @@ Risks (all must stay in README and the first-run dialog):
 - May breach YouTube's Terms of Service; the account used could be restricted. Never ship a default account or API key.
 - Can break at any time; the app must degrade to local-only playback with a clear message.
 - Streams are lossy; no "lossless" label, show codec and bitrate instead.
-- Offline caching of YouTube audio is an open owner decision (see `product.md`, `coc.md`). Until the owner decides, build no audio cache; keep only metadata and thumbnails.
+- Offline caching of YouTube audio is decided (owner, 2026-11-14; offline-cache spec): the cache lives in `nemo-ytm` (`offline/` module, `offline.db` index) inside the app data folder, as plain files with opaque names and no encryption, with no export or path to the files. Caps: 2 GB default size limit; smart downloads at most 50 songs and 25% of the limit; one download at a time, 10 to 30 seconds between songs.
 - Cookies or auth headers go in the OS credential store, never in logs or config files.
 
 ## UI framework comparison

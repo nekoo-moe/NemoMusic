@@ -3720,11 +3720,13 @@ dependencies = [
 name = "nemo-ytm"
 version = "0.0.1"
 dependencies = [
+ "getrandom 0.3.4",
  "nemo-audio",
  "nemo-core",
  "nemo-secrets",
  "proptest",
  "reqwest",
+ "rusqlite",
  "serde",
  "serde_json",
  "sha2 0.11.1",
