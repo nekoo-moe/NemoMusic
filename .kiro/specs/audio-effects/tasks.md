@@ -67,7 +67,7 @@
   - Wave: 2
   - Checks: an impulse with feedback 85% decays below -60 dBFS inside `tail_frames`; counting-allocator case in `cargo test -p nemo-audio --test rt_no_alloc`; `cargo test -p nemo-audio --test bit_exact`.
 
-- [ ] 9. Add the reverb stage
+- [x] 9. Add the reverb stage
   - Crate and files: `nemo-audio`: `src/effects/reverb.rs` (new).
   - Does: Size, damping and wet/dry mix on fixed comb and all-pass tables at the device rate, allocated when the pipeline starts. Size and damping are bounded so the tail cannot grow; `tail_frames` follows size, capped at 10 s.
   - _Requirements: 14, 15_

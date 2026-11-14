@@ -223,6 +223,50 @@ fn ten_seconds_of_delay_allocate_nothing() {
     );
 }
 
+/// A stereo reverb at the largest size, 48 kHz, 512-frame callbacks for 10 s, with a
+/// parameter change and a reset on the way.
+#[test]
+fn ten_seconds_of_reverb_allocate_nothing() {
+    use nemo_audio::effects::{Reverb, ReverbParams};
+    use nemo_core::effects::ReverbSettings;
+
+    let settings = ReverbSettings {
+        enabled: true,
+        size_pct: 100,
+        damping_pct: 50,
+        mix_pct: 30,
+    };
+    let params = ReverbParams::new(&settings, 48_000);
+    let smaller = ReverbParams::new(
+        &ReverbSettings {
+            size_pct: 20,
+            ..settings
+        },
+        48_000,
+    );
+    let mut reverb = Reverb::new(2, 48_000, params);
+    let block: Vec<f32> = (0..u16::try_from(CALLBACK_SAMPLES).unwrap_or(u16::MAX))
+        .map(|i| (f32::from(i) * 0.21).sin() * 0.5)
+        .collect();
+    let mut out = vec![0.0_f32; CALLBACK_SAMPLES];
+
+    let before = count();
+    for n in 0..CALLBACKS_10S {
+        out.copy_from_slice(&block);
+        if n == CALLBACKS_10S / 2 {
+            reverb.set_params(smaller);
+        }
+        if n == CALLBACKS_10S * 3 / 4 {
+            reverb.reset();
+        }
+        reverb.process(&mut out);
+    }
+    let after = count();
+
+    assert_eq!(after - before, 0, "the reverb allocated");
+    assert!(out.iter().all(|s| s.is_finite()));
+}
+
 mod player_callback {
     use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
