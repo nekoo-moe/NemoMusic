@@ -1,0 +1,13 @@
+{
+  "id": "fakeDub0001",
+  "title": "A video with dubbed audio (hand-made fixture in the shape of yt-dlp 2026.10.26 output, no real URL)",
+  "formats": [
+    {"format_id": "139-0", "vcodec": "none", "acodec": "mp4a.40.5", "abr": 48.8, "asr": 22050, "audio_channels": 2, "language": "ja", "language_preference": -1, "format_note": "Japanese, low", "url": "https://media.example.invalid/ja-low?expire=1900000000&sig=FAKE"},
+    {"format_id": "140-0", "vcodec": "none", "acodec": "mp4a.40.2", "abr": 129.5, "asr": 44100, "audio_channels": 2, "language": "ja", "language_preference": -1, "format_note": "Japanese, medium", "url": "https://media.example.invalid/ja-medium?expire=1900000000&sig=FAKE"},
+    {"format_id": "140-1", "vcodec": "none", "acodec": "mp4a.40.2", "abr": 129.4, "asr": 44100, "audio_channels": 2, "language": "en", "language_preference": 10, "format_note": "English original (default), medium", "url": "https://media.example.invalid/en-medium?expire=1900000000&sig=FAKE"},
+    {"format_id": "251-1", "vcodec": "none", "acodec": "opus", "abr": 135.2, "asr": 48000, "audio_channels": 2, "language": "en", "language_preference": 10, "format_note": "English original (default), medium", "url": "https://media.example.invalid/en-opus?expire=1900000000&sig=FAKE"},
+    {"format_id": "140-2", "vcodec": "none", "acodec": "mp4a.40.2", "abr": 129.6, "asr": 44100, "audio_channels": 2, "language": "pt-BR", "language_preference": -1, "format_note": "Portuguese (Brazil), medium", "url": "https://media.example.invalid/pt-medium?expire=1900000000&sig=FAKE"},
+    {"format_id": "140-3", "vcodec": "none", "acodec": "mp4a.40.2", "abr": 140.0, "asr": 44100, "audio_channels": 2, "language": "en-desc", "language_preference": -10, "format_note": "English descriptive, medium", "url": "https://media.example.invalid/en-desc?expire=1900000000&sig=FAKE"},
+    {"format_id": "18", "vcodec": "avc1.42001E", "acodec": "mp4a.40.2", "abr": 96.0, "language": "en", "url": "https://media.example.invalid/video?expire=1900000000&sig=FAKE"}
+  ]
+}
