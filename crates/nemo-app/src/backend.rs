@@ -6,6 +6,7 @@ use nemo_audio::decoder::supported_stream_codecs;
 use nemo_audio::player::{Player, PlayerDeps};
 use nemo_audio::sink::CpalSinkFactory;
 use nemo_core::account::{AccountService, NoAccount, SignOutWipe};
+use nemo_core::hooks::PlayObserver;
 use nemo_core::integrations::NoIntegrations;
 use nemo_core::notify::NoNotifier;
 use nemo_core::player::PlayerCommand;
@@ -158,6 +159,12 @@ fn build_account(paths: &AppPaths, handle: &Handle, slot: &SessionSlot) -> Arc<d
 /// The one place where crates that keep account data register their sign-out step
 /// (ADR 0004, Decision 3). Sign-out runs them in this order, then removes the session.
 fn sign_out_steps() -> Vec<Arc<dyn SignOutWipe>> {
+    Vec::new()
+}
+
+/// The one place where services that watch playback register as play observers (integrations,
+/// listening stats). The play hub hands each of them every play event.
+pub fn play_observers() -> Vec<Arc<dyn PlayObserver>> {
     Vec::new()
 }
 

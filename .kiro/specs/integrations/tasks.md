@@ -71,7 +71,7 @@ Cross-spec ids written `<spec>#?` name the other spec's task by the ADR 0004 Dec
   - Checks: unit test that only the media-controls info is `default_on`, and the Last.fm and Discord texts match criteria 10 and 22.
   - Steering: `structure.md`, new crate `nemo-integrations` (depends on `nemo-core` only) and edge `nemo-app -> nemo-integrations`.
 
-- [ ] 9. Add the play hub thread in `nemo-app`
+- [x] 9. Add the play hub thread in `nemo-app`
   - Crate and files: `nemo-app` (`src/play_hub.rs` new, `src/main.rs`, `src/backend.rs`).
   - Does: One thread drains `PlayerControl::subscribe`, samples `position()` every 500 ms, feeds `PlayTracker` and hands each event to registered `PlayObserver`s with a non-blocking send; a full channel drops the event. Calls `flush` at exit. Nothing runs in the audio callback.
   - _Requirements: 5_

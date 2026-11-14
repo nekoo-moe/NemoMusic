@@ -236,7 +236,7 @@ Tasks in other specs are cited by spec and the ADR 0004 Decision 4 row they own,
   - Checks: ranking tests with and without `Codec::Opus` in the supported list; no label of a YouTube stream contains "lossless", "HD" or "Hi-Res".
   - Steering: `tech.md` Opus row: Premium plays AAC until the decoder lands.
 
-- [ ] 27. Choose the audio track by preferred language
+- [x] 27. Choose the audio track by preferred language
   - Crate and files: `nemo-ytm` (`src/ytdlp.rs`).
   - Does: `resolve_with` keeps the formats whose `language` matches `StreamRequest::audio_language`; with no match, or "Automatic", it plays the default (original) track. It fills `ResolvedStream.audio_language` and `audio_tracks`, so the UI can say which language plays and offer a switch.
   - _Requirements: 24, 25, 26, 27_
