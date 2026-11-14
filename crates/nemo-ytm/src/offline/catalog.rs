@@ -77,6 +77,7 @@ impl SongMeta {
             video_id: Some(video),
             local_path: None,
             artwork,
+            source_url: None,
         }
     }
 }

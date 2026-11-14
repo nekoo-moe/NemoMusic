@@ -115,6 +115,7 @@ fn stream_track(text: &str) -> Option<Track> {
         } else {
             Artwork::Remote(thumbs)
         },
+        source_url: None,
     })
 }
 

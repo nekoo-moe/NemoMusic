@@ -73,6 +73,7 @@ fn stream_track() -> Track {
             width: 120,
             height: 90,
         }]),
+        source_url: None,
     }
 }
 
