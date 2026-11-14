@@ -128,3 +128,34 @@ fn a_flat_ten_band_equalizer_keeps_every_sample() {
         std::fs::remove_file(path).expect("cleanup");
     }
 }
+
+/// The delay stage: at a mix of 0 the dry path keeps every decoded sample bit for bit, with
+/// the line running underneath.
+#[test]
+fn a_delay_at_mix_0_keeps_every_sample() {
+    use nemo_audio::effects::{Delay, DelayParams};
+    use nemo_core::effects::DelaySettings;
+
+    for bits in [16, 24] {
+        let (path, source) = temp_wav(bits, "dry-delay");
+        let decoded = decode_file(&path).expect("decode");
+        let settings = DelaySettings {
+            enabled: true,
+            time_ms: 120,
+            feedback_pct: 85,
+            mix_pct: 0,
+        };
+        let mut delay = Delay::new(2, 48_000, DelayParams::new(&settings, 48_000));
+        let mut out = decoded.samples.clone();
+        for block in out.chunks_mut(512 * 2) {
+            delay.process(block);
+        }
+        let same = out
+            .iter()
+            .zip(&decoded.samples)
+            .all(|(a, b)| a.to_bits() == b.to_bits());
+        assert!(same, "{bits}-bit samples changed");
+        assert_eq!(to_ints(&out, bits), source);
+        std::fs::remove_file(path).expect("cleanup");
+    }
+}
