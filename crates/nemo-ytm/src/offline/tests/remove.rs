@@ -210,3 +210,15 @@ fn wipe_leaves_no_file_under_the_cache_folder() {
     );
     assert_eq!(cache.wipe(), Ok(0));
 }
+
+#[test]
+fn wipe_deletes_nothing_in_a_folder_with_files_the_cache_did_not_make() {
+    let d = dir("wipe-foreign");
+    let cache = OfflineCache::open(&d.0, clock(1)).expect("open");
+    let song = save(&d, "aaaaaaaaaa1", "user", true, 10);
+    std::fs::write(d.0.join("notes.txt"), b"not ours").expect("foreign file");
+    assert_eq!(cache.wipe(), Err(OfflineError::Io));
+    assert!(d.0.join("notes.txt").is_file());
+    assert!(d.0.join("blobs").join(song).is_file());
+    assert!(d.0.join("offline.db").is_file());
+}
