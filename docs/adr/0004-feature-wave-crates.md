@@ -182,5 +182,8 @@ All crates proposed in the 17 designs and in the two new pieces build on the wor
 - **Cast** pins each device's first-seen certificate and warns when it changes.
 - **Licence notices** for `cast_channel.proto` (Apache-2.0), `listentogether.proto` (GPL-3.0) and IPADIC ship with the app.
 
+## Decided by the owner (2026-11-14, after the libmpv spike)
+- **Video binding.** `libmpv2` 7.0.1 failed the Windows spike: it has no software render API and links libmpv at load time, so the app could not start without the DLL. The owner allowed `unsafe` code in the `ffi` module of `nemo-video` (`code.md`, Unsafe). `nemo-video` binds libmpv itself over `libloading` (ISC) and loads it at run time; `libmpv2` and its `deny.toml` exception are not used. The GPL libmpv build stays accepted (second round).
+
 ## Actions for the owner
 Registrations only the owner can make: the Discord application id; a Last.fm API account for testing; throwaway Spotify and Google accounts for the spikes; asking the operator of Metrolist's public Listen Together server whether NemoMusic may use it; and the `design.md` change for the Apple Music-style player (its four exceptions), made in that feature's first UI task.
