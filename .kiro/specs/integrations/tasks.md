@@ -19,7 +19,7 @@ Cross-spec ids written `<spec>#?` name the other spec's task by the ADR 0004 Dec
   - Wave: 0
   - Checks: `iced_test` snapshots (off, panel open, on); keyboard order and visible focus; no animation under reduced motion; readable at 200% text scale; `design.md` checklist with a screenshot.
 
-- [ ] 3. Add the opt-in gate and the egress-list check in `nemo-app`
+- [x] 3. Add the opt-in gate and the egress-list check in `nemo-app`
   - Crate and files: `nemo-app` (`src/opt_in_gate.rs` new, `src/config.rs`).
   - Does: Stores `enabled` and `confirmed_version` per `OptInInfo.id` in the config file. Exposes one check, "build this service only when the switch is on and `confirmed_version == version`", that every opt-in service is built through. A test compares every `OptInInfo.hosts` entry with the README egress list.
   - _Requirements: none (groundwork)_

@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use nemo_core::audio::{AudioFormat, Codec};
 use nemo_core::services::ByteSource;
-use symphonia::core::codecs::audio::{AudioDecoder, AudioDecoderOptions};
+use symphonia::core::codecs::audio::AudioDecoder;
 use symphonia::core::errors::Error as SymphoniaError;
 use symphonia::core::formats::probe::Hint;
 use symphonia::core::formats::{FormatOptions, FormatReader, SeekMode, SeekTo, TrackType};
@@ -92,12 +92,7 @@ impl StreamDecoder {
             format,
             duration: track_duration(track, sample_rate),
         };
-        let decoder = symphonia::default::get_codecs()
-            .make_audio_decoder(params, &AudioDecoderOptions::default())
-            .map_err(|e| match e {
-                SymphoniaError::Unsupported(_) => DecodeError::UnsupportedCodec,
-                other => DecodeError::Symphonia(other),
-            })?;
+        let decoder = crate::codecs::make_decoder(params)?;
         Ok(Self {
             track_id: track.id,
             time_base: track.time_base,

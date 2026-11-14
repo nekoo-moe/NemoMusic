@@ -159,7 +159,7 @@ Also for `tech.md`, from the designs: the "Opus decode" row says `opus` or `audi
 All crates proposed in the 17 designs and in the two new pieces build on the workspace `rust-version` of 1.97 (checked MSRVs: `rfd` 1.92, `symphonia-adapter-libopus` 1.89, `libloading` 1.88, `wasapi` 1.85 to 1.88, `zbus` 1.87, `tauri-winrt-notification` 1.82, the rest lower). `rust-toolchain.toml` pins 1.99.1, which is newer than the 1.97 the brief for the designs named; this is not a conflict, but `code.md` ("latest stable minus 2") and the file should agree when the owner next raises either.
 
 ## Consequences
-- `nemo-ytm` loses its credential module to `nemo-secrets` and `nemo-core`; its sign-in flow is otherwise unchanged.
+- `nemo-ytm` loses its credential module to `nemo-secrets` and `nemo-core`; its sign-in flow is otherwise unchanged. Done: account-actions tasks 1 (`SecretStore` in `nemo-core`) and 2 (`nemo-secrets`); `nemo-ytm` keeps only the `Vault`.
 - Folder watching (Decision 1, `nemo-library` row) is not built: the library loads from SQLite at start, then rescans in the background and on demand (local-library design, "Departure"; `notify` is CC0-1.0 and its 9.0 line is a release candidate).
 - The crate count grows from 8 to 18. Each new crate is small and testable alone.
 - Apple Music animated covers are Later (now-playing-styles criterion 22). No code or trait variant exists for them; `AnimatedArtSource` can take one later.
@@ -181,6 +181,9 @@ All crates proposed in the 17 designs and in the two new pieces build on the wor
 - **Single-instance hand-off** uses a named pipe on Windows and a Unix socket on Linux. No token file.
 - **Cast** pins each device's first-seen certificate and warns when it changes.
 - **Licence notices** for `cast_channel.proto` (Apache-2.0), `listentogether.proto` (GPL-3.0) and IPADIC ship with the app.
+
+## Decided by the owner (2026-11-14, after the libmpv spike)
+- **Video binding.** `libmpv2` 7.0.1 failed the Windows spike: it has no software render API and links libmpv at load time, so the app could not start without the DLL. The owner allowed `unsafe` code in the `ffi` module of `nemo-video` (`code.md`, Unsafe). `nemo-video` binds libmpv itself over `libloading` (ISC) and loads it at run time; `libmpv2` and its `deny.toml` exception are not used. The GPL libmpv build stays accepted (second round).
 
 ## Actions for the owner
 Registrations only the owner can make: the Discord application id; a Last.fm API account for testing; throwaway Spotify and Google accounts for the spikes; asking the operator of Metrolist's public Listen Together server whether NemoMusic may use it; and the `design.md` change for the Apple Music-style player (its four exceptions), made in that feature's first UI task.

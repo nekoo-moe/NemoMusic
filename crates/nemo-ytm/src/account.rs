@@ -11,7 +11,9 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::time::Duration;
 
 use nemo_core::BoxFuture;
-use nemo_core::account::{AccountError, AccountInfo, AccountService, AccountState, SignOutReport};
+use nemo_core::account::{
+    AccountError, AccountInfo, AccountService, AccountState, SignOutReport, SignOutWipe, WipeScope,
+};
 use nemo_core::catalog::Catalog;
 use nemo_core::secret::Secret;
 use nemo_core::secret_store::SecretStore;
@@ -187,6 +189,8 @@ struct Shared {
     backend: Arc<dyn SessionBackend>,
     config: AccountConfig,
     timeout: Duration,
+    /// Sign-out steps of other crates, run in the order they were registered.
+    steps: Mutex<Vec<Arc<dyn SignOutWipe>>>,
 }
 
 impl Shared {
@@ -239,24 +243,43 @@ impl Shared {
         result
     }
 
-    fn wipe(&self) -> Result<SignOutReport, AccountError> {
+    /// Sign out: run every registered step for all accounts, then remove the local session.
+    /// A failed step is named in the report and the others still run. The `Vault` entries go
+    /// last, so a failed step can be retried while the session still exists.
+    fn sign_out(&self) -> Result<SignOutReport, AccountError> {
         self.set_session(None);
-        let credentials = self.vault.wipe();
-        let mut files_removed = 0;
+        let steps = self
+            .steps
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
+        let mut report = SignOutReport::default();
+        for step in &steps {
+            report.run_step(step.as_ref(), WipeScope::All);
+        }
+        for name in &report.failed_steps {
+            tracing::warn!(step = *name, "a sign-out step failed");
+        }
+        self.wipe(report)
+    }
+
+    /// Remove the local session: the helper's folder, the cached header and, last, the `Vault`
+    /// entries. Adds the counts to `report`.
+    fn wipe(&self, mut report: SignOutReport) -> Result<SignOutReport, AccountError> {
+        self.set_session(None);
         if std::fs::remove_dir_all(&self.config.webview_dir).is_ok() {
-            files_removed += 1;
+            report.files_removed += 1;
         }
         if std::fs::remove_file(&self.config.cache_file).is_ok() {
-            files_removed += 1;
+            report.files_removed += 1;
         }
+        let credentials = self.vault.wipe();
         self.set_state(AccountState::SignedOut);
         match credentials {
-            Ok(credentials_removed) => Ok(SignOutReport {
-                credentials_removed,
-                files_removed,
-                ended_remotely: false,
-                ..SignOutReport::default()
-            }),
+            Ok(credentials_removed) => {
+                report.credentials_removed = credentials_removed;
+                Ok(report)
+            }
             Err(err) => Err(AccountError::Storage(err.0.to_owned())),
         }
     }
@@ -288,6 +311,7 @@ impl GoogleAccount {
             backend,
             config,
             timeout: SIGN_IN_TIMEOUT,
+            steps: Mutex::new(Vec::new()),
         });
         let saved = shared.vault.load().ok().flatten();
         if let Some(cookie) = saved {
@@ -316,6 +340,16 @@ impl GoogleAccount {
         self
     }
 
+    /// Add a step that sign-out runs before it removes the session (ADR 0004, Decision 3).
+    /// Each crate that keeps account data registers one; steps run in registration order.
+    pub fn register_wipe(&self, step: Arc<dyn SignOutWipe>) {
+        self.shared
+            .steps
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .push(step);
+    }
+
     fn run<T, F>(&self, work: F) -> BoxFuture<'static, Result<T, AccountError>>
     where
         T: Send + 'static,
@@ -341,7 +375,7 @@ impl Shared {
                 self.set_state(AccountState::SignedIn(info));
             }
             Err(AccountError::Rejected) => {
-                let _ = self.wipe();
+                let _ = self.wipe(SignOutReport::default());
             }
             Err(_) => {
                 // Offline or YouTube is down: keep the session, the catalog retries on use.
@@ -389,7 +423,7 @@ impl AccountService for GoogleAccount {
 
     fn sign_out(&self) -> BoxFuture<'_, Result<SignOutReport, AccountError>> {
         let shared = Arc::clone(&self.shared);
-        self.run(async move { shared.wipe() })
+        self.run(async move { shared.sign_out() })
     }
 }
 

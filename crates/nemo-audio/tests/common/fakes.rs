@@ -13,11 +13,12 @@ use nemo_audio::sink::{AudioSink, RenderCallback, SinkError, SinkFactory};
 use nemo_audio::source::MemorySource;
 use nemo_core::BoxFuture;
 use nemo_core::audio::{AudioFormat, Codec, Origin, OutputInfo, OutputMode, StreamInfo};
+use nemo_core::library::LocalTrackLookup;
 use nemo_core::player::{PlayerCommand, PlayerEvent};
 use nemo_core::secret::Secret;
 use nemo_core::segment::{Segment, SegmentError, SegmentSource};
 use nemo_core::services::{ByteSource, EventReceiver, PlayerControl, StreamOpener};
-use nemo_core::stream::{ResolvedStream, StreamError, StreamResolver};
+use nemo_core::stream::{ResolvedStream, StreamError, StreamRequest, StreamResolver};
 use nemo_core::track::{Artwork, Track, TrackId, VideoId};
 
 /// Serves a video id from a map of in-memory files. Unknown ids are "not available".
@@ -227,6 +228,8 @@ pub struct RigOptions {
     /// Short reads of this many bytes for streamed files.
     pub chunk: Option<usize>,
     pub segments: Option<Arc<FakeSegments>>,
+    /// Span and gain of local tracks (CUE tracks).
+    pub local: Option<Arc<dyn LocalTrackLookup>>,
 }
 
 impl Default for RigOptions {
@@ -240,6 +243,7 @@ impl Default for RigOptions {
             interval: Duration::from_micros(2500),
             chunk: None,
             segments: None,
+            local: None,
         }
     }
 }
@@ -252,6 +256,8 @@ pub fn rig(streams: Vec<(String, Vec<u8>)>, options: RigOptions) -> Rig {
         resolver: Arc::new(FakeResolver {
             known: streams.iter().map(|(id, _)| id.clone()).collect(),
         }),
+        request: StreamRequest::default(),
+        local: options.local,
         opener: Arc::new(FakeOpener {
             files: streams.into_iter().collect(),
             chunk: options.chunk,

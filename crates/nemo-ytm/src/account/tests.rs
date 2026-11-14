@@ -351,6 +351,64 @@ fn sign_out_wipes_credentials_folders_and_session() {
     assert_eq!(again, SignOutReport::default());
 }
 
+/// A sign-out step that records when it ran and whether the session was still stored then.
+struct RecordingStep {
+    name: &'static str,
+    fails: bool,
+    store: Arc<MemoryStore>,
+    log: Arc<Mutex<Vec<(&'static str, bool)>>>,
+}
+
+impl SignOutWipe for RecordingStep {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+
+    fn wipe(&self, scope: WipeScope) -> Result<usize, nemo_core::account::WipeError> {
+        assert_eq!(scope, WipeScope::All);
+        let session_stored = self.store.get("session-manifest").expect("get").is_some();
+        self.log
+            .lock()
+            .expect("lock")
+            .push((self.name, session_stored));
+        if self.fails {
+            Err(nemo_core::account::WipeError("cannot delete"))
+        } else {
+            Ok(1)
+        }
+    }
+}
+
+#[test]
+fn sign_out_runs_every_step_before_the_vault_is_wiped() {
+    let f = fixture("steps", Ok(info()), None, None);
+    f.runtime
+        .block_on(
+            f.account
+                .sign_in_with_cookie(Secret::new(COOKIE.to_owned())),
+        )
+        .expect("sign in");
+    let log = Arc::new(Mutex::new(Vec::new()));
+    for (name, fails) in [("offline", false), ("ai", true), ("cast", false)] {
+        f.account.register_wipe(Arc::new(RecordingStep {
+            name,
+            fails,
+            store: f.store.clone(),
+            log: log.clone(),
+        }));
+    }
+    let report = f.runtime.block_on(f.account.sign_out()).expect("sign out");
+    assert_eq!(
+        *log.lock().expect("lock"),
+        vec![("offline", true), ("ai", true), ("cast", true)]
+    );
+    assert_eq!(report.failed_steps, vec!["ai"]);
+    assert_eq!(report.items_removed, 2);
+    assert_eq!(report.credentials_removed, 2);
+    assert!(f.store.is_empty());
+    assert_eq!(f.account.state(), AccountState::SignedOut);
+}
+
 #[test]
 fn the_new_pages_follow_the_active_session_too() {
     let slot: SessionSlot = Arc::default();
