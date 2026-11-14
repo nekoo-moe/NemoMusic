@@ -11,7 +11,7 @@ Cross-spec ids written `<spec>#?` name the owner's task by its ADR 0004 Decision
   - Checks: unit test that `CachedAudio`'s `Debug` prints no path; `DownloadError` texts hold no URL, file name or video id.
   - Steering: ADR 0004: add `downloads.rs` and `LyricsService::keep_offline` to the expected `nemo-core` additions.
 
-- [ ] 2. Add `LyricsService::keep_offline` with a default
+- [x] 2. Add `LyricsService::keep_offline` with a default
   - Crate and files: `nemo-core`: `src/services.rs`. Touches nemo-core/src/services.rs; order with the lyrics-plus task that adds `line_meta` to the same file.
   - Does: Adds `keep_offline(&self, track_key: &str, keep: bool)` with a no-op default, so existing implementations still build.
   - _Requirements: none (groundwork)_

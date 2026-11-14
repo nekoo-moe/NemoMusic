@@ -133,6 +133,10 @@ pub trait LyricsService: Send + Sync {
     fn line_meta(&self, _track_key: &str, _provider: ProviderId) -> Vec<LineMeta> {
         Vec::new()
     }
+
+    /// Keep the cached lyrics of a track from expiring (`keep` true) or let them expire again
+    /// (`keep` false). The offline cache calls it for every saved song. The default does nothing.
+    fn keep_offline(&self, _track_key: &str, _keep: bool) {}
 }
 
 /// A lyrics provider as the settings screen shows it.
