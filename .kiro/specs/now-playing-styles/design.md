@@ -36,7 +36,7 @@ Type and spring choices of the Apple style against `design.md` sections 8 to 10 
 | Duets | left aligned | singer 0 left, singer 1 right-aligned, max width 640 px |
 | Word highlight | per-piece fade, no wipe | smooth fill inside the active piece, as long as the piece lasts (at least 100 ms) |
 | Line scroll | `spatial.default` 700, 1.0, anchor 35% | the same spring and anchor |
-| Active-line scale | none | `spatial.slow` 300, damping 1.0, 1.0 to 1.0 (size changes by style, no overshoot) |
+| Line size change | none | active and neighbor sizes change with the same `spatial.default` spring, no overshoot |
 | Backdrop | static | slow drift, frozen under reduced motion |
 
 ## Interfaces
