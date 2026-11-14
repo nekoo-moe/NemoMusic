@@ -84,6 +84,16 @@ pub enum PlayerCommand {
     UndoSkip,
     /// Choose what happens at the end of the queue or of the current track.
     SetRepeat(RepeatMode),
+    /// Hand playback to a remote device: stop decoding and release the output device. The
+    /// queue and its position stay; Next, Previous and queue edits still move through it and
+    /// report [`PlayerEvent::TrackChanged`], without decoding anything.
+    Park,
+    /// Take playback back from a remote device: reopen the output device and play the current
+    /// track from `at`.
+    Unpark {
+        /// Where to resume in the current track (the remote device's position).
+        at: Duration,
+    },
 }
 
 /// Something that happened in the player. Names are past tense.
@@ -115,6 +125,8 @@ pub enum PlayerEvent {
         /// Short, user-safe description.
         message: String,
     },
+    /// The player was parked (`true`, a remote device plays) or unparked (`false`).
+    ParkedChanged(bool),
 }
 
 /// The player state at one moment. Cheap to clone; the UI reads it after a [`PlayerEvent`].

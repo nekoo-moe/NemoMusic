@@ -153,6 +153,7 @@ impl AccountService for MockAccount {
                 credentials_removed: 1,
                 files_removed: 12,
                 ended_remotely: true,
+                ..SignOutReport::default()
             })
         })
     }

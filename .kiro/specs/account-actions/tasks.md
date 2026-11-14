@@ -2,7 +2,7 @@
 
 Tasks in other specs are cited by spec and the ADR 0004 Decision 4 row they own, until their task numbers are fixed. Tasks 1 to 11 are groundwork that other specs wait for. Tasks 1 to 3 move the credential store and keep sign-in behaviour unchanged: same service name `NemoMusic`, same `session-*` keys, same entry modifiers, same error texts.
 
-- [ ] 1. Move the `SecretStore` trait into `nemo-core`
+- [x] 1. Move the `SecretStore` trait into `nemo-core`
   - Crate and files: `nemo-core` (new `src/secret_store.rs`, `src/lib.rs`, `Cargo.toml` feature `test-util`); `nemo-ytm` (`src/credentials.rs`, `Cargo.toml` dev-dependency on `nemo-core` with `test-util`). Touches nemo-core/src/secret_store.rs and nemo-core/src/lib.rs.
   - Does: Moves `SecretStore` and `StoreError` from `credentials.rs` to `nemo-core` and adds `MAX_SECRET_BYTES`, `is_valid_key` and `MemoryStore` (feature `test-util`), which replaces the test-only `fake` store. `Vault`, both platform stores, the key names and the part limits stay where and as they are.
   - _Requirements: none (groundwork)_
@@ -29,9 +29,9 @@ Tasks in other specs are cited by spec and the ADR 0004 Decision 4 row they own,
   - Checks: tests with `MemoryStore`: two scopes do not see each other's keys, `delete` reports whether the key existed, a key that is too long after prefixing is refused.
   - Steering: none.
 
-- [ ] 4. Add `SignOutWipe`, `WipeScope` and `WipeError`
+- [x] 4. Add `SignOutWipe`, `WipeScope` and `WipeError`
   - Crate and files: `nemo-core` (`src/account.rs`). Touches nemo-core/src/account.rs.
-  - Does: Adds the sign-out step trait with its scope and error types (ADR 0004 row 26), and a list of failed step names on `SignOutReport` so sign-out can report them.
+  - Does: Adds the sign-out step trait with its scope and error types (ADR 0004 row 26), and a list of failed step names on `SignOutReport` so sign-out can report them. `AccountId` lands here too, because `WipeScope::Account` needs it; task 6 adds the rest of row 25.
   - _Requirements: none (groundwork)_
   - Depends on: none
   - Wave: 0
@@ -56,7 +56,7 @@ Tasks in other specs are cited by spec and the ADR 0004 Decision 4 row they own,
   - Checks: unit tests for the defaults and for error texts that hold no e-mail, name or id.
   - Steering: none.
 
-- [ ] 7. Add the rating and playlist-edit types to the catalog
+- [x] 7. Add the rating and playlist-edit types to the catalog
   - Crate and files: `nemo-core` (`src/catalog.rs`); struct literals of `PlaylistDetail` in `nemo-ytm` and `nemo-app`. Touches nemo-core/src/catalog.rs.
   - Does: Adds `LikeStatus`, `Catalog::set_rating` with `rate_song` keeping its signature, `CatalogError::{Rejected, RateLimited}`, `SetVideoId`, `Privacy`, `PlaylistEditInfo`, `PlaylistDetail.edit` (always `None` for now) and the `PlaylistEditor` trait including `create` (ADR 0004 row 27).
   - _Requirements: none (groundwork)_
@@ -65,7 +65,7 @@ Tasks in other specs are cited by spec and the ADR 0004 Decision 4 row they own,
   - Checks: a `Catalog` that implements neither rating method returns an error instead of looping between the two defaults.
   - Steering: none.
 
-- [ ] 8. Add `StreamRequest`, `AudioTrackInfo` and `resolve_with`
+- [x] 8. Add `StreamRequest`, `AudioTrackInfo` and `resolve_with`
   - Crate and files: `nemo-core` (`src/stream.rs`). Touches nemo-core/src/stream.rs.
   - Does: Adds `StreamRequest` (audio language, `prefer_premium`, `prefer_codec`), `AudioTrackInfo` and `StreamResolver::resolve_with`, which defaults to `resolve` (ADR 0004 row 13). The `ResolvedStream` fields `audio_language` and `audio_tracks` are not added here: ADR 0004 lands all four new `ResolvedStream` fields and `Track.source_url` in one task (soundcloud, rows 9 and 10), which depends on this one.
   - _Requirements: none (groundwork)_

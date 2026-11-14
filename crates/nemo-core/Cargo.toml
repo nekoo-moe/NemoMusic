@@ -10,5 +10,9 @@ repository.workspace = true
 [lints]
 workspace = true
 
+[features]
+# `MemoryStore`, a map-backed `SecretStore` for other crates' tests.
+test-util = []
+
 [dependencies]
 thiserror.workspace = true

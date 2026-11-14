@@ -248,6 +248,7 @@ mod tests {
             credentials_removed: 1,
             files_removed: 3,
             ended_remotely: false,
+            ..nemo_core::account::SignOutReport::default()
         };
         assert_eq!(
             sign_out_result(&r),
