@@ -11,7 +11,7 @@ Cross-spec ids written `<spec>#?` name the other spec's task by the ADR 0004 Dec
   - Checks: `NoStats` returns `recording() == false` and `Err(Unavailable)`. ai-features depends on this task for `top_artists`.
   - Steering: `structure.md`, add the `stats` module and `Backend.stats` to the `nemo-core` entry.
 
-- [ ] 2. Create the `nemo-stats` crate skeleton
+- [x] 2. Create the `nemo-stats` crate skeleton
   - Crate and files: `nemo-stats` (new: `Cargo.toml`, `src/lib.rs`, `src/service.rs`); workspace `Cargo.toml` members.
   - Does: Adds the crate with `StatsStore` and `StoreError` stubs and `counts_as_play`, a thin wrapper over `nemo_core::hooks::PlayRule::counts`.
   - _Requirements: 3_
