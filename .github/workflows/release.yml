@@ -68,7 +68,8 @@ jobs:
           Windows: unzip and run ``nemo-app.exe``.
           Linux: untar and run ``./nemo-app``. Needs the GTK 3, WebKitGTK 4.1, libsoup 3, ALSA and
           OpenSSL runtime libraries to start, and a Secret Service keyring for sign-in.
-          YouTube playback needs [yt-dlp](https://github.com/yt-dlp/yt-dlp) on PATH.
+          YouTube playback uses [yt-dlp](https://github.com/yt-dlp/yt-dlp): yours when it is
+          found, otherwise the app downloads the official release (checked against its SHA-256).
 
           NemoMusic is not made, approved or supported by Google or YouTube. It uses YouTube Music
           without an official API, which may break the YouTube Terms of Service; your account could
