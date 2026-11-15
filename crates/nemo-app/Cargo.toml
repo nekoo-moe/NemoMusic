@@ -22,5 +22,7 @@ nemo-ytm.workspace = true
 nemo-lyrics.workspace = true
 nemo-library.workspace = true
 nemo-secrets.workspace = true
+# The sign-in window, run in its own process as `nemo-app --signin` (tech.md, Sign-in window).
+nemo-signin = { path = "../nemo-signin" }
 tokio = { version = "=1.54.1", default-features = false, features = ["rt-multi-thread", "time"] }
 nemo-ui = { workspace = true, features = ["gui"] }

@@ -85,6 +85,7 @@ fn open_every_kind_of_playlist() {
         let account = GoogleAccount::new(
             AccountConfig {
                 helper: scratch.join("none.exe"),
+                helper_args: Vec::new(),
                 webview_dir: scratch.join("webview"),
                 cache_file: cache,
             },

@@ -78,7 +78,7 @@ These are the only hosts NemoMusic contacts. Adding a host needs owner approval.
 
 ## Build and run
 
-Needs Rust (pinned in `rust-toolchain.toml`) and [yt-dlp](https://github.com/yt-dlp/yt-dlp) on `PATH` for YouTube playback. Build `nemo-signin` too: the app looks for it next to `nemo-app`.
+Needs Rust (pinned in `rust-toolchain.toml`) and [yt-dlp](https://github.com/yt-dlp/yt-dlp) on `PATH` for YouTube playback. NemoMusic is one program: the sign-in window is built into `nemo-app` and runs as a second `nemo-app --signin` process while you sign in.
 
 ### Windows
 
@@ -86,7 +86,6 @@ Also needs Visual Studio Build Tools with the C++ workload, and CMake on `PATH` 
 
 ```powershell
 winget install --id yt-dlp.yt-dlp -e --scope user
-cargo build -p nemo-signin --release
 cargo run -p nemo-app --release
 ```
 
@@ -98,7 +97,6 @@ Tested on Linux Mint 22.3 (Ubuntu 24.04 base), X11. Needs these system packages 
 sudo apt install -y pkg-config libasound2-dev libgtk-3-dev libwebkit2gtk-4.1-dev \
   libsoup-3.0-dev libxdo-dev libssl-dev cmake
 sudo apt install -y yt-dlp   # or: pipx install yt-dlp
-cargo build -p nemo-signin --release
 cargo run -p nemo-app --release
 ```
 
@@ -106,6 +104,7 @@ Linux notes:
 
 - Sign-in needs a running Secret Service (GNOME Keyring or KWallet). Without one, sign-in is off and nothing is saved.
 - The sign-in window is WebKitGTK. Google may refuse it; "Paste cookie instead" still works.
+- `nemo-app` links GTK 3, WebKitGTK 4.1 and libsoup 3 at load time, so their runtime libraries must be installed for the app to start at all, even if you never sign in.
 - Sound goes through ALSA, so PipeWire or PulseAudio may resample. The signal-path view shows this as shared mode, never as bit-perfect. A direct exclusive path is planned later.
 
 Checks (same on both systems):

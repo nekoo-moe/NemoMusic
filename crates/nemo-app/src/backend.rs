@@ -1,5 +1,6 @@
 //! Build the real [`Backend`] the UI talks to.
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use nemo_audio::decoder::supported_stream_codecs;
@@ -17,9 +18,7 @@ use nemo_core::stream::StreamRequest;
 use nemo_library::catalog::LOCAL_ALBUM_PREFIX;
 use nemo_library::{LocalCatalog, LocalLibrary};
 use nemo_lyrics::LyricsHub;
-use nemo_ytm::account::{
-    AccountCatalog, AccountConfig, GoogleAccount, SessionSlot, default_helper_path,
-};
+use nemo_ytm::account::{AccountCatalog, AccountConfig, GoogleAccount, SessionSlot};
 use nemo_ytm::catalog::YtmCatalog;
 use nemo_ytm::images::ImageCache;
 use nemo_ytm::resolver::default_chain;
@@ -129,7 +128,7 @@ pub fn build(
     })
 }
 
-/// The Google account service, or `NoAccount` when the OS credential store or the helper is missing.
+/// The Google account service, or `NoAccount` when the OS credential store is missing.
 fn build_account(paths: &AppPaths, handle: &Handle, slot: &SessionSlot) -> Arc<dyn AccountService> {
     let store = match nemo_secrets::open_platform_store() {
         Ok(store) => store,
@@ -138,10 +137,9 @@ fn build_account(paths: &AppPaths, handle: &Handle, slot: &SessionSlot) -> Arc<d
             return Arc::new(NoAccount);
         }
     };
-    let helper =
-        default_helper_path().unwrap_or_else(|| paths.bin.join(nemo_ytm::account::HELPER_NAME));
     let config = AccountConfig {
-        helper,
+        helper: signin_program(),
+        helper_args: vec![nemo_signin::SIGNIN_ARG.into()],
         webview_dir: paths.webview.clone(),
         cache_file: paths.account.join("account.json"),
     };
@@ -156,6 +154,16 @@ fn build_account(paths: &AppPaths, handle: &Handle, slot: &SessionSlot) -> Arc<d
         account.register_wipe(step);
     }
     Arc::new(account)
+}
+
+/// The sign-in window is this same executable started again with `--signin` (see `main`).
+/// Without a known path, starting the window fails with a clear message and cookie paste still
+/// works.
+fn signin_program() -> PathBuf {
+    std::env::current_exe().unwrap_or_else(|err| {
+        tracing::warn!(error = %err, "cannot find the app executable; the sign-in window is off");
+        PathBuf::new()
+    })
 }
 
 /// The one place where crates that keep account data register their sign-out step

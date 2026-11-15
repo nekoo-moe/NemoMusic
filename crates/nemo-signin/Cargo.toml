@@ -1,6 +1,6 @@
 [package]
 name = "nemo-signin"
-description = "Sign-in helper: shows Google's sign-in page in a WebView2 window and hands the YouTube Music session cookies to nemo-ytm."
+description = "Sign-in window linked into nemo-app: shows Google's sign-in page in a webview and hands the YouTube Music session cookies to nemo-ytm."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

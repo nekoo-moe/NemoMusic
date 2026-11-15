@@ -5,8 +5,9 @@
 # match `[workspace.package] version` in Cargo.toml.
 #
 # 1. `prepare` checks the subject and version and creates tag `vX.Y.Z` as a draft release.
-# 2. `build` (Windows x64, Linux x64) builds `nemo-app` and `nemo-signin` in release mode,
-#    packs them with the licence and README, and uploads the archive and its SHA-256.
+# 2. `build` (Windows x64, Linux x64) builds `nemo-app` in release mode (the sign-in window
+#    is inside it, `nemo-app --signin`), packs it with the licence and README, and uploads the
+#    archive and its SHA-256.
 # 3. `publish` makes the release public once both builds are attached. A failed build leaves
 #    the draft, so nothing half-done is published.
 #
@@ -64,10 +65,9 @@ jobs:
           $notes = @"
           NemoMusic v$env:VERSION for Windows x64 and Linux x64 (unsigned, early development).
 
-          Windows: unzip and run ``nemo-app.exe``; keep ``nemo-signin.exe`` next to it.
-          Linux: untar and run ``./nemo-app``; keep ``nemo-signin`` next to it. Needs the GTK 3,
-          WebKitGTK 4.1, libsoup 3, ALSA and OpenSSL runtime libraries, and a Secret Service
-          keyring for sign-in.
+          Windows: unzip and run ``nemo-app.exe``.
+          Linux: untar and run ``./nemo-app``. Needs the GTK 3, WebKitGTK 4.1, libsoup 3, ALSA and
+          OpenSSL runtime libraries to start, and a Secret Service keyring for sign-in.
           YouTube playback needs [yt-dlp](https://github.com/yt-dlp/yt-dlp) on PATH.
 
           NemoMusic is not made, approved or supported by Google or YouTube. It uses YouTube Music
@@ -111,7 +111,7 @@ jobs:
 
       # CMake for libopus ships on the windows-latest image; Linux gets it from apt above.
       - name: Build
-        run: cargo build --release --locked -p nemo-app -p nemo-signin
+        run: cargo build --release --locked -p nemo-app
 
       - name: Package and upload
         shell: pwsh
@@ -123,11 +123,11 @@ jobs:
           $name = "NemoMusic-$env:VERSION-$env:TARGET"
           New-Item -ItemType Directory $name | Out-Null
           if ($IsWindows) {
-            Copy-Item target/release/nemo-app.exe, target/release/nemo-signin.exe, LICENSE, README.md $name
+            Copy-Item target/release/nemo-app.exe, LICENSE, README.md $name
             $archive = "$name.zip"
             Compress-Archive -Path $name -DestinationPath $archive
           } else {
-            Copy-Item target/release/nemo-app, target/release/nemo-signin, LICENSE, README.md $name
+            Copy-Item target/release/nemo-app, LICENSE, README.md $name
             $archive = "$name.tar.gz"
             # tar keeps the executable bit, which a zip made here would drop.
             tar -czf $archive $name
