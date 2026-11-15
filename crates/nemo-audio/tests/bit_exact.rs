@@ -227,3 +227,66 @@ fn a_gapless_transition_keeps_every_sample() {
         std::fs::remove_file(path).expect("cleanup");
     }
 }
+
+/// The `ReplayGain` stage: with the setting off a tagged song, and with it on an untagged song,
+/// go through the streaming player (prepare, feeder, ring, callback) bit for bit.
+#[test]
+fn replay_gain_off_or_untagged_keeps_the_player_path_bit_exact() {
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    use common::fakes::{RigOptions, local_track, rig};
+    use nemo_audio::replay_gain::{ReplayGainSettings, ReplayGainSwitch};
+    use nemo_core::library::{LocalPlayback, LocalTrackLookup, ReplayGainValues};
+    use nemo_core::player::{PlayState, PlayerCommand, PlayerEvent};
+    use nemo_core::track::Track;
+
+    struct Tagged(Option<f32>);
+    impl LocalTrackLookup for Tagged {
+        fn playback(&self, _track: &Track) -> Option<LocalPlayback> {
+            Some(LocalPlayback {
+                gain: ReplayGainValues {
+                    track_gain_db: self.0,
+                    ..ReplayGainValues::default()
+                },
+                ..LocalPlayback::default()
+            })
+        }
+    }
+
+    let on = ReplayGainSettings {
+        enabled: true,
+        ..ReplayGainSettings::default()
+    };
+    for bits in [16, 24] {
+        let (path, source) = temp_wav(bits, "replay-gain");
+        let decoded = decode_file(&path).expect("decode");
+        for (enabled, tag) in [(false, Some(-6.0)), (true, None)] {
+            let switch = ReplayGainSwitch::default();
+            if enabled {
+                switch.set(on);
+            }
+            let mut r = rig(
+                vec![],
+                RigOptions {
+                    local: Some(Arc::new(Tagged(tag))),
+                    replay_gain: Some(switch),
+                    ..RigOptions::default()
+                },
+            );
+            r.send(PlayerCommand::Play(local_track(1, path.clone())));
+            r.wait_event("the end", Duration::from_secs(20), |e| {
+                *e == PlayerEvent::StateChanged(PlayState::Stopped)
+            });
+            let out = r.captured();
+            let got = out.get(..source.len()).expect("the whole file played");
+            let same = got
+                .iter()
+                .zip(&decoded.samples)
+                .all(|(a, b)| a.to_bits() == b.to_bits());
+            assert!(same, "{bits}-bit, setting on: {enabled}");
+            assert_eq!(to_ints(got, bits), source);
+        }
+        std::fs::remove_file(path).expect("cleanup");
+    }
+}

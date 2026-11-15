@@ -15,6 +15,7 @@ use nemo_core::stream::{StreamRequest, StreamResolver};
 
 use crate::control::Core;
 use crate::prepare::Prepared;
+use crate::replay_gain::ReplayGainSwitch;
 use crate::sink::SinkFactory;
 
 /// Everything the player needs from the rest of the app.
@@ -78,10 +79,12 @@ pub(crate) struct Shared {
     pub snapshot: Mutex<PlayerSnapshot>,
     subscribers: Mutex<Vec<Sender<PlayerEvent>>>,
     pub pos: PosShared,
+    /// The `ReplayGain` setting, read each time a song is handed to the feeder.
+    pub replay_gain: ReplayGainSwitch,
 }
 
 impl Shared {
-    fn new() -> Self {
+    fn new(replay_gain: ReplayGainSwitch) -> Self {
         Self {
             snapshot: Mutex::new(PlayerSnapshot::default()),
             subscribers: Mutex::new(Vec::new()),
@@ -94,6 +97,7 @@ impl Shared {
                 duration_us: AtomicU64::new(0),
                 active: AtomicBool::new(false),
             },
+            replay_gain,
         }
     }
 
@@ -185,13 +189,27 @@ pub struct Player;
 
 impl Player {
     /// Start the control thread and return the handle that drives it. Dropping the last clone of
-    /// the handle stops the player and releases the output device.
+    /// the handle stops the player and releases the output device. `ReplayGain` stays off; use
+    /// [`Player::spawn_with_replay_gain`] to change it later.
     ///
     /// # Panics
     /// Panics if the operating system refuses to start a thread.
     #[must_use]
     pub fn spawn(deps: PlayerDeps) -> Arc<dyn PlayerControl> {
-        let shared = Arc::new(Shared::new());
+        Self::spawn_with_replay_gain(deps, ReplayGainSwitch::default())
+    }
+
+    /// As [`Player::spawn`], reading the `ReplayGain` setting from `replay_gain`. The app keeps
+    /// a clone and sets it; a change applies from the next song handed to the feeder.
+    ///
+    /// # Panics
+    /// Panics if the operating system refuses to start a thread.
+    #[must_use]
+    pub fn spawn_with_replay_gain(
+        deps: PlayerDeps,
+        replay_gain: ReplayGainSwitch,
+    ) -> Arc<dyn PlayerControl> {
+        let shared = Arc::new(Shared::new(replay_gain));
         let (tx, rx) = channel();
         let (core_shared, core_tx) = (Arc::clone(&shared), tx.clone());
         // The core holds the output sink, which may not be Send, so it is built on its thread.
