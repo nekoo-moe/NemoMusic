@@ -19,7 +19,7 @@ use crate::palette::Seed;
 use crate::refresh::Start;
 use crate::state::{Event, ResolveKind};
 use iced::Size;
-use nemo_core::catalog::{SearchResults, Shelf};
+use nemo_core::catalog::{BrowseId, Explore, FeedShelf, SearchResults, Shelf};
 use nemo_core::lyrics::{LyricsCandidate, ProviderId};
 use nemo_core::player::PlayerEvent;
 use nemo_core::secret::Secret;
@@ -156,10 +156,12 @@ pub enum Message {
     LibLayout(LibLayout),
     /// Play every song of a page (loads it first when needed).
     PlayCollection(DetailKey),
-    /// A mood tile on Explore (index into [`MOODS`]).
+    /// A built-in mood tile on Explore (index into [`MOODS`]), shown when the catalog gave none.
     PickMood(usize),
     /// Hook: shelves for the Explore page from the catalog.
     ExploreLoaded(Arc<Vec<Shelf>>),
+    /// The Explore page and its mood and genre pages.
+    Explore(ExploreMsg),
     /// Hook: the account library from the catalog.
     AccountLibrary(Arc<AccountLibrary>),
     /// Open or close the tools panel (sleep timer, speed, shortcuts, window modes).
@@ -226,12 +228,30 @@ pub enum Message {
     Noop,
 }
 
+/// Messages of the Explore page (real-explore spec).
+#[derive(Debug, Clone)]
+pub enum ExploreMsg {
+    /// The catalog's Explore page answered.
+    Loaded(Result<Arc<Explore>, String>),
+    /// A mood or genre page answered.
+    MoodLoaded {
+        /// The mood id.
+        id: BrowseId,
+        /// Its shelves.
+        result: Result<Arc<Vec<FeedShelf>>, String>,
+    },
+    /// Ask for the Explore page again.
+    Retry,
+    /// Ask for a mood page again.
+    RetryMood(BrowseId),
+}
+
 /// The answer of one reload step.
 #[derive(Debug, Clone)]
 pub enum RefreshData {
     /// The Home shelves. `Ok(None)` when the catalog has no home page (signed out).
     Home(Result<Option<Arc<Vec<Shelf>>>, String>),
-    /// The account library, history and explore data.
+    /// The account library, history and home feed.
     Account(Arc<AccountBundle>),
 }
 
@@ -300,9 +320,13 @@ pub enum Job {
         /// Its cover.
         artwork: Artwork,
     },
-    /// Ask the catalog for the account library, history and explore data (one call after the
+    /// Ask the catalog for the account library, history and home feed (one call after the
     /// other, at human pace).
     AccountData,
+    /// Ask the catalog for its Explore page.
+    Explore,
+    /// Ask the catalog for a mood or genre page.
+    Mood(BrowseId),
     /// Run one step of a reload.
     Refresh(Start),
     /// Find songs like this one.

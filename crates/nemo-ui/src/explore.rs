@@ -1,9 +1,9 @@
 //! Pure models for the Explore page, the header content chips, the Library page options, the
 //! sleep timer and the shortcut sheet. No GUI dependency.
 //!
-//! Hook points for the parent: moods and genres are a fixed list here (each one runs a catalog
-//! search for its query today); when the catalog gains real mood and genre calls, feed their
-//! results through [`crate::gui::app::Message::ExploreLoaded`] and the page shows them instead.
+//! The moods and genres here are a fixed list, each running a catalog search for its query. The
+//! Explore page uses them only when the catalog's Explore answer has no moods or never loaded
+//! ([`crate::explore_feed`]); the daily "Mood of the day" falls back to them too.
 
 use std::time::Duration;
 
