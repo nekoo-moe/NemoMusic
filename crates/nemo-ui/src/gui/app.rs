@@ -12,6 +12,7 @@ use crate::frame_stats::FrameStats;
 use crate::layout;
 use crate::lru::{ART_CAPACITY, Lru};
 use crate::palette::Seed;
+use crate::refresh::Refresh;
 use crate::route::Route;
 use crate::scheme::{
     AccentIntensity, BaseMode, BgFade, CornerStyle, SchemeFade, ThemeChoice, bg_colors,
@@ -41,13 +42,14 @@ mod message;
 mod model;
 mod option;
 mod query;
+mod refresh;
 mod subscribe;
 mod sync;
 mod update;
 
 pub use art::{ArtEntry, ArtShape, ArtSpec, CanvasView, CoverView, TILE_RADIUS};
 pub use job::{art_key, run_job};
-pub use message::{AccountBundle, CoverBuilt, Job, Message};
+pub use message::{AccountBundle, CoverBuilt, Job, Message, RefreshData};
 pub use model::{
     AccountMsg, AccountUi, CompactTab, DetailData, DetailKey, DetailKind, DetailState, HomeFilter,
     HomePhase, HomeState, LibFilter, ListSource, NpTab, SettingsSection,
@@ -169,7 +171,8 @@ pub struct App {
     /// Daily sections: the data, the built sections and what they were built from.
     pub(crate) daily: DailyData,
     pub(crate) daily_sections: Vec<DailySection>,
-    daily_requested: Option<bool>,
+    /// The reload after a sign-in or a switch, and on Refresh (library-refresh spec).
+    pub(crate) refresh: Refresh,
     daily_key: Option<(usize, bool, u64, usize, usize)>,
     daily_gen: usize,
     /// The local day (seed and greeting).
@@ -277,7 +280,7 @@ impl App {
             pending_play: None,
             daily: DailyData::default(),
             daily_sections: Vec::new(),
-            daily_requested: None,
+            refresh: Refresh::default(),
             daily_key: None,
             daily_gen: 0,
             day: DayContext::from_unix(

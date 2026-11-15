@@ -32,6 +32,7 @@ pub mod mock;
 pub mod mock_lyrics;
 pub mod motion;
 pub mod palette;
+pub mod refresh;
 pub mod route;
 pub mod scheme;
 pub mod search;

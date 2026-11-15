@@ -94,6 +94,12 @@ impl App {
                 }
             }
             Message::Account(msg) => self.account_msg(msg),
+            // A reload replaced the shelves already: a late start-up answer is older.
+            Message::HomeFeed(_) | Message::HomeSeed { .. }
+                if self.home.phase == HomePhase::Done =>
+            {
+                Vec::new()
+            }
             Message::HomeFeed(result) => match result {
                 Ok(shelves) if !shelves.is_empty() => {
                     self.home.shelves.clone_from(shelves.as_ref());
@@ -411,6 +417,8 @@ impl App {
                 self.page_seeds.insert(key, seed);
                 Vec::new()
             }
+            // The start-up bundle; once a reload ran, its answer is newer than this one.
+            Message::AccountData(_) if self.refresh.generation() > 0 => Vec::new(),
             Message::AccountData(b) => {
                 self.daily = b.daily.clone();
                 self.daily_gen += 1;
@@ -425,6 +433,7 @@ impl App {
                 Vec::new()
             }
             Message::SearchFor(q) => self.dispatch(Event::Go(Route::Search(q))),
+            Message::Refreshed { generation, data } => self.on_refreshed(generation, data),
             Message::TimerTick | Message::Noop => Vec::new(),
         }
     }
