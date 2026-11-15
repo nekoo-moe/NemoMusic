@@ -33,6 +33,31 @@ Three stacked changes in `nemo-ui`, one PR each.
 11. No wording touched. Yes.
 12. No new frames: position updates already run each frame while playing; paused shows a still note. Nothing touches the audio thread. Yes.
 
+### Task 2 choices
+
+- Full-screen line sizes step 32/40, 24/32, 20/28 (`headline-lg`, `headline-sm`, `title-md`), line gap 24 instead of 8. About six lines are readable at 1366 x 697 instead of ten. The right pane keeps its dense sizes. Every line height is at least 1.25 times the size.
+- Opacity steps: the active line is `on-surface`, the other lines use the "coming" ink that keeps 4.5:1 on the song canvas. On top of that, a soft edge mask (`lyrics_view::edge_fade`, smoothstep over the top and bottom 20% of the viewport) fades lines out toward the edges. It is computed per line from its position after the scroll, so no shader or extra layer is needed. A line under the mask is only its height, so it costs nothing to draw. Lines inside the band are decorative and may drop under 4.5:1 (owner override, 2026-11-15). The middle band, where the active line and its neighbours sit, keeps full contrast.
+- Quiet controls (`now_playing/controls.rs`): previous and next are icon-only (24 px glyph, 40 px target), `on-surface-variant` at rest and `on-surface` while the pointer is over the glyph (the SVG hover state). Keyboard focus shows the usual focus ring of `fx`. Play/pause is an `on-surface` disc with a `surface` glyph, keeping the morph. The progress rail is 3 px, its handle 4 px and 6 px under the pointer, both neutral. Times are in `label-sm` under the rail, and the bundled digits are tabular.
+- The Timing popover is opaque `surface-container-high` (`design.md` section 6: a popover is never glass). It opens from a timer icon in the top bar, holds `-50 ms`, the value, `+50 ms` and `Reset`, and names the `[` and `]` keys. A press outside, `Esc`, leaving the screen, or opening the signal path closes it (`UiState::timing_open`, `Event::ToggleLyricsTiming`). It shows only for synced lyrics, like the old pills.
+- The quality badge is a borderless `label-sm` text button in `on-surface-variant`, and it still opens the signal path.
+- The scroll keeps the `spatial.default` spring and jumps under reduced motion (unchanged code path).
+- Classic keeps its own controls and pills. It is a separate style the owner did not ask to change.
+
+### design.md section 15 checklist (task 2)
+
+1. Tokens only: type scale, spacing scale, shape scale and colour roles. The rail width (3 px) and handle radii are new local numbers, like the old 4 px rail. Yes.
+2. Spacing on the 4 px scale (gap 24, popover padding 16). Yes.
+3. No glass: the popover is opaque. Yes.
+4. Contrast: the controls are `on-surface-variant` (4.5:1 over the canvas) and the play disc is `on-surface` with a `surface` glyph. Lines in the edge band are decorative (owner override). Yes, with that override.
+5. Reduce transparency: nothing transparent added. Yes.
+6. The quality label shows the same honest badge text. Yes.
+7. Covers untouched. Yes.
+8. Motion: the spring is unchanged, nothing new animates, and reduced motion jumps. Yes.
+9. Targets are 40 px and the focus ring is kept. `[` and `]` still work, and `Esc` closes the popover. Yes.
+10. The provider footer, sync state, offset control (in the popover), unsynced fallback and pill are all kept. Yes.
+11. No wording rule touched. Yes.
+12. No new frames, and nothing touches the audio thread. Yes.
+
 ## Affected Crates
 
 - `nemo-ui` only.
@@ -53,6 +78,16 @@ pub fn gap_note(doc: &LyricsDoc, position_ms: i64, offset_ms: i64, reduced: bool
 pub fn focus(doc: &LyricsDoc, position_ms: i64, offset_ms: i64, reduced: bool) -> Focus;
 pub fn row_height(dense: bool) -> f32;
 
+// nemo_ui::lyrics_view (task 2)
+pub const LINE_GAP_ROOMY: f32;       // 24
+pub const EDGE_FADE: f32;            // 0.2
+pub const fn line_gap(dense: bool) -> f32;
+pub fn edge_fade(center_y: f32, viewport_h: f32) -> f32;
+
+// nemo_ui::state (task 2)
+UiState::timing_open: bool;
+Event::ToggleLyricsTiming;
+
 // nemo_ui::lyrics_view
 pub fn scroll_target_focus(focus: &note::Focus, viewport_h: f32, dense: bool, rows: &[LineRows]) -> f32;
 
@@ -69,6 +104,7 @@ Pure arithmetic with saturating adds; a malformed document (no start times, over
 - Unit tests in `lyrics_view/note/tests.rs`: intro fill, the fill at the exact line start (1.0, then the `motion.fast` fade), reduced motion, a long gap from a line end, a short gap (none, and the 5 s edge), a blank line as the break marker, word timing as the line end, unsynced/instrumental/short intro (none), the offset, and the scroll anchor on the note.
 - Unit test of the note SVG (fill level, rounding, clamping).
 - Headless snapshots `lyrics-*` from `examples/snapshots/lyrics_polish.rs`.
+- Task 2: unit tests of the edge mask, the roomy gap and the line-height ratio; a reducer test for the Timing popover (toggle, one popover at a time, `Esc`, leaving the screen); snapshots `lyrics-after-gap-full-*` and `lyrics-timing-full-1366x697`.
 - Audio untouched, so no bit-exact test is needed.
 
 ## Risks and Alternatives

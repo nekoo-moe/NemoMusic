@@ -8,7 +8,7 @@ use nemo_core::lyrics::LyricsDoc;
 
 use super::super::super::app::{App, Message};
 use super::{Look, lyric_line, note};
-use crate::lyrics_view::LineRole;
+use crate::lyrics_view::{LINE_GAP, LineRole};
 use crate::theme::{TextStyle, type_scale};
 
 /// Type style of a role here: one step smaller than the wide layout, so three lines fit.
@@ -52,12 +52,14 @@ pub fn lines<'a>(app: &App, doc: &'a LyricsDoc, width: f32) -> Element<'a, Messa
     let mut c = column![].align_x(Alignment::Center).width(Length::Fill);
     for (i, line) in doc.lines.iter().enumerate().skip(first).take(count) {
         if let Some(n) = note.filter(|n| n.before == i) {
-            c = c.push(note::row_for(n, style(LineRole::Active)).0);
+            c = c.push(note::row_for(n, style(LineRole::Active), LINE_GAP).0);
         }
         let (from, to) = (role_of(i, before), role_of(i, active));
         let look = Look {
             from: (from, style(from)),
             to: (to, style(to)),
+            gap: LINE_GAP,
+            fade: 1.0,
         };
         c = c.push(lyric_line(app, line, width, look).0);
     }

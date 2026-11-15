@@ -104,6 +104,22 @@ fn specs() -> Vec<Spec> {
             31_000,
         ),
         (
+            "lyrics-after-gap-full-1920x1040",
+            (1920, 1040),
+            Route::NowPlaying,
+            m3,
+            false,
+            39_000,
+        ),
+        (
+            "lyrics-timing-full-1366x697",
+            (1366, 697),
+            Route::NowPlaying,
+            m3,
+            false,
+            39_000,
+        ),
+        (
             "lyrics-gap-compact-1000x640",
             (1000, 640),
             Route::NowPlaying,
@@ -158,6 +174,9 @@ pub(super) fn render(only: &[String], out_dir: &Path) -> Result<(), String> {
         });
         app.dispatch(Event::Position(Duration::from_millis(at_ms)));
         app.dispatch(Event::Frame { dt_ms: 16.0 });
+        if name.starts_with("lyrics-timing") {
+            app.dispatch(Event::ToggleLyricsTiming);
+        }
         let path = out_dir.join(format!("{name}.png"));
         render_png(&app, size, &path).map_err(|e| format!("{name}: {e}"))?;
         println!("wrote {}", path.display());

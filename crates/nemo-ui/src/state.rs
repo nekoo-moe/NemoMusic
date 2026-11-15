@@ -72,6 +72,8 @@ pub struct UiState {
     pub menu: Option<Track>,
     /// Signal-path popover open.
     pub signal_open: bool,
+    /// Lyrics Timing popover (offset tools) of the full-screen lyrics open.
+    pub timing_open: bool,
     motion_option: bool,
     last_active: Option<usize>,
 }
@@ -104,6 +106,7 @@ impl UiState {
             toast: None,
             menu: None,
             signal_open: false,
+            timing_open: false,
             motion_option: reduced_motion,
             last_active: None,
         }
@@ -358,7 +361,14 @@ impl UiState {
                 self.toast = None;
                 fx.push(Effect::Send(PlayerCommand::UndoSkip));
             }
-            Event::ToggleSignalPath => self.signal_open = !self.signal_open,
+            Event::ToggleSignalPath => {
+                self.signal_open = !self.signal_open;
+                self.timing_open = false;
+            }
+            Event::ToggleLyricsTiming => {
+                self.timing_open = !self.timing_open;
+                self.signal_open = false;
+            }
             Event::Notice(text) => {
                 self.toast = Some(Toast {
                     text,

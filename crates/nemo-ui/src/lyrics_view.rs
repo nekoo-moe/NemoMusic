@@ -6,7 +6,7 @@ use std::time::Duration;
 use nemo_core::lyrics::{Granularity, LyricsDoc};
 
 use crate::theme::TextStyle;
-use crate::theme::type_scale::{BODY_MD, HEADLINE_MD, TITLE_MD, TITLE_SM};
+use crate::theme::type_scale::{BODY_MD, HEADLINE_LG, HEADLINE_SM, TITLE_MD, TITLE_SM};
 
 pub mod note;
 
@@ -16,8 +16,33 @@ pub const LEAD_MS: i64 = 150;
 pub const ANCHOR: f32 = 0.35;
 /// Manual scrolling pauses auto-follow for this long.
 pub const FOLLOW_PAUSE_MS: f32 = 4000.0;
-/// Space between lines in px.
+/// Space between lines in px in the dense right pane (and the three-line lists).
 pub const LINE_GAP: f32 = 8.0;
+/// Space between lines in px in the full-screen lyrics: more air, so fewer lines show
+/// (lyrics-polish, owner override 2026-11-15).
+pub const LINE_GAP_ROOMY: f32 = 24.0;
+/// Share of the viewport height at the top and at the bottom over which the full-screen lines
+/// fade out (the soft edge mask).
+pub const EDGE_FADE: f32 = 0.2;
+
+/// Space between lines for the dense or roomy lyrics.
+#[must_use]
+pub const fn line_gap(dense: bool) -> f32 {
+    if dense { LINE_GAP } else { LINE_GAP_ROOMY }
+}
+
+/// Opacity a full-screen line gets from the soft edge mask: 1 in the middle of the viewport,
+/// easing to 0 at the top and bottom edges over [`EDGE_FADE`] of its height. `center_y` is
+/// the line's centre, px from the top of the viewport.
+#[must_use]
+pub fn edge_fade(center_y: f32, viewport_h: f32) -> f32 {
+    let zone = (EDGE_FADE * viewport_h).max(1.0);
+    let ease = |d: f32| {
+        let t = (d / zone).clamp(0.0, 1.0);
+        t * t * (3.0 - 2.0 * t)
+    };
+    ease(center_y) * ease(viewport_h - center_y)
+}
 
 /// How a line is drawn relative to the active one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -41,13 +66,15 @@ impl LineRole {
         }
     }
 
-    /// Type style: `headline-md` 28/36, `title-md` 20/28, `title-sm` 16/24.
+    /// Type style of the full-screen lyrics: `headline-lg` 32/40, `headline-sm` 24/32,
+    /// `title-md` 20/28 (lyrics-polish, owner override 2026-11-15; every line height is at
+    /// least 1.25 times the size, so stacked Vietnamese marks are not clipped).
     #[must_use]
     pub fn style(self) -> TextStyle {
         match self {
-            Self::Active => HEADLINE_MD,
-            Self::Neighbor => TITLE_MD,
-            Self::Other => TITLE_SM,
+            Self::Active => HEADLINE_LG,
+            Self::Neighbor => HEADLINE_SM,
+            Self::Other => TITLE_MD,
         }
     }
 
@@ -88,7 +115,7 @@ pub type LineRows = [u8; 3];
 /// Height in px of a line of `role` that wraps onto `rows` rows.
 #[must_use]
 pub fn wrapped_height(role: LineRole, dense: bool, rows: u8) -> f32 {
-    f32::from(role.style_d(dense).line) * f32::from(rows.max(1)) + LINE_GAP
+    f32::from(role.style_d(dense).line) * f32::from(rows.max(1)) + line_gap(dense)
 }
 
 /// Text for the sync level in the footer (wave-lyrics criterion 9).
@@ -153,7 +180,7 @@ pub fn row_height(role: LineRole) -> f32 {
 /// [`row_height`] for the dense (right pane) or roomy (full window) lyrics.
 #[must_use]
 pub fn row_height_d(role: LineRole, dense: bool) -> f32 {
-    f32::from(role.style_d(dense).line) + LINE_GAP
+    f32::from(role.style_d(dense).line) + line_gap(dense)
 }
 
 /// The scroll offset (px from the top of the list) that puts the top of line `active` at
@@ -333,9 +360,18 @@ mod tests {
         assert_eq!(LineRole::of(4, Some(3)), LineRole::Neighbor);
         assert_eq!(LineRole::of(0, Some(3)), LineRole::Other);
         assert_eq!(LineRole::of(0, None), LineRole::Other);
-        assert_eq!(LineRole::Active.style().size, 28);
-        assert_eq!(LineRole::Neighbor.style().size, 20);
-        assert_eq!(LineRole::Other.style().size, 16);
+        assert_eq!(LineRole::Active.style().size, 32);
+        assert_eq!(LineRole::Neighbor.style().size, 24);
+        assert_eq!(LineRole::Other.style().size, 20);
+        for role in [LineRole::Active, LineRole::Neighbor, LineRole::Other] {
+            for dense in [false, true] {
+                let st = role.style_d(dense);
+                assert!(
+                    f32::from(st.line) >= 1.25 * f32::from(st.size),
+                    "{role:?} {dense}"
+                );
+            }
+        }
         assert!(LineRole::Active.semibold() && !LineRole::Other.semibold());
     }
 
@@ -372,6 +408,30 @@ mod tests {
         let bottom = above + wrapped_height(LineRole::Active, true, 3);
         assert!(bottom - off <= vh + 1e-3, "{off}: bottom {bottom}");
         assert!(off <= above + 1e-3);
+    }
+
+    #[test]
+    fn the_edge_mask_fades_lines_toward_the_top_and_bottom() {
+        let vh = 500.0;
+        assert!(edge_fade(0.0, vh).abs() < 1e-6);
+        assert!(edge_fade(vh, vh).abs() < 1e-6);
+        assert!(
+            (edge_fade(0.35 * vh, vh) - 1.0).abs() < 1e-6,
+            "the anchor is clear"
+        );
+        assert!((edge_fade(0.5 * vh, vh) - 1.0).abs() < 1e-6);
+        let a = edge_fade(20.0, vh);
+        let b = edge_fade(60.0, vh);
+        assert!(a > 0.0 && a < b && b < 1.0, "{a} {b}");
+        assert!((edge_fade(vh - 60.0, vh) - b).abs() < 1e-5, "symmetric");
+        assert!(edge_fade(-10.0, vh).abs() < 1e-6);
+    }
+
+    #[test]
+    fn full_screen_lines_get_more_air() {
+        assert!(row_height_d(LineRole::Other, false) > row_height_d(LineRole::Other, true) + 16.0);
+        assert!((line_gap(false) - 24.0).abs() < f32::EPSILON);
+        assert!((line_gap(true) - LINE_GAP).abs() < f32::EPSILON);
     }
 
     #[test]

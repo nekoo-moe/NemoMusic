@@ -16,6 +16,7 @@ impl UiState {
     pub(super) fn go(&mut self, route: Route, fx: &mut Vec<Effect>) {
         self.menu = None;
         self.signal_open = false;
+        self.timing_open = false;
         if route == Route::Queue {
             // The queue is a panel, not a page.
             self.queue_open = !self.queue_open;
@@ -144,6 +145,8 @@ impl UiState {
                     self.menu = None;
                 } else if self.signal_open {
                     self.signal_open = false;
+                } else if self.timing_open {
+                    self.timing_open = false;
                 } else if self.queue_open {
                     self.queue_open = false;
                 } else {
