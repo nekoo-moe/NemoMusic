@@ -21,12 +21,20 @@ mod catalog;
     not(test),
     expect(
         dead_code,
-        reason = "the download worker (offline-cache task 9) is the caller"
+        reason = "the download worker starts with `DownloadService` (offline-cache task 12)"
     )
 )]
 mod fetch;
 mod gate;
 mod store;
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "`DownloadService` (offline-cache task 12) starts the worker"
+    )
+)]
+mod worker;
 
 #[cfg(test)]
 mod tests;
@@ -34,6 +42,10 @@ mod tests;
 pub use catalog::OfflineCatalog;
 pub use gate::{
     FAILURE_WINDOW, GatedImages, GatedOpener, GatedResolver, GatedSegments, OfflineSwitch,
+};
+pub use worker::{
+    FAILURES_BEFORE_PAUSE, FIRST_BACKOFF, GAP_MAX, GAP_MIN, Jitter, MAX_BACKOFF, RandomJitter,
+    THREAD_NAME,
 };
 
 /// Source of the current time, so tests can move it.
@@ -141,6 +153,8 @@ pub struct StartupCleanup {
 pub struct OfflineCache {
     root: PathBuf,
     store: store::Store,
+    /// Stamps saved songs.
+    clock: Arc<dyn Clock>,
     cleanup: StartupCleanup,
     reset_notice: AtomicBool,
 }
@@ -153,7 +167,7 @@ impl std::fmt::Debug for OfflineCache {
 
 impl OfflineCache {
     /// Open (or create) the cache in `dir`: the folders, then `offline.db`, running every
-    /// migration it has not seen yet. `clock` stamps the migrations.
+    /// migration it has not seen yet. `clock` stamps the migrations and saved songs.
     ///
     /// Then it cleans up (offline-cache criterion 24): a damaged index is deleted with every
     /// cache file and made again, leftover `.part` files with no queue row are deleted, and
@@ -163,10 +177,6 @@ impl OfflineCache {
     /// # Errors
     /// Returns an [`OfflineError`] when a folder or the index cannot be created, migrated or
     /// cleaned up, or when the index comes from a newer app (it is kept, not reset).
-    #[allow(
-        clippy::needless_pass_by_value,
-        reason = "the design's signature: later offline-cache tasks keep the clock in the cache"
-    )]
     pub fn open(dir: &Path, clock: Arc<dyn Clock>) -> Result<Self, OfflineError> {
         for folder in store::FOLDERS {
             std::fs::create_dir_all(dir.join(folder))?;
@@ -177,6 +187,7 @@ impl OfflineCache {
         Ok(Self {
             root: dir.to_path_buf(),
             store,
+            clock,
             cleanup,
             reset_notice: AtomicBool::new(index_reset),
         })
