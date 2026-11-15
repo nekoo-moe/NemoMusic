@@ -21,6 +21,7 @@ pub mod daily;
 pub mod drift;
 pub mod editor;
 pub mod explore;
+pub mod explore_feed;
 pub mod format;
 pub mod frame_stats;
 pub mod home;

@@ -60,6 +60,7 @@ impl App {
                 }
                 self.sync_viewport()
             }
+            Message::Rescaled(factor) => self.rescale(factor),
             Message::TogglePane => {
                 self.pane_open = !self.pane_open;
                 self.pane_user_set = true;
@@ -180,7 +181,11 @@ impl App {
                     .insert(key, entry, |e| matches!(e, ArtEntry::Loading));
                 Vec::new()
             }
-            Message::Cover { track, built } => self.on_cover(track, built),
+            Message::Cover {
+                track,
+                scale,
+                built,
+            } => self.on_cover(track, scale, built),
             Message::Lyrics {
                 track,
                 lookup,
@@ -323,6 +328,7 @@ impl App {
                 let mood = MOODS[i.min(MOODS.len() - 1)];
                 self.dispatch(Event::Go(Route::Search(mood.query.to_owned())))
             }
+            Message::Explore(msg) => self.explore_msg(msg),
             Message::ExploreLoaded(shelves) => {
                 self.explore_shelves.clone_from(shelves.as_ref());
                 Vec::new()
@@ -421,6 +427,7 @@ impl App {
             Message::AccountData(_) if self.refresh.generation() > 0 => Vec::new(),
             Message::AccountData(b) => {
                 self.daily = b.daily.clone();
+                self.explore.fill_daily(&mut self.daily);
                 self.daily_gen += 1;
                 if self.signed_in() {
                     self.set_account_library(&b);

@@ -8,6 +8,7 @@ use super::fx;
 use crate::anim::Anim;
 use crate::daily::{DailyData, DailySection, DayContext};
 use crate::explore::{ContentFilter, LibLayout, LibSort, LibTab};
+use crate::explore_feed::{ExploreFeed, MoodPages};
 use crate::frame_stats::FrameStats;
 use crate::layout;
 use crate::lru::{ART_CAPACITY, Lru};
@@ -36,6 +37,7 @@ use super::run;
 mod account;
 mod art;
 mod dispatch;
+mod explore;
 mod handle;
 mod job;
 mod message;
@@ -47,9 +49,11 @@ mod subscribe;
 mod sync;
 mod update;
 
-pub use art::{ArtEntry, ArtShape, ArtSpec, CanvasView, CoverView, TILE_RADIUS};
+pub use art::{
+    ArtEntry, ArtFit, ArtShape, ArtSpec, CanvasView, CoverView, TILE_RADIUS, art_fit, handle_px,
+};
 pub use job::{art_key, run_job};
-pub use message::{AccountBundle, CoverBuilt, Job, Message, RefreshData};
+pub use message::{AccountBundle, CoverBuilt, ExploreMsg, Job, Message, RefreshData};
 pub use model::{
     AccountMsg, AccountUi, CompactTab, DetailData, DetailKey, DetailKind, DetailState, HomeFilter,
     HomePhase, HomeState, LibFilter, ListSource, NpTab, SettingsSection,
@@ -73,6 +77,8 @@ pub struct App {
     pub(crate) backend: Backend,
     pub(crate) ui: UiState,
     pub(crate) window: Size,
+    /// Window scale factor in percent (100 is 1x); covers are fetched at slot times this.
+    pub(crate) scale_pct: u32,
     pub(crate) home: HomeState,
     pub(crate) local_albums: Vec<AlbumSummary>,
     pub(crate) local_tracks: Vec<Track>,
@@ -144,6 +150,10 @@ pub struct App {
     pub(crate) library_failed: bool,
     /// Shelves for Explore from the parent (hook).
     pub(crate) explore_shelves: Vec<Shelf>,
+    /// The catalog's Explore page (real-explore spec).
+    pub(crate) explore: ExploreFeed,
+    /// Mood and genre pages opened from Explore.
+    pub(crate) moods: MoodPages,
     /// Tools panel, shortcut sheet and "Create playlist" sheet.
     pub(crate) tools_open: bool,
     pub(crate) shortcuts_open: bool,
@@ -201,6 +211,7 @@ impl App {
             backend,
             ui,
             window: Size::new(options.window_size.0, options.window_size.1),
+            scale_pct: 100,
             home: HomeState::default(),
             local_albums: Vec::new(),
             local_tracks: Vec::new(),
@@ -266,6 +277,8 @@ impl App {
             account_library: None,
             library_failed: false,
             explore_shelves: Vec::new(),
+            explore: ExploreFeed::default(),
+            moods: MoodPages::default(),
             tools_open: false,
             shortcuts_open: false,
             create_open: false,

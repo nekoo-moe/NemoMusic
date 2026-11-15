@@ -1,6 +1,7 @@
 //! Running a [`Job`] against the backend.
 
-use super::message::{AccountBundle, CoverBuilt, Job, Message, RefreshData};
+use super::art::device_px;
+use super::message::{AccountBundle, CoverBuilt, ExploreMsg, Job, Message, RefreshData};
 use super::model::{AccountMsg, DetailData, DetailKind};
 use crate::cover;
 use crate::home;
@@ -114,12 +115,15 @@ pub async fn run_job(job: Job, backend: Backend) -> Message {
             };
             Message::Art { key, pixels }
         }
-        Job::Cover(track) => {
-            let built = match backend.images.image(&track.artwork, 640).await {
+        Job::Cover(track, scale) => {
+            // The largest cover slot (Now Playing, 480) and the bar slots (up to 96).
+            let art_px = device_px(480, scale);
+            let bar_px = device_px(96, scale);
+            let built = match backend.images.image(&track.artwork, art_px).await {
                 Ok(raw) => cover::analyze(&raw)
                     .and_then(|data| {
-                        let art = cover::bake(&raw, 480, 24.0 / 480.0)?;
-                        let bar = cover::bake(&raw, 128, 12.0 / 48.0)?;
+                        let art = cover::bake(&raw, art_px, 24.0 / 480.0)?;
+                        let bar = cover::bake(&raw, bar_px, 12.0 / 48.0)?;
                         Ok(Arc::new(CoverBuilt { art, bar, data }))
                     })
                     .map_err(|e| e.to_string()),
@@ -127,6 +131,7 @@ pub async fn run_job(job: Job, backend: Backend) -> Message {
             };
             Message::Cover {
                 track: track.id,
+                scale,
                 built,
             }
         }
@@ -187,6 +192,23 @@ pub async fn run_job(job: Job, backend: Backend) -> Message {
         },
         Job::AccountData => Message::AccountData(Arc::new(account_bundle(&backend).await)),
         Job::Refresh(start) => refresh_step(start, &backend).await,
+        Job::Explore => Message::Explore(ExploreMsg::Loaded(
+            backend
+                .catalog
+                .explore()
+                .await
+                .map(Arc::new)
+                .map_err(|e| e.to_string()),
+        )),
+        Job::Mood(id) => {
+            let result = backend
+                .catalog
+                .mood_playlists(&id)
+                .await
+                .map(Arc::new)
+                .map_err(|e| e.to_string());
+            Message::Explore(ExploreMsg::MoodLoaded { id, result })
+        }
         Job::Radio(seed) => {
             let query = format!(
                 "{} {}",
@@ -205,8 +227,9 @@ pub async fn run_job(job: Job, backend: Backend) -> Message {
     }
 }
 
-/// Call the account and explore parts of the catalog one after the other. Every call may fail
-/// (signed out, offline, not built): a failure just leaves that part empty.
+/// Call the account parts of the catalog and the home feed one after the other. Every call may
+/// fail (signed out, offline, not built): a failure just leaves that part empty. The Explore page
+/// is its own job ([`Job::Explore`]); its new releases and moods reach the daily inputs there.
 pub(super) async fn account_bundle(backend: &Backend) -> AccountBundle {
     use nemo_core::catalog::FeedItem;
     let c = &backend.catalog;
@@ -229,10 +252,6 @@ pub(super) async fn account_bundle(backend: &Backend) -> AccountBundle {
     }
     if let Ok(sections) = c.history().await {
         b.daily.history = sections.into_iter().flat_map(|s| s.tracks).collect();
-    }
-    if let Ok(e) = c.explore().await {
-        b.daily.new_releases = e.new_releases;
-        b.daily.moods = e.moods;
     }
     if let Ok(feed) = c.home_feed().await {
         if b.daily.moods.is_empty() {
