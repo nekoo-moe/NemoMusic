@@ -29,7 +29,7 @@ Cross-spec ids written `<spec>#?` name the task in that spec that adds the ADR 0
   - Checks: unit test with a non-seekable fake source; bit-exact test; counting-allocator test keeps passing.
   - Steering: none
 
-- [ ] 4. Add `url_resolver.rs` with the `UrlResolver` trait and `rank_formats`
+- [x] 4. Add `url_resolver.rs` with the `UrlResolver` trait and `rank_formats`
   - Crate and files: `nemo-core` (new nemo-core/src/url_resolver.rs, touches nemo-core/src/lib.rs).
   - Does: `UrlResolver` (`resolve`, `list`, `state`), `MediaQuery`, `MediaEntry`, `EntryKind`, `Site`, `FormatPolicy`, `FormatCandidate`, `ResolverState`, and the pure `rank_formats`: drop encrypted and unplayable codecs, score bitrate x efficiency (Opus 2.0, AAC 1.25, Vorbis 1.15, MP3 1.0, starting values), file before HLS of the same codec, previews below every full stream, ties to the newer codec.
   - _Requirements: 10, 11, 22_

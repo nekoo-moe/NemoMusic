@@ -32,6 +32,7 @@ pub mod stats;
 pub mod stream;
 pub mod together;
 pub mod track;
+pub mod url_resolver;
 
 use std::future::Future;
 use std::pin::Pin;
