@@ -1,5 +1,6 @@
 //! Tests for all-YouTube search: the parser on the spike fixture, the request order, the
-//! backoff and the reqwest transport against the loopback test server.
+//! backoff and the reqwest transport against the loopback test server. Channel pages are in
+//! `tests/channel.rs`.
 
 use std::future::Future;
 use std::pin::Pin;
@@ -342,3 +343,5 @@ fn block_on_thread<F: Future>(future: F) -> F::Output {
         std::thread::park();
     }
 }
+
+mod channel;

@@ -65,7 +65,7 @@ pub fn parse_search(text: &str) -> Result<WebResults, CatalogError> {
 }
 
 /// The text of a `simpleText`, `runs` or `content` field, trimmed; `None` when empty.
-fn text(value: &Value) -> Option<String> {
+pub(super) fn text(value: &Value) -> Option<String> {
     let joined = if let Some(simple) = value.get("simpleText").and_then(Value::as_str) {
         simple.to_owned()
     } else if let Some(runs) = value.get("runs").and_then(Value::as_array) {
@@ -88,12 +88,12 @@ fn valid_id(id: &str) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
 }
 
-fn channel_id(id: &str) -> Option<BrowseId> {
+pub(super) fn channel_id(id: &str) -> Option<BrowseId> {
     (id.starts_with("UC") && valid_id(id)).then(|| BrowseId(id.to_owned()))
 }
 
 /// Thumbnails from a list of `{url, width, height}`; entries without a URL are skipped.
-fn thumbnails(list: Option<&Value>) -> Vec<Thumbnail> {
+pub(super) fn thumbnails(list: Option<&Value>) -> Vec<Thumbnail> {
     list.and_then(Value::as_array)
         .into_iter()
         .flatten()
@@ -115,7 +115,7 @@ fn thumbnails(list: Option<&Value>) -> Vec<Thumbnail> {
 }
 
 /// `"1:01:14"` or `"3:05"` as a duration.
-fn length(text: &str) -> Option<Duration> {
+pub(super) fn length(text: &str) -> Option<Duration> {
     let mut secs: u64 = 0;
     let mut parts = 0;
     for part in text.trim().split(':') {
@@ -138,6 +138,32 @@ fn byline(value: &Value) -> Option<ChannelRef> {
         id,
         name: name.to_owned(),
     })
+}
+
+/// A video as a playable track (a web video plays through `yt-dlp` like a music video).
+pub(super) fn video_track(
+    video_id: VideoId,
+    title: String,
+    artists: Vec<String>,
+    duration: Option<Duration>,
+    thumbs: Vec<Thumbnail>,
+) -> Track {
+    Track {
+        id: TrackId(video_id.as_str().to_owned()),
+        title,
+        artists,
+        album: None,
+        duration,
+        origin: Origin::YoutubeMusic,
+        video_id: Some(video_id),
+        local_path: None,
+        artwork: if thumbs.is_empty() {
+            Artwork::None
+        } else {
+            Artwork::Remote(thumbs)
+        },
+        source_url: None,
+    }
 }
 
 fn video(r: &Value) -> Option<VideoSummary> {
@@ -163,22 +189,8 @@ fn video(r: &Value) -> Option<VideoSummary> {
         r.get("lengthText").and_then(text).and_then(|t| length(&t))
     };
     let thumbs = thumbnails(r.pointer("/thumbnail/thumbnails"));
-    let track = Track {
-        id: TrackId(video_id.as_str().to_owned()),
-        title,
-        artists: channel.iter().map(|c| c.name.clone()).collect(),
-        album: None,
-        duration,
-        origin: Origin::YoutubeMusic,
-        video_id: Some(video_id),
-        local_path: None,
-        artwork: if thumbs.is_empty() {
-            Artwork::None
-        } else {
-            Artwork::Remote(thumbs)
-        },
-        source_url: None,
-    };
+    let artists = channel.iter().map(|c| c.name.clone()).collect();
+    let track = video_track(video_id, title, artists, duration, thumbs);
     Some(VideoSummary {
         track,
         channel,
@@ -241,7 +253,7 @@ fn card(c: &Value) -> Option<ChannelSummary> {
 }
 
 /// A playlist lockup; other lockups (videos, mixes in shelves) are not playlists here.
-fn lockup(l: &Value) -> Option<PlaylistSummary> {
+pub(super) fn lockup(l: &Value) -> Option<PlaylistSummary> {
     if l.get("contentType")?.as_str()? != LOCKUP_PLAYLIST {
         return None;
     }
