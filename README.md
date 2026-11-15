@@ -1,7 +1,7 @@
 <div align="center">
 <h1>NemoMusic</h1>
 
-A calm FOSS desktop music player in Rust for YouTube Music and your own files,<br>with a bit-perfect output path, honest quality labels and Material 3 + Liquid Glass design.
+A calm, FOSS desktop music player in Rust for YouTube Music and your own files,<br>with a bit-perfect output path, honest quality labels and Material 3 + Liquid Glass design.
 <br><br>
 <a href="https://github.com/nekoo-moe/NemoMusic/actions"><img src="https://github.com/nekoo-moe/NemoMusic/actions/workflows/ci.yml/badge.svg"></a>
 <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue"></a>
