@@ -15,9 +15,10 @@ use nemo_core::secret::Secret;
 
 use crate::info;
 
-/// The Discord application id. Empty until the owner registers the application; while it is
-/// empty Discord presence is neither offered nor started.
-pub const DISCORD_APPLICATION_ID: &str = "";
+/// The Discord application id the owner registered (2026-11-15). It is public: Discord shows
+/// it to anyone who sees the presence, so it is not a secret. While it is empty, Discord
+/// presence is neither offered nor started.
+pub const DISCORD_APPLICATION_ID: &str = "1571523010022735972";
 
 const LASTFM_NOT_BUILT: &str = "Last.fm is not built yet";
 
@@ -129,13 +130,17 @@ mod tests {
     }
 
     #[test]
-    fn discord_is_not_offered_without_an_application_id() {
-        assert!(DISCORD_APPLICATION_ID.is_empty());
+    fn discord_is_offered_with_the_built_in_application_id_and_starts_off() {
+        assert!(!DISCORD_APPLICATION_ID.is_empty());
+        assert!(DISCORD_APPLICATION_ID.bytes().all(|b| b.is_ascii_digit()));
         let s = build();
-        s.set_discord(true);
         assert!(!s.discord());
         let ids: Vec<&str> = s.infos().iter().map(|i| i.id).collect();
-        assert_eq!(ids, ["media_controls", "lastfm"]);
+        assert_eq!(ids, ["media_controls", "lastfm", "discord"]);
+        s.set_discord(true);
+        assert!(s.discord());
+        s.set_discord(false);
+        assert!(!s.discord());
     }
 
     #[test]
