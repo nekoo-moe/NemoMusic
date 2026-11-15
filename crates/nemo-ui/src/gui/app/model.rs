@@ -115,6 +115,10 @@ pub enum ListSource {
     Videos,
     /// Music videos of the search results.
     SearchVideos,
+    /// Songs and videos of Explore shelf number `n` (charts first).
+    Explore(usize),
+    /// Songs and videos of shelf number `n` of a mood page.
+    Mood(BrowseId, usize),
 }
 
 /// Lower area of compact Now Playing.

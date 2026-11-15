@@ -313,6 +313,7 @@ impl App {
                 let mood = MOODS[i.min(MOODS.len() - 1)];
                 self.dispatch(Event::Go(Route::Search(mood.query.to_owned())))
             }
+            Message::Explore(msg) => self.explore_msg(msg),
             Message::ExploreLoaded(shelves) => {
                 self.explore_shelves.clone_from(shelves.as_ref());
                 Vec::new()
@@ -411,6 +412,7 @@ impl App {
             Message::AccountData(_) if self.refresh.generation() > 0 => Vec::new(),
             Message::AccountData(b) => {
                 self.daily = b.daily.clone();
+                self.explore.fill_daily(&mut self.daily);
                 self.daily_gen += 1;
                 if self.signed_in() {
                     self.set_account_library(&b);

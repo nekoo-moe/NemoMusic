@@ -158,6 +158,16 @@ impl App {
                 .as_ref()
                 .map(|r| r.videos.iter().map(|v| v.track.clone()).collect())
                 .unwrap_or_default(),
+            ListSource::Explore(n) => self
+                .explore
+                .shelf(*n)
+                .map(crate::explore_feed::shelf_tracks)
+                .unwrap_or_default(),
+            ListSource::Mood(id, n) => self
+                .moods
+                .shelf(id, *n)
+                .map(crate::explore_feed::shelf_tracks)
+                .unwrap_or_default(),
             ListSource::Account => self
                 .account_lists()
                 .map(|l| l.songs.clone())
