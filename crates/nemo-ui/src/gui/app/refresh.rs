@@ -32,11 +32,17 @@ impl App {
         if !self.ui.youtube_enabled() {
             return Vec::new();
         }
-        self.refresh
+        let jobs: Vec<Job> = self
+            .refresh
             .request()
             .map(Job::Refresh)
             .into_iter()
-            .collect()
+            .collect();
+        if !jobs.is_empty() {
+            // Explore reloads beside it, on its own (real-explore spec).
+            self.explore.reload();
+        }
+        jobs
     }
 
     /// A reload step answered: use it when it still counts, then start the next step. A
@@ -79,6 +85,7 @@ impl App {
             RefreshData::Home(_) => {}
             RefreshData::Account(bundle) => {
                 self.daily = bundle.daily.clone();
+                self.explore.fill_daily(&mut self.daily);
                 self.daily_gen += 1;
                 if self.signed_in() {
                     self.set_account_library(&bundle);
