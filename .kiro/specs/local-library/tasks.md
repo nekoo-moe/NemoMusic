@@ -73,7 +73,7 @@ Cross-spec ids written `<spec>#?` name the owner's task by its ADR 0004 Decision
   - Checks: migration, reopen and WAL tests on a temp folder.
   - Steering: `tech.md` Library DB row: `rusqlite` 0.41.1 from "proposed" to "decided". `structure.md`: `nemo-library` owns `library.db`.
 
-- [ ] 9. Rebuild a damaged library file
+- [x] 9. Rebuild a damaged library file
   - Crate and files: `nemo-library`: `src/store.rs`.
   - Does: Runs `PRAGMA quick_check` at open. On failure renames the file and its `-wal` and `-shm` to `library.db.broken-<unix time>`, creates a new file, asks for a rescan and emits one `ScanEvent::Rebuilt` whose text says the kept copy holds the old playlists.
   - _Requirements: 6_

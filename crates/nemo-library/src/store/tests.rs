@@ -293,3 +293,117 @@ fn gapless_albums_and_loudness_by_file_stamp() {
     assert_eq!(store.loudness(&file, (10, 20)).expect("get"), Some(loud));
     assert_eq!(store.loudness(&file, (11, 20)).expect("changed file"), None);
 }
+
+/// A library with one folder, enough tracks to span several pages, and a playlist.
+fn filled(d: &Dir) {
+    let mut store = Store::open(&d.0).expect("open");
+    store.add_folder(&music(d)).expect("folder");
+    let rows: Vec<TrackRow> = (0..300)
+        .map(|i| row(music(d).join(format!("{i:03}.flac")), &format!("Song {i}")))
+        .collect();
+    store.write_tracks(&music(d), &rows).expect("write");
+    let id = store.create_playlist("Kept").expect("create");
+    store
+        .add_entries(id, &[NewEntry::Stream(stream_track())])
+        .expect("add");
+}
+
+fn kept_copies(d: &Dir) -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(&d.0)
+        .expect("dir")
+        .filter_map(Result::ok)
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|n| n.starts_with(BROKEN_PREFIX))
+        .collect();
+    names.sort();
+    names
+}
+
+#[test]
+fn a_truncated_file_is_kept_and_the_library_rebuilt() {
+    let d = dir("truncated");
+    filled(&d);
+    let file = d.0.join(DB_FILE);
+    let len = std::fs::metadata(&file).expect("meta").len();
+    assert!(
+        len > 8 * 4096,
+        "the test file spans many pages ({len} bytes)"
+    );
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open(&file)
+        .and_then(|f| f.set_len(len / 2))
+        .expect("truncate");
+    let damaged = std::fs::read(&file).expect("read");
+
+    let mut store = Store::open(&d.0).expect("open rebuilds");
+    let rebuilt = store.take_rebuilt().expect("reported");
+    assert_eq!(rebuilt.event(), ScanEvent::Rebuilt);
+    assert_eq!(store.take_rebuilt(), None, "reported once");
+    assert_eq!(
+        rebuilt.kept.parent(),
+        Some(d.0.as_path()),
+        "kept beside the new file"
+    );
+    let kept_name = rebuilt.kept.file_name().expect("name").to_string_lossy();
+    assert!(kept_name.starts_with(BROKEN_PREFIX));
+    assert!(kept_name[BROKEN_PREFIX.len()..].parse::<i64>().is_ok());
+    assert_eq!(
+        std::fs::read(&rebuilt.kept).expect("kept"),
+        damaged,
+        "the copy is the damaged file, byte for byte"
+    );
+    // The read-only check may leave SQLite's empty `-wal` and `-shm` beside it; they move too.
+    let copies = kept_copies(&d);
+    assert!(copies.contains(&kept_name.to_string()));
+    assert!(copies.iter().all(|n| n.starts_with(kept_name.as_ref())));
+
+    assert_eq!(migrations(&store), vec![1]);
+    assert!(store.all_tracks().expect("tracks").is_empty());
+    assert!(store.playlists().expect("playlists").is_empty());
+    assert_eq!(
+        store.folders().expect("folders"),
+        vec![music(&d)],
+        "the folder list is read back so the rescan has something to scan"
+    );
+    drop(store);
+    let mut again = Store::open(&d.0).expect("reopen");
+    assert_eq!(again.take_rebuilt(), None, "the new file is sound");
+    assert_eq!(kept_copies(&d), copies);
+}
+
+#[test]
+fn a_file_that_is_no_database_is_kept_with_its_wal_and_shm() {
+    let d = dir("garbage");
+    std::fs::create_dir_all(&d.0).expect("dir");
+    let garbage = vec![0xA5_u8; 3 * 4096];
+    std::fs::write(d.0.join(DB_FILE), &garbage).expect("db");
+    std::fs::write(d.0.join(format!("{DB_FILE}-wal")), b"wal").expect("wal");
+    std::fs::write(d.0.join(format!("{DB_FILE}-shm")), b"shm").expect("shm");
+
+    let mut store = Store::open(&d.0).expect("open rebuilds");
+    let rebuilt = store.take_rebuilt().expect("reported");
+    assert_eq!(std::fs::read(&rebuilt.kept).expect("kept"), garbage);
+    let side = |suffix: &str| {
+        let mut name = rebuilt.kept.clone().into_os_string();
+        name.push(suffix);
+        PathBuf::from(name)
+    };
+    assert_eq!(std::fs::read(side("-wal")).expect("kept wal"), b"wal");
+    // `-shm` is SQLite's rebuildable index, not data: the check may rewrite it, but it moves.
+    assert!(side("-shm").exists());
+    assert!(store.folders().expect("folders").is_empty());
+    assert_eq!(kept_copies(&d).len(), 3);
+}
+
+#[test]
+fn a_sound_file_is_not_rebuilt_and_the_notice_names_the_playlists_not_a_path() {
+    let d = dir("sound");
+    filled(&d);
+    let mut store = Store::open(&d.0).expect("open");
+    assert_eq!(store.take_rebuilt(), None);
+    assert_eq!(store.all_tracks().expect("tracks").len(), 300);
+    assert!(kept_copies(&d).is_empty());
+    assert!(REBUILT_NOTICE.contains("old playlists"));
+    assert!(!REBUILT_NOTICE.contains('/') && !REBUILT_NOTICE.contains('\\'));
+}
