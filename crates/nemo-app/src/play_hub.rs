@@ -8,6 +8,11 @@
 //! never holds up the hub or the other observers. At exit the hub flushes the tracker, so the
 //! last play ends with a `TrackEnded`. Nothing here runs in the audio callback; the hub only
 //! reads the player's atomics and snapshot.
+//!
+//! While a remote plays (Cast, a parked player), the local position does not move. Given a
+//! `RemotePlayback`, the hub then samples `remote_status()` instead of `position()`, and takes the
+//! play state from the remote too, so the OS session and counted plays follow the remote device
+//! (criterion 5). In `RemoteMode::Local` and in a room guest's own playback nothing changes.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -16,6 +21,8 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant, SystemTime};
 
 use nemo_core::hooks::{PlayHookEvent, PlayObserver, PlayTracker};
+use nemo_core::player::{PlayState, PlayerEvent, PlayerSnapshot};
+use nemo_core::remote::{RemoteMode, RemotePlayback};
 use nemo_core::services::{EventReceiver, PlayerControl};
 
 /// Events an observer may have waiting before the hub drops new ones for it.
@@ -98,6 +105,19 @@ pub fn spawn_with(
     observers: Vec<Arc<dyn PlayObserver>>,
     timing: Timing,
 ) -> std::io::Result<PlayHub> {
+    spawn_with_remote(player, None, observers, timing)
+}
+
+/// Start the hub with `timing`, following `remote` while it is not local.
+///
+/// # Errors
+/// Returns the I/O error when a thread cannot be started.
+pub fn spawn_with_remote(
+    player: Arc<dyn PlayerControl>,
+    remote: Option<Arc<dyn RemotePlayback>>,
+    observers: Vec<Arc<dyn PlayObserver>>,
+    timing: Timing,
+) -> std::io::Result<PlayHub> {
     // Subscribe here, so no event between this call and the thread start is lost.
     let events = player.subscribe();
     let mut outlets = Vec::with_capacity(observers.len());
@@ -116,7 +136,10 @@ pub fn spawn_with(
     let flag = Arc::clone(&stop);
     let thread = thread::Builder::new()
         .name("play-hub".into())
-        .spawn(move || run(player.as_ref(), events, outlets, &flag, timing))?;
+        .spawn(move || {
+            let mut follow = Sampler::new(remote, timing);
+            run(player.as_ref(), &mut follow, events, outlets, &flag);
+        })?;
     Ok(PlayHub {
         stop,
         thread: Some(thread),
@@ -130,20 +153,94 @@ fn forward(rx: &Receiver<PlayHookEvent>, observer: &dyn PlayObserver) {
     }
 }
 
+/// Takes the position samples. Follows the remote playback, when there is one, and remembers
+/// what it told the tracker.
+struct Sampler {
+    remote: Option<Arc<dyn RemotePlayback>>,
+    /// The state last fed to the tracker from the remote; `None` while playback is local.
+    fed: Option<PlayState>,
+    timing: Timing,
+}
+
+impl Sampler {
+    fn new(remote: Option<Arc<dyn RemotePlayback>>, timing: Timing) -> Self {
+        Self {
+            remote,
+            fed: None,
+            timing,
+        }
+    }
+
+    /// The remote's status, only while playback is not local.
+    fn active(&self) -> Option<nemo_core::remote::RemoteStatus> {
+        let status = self.remote.as_ref()?.remote_status();
+        (status.mode != RemoteMode::Local).then_some(status)
+    }
+
+    /// Take one position sample: the remote's while it plays, the player's otherwise.
+    fn sample(
+        &mut self,
+        player: &dyn PlayerControl,
+        tracker: &mut PlayTracker,
+        now: Instant,
+        out: &mut Vec<PlayHookEvent>,
+    ) {
+        let (position, state) = match self.active() {
+            Some(status) => (status.position, Some(status.state)),
+            None => (Some(player.position()), None),
+        };
+        match (state, self.fed) {
+            (Some(state), fed) if fed != Some(state) => {
+                self.fed = Some(state);
+                feed_state(tracker, state, now, out);
+            }
+            (None, Some(_)) => {
+                // Back to local playback: take the player's own state again.
+                self.fed = None;
+                feed_state(tracker, player.snapshot().state, now, out);
+            }
+            _ => {}
+        }
+        if let Some(position) = position {
+            tracker.tick(position, now, out);
+        }
+    }
+}
+
+fn feed_state(
+    tracker: &mut PlayTracker,
+    state: PlayState,
+    now: Instant,
+    out: &mut Vec<PlayHookEvent>,
+) {
+    tracker.on_player_event(
+        &PlayerEvent::StateChanged(state),
+        &PlayerSnapshot::default(),
+        now,
+        SystemTime::now(),
+        out,
+    );
+}
+
 /// The hub thread body.
 fn run(
     player: &dyn PlayerControl,
+    follow: &mut Sampler,
     mut events: Box<dyn EventReceiver>,
     mut outlets: Vec<Outlet>,
     stop: &AtomicBool,
-    timing: Timing,
 ) {
+    let timing = follow.timing;
     let mut tracker = PlayTracker::new();
     let mut out = Vec::new();
     let mut next_sample = Instant::now() + timing.sample_every;
     loop {
         let stopping = stop.load(Ordering::SeqCst);
         while let Some(event) = events.try_next() {
+            // While a remote plays, its state wins over the parked player's own.
+            if matches!(event, PlayerEvent::StateChanged(_)) && follow.active().is_some() {
+                continue;
+            }
             let snapshot = player.snapshot();
             tracker.on_player_event(
                 &event,
@@ -155,7 +252,7 @@ fn run(
         }
         let now = Instant::now();
         if now >= next_sample {
-            tracker.tick(player.position(), now, &mut out);
+            follow.sample(player, &mut tracker, now, &mut out);
             next_sample = now + timing.sample_every;
         }
         if stopping {
