@@ -179,7 +179,7 @@ Cross-spec ids written `<spec>#?` name the owner's task by its ADR 0004 Decision
   - Checks: `cargo test -p nemo-audio --test bit_exact` with ReplayGain off; `rt_no_alloc` run with the gain stage on (callback allocates nothing; feeder preallocates); `proptest` for dB-to-scalar and the peak clamp; `is_bit_perfect` false while the stage is in the path. Alters audio only when enabled, as the approved spec says (`workflow.md` section 8).
   - Done: the gain is picked on the control thread when it hands the song to the feeder (`ReplayGain::plan` in `src/replay_gain.rs`), not on the prepare thread: the `PrepareDeps` literal lives in `control_cmd.rs`, which lane A owns in wave 3, and the values already arrive in `Prepared.playback`. The setting is a `ReplayGainSwitch` handle passed to `Player::spawn_with_replay_gain` (no `PlayerDeps` field, no nemo-core type); `nemo-app` keeps a clone and sets it in task 32. Track mode falls back to the album gain and album mode to the track gain; the pre-gain is limited to -15 to +15 dB; a gain of exactly 0 dB builds no stage.
 
-- [ ] 22. Measure loudness with `ebur128`
+- [x] 22. Measure loudness with `ebur128`
   - Crate and files: `nemo-audio`: `Cargo.toml` (`ebur128` =0.1.11), `src/loudness.rs` (new, `AudioMeter`).
   - Does: `AudioMeter` implements `LoudnessMeter`: decodes a file with `StreamDecoder`, feeds `ebur128` and returns integrated loudness and true peak. Checks the cancel flag between blocks.
   - _Requirements: 16_
