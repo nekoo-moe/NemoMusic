@@ -222,3 +222,39 @@ fn wipe_deletes_nothing_in_a_folder_with_files_the_cache_did_not_make() {
     assert!(d.0.join("blobs").join(song).is_file());
     assert!(d.0.join("offline.db").is_file());
 }
+
+#[test]
+fn signing_out_of_one_account_wipes_the_whole_cache_and_counts_the_files() {
+    use nemo_core::account::{AccountId, SignOutReport, SignOutWipe, WipeScope};
+
+    let d = dir("sign-out");
+    let cache = OfflineCache::open(&d.0, clock(1)).expect("open");
+    save(&d, "aaaaaaaaaa1", "user", true, 10);
+    save(&d, "bbbbbbbbbb2", "smart", false, 20);
+    queue(&d, "ccccccccccc", 4);
+    assert_eq!(SignOutWipe::name(&cache), "offline");
+    let mut report = SignOutReport::default();
+    report.run_step(&cache, WipeScope::Account(AccountId(2)));
+    // Two blobs, a part and at least `offline.db`.
+    assert!(report.items_removed >= 4, "{report:?}");
+    assert!(report.failed_steps.is_empty());
+    assert!(!d.0.exists(), "no file is left under offline/");
+    // A second sign-out finds nothing left.
+    assert_eq!(SignOutWipe::wipe(&cache, WipeScope::All), Ok(0));
+}
+
+#[test]
+fn a_sign_out_wipe_that_meets_a_foreign_file_fails_and_deletes_nothing() {
+    use nemo_core::account::{SignOutReport, WipeScope};
+
+    let d = dir("sign-out-foreign");
+    let cache = OfflineCache::open(&d.0, clock(1)).expect("open");
+    let song = save(&d, "aaaaaaaaaa1", "user", true, 10);
+    std::fs::write(d.0.join("notes.txt"), b"not ours").expect("foreign file");
+    let mut report = SignOutReport::default();
+    report.run_step(&cache, WipeScope::All);
+    assert_eq!(report.failed_steps, vec!["offline"]);
+    assert_eq!(report.items_removed, 0);
+    assert!(d.0.join("notes.txt").is_file());
+    assert!(d.0.join("blobs").join(song).is_file());
+}

@@ -11,6 +11,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use nemo_core::account::{SignOutWipe, WipeError, WipeScope};
 use nemo_core::downloads::CollectionRef;
 use nemo_core::secret::Secret;
 use nemo_core::track::VideoId;
@@ -258,5 +259,28 @@ impl OfflineCache {
     /// Returns [`OfflineError::Io`] when the folder cannot be deleted.
     pub fn wipe(&self) -> Result<u64, OfflineError> {
         self.store.wipe(&self.root)
+    }
+}
+
+/// Name of the sign-out step, shown when it fails.
+pub const SIGN_OUT_STEP: &str = "offline";
+
+/// Sign-out deletes the whole offline cache (criterion 23), whichever account signs out: the
+/// scope is ignored, because the cache is shared. Only the cache folder is deleted, and
+/// nothing when it holds anything the cache does not make.
+impl SignOutWipe for OfflineCache {
+    fn name(&self) -> &'static str {
+        SIGN_OUT_STEP
+    }
+
+    /// Returns the number of files removed.
+    fn wipe(&self, _scope: WipeScope) -> Result<usize, WipeError> {
+        match OfflineCache::wipe(self) {
+            Ok(files) => Ok(usize::try_from(files).unwrap_or(usize::MAX)),
+            Err(e) => {
+                tracing::warn!(error = %e, "the offline cache could not be wiped");
+                Err(WipeError("the offline cache could not be deleted"))
+            }
+        }
     }
 }

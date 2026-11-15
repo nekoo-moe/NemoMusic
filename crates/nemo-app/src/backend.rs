@@ -22,6 +22,7 @@ use nemo_lyrics::LyricsHub;
 use nemo_ytm::account::{AccountCatalog, AccountConfig, GoogleAccount, SessionSlot};
 use nemo_ytm::catalog::YtmCatalog;
 use nemo_ytm::images::ImageCache;
+use nemo_ytm::offline::{OfflineCache, SystemClock};
 use nemo_ytm::resolver::default_chain;
 use nemo_ytm::session::YtmSessionBackend;
 use nemo_ytm::sponsorblock::{ReqwestHttp, SponsorBlockSource};
@@ -65,7 +66,8 @@ pub fn build(
 ) -> Result<Services, StartError> {
     let local = LocalCatalog::new(LocalLibrary::new(settings.music_folders.clone()));
     let account_slot: SessionSlot = SessionSlot::default();
-    let account = build_account(paths, handle, &account_slot);
+    let offline = open_offline(paths);
+    let account = build_account(paths, handle, &account_slot, offline);
     // Signed out: the anonymous catalog. Signed in: the account's session, switched live.
     let remote = AccountCatalog::new(Arc::new(YtmCatalog::new(handle.clone())), account_slot);
     let catalog = MergedCatalog::new(
@@ -160,7 +162,12 @@ fn start_commands(settings: &Settings) -> [PlayerCommand; 4] {
 }
 
 /// The Google account service, or `NoAccount` when the OS credential store is missing.
-fn build_account(paths: &AppPaths, handle: &Handle, slot: &SessionSlot) -> Arc<dyn AccountService> {
+fn build_account(
+    paths: &AppPaths,
+    handle: &Handle,
+    slot: &SessionSlot,
+    offline: Option<Arc<OfflineCache>>,
+) -> Arc<dyn AccountService> {
     let store = match nemo_secrets::open_platform_store() {
         Ok(store) => store,
         Err(err) => {
@@ -181,7 +188,7 @@ fn build_account(paths: &AppPaths, handle: &Handle, slot: &SessionSlot) -> Arc<d
         slot.clone(),
         handle.clone(),
     );
-    for step in sign_out_steps() {
+    for step in sign_out_steps(offline) {
         account.register_wipe(step);
     }
     Arc::new(account)
@@ -197,10 +204,26 @@ fn signin_program() -> PathBuf {
     })
 }
 
+/// The offline cache in `AppPaths.offline` (offline-cache), or `None` when it cannot be
+/// opened; then nothing is saved offline this session.
+fn open_offline(paths: &AppPaths) -> Option<Arc<OfflineCache>> {
+    match OfflineCache::open(&paths.offline, Arc::new(SystemClock)) {
+        Ok(cache) => Some(Arc::new(cache)),
+        Err(err) => {
+            tracing::warn!(error = %err, "the offline cache is off this session");
+            None
+        }
+    }
+}
+
 /// The one place where crates that keep account data register their sign-out step
 /// (ADR 0004, Decision 3). Sign-out runs them in this order, then removes the session.
-fn sign_out_steps() -> Vec<Arc<dyn SignOutWipe>> {
-    Vec::new()
+/// The offline cache is wiped whole, whichever account signs out.
+fn sign_out_steps(offline: Option<Arc<OfflineCache>>) -> Vec<Arc<dyn SignOutWipe>> {
+    offline
+        .into_iter()
+        .map(|cache| cache as Arc<dyn SignOutWipe>)
+        .collect()
 }
 
 /// The one place where services that watch playback register as play observers (integrations,
@@ -250,5 +273,26 @@ mod tests {
         let commands = start_commands(&settings);
         assert!(commands.contains(&PlayerCommand::SetEffects(settings.effects.to_core())));
         assert!(commands.contains(&PlayerCommand::SetTransition(settings.transition.to_core())));
+    }
+
+    #[test]
+    fn sign_out_wipes_the_offline_cache_folder() {
+        use nemo_core::account::{AccountId, SignOutReport, WipeScope};
+
+        let root = std::env::temp_dir().join(format!("nemo-app-wipe-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root); // A leftover from an earlier run is fine to drop.
+        let paths = AppPaths::under(&root);
+        let steps = sign_out_steps(open_offline(&paths));
+        let names: Vec<_> = steps.iter().map(|s| s.name()).collect();
+        assert_eq!(names, ["offline"]);
+        assert!(paths.offline.join("offline.db").is_file());
+        let mut report = SignOutReport::default();
+        for step in &steps {
+            report.run_step(step.as_ref(), WipeScope::Account(AccountId(1)));
+        }
+        assert!(report.failed_steps.is_empty() && report.items_removed >= 1);
+        assert!(!paths.offline.exists());
+        assert!(sign_out_steps(None).is_empty());
+        let _ = std::fs::remove_dir_all(root); // Cleanup only.
     }
 }
