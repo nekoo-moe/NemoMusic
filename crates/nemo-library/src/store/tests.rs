@@ -227,6 +227,8 @@ fn playlists_save_each_change_and_survive_reopen() {
     let mut store = Store::open(&d.0).expect("open");
     store.add_folder(&music(&d)).expect("folder");
     let here = music(&d).join("here.flac");
+    std::fs::create_dir_all(music(&d)).expect("dir");
+    std::fs::write(&here, b"audio").expect("file");
     store
         .write_tracks(&music(&d), &[row(here.clone(), "Here")])
         .expect("write");
