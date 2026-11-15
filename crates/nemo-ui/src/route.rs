@@ -8,7 +8,7 @@ use nemo_core::catalog::BrowseId;
 pub enum Route {
     /// Home feed.
     Home,
-    /// Explore: moods and genres, new releases (hook point for the catalog's explore calls).
+    /// Explore: new releases, charts, moods and genres from the catalog's Explore page.
     Explore,
     /// Search with its query.
     Search(String),
@@ -24,6 +24,14 @@ pub enum Route {
     Artist(BrowseId),
     /// Playlist page.
     Playlist(BrowseId),
+    /// A mood or genre page opened from Explore: its id for `Catalog::mood_playlists` and the
+    /// label YouTube Music gave it.
+    Mood {
+        /// Id from the mood chip, passed on unchanged.
+        id: BrowseId,
+        /// Page title.
+        title: String,
+    },
     /// Full-window Now Playing.
     NowPlaying,
 }
@@ -89,7 +97,7 @@ impl Route {
     pub fn entry(&self) -> Option<NavEntry> {
         match self {
             Self::Home => Some(NavEntry::Home),
-            Self::Explore => Some(NavEntry::Explore),
+            Self::Explore | Self::Mood { .. } => Some(NavEntry::Explore),
             Self::Search(_) => Some(NavEntry::Search),
             Self::Library | Self::Album(_) | Self::Artist(_) | Self::Playlist(_) => {
                 Some(NavEntry::Library)
@@ -113,6 +121,7 @@ impl Route {
             Self::Album(_) => "Album",
             Self::Artist(_) => "Artist",
             Self::Playlist(_) => "Playlist",
+            Self::Mood { .. } => "Moods and genres",
             Self::NowPlaying => "Now Playing",
         }
     }
@@ -271,5 +280,17 @@ mod tests {
             Some(NavEntry::Library)
         );
         assert_eq!(Route::NowPlaying.entry(), None);
+    }
+
+    #[test]
+    fn a_mood_page_keeps_explore_lit() {
+        let mood = Route::Mood {
+            id: BrowseId("FEmusic_moods_and_genres_category|p".into()),
+            title: "Chill".into(),
+        };
+        assert_eq!(mood.entry(), Some(NavEntry::Explore));
+        let mut nav = Nav::new(Route::Explore);
+        nav.go(mood);
+        assert_eq!(nav.active_entry(), Some(NavEntry::Explore));
     }
 }

@@ -148,6 +148,7 @@ fn content(app: &App, cw: u32, _h: u32) -> Element<'_, Message> {
     match app.ui.route() {
         Route::Search(_) => search::view(app, cw),
         Route::Explore => explore::view(app, cw),
+        Route::Mood { .. } => explore::mood::view(app, cw),
         Route::Library => library::view(app, cw),
         Route::Settings => settings::view(app, cw),
         Route::Album(_) | Route::Artist(_) | Route::Playlist(_) => detail::view(app, cw),
