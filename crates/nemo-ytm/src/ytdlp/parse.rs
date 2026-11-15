@@ -4,8 +4,10 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use nemo_core::audio::{AudioFormat, Codec, Origin, StreamInfo};
 use nemo_core::secret::Secret;
-use nemo_core::stream::{ResolvedStream, StreamError, Transport};
+use nemo_core::stream::{AudioTrackInfo, ResolvedStream, StreamError, Transport};
 use serde_json::Value;
+
+use super::tracks::{self, TrackFacts};
 
 /// Decide what a failed `yt-dlp` run means from the start of its stderr.
 ///
@@ -100,6 +102,7 @@ struct Candidate {
     abr: Option<f64>,
     asr: Option<u32>,
     channels: Option<u16>,
+    track: TrackFacts,
 }
 
 fn candidate(entry: &Value) -> Option<Candidate> {
@@ -130,6 +133,7 @@ fn candidate(entry: &Value) -> Option<Candidate> {
             .get("audio_channels")
             .and_then(Value::as_u64)
             .and_then(|v| u16::try_from(v).ok()),
+        track: tracks::facts(entry),
     })
 }
 
@@ -147,20 +151,42 @@ pub fn parse(json: &str) -> Result<ResolvedStream, StreamError> {
 
 /// Like [`parse`], but only formats whose codec is in `allowed` are considered
 /// (`None` allows every codec). A format with an unrecognised codec is [`Codec::Unknown`] and is
-/// accepted only when `allowed` is `None` or lists [`Codec::Unknown`].
+/// accepted only when `allowed` is `None` or lists [`Codec::Unknown`]. A video with several
+/// audio tracks plays its default (original) track.
 ///
 /// # Errors
 /// Same as [`parse`]; [`StreamError::NotAvailable`] also when every format is filtered out.
 pub fn parse_with(json: &str, allowed: Option<&[Codec]>) -> Result<ResolvedStream, StreamError> {
+    parse_for(json, allowed, None)
+}
+
+/// Like [`parse_with`], choosing the audio track by `language` (BCP 47): the formats of the
+/// matching track when one matches, otherwise those of the default (original) track. The answer
+/// names the language that plays and lists the video's tracks.
+///
+/// # Errors
+/// Same as [`parse_with`].
+pub fn parse_for(
+    json: &str,
+    allowed: Option<&[Codec]>,
+    language: Option<&str>,
+) -> Result<ResolvedStream, StreamError> {
     let root: Value = serde_json::from_str(json).map_err(|_| parse_err("not valid JSON"))?;
     let formats = root
         .get("formats")
         .and_then(Value::as_array)
         .ok_or_else(|| parse_err("missing formats list"))?;
-    let best = formats
+    let candidates: Vec<Candidate> = formats
         .iter()
         .filter_map(candidate)
         .filter(|c| allowed.is_none_or(|list| list.contains(&codec_of(&c.acodec))))
+        .collect();
+    let facts: Vec<TrackFacts> = candidates.iter().map(|c| c.track.clone()).collect();
+    let keep = tracks::playable(&facts, language);
+    let best = candidates
+        .into_iter()
+        .zip(keep)
+        .filter_map(|(c, keep)| keep.then_some(c))
         .reduce(|best, next| {
             // Strictly greater, so on a tie the earlier format stays.
             if next.abr.unwrap_or(-1.0) > best.abr.unwrap_or(-1.0) {
@@ -170,7 +196,11 @@ pub fn parse_with(json: &str, allowed: Option<&[Codec]>) -> Result<ResolvedStrea
             }
         })
         .ok_or(StreamError::NotAvailable)?;
+    Ok(stream(best, tracks::list(&facts)))
+}
 
+/// The answer for the chosen format.
+fn stream(best: Candidate, audio_tracks: Vec<AudioTrackInfo>) -> ResolvedStream {
     let format = match (best.asr, best.channels) {
         (Some(sample_rate), Some(channels)) if sample_rate > 0 && channels > 0 => {
             Some(AudioFormat {
@@ -187,12 +217,12 @@ pub fn parse_with(json: &str, allowed: Option<&[Codec]>) -> Result<ResolvedStrea
         .abr
         .filter(|v| *v < f64::from(u32::MAX))
         .map(|v| v.round() as u32);
-    Ok(ResolvedStream {
+    ResolvedStream {
         expires_at: expiry(&best.url),
         transport: Transport::File,
         preview: false,
-        audio_language: None,
-        audio_tracks: Vec::new(),
+        audio_language: best.track.language,
+        audio_tracks,
         info: StreamInfo {
             origin: Origin::YoutubeMusic,
             codec: codec_of(&best.acodec),
@@ -200,7 +230,7 @@ pub fn parse_with(json: &str, allowed: Option<&[Codec]>) -> Result<ResolvedStrea
             format,
         },
         url: Secret::new(best.url),
-    })
+    }
 }
 
 #[cfg(test)]

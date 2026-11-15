@@ -18,7 +18,7 @@ use std::time::Duration;
 
 use nemo_core::BoxFuture;
 use nemo_core::audio::Codec;
-use nemo_core::stream::{ResolvedStream, StreamError, StreamResolver};
+use nemo_core::stream::{ResolvedStream, StreamError, StreamRequest, StreamResolver};
 use nemo_core::track::VideoId;
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
@@ -28,11 +28,12 @@ pub use crate::ytdlp_install::{InstallError, install_onedir};
 
 mod locate;
 mod parse;
+mod tracks;
 
 pub use locate::{ONEDIR_DIR, locate_yt_dlp};
 pub(crate) use parse::expiry;
 use parse::{classify_stderr, parse_err};
-pub use parse::{parse, parse_with};
+pub use parse::{parse, parse_for, parse_with};
 
 /// How long one `yt-dlp` run may take.
 pub const RESOLVE_TIMEOUT: Duration = Duration::from_secs(20);
@@ -112,6 +113,8 @@ struct Job {
     program: PathBuf,
     allowed: Option<Vec<Codec>>,
     fast: bool,
+    /// The preferred audio language (BCP 47); `None` plays the original track.
+    language: Option<String>,
 }
 
 impl YtDlpResolver {
@@ -166,6 +169,7 @@ impl YtDlpResolver {
             program: self.program.clone(),
             allowed: self.allowed.clone(),
             fast: self.fast,
+            language: None,
         }
     }
 
@@ -261,7 +265,7 @@ impl Job {
             return Err(parse_err("resolver output too large"));
         }
         let text = std::str::from_utf8(&out).map_err(|_| parse_err("output is not UTF-8"))?;
-        parse_with(text, self.allowed.as_deref())
+        parse_for(text, self.allowed.as_deref(), self.language.as_deref())
     }
 }
 
@@ -271,14 +275,16 @@ impl Default for YtDlpResolver {
     }
 }
 
-impl StreamResolver for YtDlpResolver {
-    fn resolve<'a>(
-        &'a self,
-        video: &'a VideoId,
-    ) -> BoxFuture<'a, Result<ResolvedStream, StreamError>> {
-        let job = self.job_for(video);
-        let video = video.clone();
-        let timed = job.run(video);
+impl YtDlpResolver {
+    /// Run one resolve with `language` (`None`: the original track).
+    fn start(
+        &self,
+        video: &VideoId,
+        language: Option<String>,
+    ) -> BoxFuture<'static, Result<ResolvedStream, StreamError>> {
+        let mut job = self.job_for(video);
+        job.language = language;
+        let timed = job.run(video.clone());
         match &self.handle {
             // Spawned on the app runtime; the returned future only awaits the join handle.
             Some(handle) => {
@@ -291,6 +297,25 @@ impl StreamResolver for YtDlpResolver {
             }
             None => Box::pin(timed),
         }
+    }
+}
+
+impl StreamResolver for YtDlpResolver {
+    fn resolve<'a>(
+        &'a self,
+        video: &'a VideoId,
+    ) -> BoxFuture<'a, Result<ResolvedStream, StreamError>> {
+        self.start(video, None)
+    }
+
+    /// Resolve with the request's audio language: the matching track when the video has one,
+    /// otherwise the original track. Premium and the codec hint are not used here yet.
+    fn resolve_with<'a>(
+        &'a self,
+        video: &'a VideoId,
+        request: &'a StreamRequest,
+    ) -> BoxFuture<'a, Result<ResolvedStream, StreamError>> {
+        self.start(video, request.audio_language.clone())
     }
 
     fn stream_failed(&self, video: &VideoId) {
