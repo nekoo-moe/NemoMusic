@@ -1,5 +1,6 @@
 //! Running a [`Job`] against the backend.
 
+use super::art::device_px;
 use super::message::{AccountBundle, CoverBuilt, ExploreMsg, Job, Message, RefreshData};
 use super::model::{AccountMsg, DetailData, DetailKind};
 use crate::cover;
@@ -114,12 +115,15 @@ pub async fn run_job(job: Job, backend: Backend) -> Message {
             };
             Message::Art { key, pixels }
         }
-        Job::Cover(track) => {
-            let built = match backend.images.image(&track.artwork, 640).await {
+        Job::Cover(track, scale) => {
+            // The largest cover slot (Now Playing, 480) and the bar slots (up to 96).
+            let art_px = device_px(480, scale);
+            let bar_px = device_px(96, scale);
+            let built = match backend.images.image(&track.artwork, art_px).await {
                 Ok(raw) => cover::analyze(&raw)
                     .and_then(|data| {
-                        let art = cover::bake(&raw, 480, 24.0 / 480.0)?;
-                        let bar = cover::bake(&raw, 128, 12.0 / 48.0)?;
+                        let art = cover::bake(&raw, art_px, 24.0 / 480.0)?;
+                        let bar = cover::bake(&raw, bar_px, 12.0 / 48.0)?;
                         Ok(Arc::new(CoverBuilt { art, bar, data }))
                     })
                     .map_err(|e| e.to_string()),
@@ -127,6 +131,7 @@ pub async fn run_job(job: Job, backend: Backend) -> Message {
             };
             Message::Cover {
                 track: track.id,
+                scale,
                 built,
             }
         }

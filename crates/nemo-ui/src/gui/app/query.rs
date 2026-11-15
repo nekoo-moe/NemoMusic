@@ -75,6 +75,7 @@ impl App {
         let spec = ArtSpec {
             artwork: artwork.clone(),
             size,
+            scale_pct: self.scale_pct,
             shape,
         };
         let key = spec.key()?;
