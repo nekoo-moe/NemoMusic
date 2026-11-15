@@ -2,7 +2,7 @@
 
 use iced::widget::{Space, button, column, container, row};
 use iced::{Alignment, Color, Element, Length, Padding};
-use nemo_core::catalog::{AlbumSummary, ArtistSummary, PlaylistSummary, ShelfItem};
+use nemo_core::catalog::{AlbumSummary, ArtistSummary, PlaylistSummary};
 use nemo_core::track::Artwork;
 
 use crate::format;
@@ -82,6 +82,11 @@ struct LibRow {
     route: Route,
 }
 
+/// Most rows the list draws (a long library scrolls; the Library page has the rest).
+const LIB_ROWS_MAX: usize = 200;
+
+/// The rows of the list: the signed-in account's own playlists (Liked music first), followed
+/// artists and saved albums, then the albums of local files. Never the suggestions on Home.
 fn library_rows(app: &App) -> Vec<LibRow> {
     let mut playlists: Vec<LibRow> = Vec::new();
     let mut artists: Vec<LibRow> = Vec::new();
@@ -112,17 +117,12 @@ fn library_rows(app: &App) -> Vec<LibRow> {
         artwork: Artwork::Remote(p.thumbnails.clone()),
         route: Route::Playlist(p.id.clone()),
     };
-    for a in &app.local_albums {
-        albums.push(album_row(a));
+    if let Some(lib) = app.account_lists() {
+        playlists.extend(lib.playlists.iter().map(playlist_row));
+        artists.extend(lib.artists.iter().map(artist_row));
+        albums.extend(lib.albums.iter().map(album_row));
     }
-    for item in app.home.shelves.iter().flat_map(|s| s.items.iter()) {
-        match item {
-            ShelfItem::Playlist(p) => playlists.push(playlist_row(p)),
-            ShelfItem::Artist(a) => artists.push(artist_row(a)),
-            ShelfItem::Album(a) => albums.push(album_row(a)),
-            ShelfItem::Song(_) => {}
-        }
-    }
+    albums.extend(app.local_albums.iter().map(album_row));
     let mut rows = Vec::new();
     for (kind, list) in [
         (LibFilter::Playlists, playlists),
@@ -142,8 +142,33 @@ fn library_rows(app: &App) -> Vec<LibRow> {
             true
         }
     });
-    rows.truncate(40);
+    rows.truncate(LIB_ROWS_MAX);
     rows
+}
+
+/// What the list says when it has no rows.
+fn empty_hint(app: &App) -> &'static str {
+    if !app.signed_in() {
+        "Sign in to YouTube Music to see your playlists, albums and artists here."
+    } else if app.account_lists().is_some() {
+        "Nothing saved here yet."
+    } else if app.library_failed {
+        "Could not load your library. Press Refresh (F5) to try again."
+    } else {
+        "Loading your library\u{2026}"
+    }
+}
+
+/// Titles of the rows the list shows now (tests).
+#[cfg(test)]
+pub(crate) fn row_titles(app: &App) -> Vec<String> {
+    library_rows(app).into_iter().map(|r| r.title).collect()
+}
+
+/// The text of the list when it is empty (tests).
+#[cfg(test)]
+pub(crate) fn hint(app: &App) -> &'static str {
+    empty_hint(app)
 }
 
 pub(super) fn library_list<'a>(app: &'a App, width: f32, route: &Route) -> Element<'a, Message> {
@@ -151,7 +176,7 @@ pub(super) fn library_list<'a>(app: &'a App, width: f32, route: &Route) -> Eleme
     if rows.is_empty() {
         return container(
             label(
-                "Search for music and it shows up here.",
+                empty_hint(app),
                 type_scale::BODY_SM,
                 false,
                 col(color::on_surface_variant()),

@@ -15,6 +15,12 @@ The backend was never the problem. `nemo-app` wraps the YouTube Music catalog in
   4. two bundles could be in flight (one started while signed out, one after the sign-in) and the slower one won, so anonymous data could overwrite the account's;
   5. `Message::AccountData` kept the old `account_library` when the new one was empty, so a second account with no playlists showed the first account's.
 
+### Root cause of the sidebar library (owner report, 2026-11-15)
+
+The left sidebar's "Your library" (`gui/views/shell/sidebar.rs`, `library_rows`) never read the account library. It listed every playlist, artist and album found on any Home shelf, plus the local albums. Home shelves are suggestions: the YouTube Music home feed, or, when the catalog has no home page (anonymous), the seed searches of `home::SEED_SHELVES`. So a signed-out start showed search and feed items such as "LoFi Chill Beats… Album · LO-FI BEATS", and after a sign-in the list stayed on those shelves (Home was never reloaded, see above). When a signed-in Home had no playlist or album cards, the list fell back to "Search for music and it shows up here". The account's `library_playlists()` (which holds "Liked music" first), `library_albums()` and `library_artists()` were loaded into `App.account_library`, but only the Library page read them, and even there, until they arrived, it used every Home shelf too. There is no separate "recently seen" store; the Home shelves played that role.
+
+Fix: one accessor, `App::account_lists()`, is the only source of the account's lists for the sidebar, the Library page and the Liked songs list. It returns `account_library` while signed in; until that loads, only the account's own Home shelves ("Your playlists", "Liked songs", which the signed-in catalog fills from the same library calls) stand in. Signed out it returns `None`, so the sidebar shows local albums or the sign-in hint. On every account change `account_library` is cleared at once; a library load that answers nothing sets `library_failed`, and the sidebar says so.
+
 ### Fix
 
 A small pure state machine, `nemo_ui::refresh::Refresh`, owns "whose data is on screen" (`Owner`: signed out, pending, or signed in as name and handle) and the one reload that may run. The app compares the owner with `AccountService::state()` after every update and every frame (the call is cheap by contract). A new owner starts a reload; the Refresh button, `F5` and `Ctrl+R` start one too. A reload has two steps, run one after the other: `Home` (`Catalog::home`), then `Account` (the same `account_bundle` chain as the start-up load). Each step carries a generation number; an answer from an older run is dropped.
@@ -60,6 +66,9 @@ Message::Refreshed { generation: u64, data: RefreshData };
 pub enum RefreshData { Home(Result<Option<Arc<Vec<Shelf>>>, String>), Account(Arc<AccountBundle>) }
 Job::Refresh(Start);
 
+// nemo_ui::gui::app (additive)
+impl App { pub fn account_lists(&self) -> Option<Arc<AccountLibrary>>; }
+
 // nemo_ui::keys (additive)
 Key::F5; KeyAction::Refresh;
 ```
@@ -75,6 +84,7 @@ Key::F5; KeyAction::Refresh;
 
 - `refresh.rs` unit tests: a sign-in starts one full reload in sequence; a second request while busy is ignored; nothing reloads before the start-up loads; a failed step is reported at the end; a switch while busy drops the old answer and reloads once; sign-out runs only the account step.
 - `gui/app/refresh/tests.rs`, against a scripted catalog and account (no network): a sign-in reloads Home and the library once and later updates start nothing; a switch reloads and forgets session likes; a background sign-in is seen on the next frame; a second Refresh while one runs does nothing; a failure keeps the old shelves, library and history and shows the notice once; no reload before the notice; the busy top bar builds.
+- Sidebar (`gui/app/refresh/tests.rs`, through the sidebar's row list): Home suggestions never appear, signed out or in; after a sign-in the Playlists chip lists the account's playlists with Liked music first, and a Refresh picks up a new one; a failed load after a switch shows the failure hint, never the other account's playlists; sign-out empties the account part.
 - `keys.rs`: `F5` and `Ctrl+R` map to Refresh, also in a text field; `R` alone does not.
 - Headless snapshots (`examples/snapshots`, tiny-skia): `home-signed-in-1366x697` and `shortcuts-1366x697` regenerated.
 - No audio code is touched, so no bit-exact test is needed.

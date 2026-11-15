@@ -331,3 +331,123 @@ fn the_refresh_control_names_its_key_and_its_busy_state() {
     drop(rig.app.view());
     rig.app.settle_blocking(jobs);
 }
+
+/// A Home shelf of suggestions, like the YouTube Music home feed or a seed search gives.
+fn suggestions() -> Shelf {
+    Shelf {
+        title: "Chill".to_owned(),
+        items: vec![
+            ShelfItem::Playlist(playlist("LoFi Chill Beats")),
+            ShelfItem::Album(nemo_core::catalog::AlbumSummary {
+                id: BrowseId("album-sample".to_owned()),
+                title: "LO-FI BEATS".to_owned(),
+                artists: Vec::new(),
+                year: None,
+                thumbnails: Vec::new(),
+            }),
+        ],
+    }
+}
+
+/// The rows under the sidebar's Playlists chip (local files only ever add albums).
+fn sidebar(rig: &mut Rig) -> Vec<String> {
+    rig.app.lib_filter = Some(super::super::LibFilter::Playlists);
+    crate::gui::views::shell::sidebar_titles(&rig.app)
+}
+
+#[test]
+fn the_sidebar_never_lists_home_suggestions() {
+    let mut rig = Rig::new(AccountState::SignedOut, "Anonymous", Vec::new());
+    rig.answer(Ok(vec![suggestions()]), Ok(Vec::new()));
+    rig.settle(Message::Refresh);
+    assert!(
+        rig.home_titles().contains(&"Chill".to_owned()),
+        "the shelf is on Home"
+    );
+    let rows = sidebar(&mut rig);
+    assert!(
+        !rows
+            .iter()
+            .any(|t| t == "LoFi Chill Beats" || t == "LO-FI BEATS"),
+        "{rows:?}"
+    );
+    assert!(
+        crate::gui::views::shell::sidebar_hint(&rig.app).starts_with("Sign in"),
+        "signed out, nothing of the account"
+    );
+}
+
+#[test]
+fn after_sign_in_the_sidebar_lists_the_account_playlists_liked_music_first() {
+    let mut rig = Rig::new(AccountState::SignedOut, "Anonymous", Vec::new());
+    rig.answer(
+        Ok(vec![suggestions()]),
+        Ok(vec![playlist("Liked music"), playlist("Nhạc lạnh tình êu")]),
+    );
+    rig.account.set(AccountState::SignedIn(info("Mira")));
+    rig.settle(Message::Account(AccountMsg::SignedIn(Ok(info("Mira")))));
+    let rows = sidebar(&mut rig);
+    assert_eq!(
+        rows.first().map(String::as_str),
+        Some("Liked music"),
+        "{rows:?}"
+    );
+    assert!(rows.contains(&"Nhạc lạnh tình êu".to_owned()));
+    assert!(
+        !rows
+            .iter()
+            .any(|t| t == "LoFi Chill Beats" || t == "LO-FI BEATS"),
+        "{rows:?}"
+    );
+    // Refresh picks up a playlist made elsewhere.
+    rig.answer(
+        Ok(vec![suggestions()]),
+        Ok(vec![playlist("Liked music"), playlist("Recap tháng 3")]),
+    );
+    rig.settle(Message::Refresh);
+    let rows = sidebar(&mut rig);
+    assert!(rows.contains(&"Recap tháng 3".to_owned()), "{rows:?}");
+    assert!(!rows.contains(&"Nhạc lạnh tình êu".to_owned()));
+}
+
+#[test]
+fn a_switch_never_shows_the_other_accounts_playlists() {
+    let mut rig = Rig::new(
+        AccountState::SignedIn(info("Mira")),
+        "Mira home",
+        vec![playlist("Mira mix")],
+    );
+    assert_eq!(sidebar(&mut rig), ["Mira mix"]);
+    rig.answer(
+        Err(CatalogError::Network("offline".to_owned())),
+        Err(CatalogError::Network("offline".to_owned())),
+    );
+    rig.account.set(AccountState::SignedIn(info("Kasumi")));
+    rig.settle(Message::TogglePane);
+    assert!(sidebar(&mut rig).is_empty());
+    assert!(
+        crate::gui::views::shell::sidebar_hint(&rig.app).starts_with("Could not load"),
+        "the failure is said, not hidden"
+    );
+    rig.answer(
+        Ok(vec![shelf("Kasumi home")]),
+        Ok(vec![playlist("Kasumi mix")]),
+    );
+    rig.settle(Message::Refresh);
+    assert_eq!(sidebar(&mut rig), ["Kasumi mix"]);
+}
+
+#[test]
+fn sign_out_empties_the_account_part_of_the_sidebar() {
+    let mut rig = Rig::new(
+        AccountState::SignedIn(info("Mira")),
+        "Mira home",
+        vec![playlist("Mira mix")],
+    );
+    rig.account.set(AccountState::SignedOut);
+    rig.settle(Message::Account(AccountMsg::SignedOut(Ok(
+        SignOutReport::default(),
+    ))));
+    assert!(sidebar(&mut rig).is_empty());
+    assert!(rig.app.account_lists().is_none());
+}

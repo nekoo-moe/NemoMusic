@@ -137,8 +137,11 @@ pub struct App {
     pub(crate) lib_tab: LibTab,
     pub(crate) lib_sort: LibSort,
     pub(crate) lib_layout: LibLayout,
-    /// Account library from the parent (hook); `None` until it arrives.
+    /// The account library (from the account calls, or the parent's hook); `None` until it
+    /// arrives, and again after the account changed. Read it through [`App::account_lists`].
     pub(crate) account_library: Option<Arc<AccountLibrary>>,
+    /// The last account load gave no library while signed in (the sidebar says so).
+    pub(crate) library_failed: bool,
     /// Shelves for Explore from the parent (hook).
     pub(crate) explore_shelves: Vec<Shelf>,
     /// Tools panel, shortcut sheet and "Create playlist" sheet.
@@ -261,6 +264,7 @@ impl App {
             lib_sort: LibSort::default(),
             lib_layout: LibLayout::default(),
             account_library: None,
+            library_failed: false,
             explore_shelves: Vec::new(),
             tools_open: false,
             shortcuts_open: false,

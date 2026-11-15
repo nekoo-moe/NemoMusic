@@ -17,6 +17,7 @@ After the user signs in to YouTube Music, or switches to another account, Home, 
 - As a listener with two accounts, I want the views to follow the account I switched to, so that I never see the other account's music.
 - As a listener, I want a Refresh button, so that I can pull in a playlist I just made on my phone.
 - As a listener on a bad connection, I want a failed refresh to keep what I had, so that the screen never goes blank.
+- As a signed-in listener, I want the sidebar library to show my own playlists (with Liked music), albums and artists, so that it matches music.youtube.com and not the suggestions on Home.
 
 ## Acceptance Criteria
 
@@ -32,6 +33,9 @@ After the user signs in to YouTube Music, or switches to another account, Home, 
 10. THE SYSTEM SHALL draw the Refresh control as a 40 px icon button in the top bar, with the tooltip `Refresh (F5)` and the shared focus ring.
 11. WHEN the user signs out, THE SYSTEM SHALL keep today's behaviour: the sign-out wipe is unchanged, and only the account data is loaded again (as before this change).
 12. WHILE the first-run notice is not accepted, THE SYSTEM SHALL make no reload request.
+13. WHILE signed in, THE SYSTEM SHALL list in the left sidebar's "Your library" the account's own lists only: under Playlists `library_playlists()` (Liked music first, as YouTube Music returns it), under Artists `library_artists()`, under Albums `library_albums()` followed by the albums of local files. The same holds after a sign-in, an account switch and a Refresh.
+14. WHILE signed out, THE SYSTEM SHALL list only local albums in the sidebar, or the hint `Sign in to YouTube Music to see your playlists, albums and artists here.`; it SHALL NOT list items of Home, Explore or search shelves.
+15. WHEN the account changes, THE SYSTEM SHALL drop the previous account's library at once; IF the new account's library then fails to load, THEN THE SYSTEM SHALL show `Could not load your library. Press Refresh (F5) to try again.` instead of another account's lists. While it loads the sidebar says `Loading your library…`; an account with nothing saved shows `Nothing saved here yet.`
 
 ## Out of Scope
 

@@ -1,6 +1,6 @@
 //! Library data: collections of the account and of local files, sorted and de-duplicated.
 
-use nemo_core::catalog::{AlbumSummary, ArtistSummary, PlaylistSummary, ShelfItem};
+use nemo_core::catalog::{AlbumSummary, ArtistSummary, PlaylistSummary};
 use nemo_core::track::{Artwork, Track};
 
 use crate::explore::{LibSort, sort_by_key};
@@ -19,7 +19,7 @@ pub(super) struct Coll {
     pub(super) play: Option<Message>,
 }
 
-/// What the account has: from the parent's hook, else from the account's shelves on Home.
+/// What the account has ([`App::account_lists`]).
 #[derive(Default)]
 pub(super) struct AccountData {
     pub(super) playlists: Vec<Coll>,
@@ -74,26 +74,12 @@ fn artist_coll(a: &ArtistSummary) -> Coll {
 
 pub(super) fn account_data(app: &App) -> AccountData {
     let mut d = AccountData::default();
-    if let Some(lib) = &app.account_library {
+    // Only the account's own lists: Home suggestions are not the user's library.
+    if let Some(lib) = app.account_lists() {
         d.playlists = lib.playlists.iter().map(playlist_coll).collect();
         d.albums = lib.albums.iter().map(album_coll).collect();
         d.artists = lib.artists.iter().map(artist_coll).collect();
         d.songs.clone_from(&lib.songs);
-        return d;
-    }
-    if !app.signed_in() {
-        return d;
-    }
-    for shelf in &app.home.shelves {
-        for item in &shelf.items {
-            match item {
-                ShelfItem::Playlist(p) => d.playlists.push(playlist_coll(p)),
-                ShelfItem::Album(a) => d.albums.push(album_coll(a)),
-                ShelfItem::Artist(a) => d.artists.push(artist_coll(a)),
-                ShelfItem::Song(t) if shelf.title == "Liked songs" => d.songs.push(t.clone()),
-                ShelfItem::Song(_) => {}
-            }
-        }
     }
     dedupe(&mut d.playlists);
     dedupe(&mut d.albums);

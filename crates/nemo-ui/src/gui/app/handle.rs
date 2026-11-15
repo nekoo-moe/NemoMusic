@@ -13,7 +13,6 @@ use crate::state::{Event, LyricsState};
 use crate::{home, layout};
 use iced::widget::image;
 use nemo_core::track::Artwork;
-use std::sync::Arc;
 use std::time::Instant;
 
 impl App {
@@ -423,13 +422,8 @@ impl App {
             Message::AccountData(b) => {
                 self.daily = b.daily.clone();
                 self.daily_gen += 1;
-                let lib = &b.library;
-                let any = !(lib.playlists.is_empty()
-                    && lib.albums.is_empty()
-                    && lib.artists.is_empty()
-                    && lib.songs.is_empty());
-                if self.signed_in() && any {
-                    self.account_library = Some(Arc::new(b.library.clone()));
+                if self.signed_in() {
+                    self.set_account_library(&b);
                 }
                 Vec::new()
             }

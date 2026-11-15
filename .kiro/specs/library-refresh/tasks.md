@@ -13,6 +13,12 @@ Spec approved by the owner on 2026-11-15.
   - Checks: as task 1, plus the headless snapshots.
   - Steering: design.md sections 5, 8, 13 and 15.
 
+- [x] 3. Fill the sidebar library from the account's own lists, never from Home suggestions. _Requirements: 13, 14, 15_
+  - Crate and files: `nemo-ui` (`src/gui/app.rs`, `src/gui/app/{query.rs,handle.rs,refresh.rs,refresh/tests.rs}`, `src/gui/views/shell.rs`, `src/gui/views/shell/sidebar.rs`, `src/gui/views/library/collection.rs`); `docs/ui/snapshots/home-{1366x697,signed-in-1366x697}.png`.
+  - Does: `App::account_lists()`; the sidebar and the Library page read only it (plus local albums); the account library is dropped on an account change; `library_failed` and the four empty-state hints; the list shows up to 200 rows.
+  - Checks: as task 1, plus the headless snapshots.
+  - Steering: design.md sections 1 (calm, honest) and 15.
+
 ## Definition of Done
 
 See [workflow.md section 4](../../steering/workflow.md#4-definition-of-done).
