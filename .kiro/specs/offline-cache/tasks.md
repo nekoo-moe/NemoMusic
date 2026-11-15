@@ -68,7 +68,7 @@ Cross-spec ids written `<spec>#?` name the owner's task by its ADR 0004 Decision
   - Wave: 1
   - Checks: an expired pinned entry is still served; unpinning lets it expire; migration on an existing cache file.
 
-- [ ] 9. Queue and pace downloads on one worker
+- [x] 9. Queue and pace downloads on one worker
   - Crate and files: `nemo-ytm`: `src/offline/worker.rs` (new).
   - Does: One `std` thread, `nemo-downloads`, takes one queued song at a time: resolve with `StreamResolver::resolve_with` and the `StreamRequest` it is given (`prefer_premium` set by `nemo-app`), fetch, then sleep a `Jitter` of 10 to 30 s. Failures back off 60 s doubling to 30 min, honour `Retry-After` on 429, and pause the queue after five in a row; a failed song gets a plain reason and the worker moves on. No parallel connections and no retry without the wait; the user retries one song by hand.
   - _Requirements: 10, 11, 12, 14_
