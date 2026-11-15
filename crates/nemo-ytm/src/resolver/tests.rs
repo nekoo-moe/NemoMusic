@@ -14,6 +14,8 @@ struct Counting {
     fail: bool,
     delay: Duration,
     failed: AtomicUsize,
+    /// Every request this resolver was given, in order.
+    seen: Mutex<Vec<StreamRequest>>,
 }
 
 impl Counting {
@@ -24,17 +26,29 @@ impl Counting {
             fail,
             delay: Duration::from_millis(20),
             failed: AtomicUsize::new(0),
+            seen: Mutex::default(),
         })
     }
     fn calls(&self) -> usize {
         self.calls.load(Ordering::SeqCst)
     }
+    fn seen(&self) -> Vec<StreamRequest> {
+        self.seen.lock().expect("lock").clone()
+    }
 }
 
 impl StreamResolver for Counting {
-    fn resolve<'a>(&'a self, _video: &'a VideoId) -> BoxFuture<'a, Answer> {
+    fn resolve<'a>(&'a self, video: &'a VideoId) -> BoxFuture<'a, Answer> {
+        self.resolve_with(video, &DEFAULT_REQUEST)
+    }
+    fn resolve_with<'a>(
+        &'a self,
+        _video: &'a VideoId,
+        request: &'a StreamRequest,
+    ) -> BoxFuture<'a, Answer> {
         Box::pin(async move {
             self.calls.fetch_add(1, Ordering::SeqCst);
+            self.seen.lock().expect("lock").push(request.clone());
             tokio::time::sleep(self.delay).await;
             if self.fail {
                 return Err(StreamError::NotAvailable);
@@ -173,4 +187,107 @@ fn fallback_takes_over_on_error_and_after_failed_opens() {
     let calls = primary.calls();
     assert!(rt.block_on(chain.resolve(&vid("ddddddddddd"))).is_ok());
     assert_eq!(primary.calls(), calls);
+}
+
+fn dubbed() -> StreamRequest {
+    StreamRequest {
+        audio_language: Some("ja".to_owned()),
+        prefer_premium: true,
+        prefer_codec: Some(Codec::Aac),
+    }
+}
+
+#[test]
+fn the_request_reaches_the_inner_resolver_through_both_wrappers() {
+    let rt = rt();
+    let primary = Counting::new(Some(Duration::from_hours(1)), false);
+    let fallback = Counting::new(Some(Duration::from_hours(1)), false);
+    let chain: Arc<dyn StreamResolver> =
+        Arc::new(FallbackResolver::new(primary.clone(), fallback.clone()));
+    let cache = CachedResolver::new(chain, rt.handle().clone());
+    let request = dubbed();
+    assert!(
+        rt.block_on(cache.resolve_with(&vid("abcdefghijk"), &request))
+            .is_ok()
+    );
+    // The native path cannot serve a language or Premium, so yt-dlp gets the request.
+    assert_eq!(primary.seen(), Vec::<StreamRequest>::new());
+    assert_eq!(fallback.seen(), vec![request]);
+}
+
+#[test]
+fn a_codec_hint_alone_still_asks_the_primary_with_the_request() {
+    let rt = rt();
+    let primary = Counting::new(Some(Duration::from_hours(1)), false);
+    let fallback = Counting::new(Some(Duration::from_hours(1)), false);
+    let chain = FallbackResolver::new(primary.clone(), fallback.clone());
+    let request = StreamRequest {
+        prefer_codec: Some(Codec::Aac),
+        ..StreamRequest::default()
+    };
+    assert!(
+        rt.block_on(chain.resolve_with(&vid("abcdefghijk"), &request))
+            .is_ok()
+    );
+    assert_eq!(primary.seen(), vec![request]);
+    assert!(fallback.seen().is_empty());
+}
+
+#[test]
+fn a_failed_primary_hands_the_same_request_to_the_fallback() {
+    let rt = rt();
+    let bad = Counting::new(Some(Duration::from_hours(1)), true);
+    let good = Counting::new(Some(Duration::from_hours(1)), false);
+    let chain = FallbackResolver::new(bad.clone(), good.clone());
+    let request = StreamRequest {
+        prefer_codec: Some(Codec::Opus),
+        ..StreamRequest::default()
+    };
+    assert!(
+        rt.block_on(chain.resolve_with(&vid("abcdefghijk"), &request))
+            .is_ok()
+    );
+    assert_eq!(bad.seen(), vec![request.clone()]);
+    assert_eq!(good.seen(), vec![request]);
+}
+
+#[test]
+fn two_requests_for_one_video_make_two_cache_entries() {
+    let rt = rt();
+    let inner = Counting::new(Some(Duration::from_hours(1)), false);
+    let cache = CachedResolver::new(inner.clone(), rt.handle().clone());
+    let v = vid("abcdefghijk");
+    let request = dubbed();
+    rt.block_on(async {
+        assert!(cache.resolve(&v).await.is_ok());
+        assert!(cache.resolve_with(&v, &request).await.is_ok());
+        assert!(cache.resolve_with(&v, &request).await.is_ok());
+    });
+    assert_eq!(inner.calls(), 2);
+    assert_eq!(cache.len(), 2);
+    assert_eq!(inner.seen(), vec![StreamRequest::default(), request]);
+    // A failed open drops the video for every request.
+    cache.stream_failed(&v);
+    assert!(cache.is_empty());
+}
+
+#[test]
+fn the_default_request_hits_the_same_entry_as_resolve() {
+    let rt = rt();
+    let inner = Counting::new(Some(Duration::from_hours(1)), false);
+    let cache = CachedResolver::new(inner.clone(), rt.handle().clone());
+    let v = vid("abcdefghijk");
+    cache.warm(&v);
+    std::thread::sleep(Duration::from_millis(200));
+    rt.block_on(async {
+        assert!(cache.resolve(&v).await.is_ok());
+        assert!(
+            cache
+                .resolve_with(&v, &StreamRequest::default())
+                .await
+                .is_ok()
+        );
+    });
+    assert_eq!(inner.calls(), 1);
+    assert_eq!(cache.len(), 1);
 }
