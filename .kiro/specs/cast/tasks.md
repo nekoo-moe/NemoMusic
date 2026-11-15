@@ -40,7 +40,7 @@ Cross-spec ids written `<spec>#?` point at the task in that spec that adds the n
   - Checks: `cargo test -p nemo-audio --test bit_exact` (Park never used). Counting-allocator test (`tests/rt_no_alloc.rs`) still shows zero allocations in the render callback. New tests: Park releases the device, a parked `Next` emits `TrackChanged` with no decode, `Unpark { at }` resumes at `at`.
   - Steering: `structure.md` notes the parked mode under `nemo-audio`; ADR 0004 Decision 1 gives `nemo-audio` the parked mode.
 
-- [ ] 5. Create the nemo-cast crate skeleton
+- [x] 5. Create the nemo-cast crate skeleton
   - Crate and files: new `crates/nemo-cast/` (`Cargo.toml`, `src/lib.rs`, `src/service.rs` with an empty `CastService`), workspace member entry.
   - Does: Adds the crate with `#![forbid(unsafe_code)]`, `#![warn(missing_docs)]`, `[lints] workspace = true`, and its own tokio runtime holder. Depends on `nemo-core` only.
   - _Requirements: none (groundwork)_

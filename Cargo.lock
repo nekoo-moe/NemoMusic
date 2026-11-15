@@ -3669,6 +3669,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "nemo-cast"
+version = "0.1.5"
+dependencies = [
+ "nemo-core",
+ "thiserror 2.0.21",
+ "tokio",
+]
+
+[[package]]
 name = "nemo-core"
 version = "0.1.5"
 dependencies = [
