@@ -2,18 +2,24 @@
 //! files the same way it searches YouTube Music.
 //!
 //! Albums are grouped from tags; there are no artist or playlist pages for local files yet.
+//! At start the catalog reads the snapshot loaded from `library.db`
+//! ([`LocalCatalog::load_in_background`]), not a rescan.
 
 use std::collections::BTreeMap;
+use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
+use std::thread::JoinHandle;
 
 use nemo_core::BoxFuture;
 use nemo_core::catalog::{
     AlbumDetail, AlbumSummary, ArtistDetail, BrowseId, Catalog, CatalogError, PlaylistDetail,
     SearchResults,
 };
+use nemo_core::library::LibraryError;
 use nemo_core::track::Track;
 
 use crate::LocalLibrary;
+use crate::store::Store;
 
 /// Prefix of local album ids, so they never clash with YouTube Music ids.
 pub const LOCAL_ALBUM_PREFIX: &str = "local-album:";
@@ -40,6 +46,30 @@ impl LocalCatalog {
     #[must_use]
     pub fn library(&self) -> Arc<RwLock<LocalLibrary>> {
         Arc::clone(&self.library)
+    }
+
+    /// Load the snapshot stored in `library.db` in `dir` on a worker thread, on its own
+    /// read-only connection, and swap it in whole, so searches see the old snapshot or the
+    /// new one and never a half-loaded one. The write connection ([`Store::open`]) must have
+    /// made the file first. The thread returns how many tracks it loaded.
+    ///
+    /// # Errors
+    /// The I/O error when the thread cannot start. The thread itself returns
+    /// [`LibraryError::Db`] when the file cannot be read, or [`LibraryError::Busy`] when the
+    /// snapshot lock is poisoned; the catalog then keeps what it had.
+    pub fn load_in_background(
+        &self,
+        dir: PathBuf,
+    ) -> std::io::Result<JoinHandle<Result<usize, LibraryError>>> {
+        let library = self.library();
+        std::thread::Builder::new()
+            .name("library-load".into())
+            .spawn(move || {
+                let loaded = LocalLibrary::load(&Store::open_reader(&dir)?)?;
+                let count = loaded.tracks().len();
+                *library.write().map_err(|_| LibraryError::Busy)? = loaded;
+                Ok(count)
+            })
     }
 
     fn with_tracks<T>(&self, f: impl FnOnce(&[Track]) -> T) -> Result<T, CatalogError> {
@@ -174,6 +204,43 @@ mod tests {
                 .err(),
             Some(CatalogError::NotFound)
         );
+    }
+
+    #[test]
+    fn the_stored_snapshot_is_loaded_on_a_worker_thread_and_swapped_in() {
+        let dir = std::env::temp_dir().join(format!("nemo-catalog-load-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir); // A leftover from an earlier run is fine to drop.
+        let catalog = LocalCatalog::default();
+        let missing = catalog
+            .load_in_background(dir.clone())
+            .expect("thread")
+            .join()
+            .expect("no panic");
+        assert_eq!(missing, Err(LibraryError::Db), "no file yet: nothing loads");
+
+        let music = PathBuf::from("/nowhere/Music");
+        let mut store = Store::open(&dir).expect("open");
+        store.add_folder(&music).expect("folder");
+        let row = crate::store::TrackRow {
+            path: music.join("Night Drive.flac"),
+            title: "Night Drive".to_owned(),
+            artists: vec!["Band".to_owned()],
+            album: Some("First".to_owned()),
+            ..crate::store::TrackRow::default()
+        };
+        store.write_tracks(&music, &[row]).expect("write");
+        let loaded = catalog
+            .load_in_background(dir.clone())
+            .expect("thread")
+            .join()
+            .expect("no panic");
+        assert_eq!(loaded, Ok(1));
+        let all = catalog.search_now("").expect("search");
+        assert_eq!(all.songs.len(), 1);
+        assert_eq!(all.albums.len(), 1);
+        assert_eq!(catalog.search_now("night").expect("search").songs.len(), 1);
+        drop(store);
+        let _ = std::fs::remove_dir_all(dir); // Test cleanup; a leftover is harmless.
     }
 
     #[test]
