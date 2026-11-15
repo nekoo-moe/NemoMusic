@@ -8,6 +8,10 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+pub mod effects;
+
+pub use effects::{StoredEffects, StoredTransition};
+
 /// File name inside the data root.
 pub const CONFIG_FILE: &str = "settings.json";
 
@@ -75,6 +79,10 @@ pub struct Settings {
     /// The opt-in rows, by `OptInInfo.id`. A missing id means the user never touched the row,
     /// so the feature's default holds (see `opt_in_gate`).
     pub opt_ins: BTreeMap<String, OptInChoice>,
+    /// Equalizer, delay and reverb; every effect off when missing (audio-effects).
+    pub effects: StoredEffects,
+    /// Crossfade and smart transitions; off when missing (audio-effects).
+    pub transition: StoredTransition,
 }
 
 /// Stored animated-cover switches. A missing field is off.
@@ -117,6 +125,8 @@ impl Default for Settings {
             now_playing_style: String::new(),
             animated_covers: AnimatedCovers::default(),
             opt_ins: BTreeMap::new(),
+            effects: StoredEffects::default(),
+            transition: StoredTransition::default(),
         }
     }
 }
@@ -160,6 +170,8 @@ impl Settings {
         self.volume_percent = self.volume_percent.min(100);
         self.music_folders.retain(|p| p.is_absolute());
         self.music_folders.dedup();
+        self.effects = self.effects.sanitized();
+        self.transition = self.transition.sanitized();
         self
     }
 }

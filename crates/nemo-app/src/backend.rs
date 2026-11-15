@@ -115,8 +115,9 @@ pub fn build(
         segments,
         sink_factory: Arc::new(CpalSinkFactory::new(settings.output_device.clone())),
     });
-    player.send(PlayerCommand::SetVolume(settings.volume_percent));
-    player.send(PlayerCommand::SetSkipSegments(settings.sponsorblock));
+    for command in start_commands(settings) {
+        player.send(command);
+    }
 
     let lyrics = LyricsHub::new(&paths.lyrics, handle.clone(), Vec::new())
         .map_err(|e| fail("lyrics")(e.to_string()))?;
@@ -141,6 +142,17 @@ pub fn build(
         },
         local,
     })
+}
+
+/// The saved player settings, sent once after the player starts: volume, SponsorBlock, and the
+/// effects and transition (all off unless the user turned one on).
+fn start_commands(settings: &Settings) -> [PlayerCommand; 4] {
+    [
+        PlayerCommand::SetVolume(settings.volume_percent),
+        PlayerCommand::SetSkipSegments(settings.sponsorblock),
+        PlayerCommand::SetEffects(settings.effects.to_core()),
+        PlayerCommand::SetTransition(settings.transition.to_core()),
+    ]
 }
 
 /// The Google account service, or `NoAccount` when the OS credential store is missing.
@@ -212,5 +224,27 @@ pub fn rescan_in_background(local: &LocalCatalog) {
         });
     if let Err(err) = spawned {
         tracing::warn!(error = %err, "cannot start the library scan");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use nemo_core::effects::{EffectsSettings, TransitionSettings};
+
+    use super::*;
+    use crate::config::effects::StoredTransitionMode;
+
+    #[test]
+    fn the_player_gets_the_saved_effects_at_start_and_the_defaults_are_off() {
+        let commands = start_commands(&Settings::default());
+        assert!(commands.contains(&PlayerCommand::SetEffects(EffectsSettings::default())));
+        assert!(commands.contains(&PlayerCommand::SetTransition(TransitionSettings::default())));
+
+        let mut settings = Settings::default();
+        settings.effects.reverb.enabled = true;
+        settings.transition.mode = StoredTransitionMode::Crossfade;
+        let commands = start_commands(&settings);
+        assert!(commands.contains(&PlayerCommand::SetEffects(settings.effects.to_core())));
+        assert!(commands.contains(&PlayerCommand::SetTransition(settings.transition.to_core())));
     }
 }
