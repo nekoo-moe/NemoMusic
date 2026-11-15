@@ -7,7 +7,7 @@ use iced::widget::text::Wrapping;
 use iced::widget::{Space, column, container, image};
 use iced::{Alignment, Background, Border, Color, Element, Length, Padding};
 
-use super::super::app::{App, ArtShape, Message};
+use super::super::app::{App, ArtFit, ArtShape, Message, art_fit, handle_px};
 use super::super::assets::Icon;
 use super::super::style::{col, gap, icon, label, label_w, scroll, vertical_gradient};
 use crate::signal;
@@ -136,13 +136,55 @@ pub fn art<'a>(
     #[allow(clippy::cast_precision_loss)]
     let px = size as f32;
     if let Some(handle) = app.art_handle(artwork, size, art_shape) {
-        return image(handle)
-            .width(Length::Fixed(px))
-            .height(Length::Fixed(px))
-            .content_fit(iced::ContentFit::Fill)
-            .into();
+        return fitted_art(handle, px, art_shape.radius(px), app.scale_pct, 1.0);
     }
     art_placeholder(px, art_shape.radius(px), true)
+}
+
+/// A decoded picture in a `size` px slot at `scale_pct`: filling the slot when it has enough
+/// pixels, else at its native size centred on `surface-container` (never stretched, `design.md`
+/// section 9). `opacity` also fades the backing.
+pub fn fitted_art<'a>(
+    handle: image::Handle,
+    size: f32,
+    radius: f32,
+    scale_pct: u32,
+    opacity: f32,
+) -> Element<'a, Message> {
+    // Slot sizes are small positive numbers.
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let slot = size.max(0.0).ceil() as u32;
+    let fit = handle_px(&handle).map_or(ArtFit::Fill, |px| art_fit(px, slot, scale_pct));
+    match fit {
+        ArtFit::Fill => image(handle)
+            .width(Length::Fixed(size))
+            .height(Length::Fixed(size))
+            .content_fit(iced::ContentFit::Fill)
+            .opacity(opacity)
+            .into(),
+        ArtFit::Native(edge) => container(
+            image(handle)
+                .width(Length::Fixed(edge))
+                .height(Length::Fixed(edge))
+                .content_fit(iced::ContentFit::Fill)
+                .opacity(opacity),
+        )
+        .width(Length::Fixed(size))
+        .height(Length::Fixed(size))
+        .center_x(Length::Fixed(size))
+        .center_y(Length::Fixed(size))
+        .style(move |_| container::Style {
+            background: Some(Background::Color(col(
+                color::surface_container().with_alpha(opacity)
+            ))),
+            border: Border {
+                radius: radius.into(),
+                ..Border::default()
+            },
+            ..container::Style::default()
+        })
+        .into(),
+    }
 }
 
 mod action;

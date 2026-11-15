@@ -65,6 +65,40 @@ pub fn device_px(slot: u32, scale_pct: u32) -> u32 {
         .clamp(1, MAX_ART_PX)
 }
 
+/// How a decoded picture is drawn in its slot (`design.md` section 9: never upscale).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ArtFit {
+    /// The source has at least the slot's device px: fill the slot (it was cropped to 1:1).
+    Fill,
+    /// The source is smaller: draw it at its native size, this many logical px wide, centred on
+    /// `surface-container`.
+    Native(f32),
+}
+
+/// The fit of a square source `source_px` wide in a slot `slot` logical px wide at `scale_pct`.
+/// The slot's device px are not capped here, so a source is never drawn above 1.0x.
+#[must_use]
+pub fn art_fit(source_px: u32, slot: u32, scale_pct: u32) -> ArtFit {
+    let scale = scale_pct.max(1);
+    if source_px >= slot.saturating_mul(scale).div_ceil(100) {
+        ArtFit::Fill
+    } else {
+        // Picture sizes are at most a few thousand px, exact in f32.
+        #[allow(clippy::cast_precision_loss)]
+        let native = source_px as f32 * 100.0 / scale as f32;
+        ArtFit::Native(native)
+    }
+}
+
+/// Edge of a decoded (raw RGBA) picture handle; `None` for other handles.
+#[must_use]
+pub fn handle_px(handle: &image::Handle) -> Option<u32> {
+    match handle {
+        image::Handle::Rgba { width, height, .. } => Some((*width).min(*height)),
+        _ => None,
+    }
+}
+
 /// One picture a view wants: where it comes from, the slot size, the window scale and the shape.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ArtSpec {
@@ -172,7 +206,7 @@ impl CanvasView {
 
 #[cfg(test)]
 mod tests {
-    use super::{ArtShape, ArtSpec, MAX_ART_PX, device_px, scale_pct};
+    use super::{ArtFit, ArtShape, ArtSpec, MAX_ART_PX, art_fit, device_px, scale_pct};
     use nemo_core::track::Artwork;
 
     fn spec(size: u32, scale: f32) -> ArtSpec {
@@ -199,6 +233,20 @@ mod tests {
     fn a_new_scale_is_a_new_cache_entry() {
         assert_ne!(spec(160, 1.0).key(), spec(160, 2.0).key());
         assert_eq!(spec(160, 2.0).key(), spec(160, 2.0).key());
+    }
+
+    #[test]
+    fn a_source_at_least_the_slot_fills_it_and_a_smaller_one_is_drawn_native_and_centred() {
+        // 160 px card at 200 %: 320 device px.
+        assert_eq!(art_fit(320, 160, 200), ArtFit::Fill);
+        assert_eq!(art_fit(544, 160, 200), ArtFit::Fill);
+        assert_eq!(art_fit(226, 160, 200), ArtFit::Native(113.0));
+        assert_eq!(art_fit(120, 160, 100), ArtFit::Native(120.0));
+        // 125 %: 44 px rows need 55 device px.
+        assert_eq!(art_fit(55, 44, 125), ArtFit::Fill);
+        assert_eq!(art_fit(54, 44, 125), ArtFit::Native(43.2));
+        // Above the fetch cap the source is still never stretched.
+        assert_eq!(art_fit(1080, 480, 300), ArtFit::Native(360.0));
     }
 
     #[test]
