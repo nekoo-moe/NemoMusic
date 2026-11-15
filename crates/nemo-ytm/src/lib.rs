@@ -18,6 +18,7 @@
 
 pub mod account;
 pub mod catalog;
+pub(crate) mod child;
 pub mod credentials;
 pub mod diagnostics;
 pub(crate) mod feeds;

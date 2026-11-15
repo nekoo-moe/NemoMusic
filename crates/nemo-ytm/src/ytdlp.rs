@@ -262,10 +262,12 @@ impl Job {
         // yt-dlp run. CREATE_NO_WINDOW keeps it hidden.
         #[cfg(windows)]
         command.creation_flags(CREATE_NO_WINDOW);
-        let mut child = command.spawn().map_err(|e| match e.kind() {
-            ErrorKind::NotFound => StreamError::ResolverMissing,
-            _ => StreamError::Network("could not start the resolver".to_owned()),
-        })?;
+        let mut child = crate::child::spawn(&mut command)
+            .await
+            .map_err(|e| match e.kind() {
+                ErrorKind::NotFound => StreamError::ResolverMissing,
+                _ => StreamError::Network("could not start the resolver".to_owned()),
+            })?;
         let stdout = child
             .stdout
             .take()

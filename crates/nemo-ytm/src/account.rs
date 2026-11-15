@@ -128,18 +128,18 @@ async fn run_helper(
     config: &AccountConfig,
     timeout: Duration,
 ) -> Result<Secret<String>, AccountError> {
-    let mut child = Command::new(&config.helper)
+    let mut command = Command::new(&config.helper);
+    command
         .args(&config.helper_args)
         .arg("--data-dir")
         .arg(&config.webview_dir)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::null())
-        .kill_on_drop(true)
-        .spawn()
-        .map_err(|_| {
-            AccountError::Unavailable("the sign-in helper cannot be started".to_owned())
-        })?;
+        .kill_on_drop(true);
+    let mut child = crate::child::spawn(&mut command).await.map_err(|_| {
+        AccountError::Unavailable("the sign-in helper cannot be started".to_owned())
+    })?;
     let Some(stdout) = child.stdout.take() else {
         return Err(AccountError::Unavailable(
             "no output from the sign-in helper".to_owned(),
