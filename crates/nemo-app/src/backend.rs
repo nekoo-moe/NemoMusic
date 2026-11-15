@@ -7,6 +7,7 @@ use nemo_audio::decoder::supported_stream_codecs;
 use nemo_audio::player::{Player, PlayerDeps};
 use nemo_audio::sink::CpalSinkFactory;
 use nemo_core::account::{AccountService, NoAccount, SignOutWipe};
+use nemo_core::ai::{NoAi, NoTranslator};
 use nemo_core::hooks::PlayObserver;
 use nemo_core::integrations::NoIntegrations;
 use nemo_core::notify::NoNotifier;
@@ -135,6 +136,8 @@ pub fn build(
             stats: Arc::new(NoStats),
             comments: None,
             ratings: None,
+            ai: Arc::new(NoAi),
+            translator: Arc::new(NoTranslator),
         },
         local,
     })
