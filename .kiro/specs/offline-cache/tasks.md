@@ -149,7 +149,7 @@ Cross-spec ids written `<spec>#?` name the owner's task by its ADR 0004 Decision
   - Wave: 2
   - Checks: two `NotAvailable` answers delete the song, one does not; pacing with a fake clock. Needs an owner answer: the opt-in row lists takedown checks under smart downloads, so say in the PR whether checks for user saves run with smart downloads off; until answered they run only while that opt-in is confirmed.
 
-- [ ] 19. Wipe the cache on sign-out
+- [x] 19. Wipe the cache on sign-out
   - Crate and files: `nemo-ytm`: `src/offline.rs` (`SignOutWipe` impl); `nemo-app`: register the step with `GoogleAccount`.
   - Does: `OfflineCache` implements `SignOutWipe` named "offline" (the `WipeScope` is ignored) by calling `OfflineStore::wipe` and returns the file count for `SignOutReport.files_removed`, so the sign-out screen shows it. Signing out of any account wipes the whole cache.
   - _Requirements: 23_
