@@ -24,14 +24,14 @@ Cover art looks sharp everywhere in the app (cards, rows, hero, Now Playing, the
 8. WHEN a 4:3 video thumbnail has black letterbox bars (top and bottom eighths), THE SYSTEM SHALL cut them off before the 1:1 `cover` crop.
 9. WHEN a picture is larger than the device size, THE SYSTEM SHALL shrink it with a Lanczos3 filter on a worker thread; WHEN it is smaller, THE SYSTEM SHALL keep its own size (no upscale in our resize).
 10. THE SYSTEM SHALL contact no host that is not already on the image allow-list.
+11. WHEN a decoded picture has at least the slot's device px (slot x scale, not capped), THE SYSTEM SHALL fill the slot with it; WHEN it has fewer, THE SYSTEM SHALL draw it at its native size, centred on `surface-container` with the slot's radius, never stretched (owner, 2026-11-15; design.md section 9).
+12. WHEN the image cache starts and its folder has no `format-v2` marker, THE SYSTEM SHALL delete, once and on a worker thread, every regular file in the image cache folder whose name is not of the current format (`v2-<sha256 hex>` with an optional `.missing` or `.tmp` suffix), then write the marker (owner, 2026-11-15). Folders and links are never deleted.
 
 ## Out of Scope
 
-- Drawing a too-small source centred at native size instead of stretching it to the slot (design.md section 9 alternative); left as an owner question.
-- Pruning old cache files of the previous size scheme.
+- Adding the `-nu` (no upscale) option to Google image addresses (owner, 2026-11-15: not added, unverified).
 - Local file art (it is read as is).
 
 ## Open Questions
 
 - Whether `lh3.googleusercontent.com` upscales a small original when asked for a larger `w`/`h`/`s`. YouTube Music originals are normally well above 1080 px, so this is not expected, but it is not verified (no live requests in tests).
-- design.md section 9 asks to centre a source smaller than the slot at native size; today the image widget stretches it (`ContentFit::Fill`). Owner to decide whether to change that draw step.
