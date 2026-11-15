@@ -25,7 +25,8 @@ pub use tools::tools_panel;
 pub fn shortcuts_sheet(app: &App) -> Element<'_, Message> {
     let _ = app;
     let dim = col(color::on_surface_variant());
-    let mut list = column![].spacing(gap::XS);
+    // Rows are 32 high with no extra gap, so all of them and the note fit a 697 px window.
+    let mut list = column![];
     for (keys, what) in SHORTCUTS {
         list = list.push(
             row![

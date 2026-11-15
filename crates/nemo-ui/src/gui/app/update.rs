@@ -193,6 +193,10 @@ impl App {
         if self.ui.is_playing() {
             jobs.extend(self.dispatch(Event::Position(self.backend.player.position())));
         }
+        if self.refresh.ready() && self.ui.youtube_enabled() {
+            // A sign-in can end without a message (the saved session checked at start).
+            jobs.extend(self.watch_account());
+        }
         jobs.extend(self.dispatch(Event::Frame { dt_ms: dt }));
         self.sync_anim();
         if !self.needs_frames() {

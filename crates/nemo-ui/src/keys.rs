@@ -18,6 +18,8 @@ pub enum Key {
     Escape,
     /// F3.
     F3,
+    /// F5.
+    F5,
     /// F11.
     F11,
     /// Tab (moves the keyboard focus; the GUI handles it).
@@ -70,6 +72,8 @@ pub enum KeyAction {
     LikeCurrent,
     /// Open the sleep timer and tools panel.
     Tools,
+    /// Reload the music data of the account (Home, library, history).
+    Refresh,
 }
 
 /// Seek step in seconds (`Shift` uses [`SEEK_BIG_SECS`]).
@@ -89,7 +93,9 @@ pub fn map(key: Key, mods: Mods, in_text_field: bool) -> Option<KeyAction> {
         Key::Escape => Some(KeyAction::Close),
         Key::F3 => Some(KeyAction::ToggleFrameReadout),
         Key::F11 => Some(KeyAction::FullScreen),
+        Key::F5 => Some(KeyAction::Refresh),
         Key::Char('k') if mods.ctrl => Some(KeyAction::OpenSearch),
+        Key::Char('r') if mods.ctrl => Some(KeyAction::Refresh),
         Key::Char(',') if mods.ctrl => Some(KeyAction::OpenSettings),
         _ if in_text_field || mods.ctrl => None,
         Key::Space => Some(KeyAction::TogglePlay),
@@ -196,6 +202,15 @@ mod tests {
             assert_eq!(map(key, NONE, true), None, "{key:?}");
         }
         assert_eq!(map(Key::Char('k'), CTRL, true), Some(KeyAction::OpenSearch));
+    }
+
+    #[test]
+    fn f5_and_ctrl_r_refresh_everywhere_but_r_alone_does_not() {
+        for in_text in [false, true] {
+            assert_eq!(map(Key::F5, NONE, in_text), Some(KeyAction::Refresh));
+            assert_eq!(map(Key::Char('r'), CTRL, in_text), Some(KeyAction::Refresh));
+        }
+        assert_eq!(map(Key::Char('r'), NONE, false), None);
     }
 
     #[test]

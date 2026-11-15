@@ -73,6 +73,25 @@ fn account_button(app: &App) -> Element<'_, Message> {
     }
 }
 
+/// The Refresh control: reloads the music data of the account. While a reload runs it is
+/// dimmed and does nothing, with no spinner, so nothing moves and reduced motion needs nothing
+/// more.
+fn refresh_button(app: &App) -> Element<'_, Message> {
+    let busy = app.refresh.busy();
+    let enabled = app.ui.youtube_enabled() && app.refresh.ready() && !busy;
+    tip(
+        icon_button(
+            Icon::Refresh,
+            22.0,
+            40.0,
+            col(color::on_surface()),
+            col(color::surface_container_highest()),
+            enabled.then_some(Message::Refresh),
+        ),
+        crate::refresh::tooltip(busy),
+    )
+}
+
 /// A circle with the first letter of a name (an account without a picture).
 fn initial_badge<'a>(app: &App, name: &str) -> Element<'a, Message> {
     let accent = app.accent();
@@ -178,6 +197,7 @@ pub(super) fn top_bar(app: &App, center_w: u32) -> Element<'_, Message> {
         )
     };
     r = r.push(search_pill);
+    r = r.push(refresh_button(app));
     r = r.push(tip(
         icon_button(
             Icon::Settings,

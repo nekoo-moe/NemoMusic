@@ -209,6 +209,8 @@ icons! {
     Timer => "timer",
     /// Add to library.
     LibraryAdd => "library-add",
+    /// Circular arrow (reload the music data).
+    Refresh => "refresh",
 }
 
 impl Icon {
