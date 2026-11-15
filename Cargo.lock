@@ -3764,6 +3764,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "nemo-together"
+version = "0.1.5"
+dependencies = [
+ "nemo-core",
+ "proptest",
+]
+
+[[package]]
 name = "nemo-ui"
 version = "0.1.5"
 dependencies = [
