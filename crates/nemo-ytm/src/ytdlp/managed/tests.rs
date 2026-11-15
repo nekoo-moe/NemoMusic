@@ -46,13 +46,24 @@ fn nothing_found_means_install() {
 }
 
 #[test]
-fn a_copy_the_user_installed_is_never_touched() {
+fn a_copy_on_path_gets_the_managed_copy_beside_it() {
     let m = managed();
+    // A distribution package can be months old; the app installs and uses its own copy.
     let on_path = PathBuf::from("/usr/bin/yt-dlp");
     assert_eq!(
         plan(&start(true, false, Some(&on_path)), &m, None, at(0)),
+        Plan::Install
+    );
+    // Switched off: the copy on PATH is used as it is.
+    assert_eq!(
+        plan(&start(false, false, Some(&on_path)), &m, None, at(0)),
         Plan::Leave
     );
+}
+
+#[test]
+fn a_path_set_in_the_settings_is_never_touched() {
+    let m = managed();
     // A path set in the settings, even the managed one, is the user's choice.
     let program = m.program();
     assert_eq!(

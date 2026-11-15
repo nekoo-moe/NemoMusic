@@ -213,3 +213,22 @@ mod props {
 }
 
 mod dubbed;
+
+#[test]
+fn a_sign_in_demand_is_a_network_error_with_its_own_reason() {
+    for text in [
+        "ERROR: [youtube] abc: Please sign in",
+        "ERROR: [youtube] abc: Sign in to confirm you\u{2019}re not a bot. Use --cookies-from-browser",
+    ] {
+        assert_eq!(
+            classify_stderr(text),
+            StreamError::Network("YouTube asked the resolver to sign in".to_owned()),
+            "{text}"
+        );
+    }
+    // An age check stays "not available".
+    assert_eq!(
+        classify_stderr("Sign in to confirm your age"),
+        StreamError::NotAvailable
+    );
+}

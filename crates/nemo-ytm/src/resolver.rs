@@ -337,6 +337,10 @@ impl StreamResolver for FallbackResolver {
                 }
             }
             let answer = self.fallback.resolve_with(video, request).await;
+            if let Err(e) = &answer {
+                // Fixed texts only (no URL, no id): the reason behind "could not get the stream".
+                tracing::warn!(error = %e, "no stream from the native path or yt-dlp");
+            }
             self.mark(video, false);
             answer
         })
