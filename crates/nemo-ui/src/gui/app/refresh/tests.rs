@@ -14,7 +14,7 @@ use nemo_core::services::Backend;
 use nemo_core::track::TrackId;
 
 use super::super::model::AccountMsg;
-use super::super::{App, Message};
+use super::super::{App, Job, Message};
 use crate::gui::headless::{Scenario, build_app};
 use crate::mock::{self, MockCatalog, mock_backend};
 use crate::refresh::FAILED_NOTICE;
@@ -212,6 +212,10 @@ impl Rig {
     }
 }
 
+fn refresh_jobs(jobs: &[Job]) -> usize {
+    jobs.iter().filter(|j| matches!(j, Job::Refresh(_))).count()
+}
+
 #[test]
 fn a_sign_in_reloads_home_and_library_once() {
     let mut rig = Rig::new(AccountState::SignedOut, "Anonymous", Vec::new());
@@ -264,7 +268,22 @@ fn a_sign_in_that_ends_in_the_background_is_seen_on_the_next_frame() {
 }
 
 #[test]
-fn a_failed_reload_keeps_the_old_data_and_says_so_once() {
+fn a_second_refresh_while_one_runs_does_nothing() {
+    let mut rig = Rig::new(AccountState::SignedIn(info("Mira")), "Home", Vec::new());
+    let first = rig.app.update_core(Message::Refresh);
+    assert_eq!(refresh_jobs(&first), 1);
+    assert!(rig.app.refresh.busy());
+    for _ in 0..3 {
+        let again = rig.app.update_core(Message::Refresh);
+        assert_eq!(refresh_jobs(&again), 0);
+    }
+    rig.app.settle_blocking(first);
+    assert!(!rig.app.refresh.busy());
+    assert_eq!(rig.calls(), (2, 2), "one reload ran");
+}
+
+#[test]
+fn a_failed_refresh_keeps_the_old_data_and_says_so_once() {
     let mut rig = Rig::new(
         AccountState::SignedIn(info("Mira")),
         "Mira home",
@@ -275,9 +294,7 @@ fn a_failed_reload_keeps_the_old_data_and_says_so_once() {
         Err(CatalogError::Network("offline".to_owned())),
     );
     let liked_before = rig.app.daily.liked.len();
-    rig.account.set(AccountState::SignedIn(info("Kasumi")));
-    rig.settle(Message::TogglePane);
-    assert_eq!(rig.app.refresh.generation(), 1);
+    rig.settle(Message::Refresh);
     assert_eq!(rig.home_titles(), ["Mira home"]);
     assert_eq!(rig.library_titles(), ["Mira mix"]);
     assert_eq!(rig.app.daily.liked.len(), liked_before);
@@ -286,11 +303,31 @@ fn a_failed_reload_keeps_the_old_data_and_says_so_once() {
 }
 
 #[test]
-fn nothing_reloads_before_the_notice() {
-    let mut rig = Rig::new(AccountState::SignedOut, "Anonymous", Vec::new());
-    rig.app.ui.settings.tos_acknowledged = false;
-    rig.account.set(AccountState::SignedIn(info("Mira")));
-    rig.settle(Message::TogglePane);
-    rig.settle(Message::Frame(Instant::now()));
-    assert_eq!(rig.app.refresh.generation(), 0);
+fn refresh_waits_for_the_notice() {
+    let backend = mock_backend();
+    let mut app = build_app(
+        &backend,
+        &Scenario {
+            settings: UiSettings {
+                tos_acknowledged: false,
+                ..UiSettings::default()
+            },
+            ..Scenario::default()
+        },
+    );
+    assert!(!app.ui.youtube_enabled());
+    assert_eq!(refresh_jobs(&app.update_core(Message::Refresh)), 0);
+}
+
+#[test]
+fn the_refresh_control_names_its_key_and_its_busy_state() {
+    use crate::refresh::tooltip as refresh_tip;
+    assert_eq!(refresh_tip(false), "Refresh (F5)");
+    assert!(refresh_tip(true).starts_with("Refreshing"));
+    let mut rig = Rig::new(AccountState::SignedIn(info("Mira")), "Home", Vec::new());
+    let jobs = rig.app.update_core(Message::Refresh);
+    assert!(rig.app.refresh.busy());
+    // The busy top bar builds (the control is dimmed and does nothing).
+    drop(rig.app.view());
+    rig.app.settle_blocking(jobs);
 }

@@ -213,6 +213,8 @@ pub enum Message {
     AccountData(Arc<AccountBundle>),
     /// Open a search for this text (a mood tile).
     SearchFor(String),
+    /// Reload the music data of the account (the Refresh button, `F5`, `Ctrl+R`).
+    Refresh,
     /// A step of a reload answered.
     Refreshed {
         /// The run the step belongs to.
