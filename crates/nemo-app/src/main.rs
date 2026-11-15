@@ -8,6 +8,7 @@ mod logging;
 mod merged;
 mod opt_in_gate;
 mod paths;
+mod play_hub;
 mod ui_bridge;
 
 use paths::AppPaths;
@@ -41,10 +42,24 @@ fn main() {
         Err(err) => fatal(&err.to_string()),
     };
     backend::rescan_in_background(&services.local);
+    let hub = match play_hub::spawn(
+        std::sync::Arc::clone(&services.backend.player),
+        backend::play_observers(),
+    ) {
+        Ok(hub) => Some(hub),
+        Err(err) => {
+            tracing::warn!(error = %err, "cannot start the play hub; play events are off");
+            None
+        }
+    };
 
     let options = ui_bridge::options(settings, paths.root.clone());
     if let Err(err) = nemo_ui::run(services.backend, options) {
         tracing::error!(error = %err, "the window closed with an error");
+    }
+    // End the last play, so observers see its TrackEnded.
+    if let Some(hub) = hub {
+        hub.stop();
     }
     tracing::info!("stopped");
 }
