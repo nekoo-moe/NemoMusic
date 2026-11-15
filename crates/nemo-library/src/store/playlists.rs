@@ -259,7 +259,9 @@ impl Store {
     }
 
     /// Every playlist with its entries, in the order they were made. A file entry is
-    /// `missing` when the library holds no playable track for it.
+    /// `missing` when its file is not on disk (criterion 21); it stays in the playlist, and a
+    /// rescan that drops the file's track row leaves it there. A file that exists but lies
+    /// outside the watched folders is not missing.
     ///
     /// # Errors
     /// [`LibraryError::Db`] on a database failure.
@@ -276,22 +278,19 @@ impl Store {
         let mut stmt = self
             .conn
             .prepare(
-                "SELECT e.path, e.stream, t.status IS NULL OR t.status = 'missing'
-                 FROM playlist_entry e
-                 LEFT JOIN track t ON t.path = e.path AND t.cue_index = e.cue_index
-                 WHERE e.playlist_id = ?1 ORDER BY e.position",
+                "SELECT path, stream FROM playlist_entry
+                 WHERE playlist_id = ?1 ORDER BY position",
             )
             .map_err(db)?;
         let mut out = Vec::with_capacity(heads.len());
         for (id, name) in heads {
             let entries = stmt
                 .query_map([id], |r| {
-                    let path: Option<String> = r.get(0)?;
+                    let path: Option<PathBuf> = r.get::<_, Option<String>>(0)?.map(PathBuf::from);
                     let stream: Option<String> = r.get(1)?;
-                    let gone: bool = r.get(2)?;
                     Ok(PlaylistEntry {
-                        missing: path.is_some() && gone,
-                        path: path.map(PathBuf::from),
+                        missing: path.as_deref().is_some_and(|p| !p.is_file()),
+                        path,
                         track: stream.as_deref().and_then(stream_track),
                     })
                 })

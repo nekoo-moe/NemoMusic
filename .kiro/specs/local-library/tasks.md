@@ -121,7 +121,7 @@ Cross-spec ids written `<spec>#?` name the owner's task by its ADR 0004 Decision
   - Wave: 2
   - Checks: `proptest` on the parser; fixture CUE files for both encodings.
 
-- [ ] 15. Store and edit local playlists
+- [x] 15. Store and edit local playlists
   - Crate and files: `nemo-library`: `src/playlists.rs` (new), `src/store.rs`.
   - Does: Create, rename, reorder and delete playlists, and add or remove entries, each saved in one transaction at once. Entries may be a local path or a streamed `Track` (playlist-import, listening-stats). An entry whose file is gone stays and is flagged missing.
   - _Requirements: 18, 21_
