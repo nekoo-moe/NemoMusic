@@ -27,7 +27,7 @@ Cross-spec ids written `<spec>#?` point at the task of that spec that adds the n
   - Wave: 0
   - Checks: `cargo test -p nemo-core`.
 
-- [ ] 4. Add the lyrics-translation contract
+- [x] 4. Add the lyrics-translation contract
   - Crate and files: `nemo-core`: `src/lyrics_plus.rs`. Touches nemo-core/src/lyrics_plus.rs.
   - Does: Adds `LangTag`, `TranslationAvailability`, `Translation`, `TranslationError` (wraps `AiError`) and the `LyricsTranslation` trait, using `PayloadPreview` and `AiError` of ai-features.
   - _Requirements: none (groundwork)_
