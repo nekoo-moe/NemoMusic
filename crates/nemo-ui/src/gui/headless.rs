@@ -21,6 +21,9 @@ use crate::route::Route;
 use crate::settings::UiSettings;
 use crate::state::{Event, Toast};
 
+/// Scale factor `iced_test` renders at.
+const SNAPSHOT_SCALE: f32 = 2.0;
+
 /// Render `app` at `size` logical px to a PNG at `out`. The image is written at 2x scale
 /// (`iced_test` fixes the scale factor at 2.0), so a 1280 x 800 window gives 2560 x 1600 pixels.
 ///
@@ -317,6 +320,8 @@ pub fn build_app(backend: &Backend, scenario: &Scenario) -> App {
     }
     let (mut app, jobs) = App::new(backend.clone(), &options);
     app.settle_blocking(jobs);
+    // `iced_test` draws at 2x: fetch covers for that scale, as a 200 % window would.
+    run(&mut app, Message::Rescaled(SNAPSHOT_SCALE));
     if scenario.stopped == Some(true) {
         run(&mut app, Message::Ui(Event::Command(PlayerCommand::Stop)));
     }
