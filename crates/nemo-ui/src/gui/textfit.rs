@@ -10,7 +10,16 @@
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
-use super::assets::FONT_SEMIBOLD;
+use super::assets::{DISPLAY_SEMIBOLD, FONT_SEMIBOLD};
+
+/// Which bundled face a text is drawn in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Face {
+    /// `font.ui`, the UI family.
+    Ui,
+    /// `font.display`, the face of lyrics and large titles.
+    Display,
+}
 
 /// Glyph advances of the bundled font.
 struct Metrics {
@@ -101,16 +110,26 @@ fn parse(d: &[u8]) -> Option<Metrics> {
     })
 }
 
-fn metrics() -> Option<&'static Metrics> {
-    static METRICS: OnceLock<Option<Metrics>> = OnceLock::new();
-    METRICS.get_or_init(|| parse(FONT_SEMIBOLD)).as_ref()
+fn metrics(face: Face) -> Option<&'static Metrics> {
+    static UI: OnceLock<Option<Metrics>> = OnceLock::new();
+    static DISPLAY: OnceLock<Option<Metrics>> = OnceLock::new();
+    match face {
+        Face::Ui => UI.get_or_init(|| parse(FONT_SEMIBOLD)).as_ref(),
+        Face::Display => DISPLAY.get_or_init(|| parse(DISPLAY_SEMIBOLD)).as_ref(),
+    }
 }
 
 /// Width in px of `s` at `size` px. Without readable metrics it falls back to 0.55 em a
 /// character, the old estimate.
 #[must_use]
 pub fn width(s: &str, size: f32) -> f32 {
-    match metrics() {
+    width_in(Face::Ui, s, size)
+}
+
+/// [`width`] in `face`.
+#[must_use]
+pub fn width_in(face: Face, s: &str, size: f32) -> f32 {
+    match metrics(face) {
         Some(m) => {
             let units: f32 = s
                 .chars()
@@ -133,12 +152,12 @@ pub fn width(s: &str, size: f32) -> f32 {
 const ELLIPSIS: char = '\u{2026}';
 
 /// Longest prefix of `s` (in chars) whose width plus an ellipsis fits `max_w`.
-fn prefix_with_ellipsis(s: &str, max_w: f32, size: f32) -> usize {
-    let room = max_w - width("\u{2026}", size);
+fn prefix_with_ellipsis(face: Face, s: &str, max_w: f32, size: f32) -> usize {
+    let room = max_w - width_in(face, "\u{2026}", size);
     let mut w = 0.0;
     let mut n = 0;
     for (i, c) in s.chars().enumerate() {
-        w += width(c.encode_utf8(&mut [0; 4]), size);
+        w += width_in(face, c.encode_utf8(&mut [0; 4]), size);
         if w > room {
             break;
         }
@@ -173,10 +192,16 @@ fn cut_at_word(s: &str, keep: usize) -> String {
 /// that keeps most of the text. Text that fits is returned unchanged.
 #[must_use]
 pub fn fit(s: &str, max_w: f32, size: f32) -> String {
-    if width(s, size) <= max_w {
+    fit_in(Face::Ui, s, max_w, size)
+}
+
+/// [`fit`] in `face`.
+#[must_use]
+pub fn fit_in(face: Face, s: &str, max_w: f32, size: f32) -> String {
+    if width_in(face, s, size) <= max_w {
         return s.to_owned();
     }
-    let keep = prefix_with_ellipsis(s, max_w, size).max(1);
+    let keep = prefix_with_ellipsis(face, s, max_w, size).max(1);
     // One char that cannot fit is shown whole; an ellipsis alone would say less.
     if keep >= s.chars().count() {
         return s.to_owned();
@@ -238,6 +263,13 @@ pub fn fit_lines(s: &str, max_w: f32, size: f32, lines: usize) -> String {
 /// the count is never lower than what is drawn.
 #[must_use]
 pub fn rows(s: &str, max_w: f32, size: f32) -> usize {
+    rows_in(Face::Ui, s, max_w, size)
+}
+
+/// [`rows`] in `face`.
+#[must_use]
+pub fn rows_in(face: Face, s: &str, max_w: f32, size: f32) -> usize {
+    let width = |t: &str, size: f32| width_in(face, t, size);
     let max_w = max_w.max(1.0);
     let space = width(" ", size);
     s.split('\n')
@@ -304,6 +336,19 @@ mod tests {
         );
         assert!((width("Hello world", 28.0) - 2.0 * w14).abs() < 0.01);
         assert!(width("iiii", 14.0) < width("MMMM", 14.0));
+    }
+
+    #[test]
+    fn the_display_face_is_measured_with_its_own_advances() {
+        let line = "Ng\u{1b0}\u{1edd}i \u{1ea5}y \u{111}\u{e3} r\u{1edd}i xa";
+        let ui = width_in(Face::Ui, line, 32.0);
+        let display = width_in(Face::Display, line, 32.0);
+        assert!(
+            display > 0.0 && (display - ui).abs() > 0.5,
+            "{ui} {display}"
+        );
+        assert_eq!(rows_in(Face::Display, line, display + 1.0, 32.0), 1);
+        assert!((2..=3).contains(&rows_in(Face::Display, line, display / 2.0 + 1.0, 32.0)));
     }
 
     #[test]

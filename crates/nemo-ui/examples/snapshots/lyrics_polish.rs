@@ -25,8 +25,14 @@ const LINES: [(u64, &str); 9] = [
     (16, "counting clocks that do not tick"),
     (30, "oh, the fake chorus starts"),
     (34, "we are only test data"),
-    (38, "pretend the music is loud"),
-    (42, "nothing here is copyrighted"),
+    (
+        38,
+        "\u{1ea8}N S\u{c2}U TRONG \u{110}\u{d4}I M\u{1eae}T \u{1ea4}Y",
+    ),
+    (
+        42,
+        "ng\u{1b0}\u{1edd}i \u{1ea5}y \u{111}\u{e3} r\u{1edd}i xa, \u{111}\u{1ec3} l\u{1ea1}i nh\u{1eef}ng ng\u{e0}y d\u{e0}i",
+    ),
     (46, "and the bridge goes nowhere"),
     (50, "one more line for scrolling"),
 ];

@@ -53,6 +53,8 @@ pub fn run(backend: Backend, options: UiOptions) -> iced::Result {
     .font(assets::FONT_REGULAR)
     .font(assets::FONT_MEDIUM)
     .font(assets::FONT_SEMIBOLD)
+    .font(assets::DISPLAY_REGULAR)
+    .font(assets::DISPLAY_SEMIBOLD)
     .default_font(assets::font(false))
     .antialiasing(true)
     .window(iced::window::Settings {

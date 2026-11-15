@@ -103,12 +103,25 @@ pub fn render_view_png(
     size: (u32, u32),
     out: &Path,
 ) -> Result<(), String> {
+    render_view_png_with(view, size, out, Vec::new())
+}
+
+/// [`render_view_png`] with `extra` font files loaded beside the bundled ones (for font
+/// comparisons; the files are not part of the app).
+///
+/// # Errors
+/// A message when the renderer cannot be created or the file cannot be written.
+pub fn render_view_png_with(
+    view: iced::Element<'_, Message>,
+    size: (u32, u32),
+    out: &Path,
+    extra: Vec<std::borrow::Cow<'static, [u8]>>,
+) -> Result<(), String> {
+    let mut fonts: Vec<std::borrow::Cow<'static, [u8]>> =
+        assets::ALL_FONTS.iter().map(|f| (*f).into()).collect();
+    fonts.extend(extra);
     let settings = iced::Settings {
-        fonts: vec![
-            assets::FONT_REGULAR.into(),
-            assets::FONT_MEDIUM.into(),
-            assets::FONT_SEMIBOLD.into(),
-        ],
+        fonts,
         default_font: assets::font(false),
         default_text_size: Pixels(14.0),
         antialiasing: true,

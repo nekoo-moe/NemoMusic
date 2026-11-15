@@ -58,11 +58,7 @@ fn a_style_change_keeps_position_offset_scroll_and_tab() {
 /// Every text drawn in `view` at `size`.
 fn texts(view: Element<'_, Message>, size: (u32, u32)) -> Vec<String> {
     let settings = iced::Settings {
-        fonts: vec![
-            assets::FONT_REGULAR.into(),
-            assets::FONT_MEDIUM.into(),
-            assets::FONT_SEMIBOLD.into(),
-        ],
+        fonts: assets::ALL_FONTS.iter().map(|f| (*f).into()).collect(),
         default_font: assets::font(false),
         default_text_size: Pixels(14.0),
         ..iced::Settings::default()

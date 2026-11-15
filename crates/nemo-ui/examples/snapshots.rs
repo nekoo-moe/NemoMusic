@@ -12,6 +12,8 @@
 mod backdrop;
 #[path = "snapshots/feature.rs"]
 mod feature;
+#[path = "snapshots/font_compare.rs"]
+mod font_compare;
 #[path = "snapshots/lyrics_polish.rs"]
 mod lyrics_polish;
 #[path = "snapshots/np_classic.rs"]
@@ -89,6 +91,10 @@ fn main() {
         }
     }
     if let Err(e) = np_classic::render(&only, &out_dir) {
+        eprintln!("{e}");
+        std::process::exit(1);
+    }
+    if let Err(e) = font_compare::render(&only, &out_dir) {
         eprintln!("{e}");
         std::process::exit(1);
     }

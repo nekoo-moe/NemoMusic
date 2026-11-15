@@ -161,12 +161,7 @@ fn titles(app: &App, width: f32, surface: Surface) -> Element<'_, Message> {
         (type_scale::TITLE_LG, type_scale::BODY_MD)
     };
     column![
-        label(
-            fit(&title, width, ts.size),
-            ts,
-            true,
-            col(color::on_surface())
-        ),
+        lyr::display_title(&title, ts, width, col(color::on_surface())),
         label(
             fit(&artist, width, as_.size),
             as_,

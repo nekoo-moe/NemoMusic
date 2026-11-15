@@ -121,12 +121,7 @@ fn titles(app: &App, width: f32, centered: bool) -> Element<'_, Message> {
         Alignment::Start
     };
     column![
-        label(
-            fit(&title, width, ts.size),
-            ts,
-            true,
-            col(color::on_surface())
-        ),
+        lyr::display_title(&title, ts, width, col(color::on_surface())),
         label(
             fit(&artist, width, as_.size),
             as_,
