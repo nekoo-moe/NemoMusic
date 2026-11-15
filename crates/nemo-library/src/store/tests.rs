@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use nemo_core::audio::Origin;
 use nemo_core::library::{
-    LocalPlaylistId, ReplayGainValues, TrackSpan, TrackStatus, UnplayableReason,
+    LocalPlaylistId, ReplayGainValues, ScanEvent, TrackSpan, TrackStatus, UnplayableReason,
 };
 use nemo_core::track::{Artwork, Thumbnail, Track, TrackId, VideoId};
 
