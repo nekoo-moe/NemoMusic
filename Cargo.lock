@@ -3691,6 +3691,9 @@ name = "nemo-integrations"
 version = "0.1.5"
 dependencies = [
  "nemo-core",
+ "rusqlite",
+ "thiserror 2.0.21",
+ "tracing",
 ]
 
 [[package]]
