@@ -1,7 +1,7 @@
 //! The hub with a fake player and recording observers.
 
 use std::collections::VecDeque;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -72,6 +72,8 @@ impl FakePlayer {
 struct Recorder {
     seen: Mutex<Vec<PlayHookEvent>>,
     gate: Option<Arc<AtomicBool>>,
+    /// Events handed to `on_event`, counted before the gate.
+    entered: AtomicUsize,
 }
 
 impl Recorder {
@@ -84,10 +86,14 @@ impl Recorder {
     fn seen(&self) -> Vec<PlayHookEvent> {
         self.seen.lock().expect("test lock").clone()
     }
+    fn entered(&self) -> usize {
+        self.entered.load(Ordering::SeqCst)
+    }
 }
 
 impl PlayObserver for Recorder {
     fn on_event(&self, event: &PlayHookEvent) {
+        self.entered.fetch_add(1, Ordering::SeqCst);
         while self
             .gate
             .as_ref()
@@ -114,11 +120,13 @@ fn track(n: u32) -> Track {
     }
 }
 
+/// Wait until `done` holds. The deadline only bounds a failing test, so it is generous for a
+/// loaded machine.
 fn wait_until(what: &str, mut done: impl FnMut() -> bool) {
     let start = Instant::now();
     while !done() {
         assert!(
-            start.elapsed() < Duration::from_secs(5),
+            start.elapsed() < Duration::from_secs(30),
             "timed out: {what}"
         );
         thread::sleep(Duration::from_millis(2));
@@ -186,23 +194,35 @@ fn a_slow_observer_never_blocks_the_hub_or_the_others() {
     )
     .expect("hub starts");
     let opener = OpenOnDrop(Arc::clone(&gate));
-    // 40 plays make 120 events, past the stuck observer's 64 slots.
+    // 40 plays make 119 events (a start and `Playing` each, an end for all but the last), far
+    // past the stuck observer's slots. Each play waits until the fast observer has its events,
+    // so the fast observer's own channel never fills however the threads are scheduled. If the
+    // hub waited for the stuck observer, the fast one would stop here.
     for n in 0..40 {
         player.play(&track(n));
-        thread::sleep(Duration::from_millis(2));
+        let expected = 3 * usize::try_from(n).expect("small") + 2;
+        wait_until("the fast observer", || fast.seen().len() >= expected);
+        if n == 0 {
+            // The stuck observer holds the first event, so exactly `OUTLET_CAPACITY` more fit
+            // behind it.
+            wait_until("the stuck observer", || slow.entered() == 1);
+        }
     }
-    // If the hub waited for the stuck observer, the fast one would never get here.
-    wait_until("the fast observer", || fast.seen().len() >= 119);
     assert!(slow.seen().is_empty(), "the slow one is still stuck");
-    // Once it moves again it gets what was queued for it; the rest was dropped.
+    // Stop on another thread: the hub flushes, then waits for its observers to finish. The
+    // flush's `TrackEnded` is offered to the stuck observer (still full, so dropped) before the
+    // fast one gets it; only then does the gate open.
+    let stopper = thread::spawn(move || hub.stop());
+    wait_until("the flush", || fast.seen().len() == 120);
     drop(opener);
-    drop(hub);
-    let got = slow.seen().len();
-    assert!(
-        got > 0 && got <= 1 + super::OUTLET_CAPACITY,
-        "slow got {got}"
-    );
-    assert_eq!(fast.seen().len(), 120, "the flush adds the last TrackEnded");
+    stopper.join().expect("the hub stops");
+
+    // The stuck observer got exactly what was queued for it, in order; the rest was dropped.
+    let all = fast.seen();
+    assert_eq!(all.len(), 120, "the flush adds the last TrackEnded");
+    let got = slow.seen();
+    assert_eq!(got.len(), 1 + super::OUTLET_CAPACITY);
+    assert_eq!(kinds(&got), kinds(&all[..got.len()]));
 }
 
 #[test]
