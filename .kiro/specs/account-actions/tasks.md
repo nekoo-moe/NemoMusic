@@ -344,7 +344,7 @@ Tasks in other specs are cited by spec and the ADR 0004 Decision 4 row they own,
   - Checks: needs the owner (throwaway and Premium accounts, a Linux machine); `cargo test -p nemo-audio --test bit_exact`.
   - Steering: none.
 
-- [ ] 39. Pass the stream request through the resolver chain
+- [x] 39. Pass the stream request through the resolver chain
   - Crate and files: `nemo-ytm` (`src/resolver.rs`).
   - Does: `CachedResolver` and `FallbackResolver`, the chain `default_chain` builds, implement `resolve_with` and hand the `StreamRequest` to the resolvers they wrap, so the audio language (task 27) and Premium (task 25) reach `yt-dlp` in the app. The cache keys by video and request, so a song resolved in one language is not served for another. Found in the review of PR #103: the chain uses the default `resolve_with`, which calls `resolve` and drops the request.
   - _Requirements: 18, 24, 25, 26, 27_

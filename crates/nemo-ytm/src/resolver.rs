@@ -2,9 +2,12 @@
 //! request, with `yt-dlp` as the fallback.
 //!
 //! - [`CachedResolver`] keeps each resolved stream until its `expire` time minus
-//!   [`EXPIRY_MARGIN`], shares one request between callers that ask for the same video at the
-//!   same time, and resolves [`warm`](StreamResolver::warm) hints in the background.
-//! - [`FallbackResolver`] tries the primary resolver first and the fallback on any error. When
+//!   [`EXPIRY_MARGIN`], shares one request between callers that ask for the same video with the
+//!   same [`StreamRequest`] at the same time, and resolves [`warm`](StreamResolver::warm) hints
+//!   in the background. A stream resolved for one request is never served for another.
+//! - [`FallbackResolver`] tries the primary resolver first and the fallback on any error. A
+//!   request the anonymous native path cannot honour (an audio language or Premium) goes to the
+//!   fallback directly. When
 //!   a stream from the primary cannot be opened ([`stream_failed`](StreamResolver::stream_failed)),
 //!   that video goes to the fallback from then on; after [`PRIMARY_FAILURE_LIMIT`] such
 //!   failures the primary is switched off for the session.
@@ -18,7 +21,7 @@ use std::time::{Duration, Instant, SystemTime};
 
 use nemo_core::BoxFuture;
 use nemo_core::audio::Codec;
-use nemo_core::stream::{ResolvedStream, StreamError, StreamResolver};
+use nemo_core::stream::{ResolvedStream, StreamError, StreamRequest, StreamResolver};
 use nemo_core::track::VideoId;
 use tokio::runtime::Handle;
 use tokio::sync::OnceCell;
@@ -42,8 +45,35 @@ pub const PRIMARY_PAUSE: Duration = Duration::from_mins(10);
 pub const NATIVE_PROFILES: &[ClientProfile] = &[VISIONOS, ANDROID_VR];
 
 type Answer = Result<ResolvedStream, StreamError>;
+
+/// The automatic request: original language, no Premium, no codec hint.
+const DEFAULT_REQUEST: StreamRequest = StreamRequest {
+    audio_language: None,
+    prefer_premium: false,
+    prefer_codec: None,
+};
 type Slot = Arc<OnceCell<Answer>>;
-type Slots = Arc<Mutex<HashMap<String, Slot>>>;
+type Slots = Arc<Mutex<HashMap<CacheKey, Slot>>>;
+
+/// One cache entry: a video and the request it was resolved with.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct CacheKey {
+    video: String,
+    audio_language: Option<String>,
+    prefer_premium: bool,
+    prefer_codec: Option<Codec>,
+}
+
+impl CacheKey {
+    fn new(video: &VideoId, request: &StreamRequest) -> Self {
+        Self {
+            video: video.as_str().to_owned(),
+            audio_language: request.audio_language.clone(),
+            prefer_premium: request.prefer_premium,
+            prefer_codec: request.prefer_codec,
+        }
+    }
+}
 
 fn usable(stream: &ResolvedStream, now: SystemTime) -> bool {
     stream.expires_at.is_some_and(|at| {
@@ -60,7 +90,7 @@ fn slot_is_live(slot: &Slot, now: SystemTime) -> bool {
     }
 }
 
-/// Caches resolved streams per video id until they are about to expire.
+/// Caches resolved streams per video id and [`StreamRequest`] until they are about to expire.
 #[derive(Clone)]
 pub struct CachedResolver {
     inner: Arc<dyn StreamResolver>,
@@ -85,11 +115,11 @@ impl CachedResolver {
         }
     }
 
-    /// The slot for `id`: the live one, or a fresh one.
-    fn slot(slots: &Slots, id: &str) -> Slot {
+    /// The slot for `key`: the live one, or a fresh one.
+    fn slot(slots: &Slots, key: &CacheKey) -> Slot {
         let now = SystemTime::now();
         let mut map = slots.lock().unwrap_or_else(PoisonError::into_inner);
-        if let Some(slot) = map.get(id).filter(|s| slot_is_live(s, now)) {
+        if let Some(slot) = map.get(key).filter(|s| slot_is_live(s, now)) {
             return Arc::clone(slot);
         }
         if map.len() >= MAX_CACHED {
@@ -99,30 +129,33 @@ impl CachedResolver {
             }
         }
         let slot: Slot = Arc::default();
-        map.insert(id.to_owned(), Arc::clone(&slot));
+        map.insert(key.clone(), Arc::clone(&slot));
         slot
     }
 
-    async fn get(inner: Arc<dyn StreamResolver>, slots: Slots, video: VideoId) -> Answer {
-        let slot = Self::slot(&slots, video.as_str());
+    async fn get(
+        inner: Arc<dyn StreamResolver>,
+        slots: Slots,
+        video: VideoId,
+        request: StreamRequest,
+    ) -> Answer {
+        let key = CacheKey::new(&video, &request);
+        let slot = Self::slot(&slots, &key);
         let answer = slot
-            .get_or_init(|| async { inner.resolve(&video).await })
+            .get_or_init(|| async { inner.resolve_with(&video, &request).await })
             .await
             .clone();
         let keep = answer.as_ref().is_ok_and(|s| usable(s, SystemTime::now()));
         if !keep {
             let mut map = slots.lock().unwrap_or_else(PoisonError::into_inner);
-            if map
-                .get(video.as_str())
-                .is_some_and(|s| Arc::ptr_eq(s, &slot))
-            {
-                map.remove(video.as_str());
+            if map.get(&key).is_some_and(|s| Arc::ptr_eq(s, &slot)) {
+                map.remove(&key);
             }
         }
         answer
     }
 
-    /// Number of videos with a cached or pending answer (for tests and reports).
+    /// Number of cached or pending answers, one per video and request (for tests and reports).
     #[must_use]
     pub fn len(&self) -> usize {
         self.slots
@@ -140,10 +173,19 @@ impl CachedResolver {
 
 impl StreamResolver for CachedResolver {
     fn resolve<'a>(&'a self, video: &'a VideoId) -> BoxFuture<'a, Answer> {
+        self.resolve_with(video, &DEFAULT_REQUEST)
+    }
+
+    fn resolve_with<'a>(
+        &'a self,
+        video: &'a VideoId,
+        request: &'a StreamRequest,
+    ) -> BoxFuture<'a, Answer> {
         let task = self.handle.spawn(Self::get(
             Arc::clone(&self.inner),
             Arc::clone(&self.slots),
             video.clone(),
+            request.clone(),
         ));
         Box::pin(async move {
             task.await
@@ -156,7 +198,7 @@ impl StreamResolver for CachedResolver {
             .slots
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .get(video.as_str())
+            .get(&CacheKey::new(video, &DEFAULT_REQUEST))
             .is_some_and(|s| slot_is_live(s, SystemTime::now()));
         if !known {
             // The answer lands in the cache; nobody waits for it here.
@@ -164,15 +206,17 @@ impl StreamResolver for CachedResolver {
                 Arc::clone(&self.inner),
                 Arc::clone(&self.slots),
                 video.clone(),
+                StreamRequest::default(),
             )));
         }
     }
 
+    /// Drops the cached answers of `video` for every request.
     fn stream_failed(&self, video: &VideoId) {
         self.slots
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .remove(video.as_str());
+            .retain(|key, _| key.video != video.as_str());
         self.inner.stream_failed(video);
     }
 }
@@ -215,7 +259,12 @@ impl FallbackResolver {
         }
     }
 
-    fn use_primary(&self, video: &VideoId) -> bool {
+    /// The primary is the anonymous native path: it serves the original track only, so a
+    /// request with an audio language or Premium goes to the fallback (`yt-dlp`).
+    fn use_primary(&self, video: &VideoId, request: &StreamRequest) -> bool {
+        if request.audio_language.is_some() || request.prefer_premium {
+            return false;
+        }
         let paused = self
             .paused_until
             .lock()
@@ -265,9 +314,17 @@ impl FallbackResolver {
 
 impl StreamResolver for FallbackResolver {
     fn resolve<'a>(&'a self, video: &'a VideoId) -> BoxFuture<'a, Answer> {
+        self.resolve_with(video, &DEFAULT_REQUEST)
+    }
+
+    fn resolve_with<'a>(
+        &'a self,
+        video: &'a VideoId,
+        request: &'a StreamRequest,
+    ) -> BoxFuture<'a, Answer> {
         Box::pin(async move {
-            if self.use_primary(video) {
-                match self.primary.resolve(video).await {
+            if self.use_primary(video, request) {
+                match self.primary.resolve_with(video, request).await {
                     Ok(stream) => {
                         self.primary_missed(false);
                         self.mark(video, true);
@@ -279,7 +336,7 @@ impl StreamResolver for FallbackResolver {
                     }
                 }
             }
-            let answer = self.fallback.resolve(video).await;
+            let answer = self.fallback.resolve_with(video, request).await;
             self.mark(video, false);
             answer
         })
