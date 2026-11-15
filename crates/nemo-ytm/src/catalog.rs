@@ -80,22 +80,9 @@ impl Inner {
     }
 
     async fn search(&self, query: String) -> Result<SearchResults, CatalogError> {
-        let api = self.api().await?;
-        // The unfiltered search of ytmapi-rs is deprecated and returned nothing anonymously, so
-        // each kind is asked for with its own filter. Songs are required; a failed album, artist
-        // or playlist request only leaves that group empty.
-        let (songs, albums, artists, playlists) = tokio::join!(
-            api.search_songs(query.as_str()),
-            api.search_albums(query.as_str()),
-            api.search_artists(query.as_str()),
-            api.search_playlists(query.as_str()),
-        );
-        Ok(map_search(&SearchParts {
-            songs: songs.map_err(map_error)?,
-            albums: albums.unwrap_or_default(),
-            artists: artists.unwrap_or_default(),
-            playlists: playlists.unwrap_or_default(),
-        }))
+        // The typed unfiltered search of ytmapi-rs is deprecated and returned nothing
+        // anonymously; the raw one in `crate::search` keeps YouTube Music's ranking.
+        crate::search::search(self.api().await?, &query).await
     }
 
     async fn album(&self, id: BrowseId) -> Result<AlbumDetail, CatalogError> {

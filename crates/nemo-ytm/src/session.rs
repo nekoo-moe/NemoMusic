@@ -25,8 +25,7 @@ use ytmapi_rs::common::{AlbumID, ArtistChannelID, PlaylistID, YoutubeID};
 use ytmapi_rs::error::ErrorKind;
 
 use crate::catalog::{
-    SearchParts, adapt, map_album_page, map_artist_page, map_error, map_playlist_page, map_search,
-    valid_browse_id,
+    adapt, map_album_page, map_artist_page, map_error, map_playlist_page, valid_browse_id,
 };
 use crate::home_feed::{AccountMenuQuery, legacy_shelves, parse_account};
 use crate::pages;
@@ -150,19 +149,7 @@ impl Inner {
     }
 
     async fn search(&self, query: String) -> Result<SearchResults, CatalogError> {
-        let api = self.api().await?;
-        let (songs, albums, artists, playlists) = tokio::join!(
-            api.search_songs(query.as_str()),
-            api.search_albums(query.as_str()),
-            api.search_artists(query.as_str()),
-            api.search_playlists(query.as_str()),
-        );
-        Ok(map_search(&SearchParts {
-            songs: songs.map_err(map_error)?,
-            albums: albums.unwrap_or_default(),
-            artists: artists.unwrap_or_default(),
-            playlists: playlists.unwrap_or_default(),
-        }))
+        crate::search::search(self.api().await?, &query).await
     }
 
     async fn album(&self, id: BrowseId) -> Result<AlbumDetail, CatalogError> {

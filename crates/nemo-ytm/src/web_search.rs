@@ -310,7 +310,12 @@ impl<P: WebPost> WebCatalogExt<P> {
         }
         let mut results = self.music.search(&text).await?;
         let web = self.web_search(&text).await?;
-        results.videos = web.videos;
+        // The music search may already list music videos; web videos follow, each once.
+        for video in web.videos {
+            if !results.videos.iter().any(|v| v.track.id == video.track.id) {
+                results.videos.push(video);
+            }
+        }
         results.channels = web.channels;
         for playlist in web.playlists {
             if !results.playlists.iter().any(|p| p.id == playlist.id) {

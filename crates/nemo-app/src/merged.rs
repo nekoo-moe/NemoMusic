@@ -55,6 +55,16 @@ fn merge(
             l.albums.extend(r.albums);
             l.artists.extend(r.artists);
             l.playlists.extend(r.playlists);
+            l.videos.extend(r.videos);
+            l.channels.extend(r.channels);
+            // YouTube Music ranks the answer; local files rank nothing, so its order wins.
+            l.top = l.top.or(r.top);
+            let local_order = std::mem::replace(&mut l.order, r.order);
+            for kind in local_order {
+                if !l.order.contains(&kind) {
+                    l.order.push(kind);
+                }
+            }
             Ok(l)
         }
         (Ok(l), Err(_)) => Ok(l),
@@ -168,6 +178,22 @@ mod tests {
         let merged = merge(Ok(results(&["local"])), Ok(results(&["remote"]))).expect("ok");
         let names: Vec<_> = merged.artists.iter().map(|a| a.name.as_str()).collect();
         assert_eq!(names, ["local", "remote"]);
+    }
+
+    #[test]
+    fn the_remote_top_result_and_order_survive_the_merge() {
+        use nemo_core::catalog::{SearchKind, TopResult};
+        let mut local = results(&["local"]);
+        local.order = vec![SearchKind::Songs, SearchKind::Artists];
+        let mut remote = results(&["remote"]);
+        remote.top = Some(TopResult::Artist(remote.artists.remove(0)));
+        remote.order = vec![SearchKind::Albums, SearchKind::Songs];
+        let merged = merge(Ok(local), Ok(remote)).expect("ok");
+        assert!(matches!(&merged.top, Some(TopResult::Artist(a)) if a.name == "remote"));
+        assert_eq!(
+            merged.order,
+            [SearchKind::Albums, SearchKind::Songs, SearchKind::Artists]
+        );
     }
 
     #[test]
