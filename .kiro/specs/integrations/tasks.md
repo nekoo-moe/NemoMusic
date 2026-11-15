@@ -137,7 +137,7 @@ Cross-spec ids written `<spec>#?` name the other spec's task by the ADR 0004 Dec
   - Wave: 2
   - Checks: unit test that the worker creates controls once after `window_ready`; manual check with the window minimized (task 33).
 
-- [ ] 17. Report the remote position while parked or casting
+- [x] 17. Report the remote position while parked or casting
   - Crate and files: `nemo-app` (`src/play_hub.rs`).
   - Does: When `RemotePlayback::remote_status().mode` is not `Local`, the hub samples the remote position and state instead of `position()`, so the OS session and counted plays follow the cast device.
   - _Requirements: 5_

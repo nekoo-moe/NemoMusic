@@ -9,10 +9,11 @@ use std::time::{Duration, Instant};
 use nemo_core::audio::Origin;
 use nemo_core::hooks::{PlayHookEvent, PlayObserver};
 use nemo_core::player::{PlayState, PlayerCommand, PlayerEvent, PlayerSnapshot};
+use nemo_core::remote::{CommandGate, RemoteMode, RemotePlayback, RemoteStatus};
 use nemo_core::services::{EventReceiver, PlayerControl};
 use nemo_core::track::{Artwork, Track, TrackId};
 
-use super::{Timing, spawn_with};
+use super::{Timing, spawn_with, spawn_with_remote};
 
 const FAST: Timing = Timing {
     loop_every: Duration::from_millis(5),
@@ -228,4 +229,109 @@ fn position_samples_count_heard_time() {
     assert!(f.heard >= Duration::from_millis(200), "heard {:?}", f.heard);
     assert!(f.heard <= Duration::from_millis(400), "heard {:?}", f.heard);
     assert!(!f.counts, "0.3 s of a 200 s song does not count");
+}
+
+/// A remote whose status the test sets.
+#[derive(Default)]
+struct FakeRemote(Mutex<RemoteStatus>);
+
+impl FakeRemote {
+    fn set(&self, mode: RemoteMode, state: PlayState, position: Duration) {
+        *self.0.lock().expect("test lock") = RemoteStatus {
+            mode,
+            state,
+            position: Some(position),
+            ..RemoteStatus::default()
+        };
+    }
+}
+
+impl RemotePlayback for FakeRemote {
+    fn remote_status(&self) -> RemoteStatus {
+        self.0.lock().expect("test lock").clone()
+    }
+    fn gate(&self, _command: &PlayerCommand) -> CommandGate {
+        CommandGate::Forward
+    }
+    fn handle(&self, _command: PlayerCommand) {}
+}
+
+fn cast() -> RemoteMode {
+    RemoteMode::Cast {
+        device: "Living room".into(),
+    }
+}
+
+/// Run a hub with a fake remote, play track 1, let the remote position follow the wall clock
+/// for 300 ms while the local position stays 0, and return the finished play.
+fn cast_run(remote_state: PlayState) -> nemo_core::hooks::FinishedPlay {
+    let player = Arc::new(FakePlayer::default());
+    let remote = Arc::new(FakeRemote::default());
+    remote.set(cast(), remote_state, Duration::ZERO);
+    let observer = Arc::new(Recorder::default());
+    let hub = spawn_with_remote(
+        Arc::clone(&player) as Arc<dyn PlayerControl>,
+        Some(Arc::clone(&remote) as Arc<dyn RemotePlayback>),
+        vec![Arc::clone(&observer) as Arc<dyn PlayObserver>],
+        FAST,
+    )
+    .expect("hub starts");
+    player.play(&track(1));
+    wait_until("the play", || !observer.seen().is_empty());
+    let start = Instant::now();
+    while start.elapsed() < Duration::from_millis(300) {
+        remote.set(cast(), remote_state, start.elapsed());
+        thread::sleep(Duration::from_millis(5));
+    }
+    hub.stop();
+    let Some(PlayHookEvent::TrackEnded(f)) = observer.seen().last().cloned() else {
+        panic!("the flush ends the play");
+    };
+    f
+}
+
+#[test]
+fn casting_counts_heard_time_from_the_remote_position() {
+    let f = cast_run(PlayState::Playing);
+    assert!(f.heard >= Duration::from_millis(200), "heard {:?}", f.heard);
+    assert!(f.heard <= Duration::from_millis(400), "heard {:?}", f.heard);
+}
+
+#[test]
+fn casting_counts_no_heard_time_while_the_remote_is_paused() {
+    // The local player says Playing; the remote says Paused, and the remote wins.
+    let f = cast_run(PlayState::Paused);
+    assert_eq!(f.heard, Duration::ZERO);
+}
+
+#[test]
+fn a_local_remote_mode_keeps_sampling_the_player() {
+    let player = Arc::new(FakePlayer::default());
+    let remote = Arc::new(FakeRemote::default());
+    remote.set(
+        RemoteMode::Local,
+        PlayState::Paused,
+        Duration::from_secs(90),
+    );
+    let observer = Arc::new(Recorder::default());
+    let hub = spawn_with_remote(
+        Arc::clone(&player) as Arc<dyn PlayerControl>,
+        Some(remote as Arc<dyn RemotePlayback>),
+        vec![Arc::clone(&observer) as Arc<dyn PlayObserver>],
+        FAST,
+    )
+    .expect("hub starts");
+    player.play(&track(1));
+    wait_until("the play", || observer.seen().len() >= 2);
+    let start = Instant::now();
+    while start.elapsed() < Duration::from_millis(300) {
+        *player.position.lock().expect("test lock") = start.elapsed();
+        thread::sleep(Duration::from_millis(5));
+    }
+    hub.stop();
+    let Some(PlayHookEvent::TrackEnded(f)) = observer.seen().last().cloned() else {
+        panic!("the flush ends the play");
+    };
+    assert!(f.heard >= Duration::from_millis(200), "heard {:?}", f.heard);
+    assert!(!kinds(&observer.seen()).contains(&"jump".to_owned()));
 }
