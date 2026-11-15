@@ -54,7 +54,7 @@ pub yt_dlp_auto_install: bool, // default true
 
 No real network in tests.
 - `ytdlp_install`: checksum lines (both assets), hash mismatch refused, one-file placement through a temp file with mode 0o755 and replacement.
-- `managed`: install when nothing is found; the user's copy left alone (PATH, settings path); the 24 h throttle (never checked, just checked, exactly 24 h, clock moved back); update decision (same hash, different hash, file missing); program path per build; platform build and folder agree with `locate_yt_dlp`; hash and check-time files round trip and reject garbage; a filled slot switches every resolver clone.
+- `managed`: install when nothing is found or only a copy on `PATH` is (that copy is left as it is); a settings path left alone; the 24 h throttle (never checked, just checked, exactly 24 h, clock moved back); update decision (same hash, different hash, file missing); program path per build; platform build and folder agree with `locate_yt_dlp`; hash and check-time files round trip and reject garbage; a filled slot switches every resolver clone.
 - `nemo-app`: the switch defaults to on, an old settings file reads as on, off round-trips.
 - Manual (Linux, once): `cargo run -p nemo-ytm --example install_yt_dlp -- <scratch>/yt-dlp` (2 requests), then `yt-dlp --version` from that copy.
 - No audio code changes; no bit-exact test needed.

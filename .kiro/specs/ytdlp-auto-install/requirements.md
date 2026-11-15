@@ -17,13 +17,13 @@ YouTube playback works on a fresh Windows x64 or Linux x86_64 machine without in
 
 ## Acceptance Criteria
 
-1. WHEN the app starts with `yt_dlp_auto_install` on, no `yt_dlp_path` set and no yt-dlp found by the lookup, THE SYSTEM SHALL install the app-managed copy on a background worker thread, never on the UI or audio thread, and SHALL NOT delay startup.
+1. WHEN the app starts with `yt_dlp_auto_install` on, no `yt_dlp_path` set and the app-managed copy missing (whether or not another yt-dlp is on `PATH` or from winget), THE SYSTEM SHALL install the app-managed copy on a background worker thread, never on the UI or audio thread, and SHALL NOT delay startup.
 2. WHEN the platform is Windows x64, THE SYSTEM SHALL install the onedir `yt-dlp_win.zip`; WHEN it is Linux x86_64, THE SYSTEM SHALL install the one-file `yt-dlp_linux` to `<data>/NemoMusic/bin/yt-dlp/yt-dlp` through a temp file and a rename, mode 0o755.
 3. WHEN the platform is any other, THE SYSTEM SHALL install nothing and log one warning.
 4. WHEN a downloaded asset does not match its line in `SHA2-256SUMS`, THE SYSTEM SHALL discard it and keep what was there.
 5. WHEN an install succeeds, THE SYSTEM SHALL use the new copy for the next YouTube resolve without an app restart.
 6. WHEN the app-managed copy is the one in use and no check finished in the last 24 hours, THE SYSTEM SHALL download `SHA2-256SUMS` at startup and reinstall only if the asset's hash differs from the recorded one (or none is recorded).
-7. WHEN the yt-dlp in use is the user's (settings path, `PATH`, winget), THE SYSTEM SHALL NOT download, update or change it.
+7. WHEN a yt-dlp is on `PATH` or from winget, THE SYSTEM SHALL NOT change it, and SHALL use the app-managed copy once installed (distribution packages lag behind YouTube; owner, 2026-11-15, after "could not get the stream" with Ubuntu's 2024.04.09). WHEN `yt_dlp_path` is set, THE SYSTEM SHALL use it and SHALL NOT download, update or change anything.
 8. WHEN `yt_dlp_auto_install` is off, THE SYSTEM SHALL make no download.
 9. IF a download or install fails, THEN THE SYSTEM SHALL log a warning and try again only at the next start.
 10. WHEN downloading, THE SYSTEM SHALL use HTTPS only, at most 3 HTTPS redirects, one download at a time, and the existing size caps.

@@ -172,11 +172,17 @@ pub fn plan(
         return Plan::Leave;
     }
     match start.found {
-        None => Plan::Install,
-        Some(found) if found == managed.program() && check_due(last_check, now) => {
-            Plan::CheckForUpdate
+        Some(found) if found == managed.program() => {
+            if check_due(last_check, now) {
+                Plan::CheckForUpdate
+            } else {
+                Plan::Leave
+            }
         }
-        Some(_) => Plan::Leave,
+        // Nothing found, or a copy on `PATH` or from winget: distribution packages lag behind
+        // YouTube by months (Ubuntu 24.04 ships 2024.04.09, which YouTube now refuses), so the
+        // app installs and uses its own copy. The other copy is left as it is.
+        None | Some(_) => Plan::Install,
     }
 }
 

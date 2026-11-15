@@ -57,6 +57,14 @@ pub(super) fn classify_stderr(stderr: &str) -> StreamError {
     ]) {
         StreamError::Network("the resolver could not reach YouTube".to_owned())
     } else if has(&[
+        "sign in to confirm",
+        "please sign in",
+        "not a bot",
+        "use --cookies",
+    ]) {
+        // An outdated yt-dlp, or YouTube's bot check on this network.
+        StreamError::Network("YouTube asked the resolver to sign in".to_owned())
+    } else if has(&[
         "unable to extract",
         "unsupported url",
         "unexpected response",

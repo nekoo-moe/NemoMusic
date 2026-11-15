@@ -76,18 +76,17 @@ These are the only hosts NemoMusic contacts. Adding a host needs owner approval.
 | `sponsor.ajay.app` | SponsorBlock segments (only a 4-character hash prefix is sent) | Only when SponsorBlock is on |
 | `ws.audioscrobbler.com` | Last.fm API: now playing and scrobbles (title, artist, album, play time), over HTTPS only | Only when Last.fm is on |
 | `accounts.google.com`, `*.gstatic.com` | Google sign-in page | Only while you sign in |
-| `github.com`, `release-assets.githubusercontent.com` | Download the official [yt-dlp](https://github.com/yt-dlp/yt-dlp) release and its SHA-256 list | Only to install or update yt-dlp, and only when the app manages its own copy (no yt-dlp found, automatic install on); at most one update check a day |
+| `github.com`, `release-assets.githubusercontent.com` | Download the official [yt-dlp](https://github.com/yt-dlp/yt-dlp) release and its SHA-256 list | Only to install or update the app's own yt-dlp (automatic install on, no `yt_dlp_path` set); at most one update check a day |
 
 ## Build and run
 
-Needs Rust (pinned in `rust-toolchain.toml`). YouTube playback uses [yt-dlp](https://github.com/yt-dlp/yt-dlp): the app uses yours when it finds one (the `yt_dlp_path` setting, `PATH`, winget), and otherwise downloads the official release into its own data folder (`bin/yt-dlp`) on Windows x64 and Linux x86_64, checks it against the published SHA-256 list and keeps that copy up to date. It never changes a yt-dlp you installed. Set `"yt_dlp_auto_install": false` in `settings.json` to turn this off; on other platforms install yt-dlp yourself. NemoMusic is one program: the sign-in window is built into `nemo-app` and runs as a second `nemo-app --signin` process while you sign in.
+Needs Rust (pinned in `rust-toolchain.toml`). YouTube playback uses [yt-dlp](https://github.com/yt-dlp/yt-dlp): the app downloads the official release into its own data folder (`bin/yt-dlp`) on Windows x64 and Linux x86_64, checks it against the published SHA-256 list and keeps that copy up to date. A yt-dlp on `PATH` or from winget is used only until that copy is in place, because distribution packages are often too old for YouTube. It never changes a yt-dlp you installed. To use your own copy, set `yt_dlp_path`. Set `"yt_dlp_auto_install": false` in `settings.json` to turn this off; on other platforms install yt-dlp yourself. NemoMusic is one program: the sign-in window is built into `nemo-app` and runs as a second `nemo-app --signin` process while you sign in.
 
 ### Windows
 
 Also needs Visual Studio Build Tools with the C++ workload, and CMake on `PATH` (the Opus decoder builds libopus from source). The Build Tools' "C++ CMake tools for Windows" component installs CMake under `Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin`; add that folder to `PATH`, or install CMake with `winget install --id Kitware.CMake -e`.
 
 ```powershell
-winget install --id yt-dlp.yt-dlp -e --scope user   # optional: the app installs its own copy otherwise
 cargo run -p nemo-app --release
 ```
 
@@ -98,7 +97,6 @@ Tested on Linux Mint 22.3 (Ubuntu 24.04 base), X11. Needs these system packages 
 ```bash
 sudo apt install -y pkg-config libasound2-dev libgtk-3-dev libwebkit2gtk-4.1-dev \
   libsoup-3.0-dev libxdo-dev libssl-dev cmake
-sudo apt install -y yt-dlp   # optional: the app installs its own copy otherwise
 cargo run -p nemo-app --release
 ```
 
