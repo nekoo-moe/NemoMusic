@@ -7,6 +7,10 @@
 //! and in its own transaction, and `schema_migration` records them. Every statement is
 //! parameterized. Paths and tags are user data: they are stored here and never logged, and
 //! errors carry no path or tag ([`LibraryError`]).
+//!
+//! A damaged file is never deleted (criterion 6): [`Store::open`] runs `PRAGMA quick_check`,
+//! and on failure renames the file with its `-wal` and `-shm` to `library.db.broken-<unix
+//! time>`, makes a new file and reports it once through [`Store::take_rebuilt`].
 
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -15,10 +19,14 @@ use nemo_core::library::{LibraryError, Loudness};
 use rusqlite::{Connection, OpenFlags, OptionalExtension, params};
 
 mod playlists;
+mod rebuild;
 mod tracks;
 
 pub use playlists::NewEntry;
+pub use rebuild::{BROKEN_PREFIX, REBUILT_NOTICE, Rebuilt};
 pub use tracks::TrackRow;
+
+use rebuild::{Health, health, keep_damaged};
 
 /// The database file inside the library folder.
 pub const DB_FILE: &str = "library.db";
@@ -113,6 +121,7 @@ fn now_secs() -> i64 {
 /// One connection to `library.db`.
 pub struct Store {
     conn: Connection,
+    rebuilt: Option<Rebuilt>,
 }
 
 impl std::fmt::Debug for Store {
@@ -125,11 +134,39 @@ impl Store {
     /// Open (or create) the write connection in `dir`: WAL mode, foreign keys, and every
     /// migration the file has not seen. Only the scan's writer thread holds one.
     ///
+    /// An existing file is checked first with `PRAGMA quick_check`. A damaged one is renamed
+    /// with its `-wal` and `-shm` to `library.db.broken-<unix time>` (never deleted), a new
+    /// file is made with the watched folders that could still be read, and
+    /// [`Store::take_rebuilt`] then reports it once.
+    ///
     /// # Errors
-    /// [`LibraryError::Io`] when the folder cannot be created, [`LibraryError::Db`] when the
-    /// file cannot be opened or migrated, or comes from a newer app (it is kept, not changed).
+    /// [`LibraryError::Io`] when the folder cannot be created or a damaged file cannot be
+    /// renamed (it is then left as it was), [`LibraryError::Db`] when the file cannot be
+    /// opened or migrated, or comes from a newer app (it is kept, not changed).
     pub fn open(dir: &Path) -> Result<Self, LibraryError> {
         std::fs::create_dir_all(dir).map_err(|e| LibraryError::Io(e.kind()))?;
+        match health(&dir.join(DB_FILE))? {
+            Health::Sound => Self::open_write(dir),
+            Health::Damaged(folders) => {
+                let kept = keep_damaged(dir)?;
+                let mut store = Self::open_write(dir)?;
+                for folder in &folders {
+                    store.add_folder(folder)?;
+                }
+                store.rebuilt = Some(Rebuilt { kept });
+                Ok(store)
+            }
+        }
+    }
+
+    /// `Some` once after [`Store::open`] set a damaged file aside. The caller sends
+    /// [`Rebuilt::event`] to its scan subscribers with [`Rebuilt::notice`] and rescans every
+    /// watched folder; later calls return `None`.
+    pub fn take_rebuilt(&mut self) -> Option<Rebuilt> {
+        self.rebuilt.take()
+    }
+
+    fn open_write(dir: &Path) -> Result<Self, LibraryError> {
         let mut conn = Connection::open(dir.join(DB_FILE)).map_err(db)?;
         // `journal_mode` returns a row, so it cannot go through `execute_batch`.
         conn.pragma_update_and_check(None, "journal_mode", "WAL", |_| Ok(()))
@@ -144,7 +181,10 @@ impl Store {
         )
         .map_err(db)?;
         migrate(&mut conn)?;
-        Ok(Self { conn })
+        Ok(Self {
+            conn,
+            rebuilt: None,
+        })
     }
 
     /// Open a read-only connection to the library in `dir`, for one reader thread. The write
@@ -157,7 +197,10 @@ impl Store {
         let conn = Connection::open_with_flags(dir.join(DB_FILE), flags).map_err(db)?;
         conn.execute_batch("PRAGMA foreign_keys = ON;")
             .map_err(db)?;
-        Ok(Self { conn })
+        Ok(Self {
+            conn,
+            rebuilt: None,
+        })
     }
 
     /// The watched folders, in the order they were added.
