@@ -16,8 +16,8 @@ Owner pre-approved 2026-11-15. The three tasks stack: 2 builds on 1, 3 on 2.
   - Branch: `fix/nemo-ui-lyrics-fullscreen` (stacked on 1)
   - Checks: unit tests of the line steps and the edge fade; snapshots; `design.md` edit for section 10.
 
-- [ ] 3. Refined lyric font
-  - Crate and files: `nemo-ui`: `assets/fonts/`, `src/gui/assets.rs`, `src/gui/headless.rs` font list, the lyric views; `tech.md` "UI type family", `design.md` section 3.
+- [x] 3. Refined lyric font
+  - Crate and files: `nemo-ui`: `assets/fonts/` (Inter Display 400/600, `OFL-Inter.txt`), `assets/LICENSES.md`, `src/gui/assets.rs`, `src/gui/textfit.rs`, `src/gui/mod.rs`, `src/gui/headless.rs`, `src/gui/views/lyrics.rs`, `now_playing.rs`, `np_classic.rs`, `examples/snapshots/font_compare.rs`; `tech.md` "UI type family", `design.md` section 3.
   - Does: A comparison snapshot of Inter, Be Vietnam Pro and Plus Jakarta Sans; the pick bundled in at most two weights with its OFL text; lyrics, the full-screen title and display text use it; line height at least 1.25 for large lyrics.
   - _Requirements: 14, 15, 16, 17_
   - Branch: `fix/nemo-ui-lyrics-font` (stacked on 2)

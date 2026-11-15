@@ -12,8 +12,38 @@ pub const FONT_MEDIUM: &[u8] = include_bytes!("../../assets/fonts/GoogleSansFlex
 pub const FONT_SEMIBOLD: &[u8] = include_bytes!("../../assets/fonts/GoogleSansFlex-SemiBold.ttf");
 /// Family name of the bundled font.
 pub const FAMILY: &str = "Google Sans Flex";
+/// Inter Display Regular, 400 (SIL OFL 1.1): the display face of lyrics and large titles
+/// (lyrics-polish task 3).
+pub const DISPLAY_REGULAR: &[u8] = include_bytes!("../../assets/fonts/InterDisplay-Regular.ttf");
+/// Inter Display `SemiBold`, 600.
+pub const DISPLAY_SEMIBOLD: &[u8] = include_bytes!("../../assets/fonts/InterDisplay-SemiBold.ttf");
+/// Family name of the display face.
+pub const DISPLAY_FAMILY: &str = "Inter Display";
+/// Every bundled font file, for the window and the headless renderer.
+pub const ALL_FONTS: [&[u8]; 5] = [
+    FONT_REGULAR,
+    FONT_MEDIUM,
+    FONT_SEMIBOLD,
+    DISPLAY_REGULAR,
+    DISPLAY_SEMIBOLD,
+];
 
-/// `font.ui` and `font.display` (one bundled family) at 400 or 600. The digits of the bundled
+/// `font.display` for lyrics and large titles: Inter Display at 400 or 600. It is tighter
+/// and more open at large sizes than the rounded UI face, with clean stacked Vietnamese marks.
+#[must_use]
+pub const fn display_font(semibold: bool) -> Font {
+    Font {
+        family: Family::Name(DISPLAY_FAMILY),
+        weight: if semibold {
+            Weight::Semibold
+        } else {
+            Weight::Normal
+        },
+        ..Font::DEFAULT
+    }
+}
+
+/// `font.ui` (the bundled UI family) at 400 or 600. The digits of the bundled
 /// files are the font's own tabular figures (`tnum` mapped onto the default glyphs, see
 /// `assets/LICENSES.md`), so times and rates do not jitter; iced 0.14 cannot switch OpenType
 /// features on.
@@ -239,7 +269,7 @@ mod tests {
 
     #[test]
     fn bundled_fonts_are_ttf() {
-        for f in [FONT_REGULAR, FONT_MEDIUM, FONT_SEMIBOLD] {
+        for f in ALL_FONTS {
             assert_eq!(&f[..4], &[0, 1, 0, 0], "TrueType header");
         }
     }
@@ -256,8 +286,23 @@ mod tests {
     /// The Vietnamese letters of the owner's test strings are in the font.
     #[test]
     fn vietnamese_letters_have_glyphs() {
-        for font in [FONT_REGULAR, FONT_MEDIUM, FONT_SEMIBOLD] {
+        for font in ALL_FONTS {
             for c in "M\u{1edb}i Quen Nhau \u{110}\u{e3} R\u{1ee7} Ph\u{1b0}\u{1a1}ng \u{1ea0}\u{1ee9}\u{1ef9}".chars() {
+                assert!(has_glyph(font, c), "missing {c:?}");
+            }
+        }
+    }
+
+    /// The display face covers every precomposed Vietnamese letter (U+1EA0 to U+1EF9) and the
+    /// Latin letters with horn and stroke.
+    #[test]
+    fn the_display_face_covers_vietnamese() {
+        for font in [DISPLAY_REGULAR, DISPLAY_SEMIBOLD] {
+            let extra = [
+                '\u{102}', '\u{103}', '\u{110}', '\u{111}', '\u{1a0}', '\u{1a1}', '\u{1af}',
+                '\u{1b0}',
+            ];
+            for c in ('\u{1ea0}'..='\u{1ef9}').chain(extra) {
                 assert!(has_glyph(font, c), "missing {c:?}");
             }
         }

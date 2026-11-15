@@ -3,6 +3,7 @@
 | Asset | Source | Licence |
 |---|---|---|
 | `fonts/GoogleSansFlex-Regular.ttf`, `-Medium.ttf`, `-SemiBold.ttf` | Google Sans Flex, https://github.com/googlefonts/googlesans-flex, as published on Google Fonts (`ofl/googlesansflex` in https://github.com/google/fonts) | SIL Open Font License 1.1, full text in `fonts/OFL.txt` (Copyright 2015 The Google Sans Flex Authors). No Reserved Font Name is declared. |
+| `fonts/InterDisplay-Regular.ttf`, `-SemiBold.ttf` | Inter Display 4.1, https://github.com/rsms/inter (release `Inter-4.1.zip`, `extras/ttf/`), unmodified | SIL Open Font License 1.1, full text in `fonts/OFL-Inter.txt` (Copyright 2016 The Inter Project Authors). No Reserved Font Name is declared. |
 | `icons/*.svg` | Material Symbols (Rounded, weight 400, grade 0, 24 px; `-fill` files are the filled variants), https://github.com/google/material-design-icons (`symbols/web`) | Apache License 2.0, text in `icons/LICENSE-APACHE-2.0.txt` |
 
 ## How the font files were made (OFL "Modified Version" notice)

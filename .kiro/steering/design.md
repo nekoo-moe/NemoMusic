@@ -27,6 +27,7 @@ Owner direction (2026-11-10, evening): the first build looked "raw". Go full Mat
 
 ## 3. Typography (M3 type scale, mapped to px / line px)
 - Roles: `font.ui` (system UI sans), `font.display` (one bundled sans), `font.mono-num`. Bundle fonts; CJK/RTL fall back to system fonts.
+- `font.display` is Inter Display at 400 and 600 (owner, 2026-11-15; lyrics-polish): every lyric line and the full-window Now Playing title. Body UI text stays on `font.ui` (Google Sans Flex). Large lyrics use a line height of at least 1.25 times the size so stacked Vietnamese marks are never clipped.
 - Scale: `label-sm` 11/16, `body-sm` 12/18, `body-md` 14/20, `title-sm` 16/24, `title-md` 20/28, `headline-md` 28/36, `display-md` 40/48, plus lyrics sizes in section 10.
 - Weights 400 and 600 (500 for display). Tabular figures for time, bitrate, rate, track number. `m:ss`, `h:mm:ss` from 1 h. Thin space before units (`96 kHz`).
 - One-line ellipsis in rows; never below 11 px; OS text scale to 200% without clipping.

@@ -58,6 +58,15 @@ Three stacked changes in `nemo-ui`, one PR each.
 11. No wording rule touched. Yes.
 12. No new frames, and nothing touches the audio thread. Yes.
 
+### Task 3 choices
+
+- Comparison: `docs/ui/snapshots/lyrics-font-compare.png` (`examples/snapshots/font_compare.rs`; the candidate files come from `NEMO_FONT_DIR` and are not bundled) draws the same lines in Google Sans Flex (today), Inter, Inter Display, Be Vietnam Pro and Plus Jakarta Sans, all SemiBold. The lines are 32/40 lower case, 32/40 capitals with stacked marks (Ẩ, Ể, Ỗ, Ẳ) and 24/32.
+- Pick: **Inter Display**, the display optical size of Inter. At 32 px it has the tightest spacing, open counters, a straight-sided, neutral shape (not rounded), and small, crisp marks that sit close to the letter without touching. Be Vietnam Pro draws excellent Vietnamese, but it is wider and geometric, and close to the soft look the owner called "childish". Plus Jakarta Sans is rounder still. Plain Inter (text optical size) is looser at large sizes.
+- Weights: 400 for the lyric lines that are not active and for unsynced lyrics, 600 for the active line and titles. That keeps the two weights per view of `design.md` section 3. The static files of the Inter 4.1 release are used unmodified, because iced 0.14 cannot pick a variable-font instance (`assets/LICENSES.md`). They add about 830 KB to the binary. Subsetting would save most of that, but it makes a Modified Version, so it was left out.
+- Measuring: `textfit` now reads the advances of either face (`Face::Ui`, `Face::Display`), so lyric wrapping and the scroll anchor use the display face's real widths.
+- Used for: every lyric line (right pane, full screen, compact, Classic, unsynced) and the full-window titles of the M3 and Classic styles. Body UI text, the footer, controls and labels stay on Google Sans Flex.
+- Line heights: every lyric role is at least 1.25 times its size (32/40, 24/32, 20/28; pane 20/28, 16/24, 14/20). A unit test checks this, and the capitals snapshot shows no clipped mark.
+
 ## Affected Crates
 
 - `nemo-ui` only.
@@ -105,6 +114,7 @@ Pure arithmetic with saturating adds; a malformed document (no start times, over
 - Unit test of the note SVG (fill level, rounding, clamping).
 - Headless snapshots `lyrics-*` from `examples/snapshots/lyrics_polish.rs`.
 - Task 2: unit tests of the edge mask, the roomy gap and the line-height ratio; a reducer test for the Timing popover (toggle, one popover at a time, `Esc`, leaving the screen); snapshots `lyrics-after-gap-full-*` and `lyrics-timing-full-1366x697`.
+- Task 3: glyph coverage of U+1EA0 to U+1EF9 and the horn and stroke letters in both display files; display-face measuring in `textfit`; the comparison PNG and the `lyrics-*` snapshots in the new face.
 - Audio untouched, so no bit-exact test is needed.
 
 ## Risks and Alternatives

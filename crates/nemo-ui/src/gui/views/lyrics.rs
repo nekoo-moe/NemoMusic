@@ -8,10 +8,10 @@
 use iced::widget::text::{Span, Wrapping};
 use iced::widget::{Space, column, container, mouse_area, rich_text, stack, text};
 use iced::{Alignment, Color, Element, Length, Padding, Pixels, mouse};
-use nemo_core::lyrics::{Granularity, LyricLine, LyricsCredit, LyricsDoc};
+use nemo_core::lyrics::{Granularity, LyricLine, LyricsDoc};
 
 use super::super::app::{App, Message};
-use super::super::assets::{Icon, font};
+use super::super::assets::{Icon, display_font};
 use super::super::style::{col, gap, icon, label};
 use super::super::textfit;
 use super::super::widgets::Offset;
@@ -21,9 +21,11 @@ use crate::lyrics_view::{self, LINE_GAP, LineRole, LineRows};
 use crate::state::{Event, LyricsState};
 use crate::theme::{TextStyle, color, type_scale};
 
+mod footer;
 mod note;
 mod three;
 
+pub use footer::{credit_text, footer, footer_extra};
 pub use three::lines as three_lines;
 
 /// Room kept at the right of a lyric line for the glow copies, px.
@@ -40,7 +42,25 @@ pub fn wrap_width(width: f32) -> f32 {
 /// Rows `text` wraps onto at `size` px in a column `width` px wide.
 #[must_use]
 pub fn rows_at(text: &str, width: f32, size: f32) -> u8 {
-    u8::try_from(textfit::rows(text, wrap_width(width), size)).unwrap_or(u8::MAX)
+    u8::try_from(textfit::rows_in(
+        textfit::Face::Display,
+        text,
+        wrap_width(width),
+        size,
+    ))
+    .unwrap_or(u8::MAX)
+}
+
+/// One line of display text (`font.display` 600, lyrics-polish task 3): `s` cut with an
+/// ellipsis to `width` px, measured with the display face.
+pub fn display_title<'a>(s: &str, st: TextStyle, width: f32, ink: Color) -> text::Text<'a> {
+    let size = f32::from(st.size);
+    text(textfit::fit_in(textfit::Face::Display, s, width, size))
+        .size(Pixels(size))
+        .line_height(text::LineHeight::Absolute(Pixels(f32::from(st.line))))
+        .font(display_font(true))
+        .color(ink)
+        .wrapping(Wrapping::None)
 }
 
 /// Wrapped row counts of every line of `doc` for each role, for the reducer's scroll anchor.
@@ -121,7 +141,7 @@ fn text_run<'a>(content: String, size: f32, line_h: f32, bold: bool, ink: Color)
     text(content)
         .size(Pixels(size))
         .line_height(text::LineHeight::Absolute(Pixels(line_h)))
-        .font(font(bold))
+        .font(display_font(bold))
         .color(ink)
         .wrapping(Wrapping::WordOrGlyph)
 }
@@ -235,7 +255,7 @@ fn pieces_text<'a>(
     rich_text(spans)
         .size(Pixels(size))
         .line_height(text::LineHeight::Absolute(Pixels(line_h)))
-        .font(font(true))
+        .font(display_font(true))
         .wrapping(Wrapping::WordOrGlyph)
         .width(Length::Fixed(wrap))
         .into()
@@ -320,13 +340,12 @@ pub fn unsynced(doc: &LyricsDoc, st: TextStyle) -> Element<'_, Message> {
     let mut c = column![].spacing(gap::SM).width(Length::Fill);
     for line in &doc.lines {
         c = c.push(
-            label(
-                line.text.clone(),
-                st,
-                false,
-                col(color::on_surface_variant()),
-            )
-            .wrapping(Wrapping::Word),
+            text(line.text.clone())
+                .size(Pixels(f32::from(st.size)))
+                .line_height(text::LineHeight::Absolute(Pixels(f32::from(st.line))))
+                .font(display_font(false))
+                .color(col(color::on_surface_variant()))
+                .wrapping(Wrapping::Word),
         );
     }
     super::super::style::scroll(c).height(Length::Fill).into()
@@ -416,92 +435,6 @@ pub fn lyrics_status(app: &App, width: f32) -> Element<'_, Message> {
         .center_x(Length::Fill)
         .center_y(Length::Fill)
         .into()
-}
-
-/// The credit line a source asks for: its label, the submitter and the link, for example
-/// "Lyrics from Unison \u{b7} by Someone" or "Lyrics via Better Lyrics \u{b7} better-lyrics.boidu.dev".
-#[must_use]
-pub fn credit_text(c: &LyricsCredit) -> String {
-    let mut parts = vec![c.label.clone()];
-    if let Some(by) = &c.by {
-        parts.push(format!("by {by}"));
-    }
-    if let Some(url) = &c.url {
-        let host = url
-            .trim_start_matches("https://")
-            .trim_start_matches("http://")
-            .trim_end_matches('/');
-        if !host.is_empty() {
-            parts.push(host.to_owned());
-        }
-    }
-    parts.join(" \u{b7} ")
-}
-
-/// Height of the footer's main label row (one row plus air above it), px.
-const FOOTER_ROW: f32 = 24.0;
-
-fn footer_parts(app: &App) -> Option<(String, Option<String>)> {
-    let LyricsState::Ready(doc) = &app.ui.lyrics else {
-        return None;
-    };
-    Some((
-        lyrics_view::footer(Some(doc)),
-        app.lyric_credit.as_ref().map(credit_text),
-    ))
-}
-
-/// Height the footer takes beyond one 24 px label row: the credit line and any wrapped rows.
-#[must_use]
-pub fn footer_extra(app: &App, width: f32) -> f32 {
-    let Some((text, credit)) = footer_parts(app) else {
-        return 0.0;
-    };
-    let st = type_scale::LABEL_SM;
-    let row = f32::from(st.line);
-    let size = f32::from(st.size);
-    let extra_rows = textfit::rows(&text, width, size).saturating_sub(1);
-    // Row counts are tiny, exact in f32.
-    #[allow(clippy::cast_precision_loss)]
-    let mut extra = extra_rows as f32 * row;
-    if let Some(c) = credit {
-        #[allow(clippy::cast_precision_loss)]
-        let credit_rows = textfit::rows(&c, width, size) as f32;
-        // The credit, the gap under it and air above it, so it never touches a lyric line.
-        extra += credit_rows * row + gap::XS + gap::SM;
-    }
-    extra
-}
-
-/// Provider and sync level, and the credit; never hidden and never cut (`design.md` section 10).
-pub fn footer(app: &App, width: f32) -> Element<'_, Message> {
-    // Without lyrics there is nothing to credit; the empty state names the providers instead.
-    let Some((text, credit)) = footer_parts(app) else {
-        return Space::new().height(gap::SM).into();
-    };
-    let st = type_scale::LABEL_SM;
-    let wrapped = |s: String, ink: Color| {
-        label(s, st, false, ink)
-            .wrapping(Wrapping::Word)
-            .width(Length::Fixed(width))
-    };
-    let mut c = column![].width(Length::Fixed(width));
-    if let Some(credit) = credit {
-        c = c
-            .push(Space::new().height(gap::SM))
-            .push(wrapped(credit, col(color::on_surface())))
-            .push(Space::new().height(gap::XS));
-    }
-    let rows = textfit::rows(&text, width, f32::from(st.size));
-    // Row counts are tiny, exact in f32.
-    #[allow(clippy::cast_precision_loss)]
-    let h = FOOTER_ROW + (rows.saturating_sub(1)) as f32 * f32::from(st.line);
-    c.push(
-        container(wrapped(text, col(color::on_surface_variant())))
-            .height(Length::Fixed(h))
-            .align_y(Alignment::End),
-    )
-    .into()
 }
 
 #[cfg(test)]

@@ -1,4 +1,5 @@
 use super::*;
+use nemo_core::lyrics::LyricsCredit;
 
 #[test]
 fn credit_names_the_submitter_and_the_link_host() {
