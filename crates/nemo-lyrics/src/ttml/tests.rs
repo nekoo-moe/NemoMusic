@@ -121,3 +121,30 @@ fn cdata_and_numeric_entities() {
     let src = "<tt><body><div><p begin=\"1\"><![CDATA[a < b]]> &#65;&#x42;</p></div></body></tt>";
     assert_eq!(parse_ttml(src, P).lines[0].text, "a < b AB");
 }
+
+#[test]
+fn romanization_is_kept_apart_from_the_line_text() {
+    let src = r#"<tt><head><metadata><ttm:agent xml:id="v1"/><ttm:agent xml:id="v2"/></metadata></head><body><div>
+<p begin="1.0" end="3.0" ttm:agent="v2"><span begin="1.0" end="2.0">君の</span><span begin="2.0" end="3.0">名は</span><span ttm:role="x-roman">kimi no <span>na wa</span></span><span ttm:role="x-bg"><span begin="2.5" end="3.0">(ah)</span><span ttm:role="x-roman">(a)</span></span></p>
+<p begin="4.0" end="5.0" ttm:agent="v1">Hello<span ttm:role="x-translation">xin <span ttm:role="x-roman">chao</span></span></p>
+<p begin="6.0" end="7.0" ttm:agent="v3">Third</p>
+</div></body></tt>"#;
+    let t = parse_ttml_detailed(src, P);
+    let texts: Vec<&str> = t.doc.lines.iter().map(|l| l.text.as_str()).collect();
+    assert_eq!(texts, ["君の名は", "(ah)", "Hello", "Third"]);
+    let romans: Vec<Option<&str>> = t.meta.iter().map(|m| m.roman.as_deref()).collect();
+    assert_eq!(romans, [Some("kimi no na wa"), Some("(a)"), None, None]);
+    let meta = t.line_meta();
+    let singers: Vec<Option<u8>> = meta.iter().map(|m| m.singer).collect();
+    // Declared singers count first, in head order; an undeclared one gets the next number.
+    assert_eq!(singers, [Some(1), Some(1), Some(0), Some(2)]);
+    assert!(meta[1].background && !meta[0].background);
+}
+
+#[test]
+fn plain_lines_have_no_line_meta() {
+    let t = parse_ttml("<tt><body><div><p>one</p></div></body></tt>", P);
+    assert_eq!(t.lines.len(), 1);
+    let detailed = parse_ttml_detailed("<tt><body><div><p>one</p></div></body></tt>", P);
+    assert!(detailed.line_meta().is_empty());
+}

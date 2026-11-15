@@ -26,6 +26,8 @@ struct Side {
     plain: String,
     begin: Option<u64>,
     end: Option<u64>,
+    /// Text of the `x-roman` spans of this side.
+    roman: String,
 }
 
 impl Side {
@@ -61,12 +63,14 @@ enum Frame {
     Other,
     /// Inside a `<p>`.
     P,
-    /// A span. `word` is the index of the word it started, `bg` marks background vocals and
-    /// `skip` marks translations that are ignored.
+    /// A span. `word` is the index of the word it started, `bg` marks background vocals,
+    /// `skip` marks translations and romanizations, which add no line text, and `roman` marks a
+    /// romanization, whose text is kept apart.
     Span {
         word: Option<usize>,
         bg: bool,
         skip: bool,
+        roman: bool,
     },
 }
 
@@ -133,8 +137,10 @@ fn finish_side(
     side: Side,
     fallback_begin: Option<u64>,
     fallback_end: Option<u64>,
-    meta: TtmlLineMeta,
+    mut meta: TtmlLineMeta,
 ) -> Option<Line> {
+    let roman = side.roman.split_whitespace().collect::<Vec<_>>().join(" ");
+    meta.roman = (!roman.is_empty()).then_some(roman);
     let (words, split) = tidy_words(side.words);
     let text = if words.is_empty() {
         side.plain.split_whitespace().collect::<Vec<_>>().join(" ")
@@ -192,6 +198,26 @@ impl Parser {
             .any(|f| matches!(f, Frame::Span { skip: true, .. }))
     }
 
+    /// Inside a translation: its text is dropped.
+    fn in_translation(&self) -> bool {
+        self.stack.iter().any(|f| {
+            matches!(
+                f,
+                Frame::Span {
+                    skip: true,
+                    roman: false,
+                    ..
+                }
+            )
+        })
+    }
+
+    fn in_roman(&self) -> bool {
+        self.stack
+            .iter()
+            .any(|f| matches!(f, Frame::Span { roman: true, .. }))
+    }
+
     fn in_background(&self) -> bool {
         self.stack
             .iter()
@@ -235,7 +261,8 @@ impl Parser {
         let in_bg = self.in_background();
         let role = attr(attrs, "role").unwrap_or("");
         let bg_role = role == "x-bg";
-        let muted = role == "x-translation" || role == "x-roman";
+        let roman = role == "x-roman" || self.in_roman();
+        let muted = role == "x-translation" || roman;
         let begin = attr(attrs, "begin").and_then(parse_time);
         let end = end_time(attrs, begin);
         let mut word = None;
@@ -259,6 +286,7 @@ impl Parser {
             word,
             bg: bg_role || in_bg,
             skip: muted || skipping,
+            roman,
         });
     }
 
@@ -271,6 +299,7 @@ impl Parser {
         let meta = |background| TtmlLineMeta {
             agent: self.p_agent.clone(),
             background,
+            roman: None,
         };
         let main = finish_side(
             std::mem::take(&mut self.main),
@@ -290,7 +319,7 @@ impl Parser {
     }
 
     pub(super) fn text(&mut self, text: &str, raw: bool) {
-        if !self.in_p || self.skipping() {
+        if !self.in_p || self.in_translation() {
             return;
         }
         let word = self.stack.iter().rev().find_map(|f| match f {
@@ -302,11 +331,16 @@ impl Parser {
         } else {
             decode_entities(text)
         };
+        let roman = self.in_roman();
         let side = if self.in_background() {
             &mut self.bg
         } else {
             &mut self.main
         };
+        if roman {
+            side.roman.push_str(&decoded);
+            return;
+        }
         side.add_text(&decoded, word);
     }
 }

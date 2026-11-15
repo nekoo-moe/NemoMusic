@@ -2,21 +2,25 @@
 //!
 //! `NetEase` has no public API for third-party apps. This provider uses the two long-standing
 //! unauthenticated web endpoints that community tools use: `POST /api/search/get/` (form
-//! `s`, `type=1`, `limit`, `offset`) and `GET /api/song/lyric?id=&lv=-1&kv=-1&tv=-1`. No key,
-//! cookie, token or request signing is used, and none is faked. Only the plain line LRC is read,
-//! so the provider reports line timing. The word-timed `yrc` format is not available without
+//! `s`, `type=1`, `limit`, `offset`) and `GET /api/song/lyric?id=&lv=-1&kv=-1&tv=-1&rv=-1`. No
+//! key, cookie, token or request signing is used, and none is faked. The plain line LRC is read,
+//! so the provider reports line timing, and the `romalrc` romanization, when the answer has one,
+//! is kept per line ([`LineMeta::roman`]) by matching start times. The word-timed `yrc` format is not available without
 //! signing: two probes on 2026-11-11 of the unsigned `GET /api/song/lyric/v1` with
 //! `yv`/`ytv` set (`-1`, then `0`) answered `lrc`, `tlyric` and `romalrc` but no `yrc`;
 //! community tools get `yrc` only through the encrypted `eapi` endpoints, which this provider
 //! will not use. Whether this use fits `NetEase`'s terms is unverified, so it stays off until
 //! the user turns it on (ADR 0002).
 
+use std::collections::HashMap;
 use std::time::Duration;
 
 use nemo_core::BoxFuture;
 use nemo_core::lyrics::{
-    LyricsDoc, LyricsError, LyricsProvider, LyricsQuery, MatchedMeta, ProviderId, ProviderInfo,
+    DetailedDoc, LyricsDoc, LyricsError, LyricsProvider, LyricsQuery, MatchedMeta, ProviderId,
+    ProviderInfo,
 };
+use nemo_core::lyrics_plus::LineMeta;
 use serde::Deserialize;
 
 use crate::http::{build_client, send_text, url_with};
@@ -65,6 +69,7 @@ struct Named {
 #[derive(Debug, Deserialize)]
 struct LyricAnswer {
     lrc: Option<LrcField>,
+    romalrc: Option<LrcField>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -120,6 +125,18 @@ pub fn best_song(query: &LyricsQuery, songs: &[Song]) -> Option<(u64, MatchedMet
 /// # Errors
 /// [`LyricsError::Parse`] if the body is not a lyric answer.
 pub fn parse_lyric(body: &str, meta: MatchedMeta) -> Result<Option<LyricsDoc>, LyricsError> {
+    Ok(parse_lyric_detailed(body, meta)?.map(|(doc, _)| doc))
+}
+
+/// Like [`parse_lyric`], plus the `romalrc` line of each lyric line with the same start time.
+/// The list is empty when the answer has no romanization.
+///
+/// # Errors
+/// [`LyricsError::Parse`] if the body is not a lyric answer.
+pub fn parse_lyric_detailed(
+    body: &str,
+    meta: MatchedMeta,
+) -> Result<Option<(LyricsDoc, Vec<LineMeta>)>, LyricsError> {
     let a: LyricAnswer =
         serde_json::from_str(body).map_err(|e| LyricsError::Parse(e.to_string()))?;
     let Some(lrc) = a.lrc.filter(|l| !l.lyric.trim().is_empty()) else {
@@ -130,7 +147,40 @@ pub fn parse_lyric(body: &str, meta: MatchedMeta) -> Result<Option<LyricsDoc>, L
         return Ok(None);
     }
     doc.matched = Some(meta);
-    Ok(Some(doc))
+    let roman = a
+        .romalrc
+        .map(|r| roman_meta(&doc, &r.lyric))
+        .unwrap_or_default();
+    Ok(Some((doc, roman)))
+}
+
+/// One [`LineMeta`] per line of `doc`, its romanization taken from the `romalrc` line that
+/// starts at the same time. Empty when no line has one.
+fn roman_meta(doc: &LyricsDoc, romalrc: &str) -> Vec<LineMeta> {
+    let roman = parse_lrc(romalrc, NETEASE_ID);
+    let mut by_start: HashMap<u64, &str> = HashMap::new();
+    for line in &roman.lines {
+        if let Some(start) = line.start_ms
+            && !line.text.trim().is_empty()
+        {
+            by_start.entry(start).or_insert(line.text.trim());
+        }
+    }
+    let meta: Vec<LineMeta> = doc
+        .lines
+        .iter()
+        .map(|l| LineMeta {
+            roman: l
+                .start_ms
+                .and_then(|s| by_start.get(&s))
+                .map(|t| (*t).to_owned()),
+            ..LineMeta::default()
+        })
+        .collect();
+    if meta.iter().all(|m| m.roman.is_none()) {
+        return Vec::new();
+    }
+    meta
 }
 
 /// Lyrics from `NetEase` Cloud Music.
@@ -150,7 +200,10 @@ impl NeteaseProvider {
         })
     }
 
-    async fn lookup(&self, query: &LyricsQuery) -> Result<Option<LyricsDoc>, LyricsError> {
+    async fn lookup(
+        &self,
+        query: &LyricsQuery,
+    ) -> Result<Option<(LyricsDoc, Vec<LineMeta>)>, LyricsError> {
         let mut term = query.title.clone();
         if let Some(artist) = query.artists.first() {
             term.push(' ');
@@ -186,11 +239,17 @@ impl NeteaseProvider {
         let id = id.to_string();
         let url = url_with(
             LYRIC_URL,
-            &[("id", &id), ("lv", "-1"), ("kv", "-1"), ("tv", "-1")],
+            &[
+                ("id", &id),
+                ("lv", "-1"),
+                ("kv", "-1"),
+                ("tv", "-1"),
+                ("rv", "-1"),
+            ],
         )?;
         let (status, body) = send_text(self.client.get(url)).await?;
         match status {
-            200..=299 => parse_lyric(&body, meta),
+            200..=299 => parse_lyric_detailed(&body, meta),
             400 | 404 => Ok(None),
             other => Err(LyricsError::Network(format!("HTTP status {other}"))),
         }
@@ -210,7 +269,17 @@ impl LyricsProvider for NeteaseProvider {
         &'a self,
         query: &'a LyricsQuery,
     ) -> BoxFuture<'a, Result<Option<LyricsDoc>, LyricsError>> {
-        Box::pin(self.lookup(query))
+        Box::pin(async move { Ok(self.lookup(query).await?.map(|(doc, _)| doc)) })
+    }
+
+    fn fetch_detailed<'a>(
+        &'a self,
+        query: &'a LyricsQuery,
+    ) -> BoxFuture<'a, Result<Option<DetailedDoc>, LyricsError>> {
+        Box::pin(async move {
+            let found = self.lookup(query).await?;
+            Ok(found.map(|(doc, meta)| (doc, None, meta)))
+        })
     }
 
     fn info(&self) -> ProviderInfo {
@@ -282,6 +351,25 @@ mod tests {
             },
         );
         assert_eq!(none, Ok(None));
+    }
+
+    #[test]
+    fn romalrc_lines_follow_their_lyric_lines_by_start() {
+        let meta = parse_search(SEARCH).expect("parses")[1].meta();
+        let body = r#"{"lrc":{"lyric":"[00:01.00]一\n[00:02.50]二\n[00:04.00]三"},
+            "romalrc":{"lyric":"[00:02.50]ni\n[00:01.00]ichi\n[00:09.00]extra"}}"#;
+        let (doc, roman) = parse_lyric_detailed(body, meta.clone())
+            .expect("parses")
+            .expect("lyrics");
+        assert_eq!(doc.lines.len(), 3);
+        let romans: Vec<Option<&str>> = roman.iter().map(|m| m.roman.as_deref()).collect();
+        assert_eq!(romans, [Some("ichi"), Some("ni"), None]);
+        assert!(roman.iter().all(|m| m.singer.is_none() && !m.background));
+        let plain = r#"{"lrc":{"lyric":"[00:01.00]one"},"romalrc":{"lyric":""}}"#;
+        let (_, none) = parse_lyric_detailed(plain, meta)
+            .expect("parses")
+            .expect("lyrics");
+        assert!(none.is_empty());
     }
 
     #[test]

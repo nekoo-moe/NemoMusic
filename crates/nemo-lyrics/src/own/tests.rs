@@ -228,7 +228,7 @@ fn an_existing_database_gets_the_own_lyrics_table_and_keeps_its_rows() {
         .lock()
         .query_row("PRAGMA user_version", [], |r| r.get(0))
         .expect("version");
-    assert_eq!(version, 2);
+    assert_eq!(version, 3);
     drop((cache, own));
     let (_, again) = open(&d);
     assert!(again.get("k").is_some(), "own lyrics survive reopening");

@@ -17,7 +17,8 @@
 //!   line, flagged in [`TtmlLineMeta::background`].
 //! - `<ttm:agent xml:id>` in the head and `ttm:agent` on a `<p>` give singers ([`TtmlDoc::agents`],
 //!   [`TtmlLineMeta::agent`]); [`TtmlDoc::is_duet`] is true with two or more singers.
-//! - `x-translation` and `x-roman` spans are skipped.
+//! - An `x-roman` span is the provider's romanization of its line (main or background) and is
+//!   kept in [`TtmlLineMeta::roman`], not in the line text. `x-translation` spans are skipped.
 //! - Times: `HH:MM:SS.fff`, `MM:SS.fff`, `SS.fff`, `12.5s`, `1500ms`, `2m`, `1h`. Frame counts
 //!   are not supported (the time is dropped).
 //! - Times in nested spans are read as absolute media time, as Apple writes them.
@@ -28,6 +29,7 @@
 #[cfg(doc)]
 use nemo_core::lyrics::LyricWord;
 use nemo_core::lyrics::{Granularity, LyricLine, LyricsDoc, ProviderId};
+use nemo_core::lyrics_plus::LineMeta;
 
 /// Largest input read.
 const MAX_INPUT_BYTES: usize = 4 * 1024 * 1024;
@@ -39,6 +41,8 @@ pub struct TtmlLineMeta {
     pub agent: Option<String>,
     /// The line is background vocals.
     pub background: bool,
+    /// The provider's romanization of the line (`x-roman`), if it has one.
+    pub roman: Option<String>,
 }
 
 /// One singer declared in the head.
@@ -77,6 +81,33 @@ impl TtmlDoc {
             }
         }
         false
+    }
+
+    /// The line facts as [`LineMeta`], one per `doc.lines`. Singers are numbered from 0 in the
+    /// order the head declares them; an agent the head does not declare gets the next number
+    /// when it first appears. Empty when no line has a singer, background flag or romanization.
+    #[must_use]
+    pub fn line_meta(&self) -> Vec<LineMeta> {
+        let mut order: Vec<&str> = self.agents.iter().map(|a| a.id.as_str()).collect();
+        let meta: Vec<LineMeta> = self
+            .meta
+            .iter()
+            .map(|m| LineMeta {
+                singer: m.agent.as_deref().and_then(|a| {
+                    let at = order.iter().position(|o| *o == a).unwrap_or_else(|| {
+                        order.push(a);
+                        order.len() - 1
+                    });
+                    u8::try_from(at).ok()
+                }),
+                background: m.background,
+                roman: m.roman.clone(),
+            })
+            .collect();
+        if meta.iter().all(|m| *m == LineMeta::default()) {
+            return Vec::new();
+        }
+        meta
     }
 }
 

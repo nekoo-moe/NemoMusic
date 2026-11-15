@@ -87,7 +87,7 @@ Cross-spec ids written `<spec>#?` point at the task of that spec that adds the n
   - Wave: 1
   - Checks: migration test on an existing database; `clear()` keeps own lyrics; `save_copy` leaves the provider row unchanged; save refuses a line with no start.
 
-- [ ] 11. Keep line metadata and provider romanization through the cache
+- [x] 11. Keep line metadata and provider romanization through the cache
   - Crate and files: `nemo-lyrics`: `src/ttml.rs` (stop skipping `x-roman`), `src/netease.rs` (`romalrc`), `src/cache.rs` (store `LineMeta`), `src/service.rs` (`line_meta`).
   - Does: Singer, background-vocal and provider romanization facts survive the cache and are returned by `LyricsService::line_meta`, indexed like `LyricsDoc.lines`.
   - _Requirements: 14_

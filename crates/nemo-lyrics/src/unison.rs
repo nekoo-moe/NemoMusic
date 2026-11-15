@@ -12,15 +12,15 @@
 
 use nemo_core::BoxFuture;
 use nemo_core::lyrics::{
-    CreditedDoc, Granularity, LyricsCredit, LyricsDoc, LyricsError, LyricsProvider, LyricsQuery,
-    MatchedMeta, ProviderId, ProviderInfo,
+    CreditedDoc, DetailedDoc, Granularity, LyricsCredit, LyricsDoc, LyricsError, LyricsProvider,
+    LyricsQuery, MatchedMeta, ProviderId, ProviderInfo,
 };
 use serde::Deserialize;
 
 use crate::http::{build_client, duration_secs, send_text, split_artists, url_with};
 use crate::lrc::parse_lrc;
 use crate::plain::parse_plain;
-use crate::ttml::parse_ttml;
+use crate::ttml::parse_ttml_detailed;
 
 /// Provider id shown in the UI.
 pub const UNISON_ID: ProviderId = ProviderId::new("Unison");
@@ -85,15 +85,28 @@ fn level_for(parsed: Granularity, sync_type: Option<&str>) -> Granularity {
 /// # Errors
 /// [`LyricsError::Parse`] if the body is not a Unison answer.
 pub fn parse_response(body: &str) -> Result<Option<CreditedDoc>, LyricsError> {
+    Ok(parse_response_detailed(body)?.map(|(doc, credit, _)| (doc, credit)))
+}
+
+/// Like [`parse_response`], plus the singer, background and romanization facts of a TTML
+/// answer (empty for LRC and plain text).
+///
+/// # Errors
+/// [`LyricsError::Parse`] if the body is not a Unison answer.
+pub fn parse_response_detailed(body: &str) -> Result<Option<DetailedDoc>, LyricsError> {
     let env: Envelope =
         serde_json::from_str(body).map_err(|e| LyricsError::Parse(e.to_string()))?;
     let Some(data) = env.data.filter(|_| env.success) else {
         return Ok(None);
     };
-    let mut doc = match data.format.as_str() {
-        "ttml" => parse_ttml(&data.lyrics, UNISON_ID),
-        "lrc" => parse_lrc(&data.lyrics, UNISON_ID),
-        "plain" => parse_plain(&data.lyrics, UNISON_ID),
+    let (mut doc, meta) = match data.format.as_str() {
+        "ttml" => {
+            let t = parse_ttml_detailed(&data.lyrics, UNISON_ID);
+            let meta = t.line_meta();
+            (t.doc, meta)
+        }
+        "lrc" => (parse_lrc(&data.lyrics, UNISON_ID), Vec::new()),
+        "plain" => (parse_plain(&data.lyrics, UNISON_ID), Vec::new()),
         other => {
             return Err(LyricsError::Parse(format!(
                 "unknown lyric format {other:?}"
@@ -143,7 +156,7 @@ pub fn parse_response(body: &str) -> Result<Option<CreditedDoc>, LyricsError> {
         by_url,
         note: (!note.is_empty()).then(|| note.join(", ")),
     };
-    Ok(Some((doc, Some(credit))))
+    Ok(Some((doc, Some(credit), meta)))
 }
 
 /// Lyrics from <https://unison.betterlyrics.org>.
@@ -163,7 +176,7 @@ impl UnisonProvider {
         })
     }
 
-    async fn lookup(&self, query: &LyricsQuery) -> Result<Option<CreditedDoc>, LyricsError> {
+    async fn lookup(&self, query: &LyricsQuery) -> Result<Option<DetailedDoc>, LyricsError> {
         let duration = duration_secs(query.duration_ms).map(|d| d.to_string());
         let mut params: Vec<(&str, &str)> = Vec::new();
         if let Some(id) = &query.ytm_video_id {
@@ -182,7 +195,7 @@ impl UnisonProvider {
         let url = url_with(&format!("{BASE_URL}/lyrics"), &params)?;
         let (status, body) = send_text(self.client.get(url)).await?;
         match status {
-            200..=299 => parse_response(&body),
+            200..=299 => parse_response_detailed(&body),
             // Not found, or an id Unison cannot read: nothing for this track.
             400 | 404 => Ok(None),
             other => Err(LyricsError::Network(format!("HTTP status {other}"))),
@@ -203,13 +216,23 @@ impl LyricsProvider for UnisonProvider {
         &'a self,
         query: &'a LyricsQuery,
     ) -> BoxFuture<'a, Result<Option<LyricsDoc>, LyricsError>> {
-        Box::pin(async move { Ok(self.lookup(query).await?.map(|(doc, _)| doc)) })
+        Box::pin(async move { Ok(self.lookup(query).await?.map(|(doc, ..)| doc)) })
     }
 
     fn fetch_credited<'a>(
         &'a self,
         query: &'a LyricsQuery,
     ) -> BoxFuture<'a, Result<Option<CreditedDoc>, LyricsError>> {
+        Box::pin(async move {
+            let found = self.lookup(query).await?;
+            Ok(found.map(|(doc, credit, _)| (doc, credit)))
+        })
+    }
+
+    fn fetch_detailed<'a>(
+        &'a self,
+        query: &'a LyricsQuery,
+    ) -> BoxFuture<'a, Result<Option<DetailedDoc>, LyricsError>> {
         Box::pin(self.lookup(query))
     }
 

@@ -2,7 +2,8 @@
 //!
 //! Two tables in `lyrics.sqlite3` inside the directory given at construction:
 //! `lyrics_cache(track_key, provider, status, granularity, body, score, fetched_at, expires_at,
-//! pinned)` keyed by `(track_key, provider)`, and `lyrics_offset(track_key, offset_ms)`.
+//! pinned, meta)` keyed by `(track_key, provider)`, and `lyrics_offset(track_key, offset_ms)`.
+//! `meta` holds the per-line side data of a hit ([`LyricsCache::line_meta`]).
 //!
 //! Time to live: a hit lives 30 days, a miss 7 days, an error 15 minutes (longer when the provider
 //! said `Retry-After` for more). Expired rows are never returned, except a pinned hit, which is kept
@@ -16,6 +17,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
 use nemo_core::lyrics::{LyricsCredit, LyricsDoc, ProviderId};
+use nemo_core::lyrics_plus::LineMeta;
 use rusqlite::{Connection, OptionalExtension, params};
 
 /// Hit lifetime.
@@ -197,27 +199,28 @@ impl LyricsCache {
         track_key: &str,
         provider: ProviderId,
         status: &str,
-        doc: Option<(&LyricsDoc, u8)>,
+        doc: Option<(&LyricsDoc, u8, &[LineMeta])>,
         ttl: Duration,
     ) -> Result<(), CacheError> {
         let now = self.clock.now_secs();
         let expires = now.saturating_add(secs_i64(ttl));
-        let (granularity, body, score) = match doc {
-            Some((d, s)) => (
+        let (granularity, body, score, meta) = match doc {
+            Some((d, s, m)) => (
                 Some(granularity_name(d.granularity)),
                 Some(encode_doc(d)?),
                 Some(i64::from(s)),
+                meta::encode_meta(m)?,
             ),
-            None => (None, None, None),
+            None => (None, None, None, None),
         };
         // An upsert, not a replace, so a refreshed hit keeps its pin; anything else drops it.
         self.lock().execute(
             "INSERT INTO lyrics_cache
-                 (track_key, provider, status, granularity, body, score, fetched_at, expires_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+                 (track_key, provider, status, granularity, body, score, fetched_at, expires_at, meta)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
              ON CONFLICT (track_key, provider) DO UPDATE SET
                  status = excluded.status, granularity = excluded.granularity,
-                 body = excluded.body, score = excluded.score,
+                 body = excluded.body, score = excluded.score, meta = excluded.meta,
                  fetched_at = excluded.fetched_at, expires_at = excluded.expires_at,
                  pinned = lyrics_cache.pinned AND excluded.status = 'hit'",
             params![
@@ -228,13 +231,14 @@ impl LyricsCache {
                 body,
                 score,
                 now,
-                expires
+                expires,
+                meta
             ],
         )?;
         Ok(())
     }
 
-    /// Store lyrics for 30 days.
+    /// Store lyrics for 30 days, with no line data (see [`LyricsCache::put_hit_with_meta`]).
     ///
     /// # Errors
     /// [`CacheError`] on database or body errors.
@@ -245,7 +249,7 @@ impl LyricsCache {
         doc: &LyricsDoc,
         score: u8,
     ) -> Result<(), CacheError> {
-        self.put(track_key, provider, "hit", Some((doc, score)), HIT_TTL)
+        self.put(track_key, provider, "hit", Some((doc, score, &[])), HIT_TTL)
     }
 
     /// Remember for 7 days that the provider has nothing.
@@ -477,6 +481,7 @@ impl LyricsCache {
 
 mod clock;
 mod error;
+mod meta;
 mod migrate;
 mod record;
 

@@ -16,13 +16,14 @@
 
 use nemo_core::BoxFuture;
 use nemo_core::lyrics::{
-    CreditedDoc, Granularity, LyricsCredit, LyricsDoc, LyricsError, LyricsProvider, LyricsQuery,
-    ProviderId, ProviderInfo,
+    CreditedDoc, DetailedDoc, Granularity, LyricsCredit, LyricsDoc, LyricsError, LyricsProvider,
+    LyricsQuery, ProviderId, ProviderInfo,
 };
+use nemo_core::lyrics_plus::LineMeta;
 use serde::Deserialize;
 
 use crate::http::{build_client, duration_secs, send_text, url_with};
-use crate::ttml::parse_ttml;
+use crate::ttml::parse_ttml_detailed;
 
 /// Provider id shown in the UI.
 pub const BETTER_LYRICS_ID: ProviderId = ProviderId::new("Better Lyrics");
@@ -44,9 +45,20 @@ struct Answer {
 /// # Errors
 /// [`LyricsError::Parse`] if the body is not an answer.
 pub fn parse_response(body: &str) -> Result<Option<LyricsDoc>, LyricsError> {
+    Ok(parse_response_detailed(body)?.map(|(doc, _)| doc))
+}
+
+/// Like [`parse_response`], plus the singer, background and romanization facts of the TTML.
+///
+/// # Errors
+/// [`LyricsError::Parse`] if the body is not an answer.
+pub fn parse_response_detailed(
+    body: &str,
+) -> Result<Option<(LyricsDoc, Vec<LineMeta>)>, LyricsError> {
     let a: Answer = serde_json::from_str(body).map_err(|e| LyricsError::Parse(e.to_string()))?;
-    let doc = parse_ttml(&a.ttml, BETTER_LYRICS_ID);
-    Ok((!doc.lines.is_empty()).then_some(doc))
+    let t = parse_ttml_detailed(&a.ttml, BETTER_LYRICS_ID);
+    let meta = t.line_meta();
+    Ok((!t.doc.lines.is_empty()).then_some((t.doc, meta)))
 }
 
 /// The four query parameters (`s`, `a`, `al`, `d`), or `None` when title, artist or duration
@@ -96,14 +108,17 @@ impl BetterLyricsProvider {
         })
     }
 
-    async fn lookup(&self, query: &LyricsQuery) -> Result<Option<LyricsDoc>, LyricsError> {
+    async fn lookup(
+        &self,
+        query: &LyricsQuery,
+    ) -> Result<Option<(LyricsDoc, Vec<LineMeta>)>, LyricsError> {
         let Some(params) = query_params(query) else {
             return Ok(None);
         };
         let pairs: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
         let (status, body) = send_text(self.client.get(url_with(URL, &pairs)?)).await?;
         match status {
-            200..=299 => parse_response(&body),
+            200..=299 => parse_response_detailed(&body),
             // 401: not cached and we hold no key. 404: a cached "no lyrics". 422: no title.
             401 | 403 | 404 | 422 => Ok(None),
             other => Err(LyricsError::Network(format!("HTTP status {other}"))),
@@ -124,14 +139,27 @@ impl LyricsProvider for BetterLyricsProvider {
         &'a self,
         query: &'a LyricsQuery,
     ) -> BoxFuture<'a, Result<Option<LyricsDoc>, LyricsError>> {
-        Box::pin(self.lookup(query))
+        Box::pin(async move { Ok(self.lookup(query).await?.map(|(doc, _)| doc)) })
     }
 
     fn fetch_credited<'a>(
         &'a self,
         query: &'a LyricsQuery,
     ) -> BoxFuture<'a, Result<Option<CreditedDoc>, LyricsError>> {
-        Box::pin(async move { Ok(self.lookup(query).await?.map(|doc| (doc, Some(credit())))) })
+        Box::pin(async move {
+            let found = self.lookup(query).await?;
+            Ok(found.map(|(doc, _)| (doc, Some(credit()))))
+        })
+    }
+
+    fn fetch_detailed<'a>(
+        &'a self,
+        query: &'a LyricsQuery,
+    ) -> BoxFuture<'a, Result<Option<DetailedDoc>, LyricsError>> {
+        Box::pin(async move {
+            let found = self.lookup(query).await?;
+            Ok(found.map(|(doc, meta)| (doc, Some(credit()), meta)))
+        })
     }
 
     fn info(&self) -> ProviderInfo {

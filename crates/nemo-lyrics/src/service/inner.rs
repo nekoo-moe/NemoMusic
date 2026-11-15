@@ -81,8 +81,13 @@ impl Inner {
                 continue;
             }
             let stored = match &report.outcome {
-                Outcome::Hit { doc, score, credit } => {
-                    let put = self.cache.put_hit(key, id, doc, *score);
+                Outcome::Hit {
+                    doc,
+                    score,
+                    credit,
+                    meta,
+                } => {
+                    let put = self.cache.put_hit_with_meta(key, id, doc, *score, meta);
                     match credit {
                         Some(c) if put.is_ok() => self.cache.put_credit(key, id, c),
                         _ => put,
@@ -193,7 +198,10 @@ impl Inner {
             })
             .collect();
         for report in result.reports {
-            if let Outcome::Hit { doc, score, credit } = report.outcome {
+            if let Outcome::Hit {
+                doc, score, credit, ..
+            } = report.outcome
+            {
                 let order = entries
                     .iter()
                     .position(|e| e.provider.id() == report.provider)
