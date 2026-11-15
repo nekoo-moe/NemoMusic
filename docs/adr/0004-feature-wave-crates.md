@@ -68,7 +68,7 @@ Checked against the 17 designs on 2026-11-14. One spec owns each item and define
 | 8 | `PlayerSnapshot.live` | youtube-extras | nemo-ui |
 | 9 | `Origin::SoundCloud`, `Track.source_url`, `MediaUrl` | soundcloud | listening-stats (`origin`), listen-together and cast (refuse or route), offline-cache (YouTube only), nemo-audio `prepare` |
 | 10 | `Transport`, `ResolvedStream.{transport, preview}`, `ByteSource::is_seekable` | soundcloud | youtube-extras (live HLS), nemo-audio |
-| 11 | `url_resolver.rs`: `UrlResolver`, `MediaQuery`, `MediaEntry`, `EntryKind`, `Site`, `FormatPolicy`, `FormatCandidate`, `rank_formats`, `ResolverState` | soundcloud | youtube-extras (live), nemo-ytm implements |
+| 11 | `url_resolver.rs`: `UrlResolver` (`resolve`, `list`, `state`), `MediaQuery`, `MediaEntry`, `EntryKind`, `Site`, `FormatPolicy`, `FormatCandidate`, `rank_formats`, `ResolverState` | soundcloud | youtube-extras (live), nemo-ytm implements |
 | 12 | `HlsSource` (`nemo-ytm/hls`, not `nemo-core`) | soundcloud | youtube-extras |
 | 13 | `StreamRequest`, `AudioTrackInfo`, `StreamResolver::resolve_with`, `ResolvedStream.{audio_language, audio_tracks}` | account-actions | cast (codec preference), offline-cache (Premium), video-playback (language) |
 | 14 | Decoders ALAC, Vorbis, AIFF and Opus (`nemo-audio`); `Codec::Opus` already exists in `audio.rs`; `supported_stream_codecs()` | local-library | soundcloud and account-actions (rankers wait for it), youtube-extras |
