@@ -25,7 +25,7 @@
   - Wave: 0
   - Checks: `cargo test -p nemo-audio --test bit_exact`. Only one task at a time edits `nemo-core/src/player.rs` (ADR 0004): output-devices#3 waits for this one; account-actions (`SwitchAudioTrack`) and cast (`Park`) tasks must not land at the same time.
 
-- [ ] 4. Save the effects and transition settings in `settings.json`
+- [x] 4. Save the effects and transition settings in `settings.json`
   - Crate and files: `nemo-app`: `src/config.rs`, `src/backend.rs` (send the saved settings to the player at start).
   - Does: Stores `EffectsSettings` and `TransitionSettings` beside the other settings and sends `SetEffects` and `SetTransition` after the player starts. A file without the new fields loads with everything off, and an app update never turns an effect on. Values are clamped by `sanitized()`.
   - _Requirements: 1, 27_
