@@ -129,12 +129,16 @@ fn spawn_saver(mut settings: Settings, root: PathBuf) -> Sender<UiSettings> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::StoredDevice;
 
     #[test]
     fn round_trip_keeps_ui_fields_and_leaves_the_rest() {
         let mut s = Settings {
             music_folders: vec![PathBuf::from("C:/Music")],
-            output_device: Some("DAC".into()),
+            output_device: Some(StoredDevice {
+                id: "dac-id".into(),
+                name: "DAC".into(),
+            }),
             ..Settings::default()
         };
         let ui = UiSettings {
@@ -148,7 +152,10 @@ mod tests {
         assert!(s.sponsorblock && s.tos_acknowledged);
         assert_eq!(s.volume_percent, 100);
         assert_eq!(s.glass_tier, GlassTier::Off);
-        assert_eq!(s.output_device.as_deref(), Some("DAC"));
+        assert_eq!(
+            s.output_device.as_ref().map(|d| d.name.as_str()),
+            Some("DAC")
+        );
         assert_eq!(s.music_folders, [PathBuf::from("C:/Music")]);
         assert_eq!(to_ui(&s).glass_tier, UiGlass::Off);
     }

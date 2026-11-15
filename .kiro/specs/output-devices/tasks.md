@@ -34,7 +34,7 @@
   - Checks: the `#[ignore]` test on a Windows machine with at least one output device; two identical devices if the owner has them. `cargo deny check` for the new crates (MIT). `cargo test -p nemo-audio --test bit_exact`.
   - Steering: `tech.md`: `wasapi` =0.27.0 row (MIT, MSRV 1.85, released 2026-11-06, Windows only, needs `windows` ^0.62.2, C toolchain result); change the "Exclusive mode" status to "verified: `cpal` 0.18.2 is shared-only".
 
-- [ ] 5. Save the chosen device by ID and name
+- [x] 5. Save the chosen device by ID and name
   - Crate and files: `nemo-app`: `src/config.rs`, `src/ui_bridge.rs`.
   - Does: `output_device` becomes `{ id, name }` and `OutputOptions` is saved beside it, clamped by `sanitized()`. An old file with a plain name still loads: it is matched by name once, then saved with the ID. The name is only the label shown when the device is absent.
   - _Requirements: 6, 7_

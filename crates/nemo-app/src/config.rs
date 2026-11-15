@@ -9,8 +9,10 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 pub mod effects;
+pub mod output;
 
 pub use effects::{StoredEffects, StoredTransition};
+pub use output::{StoredDevice, StoredOutputOptions};
 
 /// File name inside the data root.
 pub const CONFIG_FILE: &str = "settings.json";
@@ -57,8 +59,11 @@ pub struct Settings {
     pub reduce_transparency: bool,
     /// Reduce motion regardless of the OS setting.
     pub reduce_motion: bool,
-    /// Preferred output device name; `None` uses the system default.
-    pub output_device: Option<String>,
+    /// The chosen output device by ID and name; `None` uses the system default. An older
+    /// file's plain name loads with an empty ID until it is matched (output-devices).
+    pub output_device: Option<StoredDevice>,
+    /// Exclusive mode, idle release and the exclusive buffer (output-devices).
+    pub output_options: StoredOutputOptions,
     /// Path to `yt-dlp`; `None` searches the usual places.
     pub yt_dlp_path: Option<PathBuf>,
     /// Install and update the app's own `yt-dlp` copy when none is found (on by default,
@@ -116,6 +121,7 @@ impl Default for Settings {
             reduce_transparency: false,
             reduce_motion: false,
             output_device: None,
+            output_options: StoredOutputOptions::default(),
             yt_dlp_path: None,
             yt_dlp_auto_install: true,
             theme: String::new(),
@@ -172,6 +178,7 @@ impl Settings {
         self.music_folders.dedup();
         self.effects = self.effects.sanitized();
         self.transition = self.transition.sanitized();
+        self.output_options = self.output_options.sanitized();
         self
     }
 }

@@ -113,7 +113,11 @@ pub fn build(
         offline: None,
         opener: Arc::new(HttpStreamOpener::default()),
         segments,
-        sink_factory: Arc::new(CpalSinkFactory::new(settings.output_device.clone())),
+        // The shared-mode factory still opens by name until `DeviceSinkFactory` (output-devices
+        // task 7) opens by ID.
+        sink_factory: Arc::new(CpalSinkFactory::new(
+            settings.output_device.as_ref().map(|d| d.name.clone()),
+        )),
     });
     for command in start_commands(settings) {
         player.send(command);
