@@ -1,30 +1,37 @@
 //! `nemo-signin`: shows Google's sign-in page for YouTube Music in a webview window (`WebView2`
-//! on Windows, `WebKitGTK` on Linux) and hands the session cookies to `nemo-ytm` through its
+//! on Windows, `WebKitGTK` on Linux) and hands the session cookies to `nemo-ytm` through the
 //! stdout pipe.
 //!
-//! Usage: `nemo-signin --data-dir <folder>`. The folder is this window's own webview profile;
-//! `nemo-ytm` deletes it on sign-out.
+//! This is a library linked into `nemo-app`. The window still runs in its own process, so its
+//! tao/wry event loop never shares a process with iced: `nemo-ytm` starts the app executable
+//! again as `nemo-app --signin --data-dir <folder>`, and the app's `main` hands everything after
+//! [`SIGNIN_ARG`] to [`run`] before anything else starts. The folder is this window's own
+//! webview profile; `nemo-ytm` deletes it on sign-out.
 //!
 //! Exit codes: 0 signed in (one JSON line `{"cookie":"a=b; c=d"}` on stdout), 2 the user closed
 //! the window (nothing printed), 3 the webview runtime or the window is not available,
 //! 64 bad arguments. Cookies are never written to stderr, logs or files.
 
-#![windows_subsystem = "windows"]
-
 mod cookies;
 
+use std::ffi::OsString;
 use std::io::Write;
 use std::path::PathBuf;
 
 use tao::dpi::LogicalSize;
 use tao::event::{Event, WindowEvent};
-use tao::event_loop::{ControlFlow, EventLoopBuilder};
+use tao::event_loop::{ControlFlow, EventLoop, EventLoopBuilder};
 use tao::window::WindowBuilder;
 use wry::{PageLoadEvent, WebContext, WebView, WebViewBuilder};
 
-const EXIT_CANCELLED: i32 = 2;
-const EXIT_UNAVAILABLE: i32 = 3;
-const EXIT_USAGE: i32 = 64;
+/// The first program argument that turns the app executable into the sign-in window.
+pub const SIGNIN_ARG: &str = "--signin";
+/// Exit code: the user closed the window.
+pub const EXIT_CANCELLED: i32 = 2;
+/// Exit code: the webview runtime or the window is not available.
+pub const EXIT_UNAVAILABLE: i32 = 3;
+/// Exit code: bad arguments.
+pub const EXIT_USAGE: i32 = 64;
 
 /// Sent from the page-load callback to the event loop.
 enum Message {
@@ -33,7 +40,7 @@ enum Message {
 }
 
 /// The folder after `--data-dir`, if the arguments are exactly `--data-dir <folder>`.
-fn parse_args(args: impl IntoIterator<Item = String>) -> Option<PathBuf> {
+fn parse_args(args: impl IntoIterator<Item = OsString>) -> Option<PathBuf> {
     let mut args = args.into_iter();
     let flag = args.next()?;
     let value = args.next()?;
@@ -41,11 +48,36 @@ fn parse_args(args: impl IntoIterator<Item = String>) -> Option<PathBuf> {
         .then(|| PathBuf::from(value))
 }
 
-fn main() {
-    let Some(data_dir) = parse_args(std::env::args().skip(1)) else {
-        std::process::exit(EXIT_USAGE);
+/// Run the sign-in window with the arguments that follow [`SIGNIN_ARG`] (`--data-dir <folder>`).
+///
+/// Call it on the main thread, before any other GUI or async runtime starts in this process.
+/// It returns the exit code when the window cannot run ([`EXIT_USAGE`], [`EXIT_UNAVAILABLE`]).
+/// Once the window is open it never returns: it ends the process with 0 after the cookie line
+/// is written, or with [`EXIT_CANCELLED`] when the user closes the window.
+#[must_use]
+pub fn run(args: impl IntoIterator<Item = OsString>) -> i32 {
+    let Some(data_dir) = parse_args(args) else {
+        return EXIT_USAGE;
     };
-    std::process::exit(run(data_dir));
+    if std::fs::create_dir_all(&data_dir).is_err() {
+        return EXIT_UNAVAILABLE;
+    }
+    let Some(event_loop) = build_event_loop() else {
+        return EXIT_UNAVAILABLE;
+    };
+    show(event_loop, data_dir)
+}
+
+/// Build the event loop. tao panics when the windowing system cannot start (on Linux: no
+/// display, GTK cannot initialise), so the panic is caught and reported as "not available".
+fn build_event_loop() -> Option<EventLoop<Message>> {
+    // The default hook would print the panic to stderr; nemo-ytm discards stderr anyway, and a
+    // missing display is an expected outcome here, not a bug.
+    let hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {}));
+    let built = std::panic::catch_unwind(|| EventLoopBuilder::<Message>::with_user_event().build());
+    std::panic::set_hook(hook);
+    built.ok()
 }
 
 /// Put the webview into the window. Windows: the native window handle (`WebView2`).
@@ -66,12 +98,9 @@ fn attach(builder: WebViewBuilder<'_>, window: &tao::window::Window) -> wry::Res
     builder.build_gtk(vbox)
 }
 
-/// Run the window. Returns the process exit code; on success the cookie line is already written.
-fn run(data_dir: PathBuf) -> i32 {
-    if std::fs::create_dir_all(&data_dir).is_err() {
-        return EXIT_UNAVAILABLE;
-    }
-    let event_loop = EventLoopBuilder::<Message>::with_user_event().build();
+/// Open the window and run its loop. Returns only when the window cannot be built; on success
+/// the cookie line is already written and the process has ended.
+fn show(event_loop: EventLoop<Message>, data_dir: PathBuf) -> i32 {
     let proxy = event_loop.create_proxy();
     let Ok(window) = WindowBuilder::new()
         .with_title("Sign in to YouTube Music")
@@ -126,8 +155,8 @@ fn run(data_dir: PathBuf) -> i32 {
 mod tests {
     use super::*;
 
-    fn args(list: &[&str]) -> Vec<String> {
-        list.iter().map(|s| (*s).to_owned()).collect()
+    fn args(list: &[&str]) -> Vec<OsString> {
+        list.iter().map(OsString::from).collect()
     }
 
     #[test]
@@ -141,5 +170,11 @@ mod tests {
         assert_eq!(parse_args(args(&["--data-dir", ""])), None);
         assert_eq!(parse_args(args(&["--other", "C:/x"])), None);
         assert_eq!(parse_args(args(&["--data-dir", "C:/x", "extra"])), None);
+    }
+
+    #[test]
+    fn bad_arguments_exit_with_the_usage_code() {
+        assert_eq!(run(args(&[])), EXIT_USAGE);
+        assert_eq!(run(args(&["--site", "youtube"])), EXIT_USAGE);
     }
 }

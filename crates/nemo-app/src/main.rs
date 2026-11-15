@@ -14,6 +14,17 @@ mod ui_bridge;
 use paths::AppPaths;
 
 fn main() {
+    // `nemo-app --signin --data-dir <folder>`: this process is the sign-in window that
+    // `nemo-ytm` started. It runs before paths, logging, tokio or iced, so tao's event loop is
+    // the only one in the process (tech.md, Sign-in window).
+    let mut args = std::env::args_os().skip(1);
+    if args
+        .next()
+        .is_some_and(|first| first == nemo_signin::SIGNIN_ARG)
+    {
+        std::process::exit(nemo_signin::run(args));
+    }
+
     let paths = match AppPaths::resolve(None) {
         Ok(paths) => paths,
         Err(err) => fatal(&err.to_string()),

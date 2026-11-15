@@ -1,12 +1,14 @@
 //! Google account sign-in for YouTube Music (ADR 0001), all on this computer.
 //!
-//! Two ways in: the `nemo-signin` helper (Google's own page in a webview window, which hands
-//! back the session cookies) and a cookie the user pastes. Either way the cookie is checked
+//! Two ways in: the sign-in window (Google's own page in a webview, run by `nemo-signin` in a
+//! second process of the app executable, `nemo-app --signin`, which hands back the session
+//! cookies) and a cookie the user pastes. Either way the cookie is checked
 //! against YouTube Music, stored in the OS credential store (Windows Credential Manager, or the
 //! Secret Service on Linux) and used for the account-aware catalog. The cookie is never passed to `yt-dlp`, never logged, and never written to a file.
 //! Messages never contain cookies, names or ids.
 
-use std::path::{Path, PathBuf};
+use std::ffi::OsString;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Duration;
 
@@ -32,12 +34,6 @@ pub use catalog::AccountCatalog;
 
 /// How long the sign-in window may stay open.
 pub const SIGN_IN_TIMEOUT: Duration = Duration::from_mins(10);
-/// File name of the sign-in helper.
-#[cfg(windows)]
-pub const HELPER_NAME: &str = "nemo-signin.exe";
-/// File name of the sign-in helper.
-#[cfg(not(windows))]
-pub const HELPER_NAME: &str = "nemo-signin";
 /// What the user is told when the helper reports that its webview cannot start (exit code 3).
 #[cfg(windows)]
 pub const WEBVIEW_MISSING: &str = "the WebView2 runtime is missing";
@@ -51,22 +47,19 @@ const MAX_HELPER_OUTPUT: u64 = 64 * 1024;
 /// account-aware catalog, so switching needs no restart.
 pub type SessionSlot = Arc<RwLock<Option<Arc<dyn Catalog>>>>;
 
-/// Where the account keeps its local files and its helper.
+/// Where the account keeps its local files and how it starts the sign-in window.
 #[derive(Debug, Clone)]
 pub struct AccountConfig {
-    /// The sign-in helper program.
+    /// The program that shows the sign-in window. In the app this is the app executable
+    /// itself (`std::env::current_exe()`), which becomes the window when started with
+    /// `helper_args`.
     pub helper: PathBuf,
+    /// Arguments put before `--data-dir <folder>`. The app passes `--signin`.
+    pub helper_args: Vec<OsString>,
     /// The helper's own webview profile folder. Deleted on sign-out.
     pub webview_dir: PathBuf,
     /// The cached account header (name, avatar). Deleted on sign-out.
     pub cache_file: PathBuf,
-}
-
-/// The sign-in helper next to the running program, if there is one.
-#[must_use]
-pub fn default_helper_path() -> Option<PathBuf> {
-    let exe = std::env::current_exe().ok()?;
-    Some(exe.parent()?.join(HELPER_NAME))
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -129,15 +122,16 @@ fn parse_helper_output(output: &str) -> Option<Secret<String>> {
     (!cookie.is_empty()).then(|| Secret::new(cookie.to_owned()))
 }
 
-/// Run the helper and wait for its answer. The child is killed if this future is dropped.
+/// Run the helper (`<helper> <helper_args> --data-dir <webview_dir>`) and wait for its answer.
+/// The child is killed if this future is dropped.
 async fn run_helper(
-    helper: &Path,
-    webview_dir: &Path,
+    config: &AccountConfig,
     timeout: Duration,
 ) -> Result<Secret<String>, AccountError> {
-    let mut child = Command::new(helper)
+    let mut child = Command::new(&config.helper)
+        .args(&config.helper_args)
         .arg("--data-dir")
-        .arg(webview_dir)
+        .arg(&config.webview_dir)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::null())
@@ -404,12 +398,7 @@ impl AccountService for GoogleAccount {
         self.run(async move {
             let before = shared.state();
             shared.set_state(AccountState::SigningIn);
-            let cookie = run_helper(
-                &shared.config.helper,
-                &shared.config.webview_dir,
-                shared.timeout,
-            )
-            .await;
+            let cookie = run_helper(&shared.config, shared.timeout).await;
             shared.finish(before, cookie).await
         })
     }

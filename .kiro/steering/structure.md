@@ -19,6 +19,7 @@ NemoMusic/
     nemo-ytm/           # YouTube Music client, login, SponsorBlock, YTM lyrics
     nemo-lyrics/        # lyrics providers, parsers, matching, cache (proposed, ADR 0002)
     nemo-secrets/       # OS credential store behind the nemo-core SecretStore trait
+    nemo-signin/        # library: the sign-in webview window, run as `nemo-app --signin`
     nemo-soundcloud/    # SoundCloud catalog of public tracks, through the yt-dlp URL resolver
     nemo-integrations/  # OS media controls, Last.fm, Discord presence, OS notifications
     nemo-spotify/       # the user's Spotify session, Spotify lyrics, Canvas animated covers
@@ -39,7 +40,7 @@ NemoMusic/
 - nemo-audio: symphonia decode, Opus decode, device enumeration, WASAPI and cpal output, optional ASIO, rubato, gapless queue, volume, signal-path report, the parked mode (`Park` and `Unpark`: a remote device plays, the queue still moves, nothing decodes and no device is held), playback of saved songs through the `nemo-core` `OfflineStore` (`PlayerDeps.offline`), and the `LoudnessMeter` implementation `AudioMeter` (`loudness.rs`, EBU R128 through `ebur128`, off the real-time path; `nemo-app` hands it to the library's ReplayGain scan). Real-time code lives only here.
 - nemo-library: SQLite schema and migrations, folder scan, lofty tag read/write, cover art extraction, search over the local catalog. Owns `library.db` (local-library), one SQLite file with its own migrations.
 - nemo-ytm: `ytmapi-rs` catalog calls, `yt-dlp` stream resolver, Google sign-in and the session layout in the credential store (`Vault`; the store comes in as `Arc<dyn SecretStore>`, no keyring dependency), account data fetch, SponsorBlock `SegmentSource`, the YTM timed-lyrics provider, rate limiting. Returns `nemo-core` types. Owns the ToS risk notice text.
-- nemo-signin: small binary that opens Google's sign-in page in a webview window (wry + tao; WebView2 on Windows, WebKitGTK on Linux), waits until YouTube Music is reached, and writes the session cookies to its stdout pipe for `nemo-ytm`. No other logic. Depends on no `nemo-*` crate. Shipped next to `nemo-app` (`nemo-app.exe` on Windows).
+- nemo-signin: small library linked into `nemo-app` that opens Google's sign-in page in a webview window (wry + tao; WebView2 on Windows, WebKitGTK on Linux), waits until YouTube Music is reached, and writes the session cookies to its stdout pipe for `nemo-ytm`. It runs in its own process: `nemo-ytm` starts the app executable again as `nemo-app --signin --data-dir <folder>`, and `main` calls `nemo_signin::run` before anything else starts, so tao's event loop never shares a process with iced. No other logic. Depends on no `nemo-*` crate. No binary of its own (owner, 2026-11-15: ship one program).
 - nemo-lyrics: other `LyricsProvider` implementations (LRCLIB and more), LRC and enhanced-LRC parsers, match scoring, fallback chain, and the lyrics the user wrote or synced (`own` module, `OwnLyricsStore`, kept in the lyrics database; lyrics-plus). The `LyricsProvider` and `SegmentSource` traits live in `nemo-core`. Depends only on `nemo-core`.
 - nemo-secrets: the OS credential store (Windows Credential Manager, the Linux Secret Service) behind the `nemo-core` `SecretStore` trait, and `open_platform_store()`. Owns the `keyring-core` and platform store crates. `nemo-app` opens the store and hands it to every crate that needs a secret. Depends only on `nemo-core`.
 - nemo-soundcloud: the SoundCloud catalog (public tracks only, no sign-in), its host list and its opt-in settings entry. Never starts a process or opens a socket: search, pages and streams go through the `nemo-core` URL-resolver trait that `nemo-ytm` implements with `yt-dlp`. Depends only on `nemo-core`.
@@ -63,6 +64,7 @@ nemo-app
  ├─> nemo-ytm ─────> nemo-core
  ├─> nemo-lyrics ──> nemo-core
  ├─> nemo-secrets ─> nemo-core
+ ├─> nemo-signin   (depends on no nemo-* crate)
  ├─> nemo-soundcloud ─> nemo-core
  ├─> nemo-integrations ─> nemo-core
  ├─> nemo-spotify ─> nemo-core

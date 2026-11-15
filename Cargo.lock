@@ -3641,6 +3641,7 @@ dependencies = [
  "nemo-library",
  "nemo-lyrics",
  "nemo-secrets",
+ "nemo-signin",
  "nemo-ui",
  "nemo-ytm",
  "serde",

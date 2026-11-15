@@ -6,6 +6,8 @@ use nemo_core::catalog::{
 };
 use nemo_core::track::Track;
 
+use std::path::Path;
+
 use super::*;
 use nemo_core::secret_store::MemoryStore;
 
@@ -118,6 +120,16 @@ fn fixture(
     helper: Option<&str>,
     store: Option<Arc<MemoryStore>>,
 ) -> Fixture {
+    fixture_with_args(name, result, helper, store, Vec::new())
+}
+
+fn fixture_with_args(
+    name: &str,
+    result: Result<AccountInfo, AccountError>,
+    helper: Option<&str>,
+    store: Option<Arc<MemoryStore>>,
+    helper_args: Vec<OsString>,
+) -> Fixture {
     let dir = std::env::temp_dir().join(format!("nemo-ytm-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("dir");
@@ -138,6 +150,7 @@ fn fixture(
     let slot: SessionSlot = Arc::default();
     let config = AccountConfig {
         helper: helper_path,
+        helper_args,
         webview_dir: dir.join("webview"),
         cache_file: dir.join("account").join("account.json"),
     };
@@ -186,6 +199,38 @@ fn sign_in_with_a_helper_stores_the_session() {
     assert_eq!(f.account.state(), AccountState::SignedIn(info()));
     assert!(f.slot.read().expect("lock").is_some());
     assert!(f.store.get("session-0").expect("get").is_some());
+}
+
+/// A fake app executable: answers only when started as `<exe> --signin --data-dir <folder>`.
+fn signin_mode_script() -> String {
+    let line = "{\"cookie\":\"SAPISID=synthetic; a=b\"}";
+    if cfg!(windows) {
+        format!(
+            "@if not \"%~1\"==\"--signin\" exit /b 64\r\n\
+             @if not \"%~2\"==\"--data-dir\" exit /b 64\r\n\
+             @echo {line}\r\n@exit /b 0\r\n"
+        )
+    } else {
+        format!(
+            "#!/bin/sh\n[ \"$1\" = --signin ] && [ \"$2\" = --data-dir ] || exit 64\n\
+             printf '%s\\n' '{line}'\nexit 0\n"
+        )
+    }
+}
+
+#[test]
+fn the_app_is_started_in_sign_in_mode() {
+    let args = vec![OsString::from("--signin")];
+    let f = fixture_with_args("mode", Ok(info()), Some(&signin_mode_script()), None, args);
+    let got = f.runtime.block_on(f.account.sign_in()).expect("sign in");
+    assert_eq!(got, info());
+    // Without the leading argument the same program refuses (exit 64).
+    let plain = fixture("nomode", Ok(info()), Some(&signin_mode_script()), None);
+    let err = plain
+        .runtime
+        .block_on(plain.account.sign_in())
+        .expect_err("usage");
+    assert!(matches!(err, AccountError::Unavailable(_)));
 }
 
 #[test]
@@ -296,6 +341,7 @@ fn a_cached_header_makes_start_instant() {
     let again = GoogleAccount::new(
         AccountConfig {
             helper: first.dir.join("none.exe"),
+            helper_args: Vec::new(),
             webview_dir: first.dir.join("webview"),
             cache_file: first.dir.join("account").join("account.json"),
         },
