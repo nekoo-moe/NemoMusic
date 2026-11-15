@@ -4,6 +4,7 @@ use super::super::style;
 use super::App;
 use super::art::{ArtEntry, ArtShape, ArtSpec};
 use super::model::{DetailData, DetailState, ListSource};
+use super::option::AccountLibrary;
 use crate::layout;
 use crate::palette::Palette;
 use crate::route::Route;
@@ -11,6 +12,12 @@ use iced::widget::image;
 use nemo_core::account::AccountState;
 use nemo_core::catalog::ShelfItem;
 use nemo_core::track::{Artwork, Track};
+use std::sync::Arc;
+
+/// Title of the Home shelf the signed-in catalog fills with the account's playlists.
+const YOUR_PLAYLISTS: &str = "Your playlists";
+/// Title of the Home shelf the signed-in catalog fills with the account's liked songs.
+const LIKED_SONGS: &str = "Liked songs";
 
 impl App {
     /// `true` when the parent wired playback speed (otherwise the chips are disabled).
@@ -87,6 +94,32 @@ impl App {
         matches!(self.backend.account.state(), AccountState::SignedIn(_))
     }
 
+    /// The signed-in account's own library: playlists (Liked music first, as YouTube Music
+    /// lists it), saved albums, followed artists and liked songs. `None` when signed out, or
+    /// while it has not loaded. Until the library calls answer, the "Your playlists" and "Liked
+    /// songs" shelves of the account's Home stand in; no other shelf does, because those are
+    /// suggestions, not the user's library.
+    #[must_use]
+    pub fn account_lists(&self) -> Option<Arc<AccountLibrary>> {
+        if !self.signed_in() {
+            return None;
+        }
+        if let Some(lib) = &self.account_library {
+            return Some(Arc::clone(lib));
+        }
+        let mut lib = AccountLibrary::default();
+        for shelf in &self.home.shelves {
+            for item in &shelf.items {
+                match (shelf.title.as_str(), item) {
+                    (YOUR_PLAYLISTS, ShelfItem::Playlist(p)) => lib.playlists.push(p.clone()),
+                    (LIKED_SONGS, ShelfItem::Song(t)) => lib.songs.push(t.clone()),
+                    _ => {}
+                }
+            }
+        }
+        (!(lib.playlists.is_empty() && lib.songs.is_empty())).then(|| Arc::new(lib))
+    }
+
     /// `true` when the song is liked: what the user did this session, else the Liked songs shelf.
     #[must_use]
     pub fn is_liked(&self, track: &Track) -> bool {
@@ -94,7 +127,7 @@ impl App {
             self.home
                 .shelves
                 .iter()
-                .filter(|s| s.title == "Liked songs")
+                .filter(|s| s.title == LIKED_SONGS)
                 .flat_map(|s| s.items.iter())
                 .any(|i| matches!(i, ShelfItem::Song(t) if t.id == track.id))
         })
@@ -118,20 +151,10 @@ impl App {
                 .map(|s| s.tracks.clone())
                 .unwrap_or_default(),
             ListSource::Videos => self.daily.videos.clone(),
-            ListSource::Account => match &self.account_library {
-                Some(lib) => lib.songs.clone(),
-                None => self
-                    .home
-                    .shelves
-                    .iter()
-                    .filter(|s| s.title == "Liked songs")
-                    .flat_map(|s| s.items.iter())
-                    .filter_map(|i| match i {
-                        ShelfItem::Song(t) => Some(t.clone()),
-                        _ => None,
-                    })
-                    .collect(),
-            },
+            ListSource::Account => self
+                .account_lists()
+                .map(|l| l.songs.clone())
+                .unwrap_or_default(),
             ListSource::Recent => self.ui.recent.clone(),
             ListSource::Home(n) => self
                 .home

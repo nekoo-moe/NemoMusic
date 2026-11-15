@@ -14,8 +14,11 @@ impl App {
     pub(super) fn watch_account(&mut self) -> Vec<Job> {
         let now = Owner::of(&self.backend.account.state());
         if now != Owner::Pending && self.refresh.owner().is_some_and(|seen| *seen != now) {
-            // Likes changed in this session belong to the account before.
+            // The library and the likes changed in this session belong to the account before:
+            // the sidebar never shows another account's playlists, even when the reload fails.
             self.likes.clear();
+            self.account_library = None;
+            self.library_failed = false;
         }
         self.refresh
             .observe(now)
@@ -52,6 +55,9 @@ impl App {
             Answer::Use { next, ended } => {
                 if ok {
                     self.apply_refresh(data);
+                } else if step == Step::Account && self.signed_in() {
+                    // The library that was there stays; with none, the sidebar says it failed.
+                    self.library_failed = self.account_library.is_none();
                 }
                 jobs.extend(next.map(Job::Refresh));
                 if ended == Some(true) {
@@ -75,10 +81,22 @@ impl App {
                 self.daily = bundle.daily.clone();
                 self.daily_gen += 1;
                 if self.signed_in() {
-                    // Set even when empty: another account may simply have nothing saved.
-                    self.account_library = Some(Arc::new(bundle.library.clone()));
+                    self.set_account_library(&bundle);
+                } else {
+                    self.account_library = None;
                 }
             }
+        }
+    }
+
+    /// Keep the library of an account bundle. Set even when empty (an account may have nothing
+    /// saved); a bundle where no account call answered leaves what is there.
+    pub(super) fn set_account_library(&mut self, bundle: &AccountBundle) {
+        if bundle.account_answered {
+            self.account_library = Some(Arc::new(bundle.library.clone()));
+            self.library_failed = false;
+        } else {
+            self.library_failed = self.account_library.is_none();
         }
     }
 }
