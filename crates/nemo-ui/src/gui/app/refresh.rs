@@ -24,6 +24,18 @@ impl App {
             .collect()
     }
 
+    /// The Refresh button, `F5` and `Ctrl+R`. A press while a reload runs does nothing.
+    pub(super) fn refresh_msg(&mut self) -> Vec<Job> {
+        if !self.ui.youtube_enabled() {
+            return Vec::new();
+        }
+        self.refresh
+            .request()
+            .map(Job::Refresh)
+            .into_iter()
+            .collect()
+    }
+
     /// A reload step answered: use it when it still counts, then start the next step. A
     /// failure keeps what is on screen; the run ends with one short notice.
     pub(super) fn on_refreshed(&mut self, generation: u64, data: RefreshData) -> Vec<Job> {

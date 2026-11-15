@@ -10,6 +10,17 @@ use nemo_core::account::AccountState;
 /// The one message a failed reload shows. The data loaded before stays on screen.
 pub const FAILED_NOTICE: &str = "Could not refresh your music. Showing what loaded before.";
 
+/// Tooltip of the Refresh control, which also names it (iced 0.14 has no accessibility tree):
+/// the name and key, or what it is doing.
+#[must_use]
+pub const fn tooltip(busy: bool) -> &'static str {
+    if busy {
+        "Refreshing your music\u{2026}"
+    } else {
+        "Refresh (F5)"
+    }
+}
+
 /// Whose data the screen shows, as far as a reload cares.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Owner {

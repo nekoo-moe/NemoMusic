@@ -287,7 +287,7 @@ pub fn timer_left(left: Duration) -> String {
 pub const SPEEDS: [u16; 5] = [75, 100, 125, 150, 200];
 
 /// The shortcut sheet: (keys, what it does). Single letters are off while a text field has focus.
-pub const SHORTCUTS: [(&str, &str); 16] = [
+pub const SHORTCUTS: [(&str, &str); 17] = [
     ("Space", "Play or pause"),
     ("Left / Right", "Seek 5 s (Shift: 30 s)"),
     ("Up / Down", "Volume up or down 5%"),
@@ -300,6 +300,7 @@ pub const SHORTCUTS: [(&str, &str); 16] = [
     ("Q", "Show or hide the queue"),
     ("L", "Like the current song"),
     ("S", "Sleep timer and more"),
+    ("F5  or  Ctrl+R", "Refresh your music"),
     ("Tab", "Move focus"),
     ("F3", "Frame-time readout"),
     ("Esc", "Close what is open, or go back"),
