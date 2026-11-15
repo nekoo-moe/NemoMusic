@@ -12,3 +12,6 @@ workspace = true
 
 [dependencies]
 nemo-core.workspace = true
+rusqlite = { version = "=0.41.1", features = ["bundled"] }
+thiserror.workspace = true
+tracing.workspace = true

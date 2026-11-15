@@ -31,6 +31,10 @@ pub struct AppPaths {
     /// Offline cache of saved songs: files with opaque names and `offline.db`. The cache
     /// creates it, not [`AppPaths::create_all`]; sign-out removes it completely.
     pub offline: PathBuf,
+    /// The integrations database `integrations.sqlite3` (switches and the Last.fm queue) and
+    /// the cover files for the OS media session. The integrations crate creates it, not
+    /// [`AppPaths::create_all`].
+    pub integrations: PathBuf,
 }
 
 /// No data directory could be found for this user.
@@ -54,6 +58,7 @@ impl AppPaths {
             webview: root.join("webview"),
             account: root.join("account"),
             offline: root.join("offline"),
+            integrations: root.join("integrations"),
             root,
         }
     }
@@ -113,7 +118,15 @@ mod tests {
         let root = Path::new("C:/data/NemoMusic");
         let p = AppPaths::under(root);
         for dir in [
-            &p.images, &p.lyrics, &p.library, &p.logs, &p.bin, &p.webview, &p.account, &p.offline,
+            &p.images,
+            &p.lyrics,
+            &p.library,
+            &p.logs,
+            &p.bin,
+            &p.webview,
+            &p.account,
+            &p.offline,
+            &p.integrations,
         ] {
             assert!(dir.starts_with(root), "{}", dir.display());
         }
@@ -129,6 +142,18 @@ mod tests {
             &p.images, &p.lyrics, &p.library, &p.logs, &p.bin, &p.webview, &p.account,
         ] {
             assert!(!other.starts_with(&p.offline) && !p.offline.starts_with(other));
+        }
+    }
+
+    #[test]
+    fn integrations_have_their_own_folder_under_the_root() {
+        let root = Path::new("C:/data/NemoMusic");
+        let p = AppPaths::under(root);
+        assert_eq!(p.integrations, root.join("integrations"));
+        for other in [
+            &p.images, &p.lyrics, &p.library, &p.logs, &p.bin, &p.webview, &p.account, &p.offline,
+        ] {
+            assert!(!other.starts_with(&p.integrations) && !p.integrations.starts_with(other));
         }
     }
 

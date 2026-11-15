@@ -6,16 +6,20 @@
 //! depends on `nemo-core` only.
 //!
 //! - [`info`]: the settings rows of the three integrations.
+//! - [`lastfm`]: the Last.fm scrobble queue.
 //! - [`notify`]: the text of OS notifications.
 //! - [`service`]: the service and its observer fan-out. The workers (media controls, Last.fm,
 //!   Discord) come in later tasks; until then every switch is in memory only and nothing
 //!   leaves the computer.
+//! - [`store`]: the integrations database (`integrations.sqlite3`): switches and the queue.
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
 pub mod info;
+pub mod lastfm;
 pub mod notify;
 pub mod service;
+pub mod store;
 
 pub use service::{DISCORD_APPLICATION_ID, Integrations, build};

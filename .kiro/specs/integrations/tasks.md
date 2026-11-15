@@ -104,7 +104,7 @@ Cross-spec ids written `<spec>#?` name the other spec's task by the ADR 0004 Dec
   - Wave: 1
   - Checks: needs Windows 10 and Windows 11 machines.
 
-- [ ] 13. Add the integrations database
+- [x] 13. Add the integrations database
   - Crate and files: `nemo-integrations` (`src/store.rs` new, `src/lastfm/queue.rs` new); `nemo-app` (`src/paths.rs`, `paths.integrations`).
   - Does: Opens `integrations.sqlite3` (WAL, `user_version` migrations) with `scrobbles` (capped at 5,000 rows, oldest dropped with one warning) and `meta` for the three switches and the Last.fm user name. Media controls default on in `meta`.
   - _Requirements: 9, 16_
