@@ -85,6 +85,10 @@ fn youtube_extras_default_to_unavailable() {
         ready(Bare.search_scoped("q", SearchScope::AllOfYoutube)),
         unavailable("search scope")
     );
+    assert_eq!(
+        ready(Bare.search_kind("q", SearchKind::Songs)),
+        unavailable("search filter")
+    );
     assert_eq!(ready(Bare.channel(&id)), unavailable("channels"));
     assert_eq!(ready(Bare.live_streams()), unavailable("live streams"));
     assert_eq!(SearchScope::default(), SearchScope::Music);

@@ -45,6 +45,17 @@ impl App {
                             });
                         }
                     }
+                    Effect::RunFilteredSearch { query, kind } => {
+                        if self.ui.youtube_enabled() {
+                            jobs.push(Job::SearchKind { query, kind });
+                        } else {
+                            pending.push_back(Event::SearchFilterDone {
+                                query,
+                                kind,
+                                result: Err(GATE_MESSAGE.to_owned()),
+                            });
+                        }
+                    }
                     Effect::FocusSearch => self.focus_search = true,
                     Effect::SettingsChanged(settings) => {
                         if let Some(cb) = &self.on_settings {

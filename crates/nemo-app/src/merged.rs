@@ -9,7 +9,7 @@ use nemo_core::BoxFuture;
 use nemo_core::catalog::{
     AlbumDetail, AlbumSummary, ArtistDetail, ArtistSummary, BrowseId, Catalog, CatalogError,
     Explore, FeedShelf, HistorySection, HomeFeed, PlaylistDetail, PlaylistSummary, PodcastDetail,
-    SearchResults, Shelf,
+    SearchKind, SearchResults, Shelf,
 };
 use nemo_core::track::Track;
 
@@ -84,6 +84,18 @@ impl Catalog for MergedCatalog {
             let remote = self.remote.search(query).await;
             merge(local, remote)
         })
+    }
+
+    /// Filters are YouTube Music's: the local library is not asked.
+    fn search_kind<'a>(
+        &'a self,
+        query: &'a str,
+        kind: SearchKind,
+    ) -> BoxFuture<'a, Result<SearchResults, CatalogError>> {
+        if query.trim().is_empty() {
+            return Box::pin(async { Ok(SearchResults::default()) });
+        }
+        self.remote.search_kind(query, kind)
     }
 
     fn album<'a>(&'a self, id: &'a BrowseId) -> BoxFuture<'a, Result<AlbumDetail, CatalogError>> {
@@ -182,7 +194,7 @@ mod tests {
 
     #[test]
     fn the_remote_top_result_and_order_survive_the_merge() {
-        use nemo_core::catalog::{SearchKind, TopResult};
+        use nemo_core::catalog::TopResult;
         let mut local = results(&["local"]);
         local.order = vec![SearchKind::Songs, SearchKind::Artists];
         let mut remote = results(&["remote"]);

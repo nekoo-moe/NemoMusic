@@ -1,0 +1,464 @@
+{
+ "contents": {
+  "tabbedSearchResultsRenderer": {
+   "tabs": [
+    {
+     "tabRenderer": {
+      "title": "YT Music",
+      "selected": true,
+      "content": {
+       "sectionListRenderer": {
+        "contents": [
+         {
+          "musicShelfRenderer": {
+           "title": {
+            "runs": [
+             {
+              "text": "Albums"
+             }
+            ]
+           },
+           "contents": [
+            {
+             "musicResponsiveListItemRenderer": {
+              "thumbnail": {
+               "musicThumbnailRenderer": {
+                "thumbnail": {
+                 "thumbnails": [
+                  {
+                   "url": "https://yt3.googleusercontent.com/iLSiAqmkBruDyalTleDNSonVipNnvsMGPLKGxjYhmQ33HXIt_m4jWJRdastIifdaER-4UZ8UQRoLMgM=w60-h60-l90-rj",
+                   "width": 60,
+                   "height": 60
+                  },
+                  {
+                   "url": "https://yt3.googleusercontent.com/iLSiAqmkBruDyalTleDNSonVipNnvsMGPLKGxjYhmQ33HXIt_m4jWJRdastIifdaER-4UZ8UQRoLMgM=w120-h120-l90-rj",
+                   "width": 120,
+                   "height": 120
+                  },
+                  {
+                   "url": "https://yt3.googleusercontent.com/iLSiAqmkBruDyalTleDNSonVipNnvsMGPLKGxjYhmQ33HXIt_m4jWJRdastIifdaER-4UZ8UQRoLMgM=w226-h226-l90-rj",
+                   "width": 226,
+                   "height": 226
+                  },
+                  {
+                   "url": "https://yt3.googleusercontent.com/iLSiAqmkBruDyalTleDNSonVipNnvsMGPLKGxjYhmQ33HXIt_m4jWJRdastIifdaER-4UZ8UQRoLMgM=w544-h544-l90-rj",
+                   "width": 544,
+                   "height": 544
+                  }
+                 ]
+                }
+               }
+              },
+              "overlay": {
+               "musicItemThumbnailOverlayRenderer": {
+                "content": {
+                 "musicPlayButtonRenderer": {
+                  "playNavigationEndpoint": {
+                   "watchPlaylistEndpoint": {
+                    "playlistId": "OLAK5uy_lU52oOWNBJ-YL7Lc-L17LhdNX_etmF3sI"
+                   }
+                  }
+                 }
+                }
+               }
+              },
+              "flexColumns": [
+               {
+                "musicResponsiveListItemFlexColumnRenderer": {
+                 "text": {
+                  "runs": [
+                   {
+                    "text": "HVL"
+                   }
+                  ]
+                 }
+                }
+               },
+               {
+                "musicResponsiveListItemFlexColumnRenderer": {
+                 "text": {
+                  "runs": [
+                   {
+                    "text": "Album"
+                   },
+                   {
+                    "text": " • "
+                   },
+                   {
+                    "text": "RPT MCK",
+                    "navigationEndpoint": {
+                     "browseEndpoint": {
+                      "browseId": "UCDRWYq4se6zr4MCLBorlVZg",
+                      "browseEndpointContextSupportedConfigs": {
+                       "browseEndpointContextMusicConfig": {
+                        "pageType": "MUSIC_PAGE_TYPE_ARTIST"
+                       }
+                      }
+                     }
+                    }
+                   },
+                   {
+                    "text": " • "
+                   },
+                   {
+                    "text": "2026"
+                   }
+                  ]
+                 }
+                }
+               }
+              ],
+              "navigationEndpoint": {
+               "browseEndpoint": {
+                "browseId": "MPREb_gsgslx4jAfe",
+                "browseEndpointContextSupportedConfigs": {
+                 "browseEndpointContextMusicConfig": {
+                  "pageType": "MUSIC_PAGE_TYPE_ALBUM"
+                 }
+                }
+               }
+              }
+             }
+            },
+            {
+             "musicResponsiveListItemRenderer": {
+              "thumbnail": {
+               "musicThumbnailRenderer": {
+                "thumbnail": {
+                 "thumbnails": [
+                  {
+                   "url": "https://yt3.googleusercontent.com/uMVAY6PFH2UWSPeAmHs9dY4VwJ0iGyIgAIRTJciCHESKVFwm5Yr7Mbf5_GEcfw4_ACYRpQA5c4n_7zg=w60-h60-l90-rj",
+                   "width": 60,
+                   "height": 60
+                  },
+                  {
+                   "url": "https://yt3.googleusercontent.com/uMVAY6PFH2UWSPeAmHs9dY4VwJ0iGyIgAIRTJciCHESKVFwm5Yr7Mbf5_GEcfw4_ACYRpQA5c4n_7zg=w120-h120-l90-rj",
+                   "width": 120,
+                   "height": 120
+                  },
+                  {
+                   "url": "https://yt3.googleusercontent.com/uMVAY6PFH2UWSPeAmHs9dY4VwJ0iGyIgAIRTJciCHESKVFwm5Yr7Mbf5_GEcfw4_ACYRpQA5c4n_7zg=w226-h226-l90-rj",
+                   "width": 226,
+                   "height": 226
+                  },
+                  {
+                   "url": "https://yt3.googleusercontent.com/uMVAY6PFH2UWSPeAmHs9dY4VwJ0iGyIgAIRTJciCHESKVFwm5Yr7Mbf5_GEcfw4_ACYRpQA5c4n_7zg=w544-h544-l90-rj",
+                   "width": 544,
+                   "height": 544
+                  }
+                 ]
+                }
+               }
+              },
+              "overlay": {
+               "musicItemThumbnailOverlayRenderer": {
+                "content": {
+                 "musicPlayButtonRenderer": {
+                  "playNavigationEndpoint": {
+                   "watchPlaylistEndpoint": {
+                    "playlistId": "OLAK5uy_npA5HlloLBKOJX27VEonloAjZueFdU0Lk"
+                   }
+                  }
+                 }
+                }
+               }
+              },
+              "flexColumns": [
+               {
+                "musicResponsiveListItemFlexColumnRenderer": {
+                 "text": {
+                  "runs": [
+                   {
+                    "text": "HVL Vachenron Louie Zombie V4"
+                   }
+                  ]
+                 }
+                }
+               },
+               {
+                "musicResponsiveListItemFlexColumnRenderer": {
+                 "text": {
+                  "runs": [
+                   {
+                    "text": "Single"
+                   },
+                   {
+                    "text": " • "
+                   },
+                   {
+                    "text": "DJ lungtung",
+                    "navigationEndpoint": {
+                     "browseEndpoint": {
+                      "browseId": "UCpS4hLUGcRJyi4ZmakreSpg",
+                      "browseEndpointContextSupportedConfigs": {
+                       "browseEndpointContextMusicConfig": {
+                        "pageType": "MUSIC_PAGE_TYPE_ARTIST"
+                       }
+                      }
+                     }
+                    }
+                   },
+                   {
+                    "text": " • "
+                   },
+                   {
+                    "text": "2026"
+                   }
+                  ]
+                 }
+                }
+               }
+              ],
+              "navigationEndpoint": {
+               "browseEndpoint": {
+                "browseId": "MPREb_eNoQr42EOUB",
+                "browseEndpointContextSupportedConfigs": {
+                 "browseEndpointContextMusicConfig": {
+                  "pageType": "MUSIC_PAGE_TYPE_ALBUM"
+                 }
+                }
+               }
+              }
+             }
+            },
+            {
+             "musicResponsiveListItemRenderer": {
+              "thumbnail": {
+               "musicThumbnailRenderer": {
+                "thumbnail": {
+                 "thumbnails": [
+                  {
+                   "url": "https://yt3.googleusercontent.com/pXVp7NY7n9u7wLiF7j2tzRU0J-C4HLzMKtJs1rH4Cxwb11SpZ7jHm8eNVm2mJVKF_6RdBxIR-IV_P1bC=w60-h60-l90-rj",
+                   "width": 60,
+                   "height": 60
+                  },
+                  {
+                   "url": "https://yt3.googleusercontent.com/pXVp7NY7n9u7wLiF7j2tzRU0J-C4HLzMKtJs1rH4Cxwb11SpZ7jHm8eNVm2mJVKF_6RdBxIR-IV_P1bC=w120-h120-l90-rj",
+                   "width": 120,
+                   "height": 120
+                  },
+                  {
+                   "url": "https://yt3.googleusercontent.com/pXVp7NY7n9u7wLiF7j2tzRU0J-C4HLzMKtJs1rH4Cxwb11SpZ7jHm8eNVm2mJVKF_6RdBxIR-IV_P1bC=w226-h226-l90-rj",
+                   "width": 226,
+                   "height": 226
+                  },
+                  {
+                   "url": "https://yt3.googleusercontent.com/pXVp7NY7n9u7wLiF7j2tzRU0J-C4HLzMKtJs1rH4Cxwb11SpZ7jHm8eNVm2mJVKF_6RdBxIR-IV_P1bC=w544-h544-l90-rj",
+                   "width": 544,
+                   "height": 544
+                  }
+                 ]
+                }
+               }
+              },
+              "overlay": {
+               "musicItemThumbnailOverlayRenderer": {
+                "content": {
+                 "musicPlayButtonRenderer": {
+                  "playNavigationEndpoint": {
+                   "watchPlaylistEndpoint": {
+                    "playlistId": "OLAK5uy_l7eyzvuCdnE_jnj5hlWr0wrhz5373eKiY"
+                   }
+                  }
+                 }
+                }
+               }
+              },
+              "flexColumns": [
+               {
+                "musicResponsiveListItemFlexColumnRenderer": {
+                 "text": {
+                  "runs": [
+                   {
+                    "text": "Forgive Me - Acoustic"
+                   }
+                  ]
+                 }
+                }
+               },
+               {
+                "musicResponsiveListItemFlexColumnRenderer": {
+                 "text": {
+                  "runs": [
+                   {
+                    "text": "Single"
+                   },
+                   {
+                    "text": " • "
+                   },
+                   {
+                    "text": "hvl",
+                    "navigationEndpoint": {
+                     "browseEndpoint": {
+                      "browseId": "UCwvEMBgsEcV6UIkaZ_Whdsg",
+                      "browseEndpointContextSupportedConfigs": {
+                       "browseEndpointContextMusicConfig": {
+                        "pageType": "MUSIC_PAGE_TYPE_ARTIST"
+                       }
+                      }
+                     }
+                    }
+                   },
+                   {
+                    "text": " • "
+                   },
+                   {
+                    "text": "2026"
+                   }
+                  ]
+                 }
+                }
+               }
+              ],
+              "navigationEndpoint": {
+               "browseEndpoint": {
+                "browseId": "MPREb_7t7ImrfBX2s",
+                "browseEndpointContextSupportedConfigs": {
+                 "browseEndpointContextMusicConfig": {
+                  "pageType": "MUSIC_PAGE_TYPE_ALBUM"
+                 }
+                }
+               }
+              }
+             }
+            },
+            {
+             "musicResponsiveListItemRenderer": {
+              "thumbnail": {
+               "musicThumbnailRenderer": {
+                "thumbnail": {
+                 "thumbnails": [
+                  {
+                   "url": "https://yt3.googleusercontent.com/dKiNxg1lwTzKm_jpUuoTNJtiNHs9AgFebyvI2cBMJZtDhEygHFDFYCNMGMCT6pepdErqB8vtMoBrIzqa=w60-h60-l90-rj",
+                   "width": 60,
+                   "height": 60
+                  },
+                  {
+                   "url": "https://yt3.googleusercontent.com/dKiNxg1lwTzKm_jpUuoTNJtiNHs9AgFebyvI2cBMJZtDhEygHFDFYCNMGMCT6pepdErqB8vtMoBrIzqa=w120-h120-l90-rj",
+                   "width": 120,
+                   "height": 120
+                  },
+                  {
+                   "url": "https://yt3.googleusercontent.com/dKiNxg1lwTzKm_jpUuoTNJtiNHs9AgFebyvI2cBMJZtDhEygHFDFYCNMGMCT6pepdErqB8vtMoBrIzqa=w226-h226-l90-rj",
+                   "width": 226,
+                   "height": 226
+                  },
+                  {
+                   "url": "https://yt3.googleusercontent.com/dKiNxg1lwTzKm_jpUuoTNJtiNHs9AgFebyvI2cBMJZtDhEygHFDFYCNMGMCT6pepdErqB8vtMoBrIzqa=w544-h544-l90-rj",
+                   "width": 544,
+                   "height": 544
+                  }
+                 ]
+                }
+               }
+              },
+              "overlay": {
+               "musicItemThumbnailOverlayRenderer": {
+                "content": {
+                 "musicPlayButtonRenderer": {
+                  "playNavigationEndpoint": {
+                   "watchPlaylistEndpoint": {
+                    "playlistId": "OLAK5uy_mwPii6WDEQypi5iZbcnI9VfKPDWmBOplg"
+                   }
+                  }
+                 }
+                }
+               }
+              },
+              "flexColumns": [
+               {
+                "musicResponsiveListItemFlexColumnRenderer": {
+                 "text": {
+                  "runs": [
+                   {
+                    "text": "HVL LOVE"
+                   }
+                  ]
+                 }
+                }
+               },
+               {
+                "musicResponsiveListItemFlexColumnRenderer": {
+                 "text": {
+                  "runs": [
+                   {
+                    "text": "Single"
+                   },
+                   {
+                    "text": " • "
+                   },
+                   {
+                    "text": "Hvl Prosper",
+                    "navigationEndpoint": {
+                     "browseEndpoint": {
+                      "browseId": "UCRYHFcfArSIeWP-CYq2Wp2g",
+                      "browseEndpointContextSupportedConfigs": {
+                       "browseEndpointContextMusicConfig": {
+                        "pageType": "MUSIC_PAGE_TYPE_ARTIST"
+                       }
+                      }
+                     }
+                    }
+                   },
+                   {
+                    "text": " • "
+                   },
+                   {
+                    "text": "2025"
+                   }
+                  ]
+                 }
+                }
+               }
+              ],
+              "navigationEndpoint": {
+               "browseEndpoint": {
+                "browseId": "MPREb_7hRHYG8fZSM",
+                "browseEndpointContextSupportedConfigs": {
+                 "browseEndpointContextMusicConfig": {
+                  "pageType": "MUSIC_PAGE_TYPE_ALBUM"
+                 }
+                }
+               }
+              }
+             }
+            }
+           ]
+          }
+         }
+        ],
+        "header": {
+         "chipCloudRenderer": {
+          "chips": [
+           {
+            "chipCloudChipRenderer": {
+             "text": {
+              "runs": [
+               {
+                "text": "Albums"
+               }
+              ]
+             },
+             "navigationEndpoint": {
+              "searchEndpoint": {
+               "query": "HVL",
+               "params": "EgWKAQIYAWoQEAkQAxAFEAQQChAVEBAQEQ%3D%3D"
+              }
+             },
+             "isSelected": true
+            }
+           }
+          ],
+          "collapsedRowCount": 1,
+          "horizontalScrollable": true
+         }
+        }
+       }
+      },
+      "tabIdentifier": "music_search_catalog"
+     }
+    }
+   ]
+  }
+ }
+}

@@ -82,6 +82,19 @@ pub async fn run_job(job: Job, backend: Backend) -> Message {
                 .map_err(|e| e.to_string());
             Message::SearchDone { query, result }
         }
+        Job::SearchKind { query, kind } => {
+            let result = backend
+                .catalog
+                .search_kind(&query, kind)
+                .await
+                .map(Arc::new)
+                .map_err(|e| e.to_string());
+            Message::Ui(Event::SearchFilterDone {
+                query,
+                kind,
+                result,
+            })
+        }
         Job::Debounce(seq) => {
             sleep_without_blocking(DEBOUNCE_MS).await;
             Message::Ui(Event::SearchDebounced(seq))

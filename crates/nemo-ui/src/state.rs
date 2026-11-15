@@ -308,6 +308,16 @@ impl UiState {
                     fx.push(Effect::Send(PlayerCommand::SetQueue { tracks, start: 0 }));
                 }
             }
+            Event::SearchFilter(kind) => {
+                if let Some((query, kind)) = self.search.pick(kind) {
+                    fx.push(Effect::RunFilteredSearch { query, kind });
+                }
+            }
+            Event::SearchFilterDone {
+                query,
+                kind,
+                result,
+            } => self.search.filter_done(&query, kind, result),
             Event::PlayTracks { tracks, start } => {
                 if start < tracks.len() {
                     fx.push(Effect::Send(PlayerCommand::SetQueue { tracks, start }));

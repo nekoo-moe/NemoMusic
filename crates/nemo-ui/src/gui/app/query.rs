@@ -140,8 +140,7 @@ impl App {
             ListSource::Search => self
                 .ui
                 .search
-                .results
-                .as_ref()
+                .shown()
                 .map(|r| r.songs.clone())
                 .unwrap_or_default(),
             ListSource::Library => self.local_tracks.clone(),
@@ -154,8 +153,7 @@ impl App {
             ListSource::SearchVideos => self
                 .ui
                 .search
-                .results
-                .as_ref()
+                .shown()
                 .map(|r| r.videos.iter().map(|v| v.track.clone()).collect())
                 .unwrap_or_default(),
             ListSource::Explore(n) => self

@@ -1,8 +1,9 @@
-//! Search box state: debounce, stale-answer handling and "Enter plays the top song". Pure.
+//! Search box state: debounce, stale-answer handling, "Enter plays the top song" and the filter
+//! chips (search-like-ytm). Pure.
 
 use std::sync::Arc;
 
-use nemo_core::catalog::SearchResults;
+use nemo_core::catalog::{SearchKind, SearchResults};
 use nemo_core::track::Track;
 
 /// Quiet time after the last keystroke before a search runs.
@@ -37,6 +38,22 @@ pub struct SearchState {
     pub loading: bool,
     running: Option<String>,
     play_top: bool,
+    /// The picked filter chip; `None` is "All".
+    pub filter: Option<SearchKind>,
+    /// The latest filtered answer.
+    pub filtered: Option<Filtered>,
+    filter_running: Option<(String, SearchKind)>,
+}
+
+/// The answer of one filtered search.
+#[derive(Debug, Clone)]
+pub struct Filtered {
+    /// The query it belongs to.
+    pub query: String,
+    /// The filter it belongs to.
+    pub kind: SearchKind,
+    /// The answer or a short error.
+    pub result: Result<Arc<SearchResults>, String>,
 }
 
 impl SearchState {
@@ -58,6 +75,7 @@ impl SearchState {
         self.input = text;
         self.seq += 1;
         self.play_top = false;
+        self.clear_filter();
         if self.query().is_empty() {
             self.results = None;
             self.answered = None;
@@ -79,6 +97,9 @@ impl SearchState {
 
     /// Set the text from outside (a route) and run at once.
     pub fn set(&mut self, text: &str) -> Option<String> {
+        if self.query() != text.trim() {
+            self.clear_filter();
+        }
         text.clone_into(&mut self.input);
         self.seq += 1;
         self.start()
@@ -123,6 +144,77 @@ impl SearchState {
             // Already on its way: the answer will play.
             None => Submit::Nothing,
         }
+    }
+
+    fn clear_filter(&mut self) {
+        self.filter = None;
+        self.filtered = None;
+        self.filter_running = None;
+    }
+
+    /// The filtered answer of the current text and filter, if it is here.
+    #[must_use]
+    pub fn filtered_now(&self) -> Option<&Filtered> {
+        let kind = self.filter?;
+        self.filtered
+            .as_ref()
+            .filter(|f| f.kind == kind && f.query == self.query())
+    }
+
+    /// `true` while the filtered search of the current text and filter runs.
+    #[must_use]
+    pub fn filter_loading(&self) -> bool {
+        self.filter
+            .is_some_and(|k| self.filter_running.as_ref() == Some(&(self.query().to_owned(), k)))
+    }
+
+    /// The results on screen: the filtered answer when a chip is picked, else the main one.
+    #[must_use]
+    pub fn shown(&self) -> Option<&Arc<SearchResults>> {
+        if self.filter.is_some() {
+            return self.filtered_now().and_then(|f| f.result.as_ref().ok());
+        }
+        self.results.as_ref()
+    }
+
+    /// A chip was picked (`None`: "All"). Returns the filtered search to run, unless its
+    /// answer is here or on its way. Picking a chip whose search failed runs it again.
+    pub fn pick(&mut self, kind: Option<SearchKind>) -> Option<(String, SearchKind)> {
+        self.filter = kind;
+        let kind = kind?;
+        let q = self.query().to_owned();
+        if q.is_empty() || self.filter_running.as_ref() == Some(&(q.clone(), kind)) {
+            return None;
+        }
+        if self.filtered_now().is_some_and(|f| f.result.is_ok()) {
+            return None;
+        }
+        self.filter_running = Some((q.clone(), kind));
+        Some((q, kind))
+    }
+
+    /// A filtered answer arrived. One for an older text or another chip is dropped.
+    pub fn filter_done(
+        &mut self,
+        query: &str,
+        kind: SearchKind,
+        result: Result<Arc<SearchResults>, String>,
+    ) {
+        if self
+            .filter_running
+            .as_ref()
+            .is_some_and(|(q, k)| q == query && *k == kind)
+        {
+            self.filter_running = None;
+        }
+        if query != self.query() || self.filter != Some(kind) {
+            return;
+        }
+        self.filtered = Some(Filtered {
+            query: query.to_owned(),
+            kind,
+            result,
+        });
     }
 
     /// An answer arrived. Returns the songs to play when Enter asked for the top song.
@@ -231,6 +323,48 @@ mod tests {
         assert_eq!(s.error.as_deref(), Some("offline"));
         assert_eq!(s.retry(), Some("yyy".to_owned()));
         assert!(s.error.is_none() && s.loading);
+    }
+
+    #[test]
+    fn a_chip_runs_its_search_once_and_typing_returns_to_all() {
+        let mut s = SearchState::default();
+        s.set("hvl");
+        s.done("hvl", Ok(results(2)));
+        assert_eq!(
+            s.pick(Some(SearchKind::Songs)),
+            Some(("hvl".to_owned(), SearchKind::Songs))
+        );
+        assert!(s.filter_loading() && s.shown().is_none());
+        assert_eq!(s.pick(Some(SearchKind::Songs)), None, "already running");
+        s.filter_done("hvl", SearchKind::Songs, Ok(results(5)));
+        assert_eq!(s.shown().map(|r| r.songs.len()), Some(5));
+        assert_eq!(s.pick(Some(SearchKind::Songs)), None, "answer is here");
+        assert_eq!(s.pick(None), None);
+        assert_eq!(
+            s.shown().map(|r| r.songs.len()),
+            Some(2),
+            "All shows the main answer"
+        );
+        s.input("hvl x".into());
+        assert_eq!(s.filter, None);
+        assert!(s.filtered.is_none());
+    }
+
+    #[test]
+    fn a_stale_or_failed_filtered_answer_is_handled() {
+        let mut s = SearchState::default();
+        s.set("a");
+        s.pick(Some(SearchKind::Albums));
+        s.pick(Some(SearchKind::Artists));
+        s.filter_done("a", SearchKind::Albums, Ok(results(1)));
+        assert!(s.filtered.is_none(), "another chip is picked now");
+        s.filter_done("a", SearchKind::Artists, Err("offline".into()));
+        assert!(s.filtered_now().is_some_and(|f| f.result.is_err()));
+        assert_eq!(
+            s.pick(Some(SearchKind::Artists)),
+            Some(("a".to_owned(), SearchKind::Artists)),
+            "picking again retries"
+        );
     }
 
     #[test]

@@ -290,6 +290,13 @@ pub enum Job {
     Library,
     /// Run a search.
     Search(String),
+    /// Run a search narrowed to one kind (a filter chip).
+    SearchKind {
+        /// The query.
+        query: String,
+        /// The filter.
+        kind: nemo_core::catalog::SearchKind,
+    },
     /// Wait out the search debounce.
     Debounce(u64),
     /// Load a detail page.

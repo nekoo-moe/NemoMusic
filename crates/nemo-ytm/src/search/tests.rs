@@ -152,3 +152,121 @@ fn the_request_sends_only_the_query() {
     assert!(PostQuery::params(&q).is_empty());
     assert_eq!(q.path(), "search");
 }
+
+// ---------------------------------------------------------------------------------------------
+// Filter chips
+// ---------------------------------------------------------------------------------------------
+
+/// The same query with the Songs, Albums and Community playlists chips (2026-11-15).
+const SONGS: &str = include_str!("../../tests/fixtures/music/search-hvl-songs.json");
+const ALBUMS: &str = include_str!("../../tests/fixtures/music/search-hvl-albums.json");
+const PLAYLISTS: &str = include_str!("../../tests/fixtures/music/search-hvl-playlists.json");
+
+/// `(label, params)` of every chip in a recorded answer.
+fn chips(json: &str) -> Vec<(String, String)> {
+    let root: Value = serde_json::from_str(json).expect("json");
+    root.pointer("/contents/tabbedSearchResultsRenderer/tabs/0/tabRenderer/content/sectionListRenderer/header/chipCloudRenderer/chips")
+        .and_then(Value::as_array)
+        .expect("chips")
+        .iter()
+        .map(|c| {
+            let c = &c["chipCloudChipRenderer"];
+            (
+                c["text"]["runs"][0]["text"].as_str().expect("label").to_owned(),
+                c["navigationEndpoint"]["searchEndpoint"]["params"]
+                    .as_str()
+                    .expect("params")
+                    .to_owned(),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn the_filter_params_are_the_ones_youtube_music_serves() {
+    use super::filter_params;
+    let mut served = chips(HVL);
+    for json in [SONGS, ALBUMS, PLAYLISTS] {
+        served.extend(chips(json));
+    }
+    for (label, kind) in [
+        ("Songs", SearchKind::Songs),
+        ("Albums", SearchKind::Albums),
+        ("Community playlists", SearchKind::Playlists),
+    ] {
+        let params = served
+            .iter()
+            .find(|(l, _)| l == label)
+            .map(|(_, p)| p.as_str());
+        assert_eq!(params, filter_params(kind), "{label}");
+    }
+    assert!(filter_params(SearchKind::Videos).is_some());
+    assert!(filter_params(SearchKind::Artists).is_some());
+    assert_eq!(filter_params(SearchKind::Channels), None);
+}
+
+#[test]
+fn a_songs_answer_is_one_shelf_of_songs_in_order() {
+    let r = parse_search(SONGS).expect("known layout");
+    assert_eq!(r.top, None);
+    assert_eq!(r.order, [SearchKind::Songs]);
+    assert_eq!(r.songs.len(), 4);
+    let first = &r.songs[0];
+    assert_eq!(first.title, "Nếu Như Ta Chẳng Còn (feat. A$AP Ướt Mi)");
+    assert_eq!(first.artists, ["RPT MCK"]);
+    assert_eq!(first.album.as_deref(), Some("HVL"));
+    assert_eq!(first.duration.map(|d| d.as_secs()), Some(318));
+}
+
+#[test]
+fn an_albums_answer_keeps_the_linked_artist_and_the_year() {
+    let r = parse_search(ALBUMS).expect("known layout");
+    assert_eq!(r.order, [SearchKind::Albums]);
+    let names: Vec<(&str, &[String])> = r
+        .albums
+        .iter()
+        .map(|a| (a.title.as_str(), a.artists.as_slice()))
+        .collect();
+    assert_eq!(names.len(), 4);
+    assert_eq!(names[0], ("HVL", &["RPT MCK".to_owned()][..]));
+    assert_eq!(
+        r.albums[1].artists,
+        ["DJ lungtung"],
+        "\"Single\" is no artist"
+    );
+    assert_eq!(r.albums[0].year, Some(2026));
+}
+
+#[test]
+fn a_community_playlists_answer_keeps_the_authors() {
+    let r = parse_search(PLAYLISTS).expect("known layout");
+    assert_eq!(r.order, [SearchKind::Playlists]);
+    let authors: Vec<Option<&str>> = r.playlists.iter().map(|p| p.author.as_deref()).collect();
+    assert_eq!(
+        authors,
+        [
+            Some("Jerran"),
+            Some("Thanh - TT"),
+            Some("Hieu Chuong"),
+            Some("Tunsber")
+        ]
+    );
+}
+
+#[test]
+fn a_filtered_request_carries_the_chip_params() {
+    let q = SearchQuery::filtered("HVL", "abc");
+    let body = q.header();
+    assert_eq!(body.get("query"), Some(&json!("HVL")));
+    assert_eq!(body.get("params"), Some(&json!("abc")));
+}
+
+#[test]
+fn only_the_asked_kind_is_kept() {
+    let all = parse_search(HVL).expect("known layout");
+    let songs = super::only(all, SearchKind::Songs);
+    assert!(songs.top.is_none());
+    assert_eq!(songs.order, [SearchKind::Songs]);
+    assert_eq!(songs.songs.len(), 3);
+    assert!(songs.albums.is_empty() && songs.artists.is_empty() && songs.videos.is_empty());
+}

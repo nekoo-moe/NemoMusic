@@ -15,7 +15,7 @@ use std::sync::Arc;
 use nemo_core::BoxFuture;
 use nemo_core::catalog::{
     AlbumDetail, ArtistDetail, BrowseId, Catalog, CatalogError, Explore, FeedShelf, HomeFeed,
-    PlaylistDetail, PodcastDetail, SearchResults,
+    PlaylistDetail, PodcastDetail, SearchKind, SearchResults,
 };
 use nemo_core::track::Thumbnail;
 #[cfg(doc)]
@@ -83,6 +83,14 @@ impl Inner {
         // The typed unfiltered search of ytmapi-rs is deprecated and returned nothing
         // anonymously; the raw one in `crate::search` keeps YouTube Music's ranking.
         crate::search::search(self.api().await?, &query).await
+    }
+
+    async fn search_kind(
+        &self,
+        query: String,
+        kind: SearchKind,
+    ) -> Result<SearchResults, CatalogError> {
+        crate::search::search_kind(self.api().await?, &query, kind).await
     }
 
     async fn album(&self, id: BrowseId) -> Result<AlbumDetail, CatalogError> {
@@ -201,6 +209,19 @@ impl Catalog for YtmCatalog {
         }
         let inner = Arc::clone(&self.inner);
         self.run(async move { inner.search(text).await })
+    }
+
+    fn search_kind<'a>(
+        &'a self,
+        query: &'a str,
+        kind: SearchKind,
+    ) -> BoxFuture<'a, Result<SearchResults, CatalogError>> {
+        let text: String = query.trim().chars().take(MAX_QUERY_CHARS).collect();
+        if text.is_empty() {
+            return Box::pin(async { Ok(SearchResults::default()) });
+        }
+        let inner = Arc::clone(&self.inner);
+        self.run(async move { inner.search_kind(text, kind).await })
     }
 
     fn album<'a>(&'a self, id: &'a BrowseId) -> BoxFuture<'a, Result<AlbumDetail, CatalogError>> {

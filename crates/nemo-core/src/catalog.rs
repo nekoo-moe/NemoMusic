@@ -416,6 +416,18 @@ pub trait Catalog: Send + Sync {
         Box::pin(async { Err(CatalogError::Unavailable("search scope".to_owned())) })
     }
 
+    /// Search one kind of result only, like a filter chip of YouTube Music (see
+    /// [`SearchKind::FILTERS`]). The answer fills only that kind's list, in the source's order,
+    /// with no top result. Optional: the default says it is not available.
+    fn search_kind<'a>(
+        &'a self,
+        query: &'a str,
+        kind: SearchKind,
+    ) -> BoxFuture<'a, Result<SearchResults, CatalogError>> {
+        let _ = (query, kind);
+        Box::pin(async { Err(CatalogError::Unavailable("search filter".to_owned())) })
+    }
+
     /// Load a YouTube channel page. Optional: the default says it is not available.
     fn channel<'a>(
         &'a self,

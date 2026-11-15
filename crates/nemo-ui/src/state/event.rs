@@ -3,7 +3,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use nemo_core::catalog::SearchResults;
+use nemo_core::catalog::{SearchKind, SearchResults};
 use nemo_core::lyrics::{LyricsDoc, ProviderId};
 use nemo_core::player::{PlayerCommand, PlayerEvent, PlayerSnapshot};
 use nemo_core::services::LyricsLookup;
@@ -153,6 +153,17 @@ pub enum Event {
         /// The answer or a short error.
         result: Result<Arc<SearchResults>, String>,
     },
+    /// A search filter chip was picked (`None`: "All").
+    SearchFilter(Option<SearchKind>),
+    /// A filtered search finished.
+    SearchFilterDone {
+        /// The query that was run.
+        query: String,
+        /// The filter.
+        kind: SearchKind,
+        /// The answer or a short error.
+        result: Result<Arc<SearchResults>, String>,
+    },
     /// Replace the queue with `tracks` and start at `start`.
     PlayTracks {
         /// The new queue.
@@ -208,6 +219,13 @@ pub enum Effect {
     Debounce(u64),
     /// Run this search.
     RunSearch(String),
+    /// Run this filtered search.
+    RunFilteredSearch {
+        /// The query.
+        query: String,
+        /// The filter.
+        kind: SearchKind,
+    },
     /// Put the keyboard focus in the search box.
     FocusSearch,
     /// Tell the app the settings changed.

@@ -28,6 +28,22 @@ pub(super) fn screens(out: &mut Vec<Shot>) {
                 ..at(Route::Search(String::new()))
             },
         ));
+        out.push(shot(
+            named("search-songs", size),
+            Scenario {
+                search: Some("velvet".to_owned()),
+                search_filter: Some(nemo_core::catalog::SearchKind::Songs),
+                ..at(Route::Search(String::new()))
+            },
+        ));
+        out.push(shot(
+            named("search-albums", size),
+            Scenario {
+                search: Some("velvet".to_owned()),
+                search_filter: Some(nemo_core::catalog::SearchKind::Albums),
+                ..at(Route::Search(String::new()))
+            },
+        ));
         out.push(shot(named("now-playing", size), at(Route::NowPlaying)));
         out.push(shot(
             named("library", size),
