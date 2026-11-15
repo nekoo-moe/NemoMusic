@@ -56,7 +56,7 @@ Cross-spec ids written `<spec>#?` name the owner's task by its ADR 0004 Decision
   - Steering: `tech.md` Opus decode row: the chosen crate (and, for the fallback, `opusic-sys` 0.7.7 BSD-3-Clause and the CMake need), replacing the `opus` or `audiopus` wording, `audiopus` recorded as rejected. README: the libopus licence notice, only if the fallback is chosen.
   - Done: `nemo-library` has no probe yet, so nothing there changed; task 12, which adds the probe, treats the Opus codec id as playable (`.opus` and `.ogg` are already in `AUDIO_EXTENSIONS`, `.webm` is not). `stream_decoder.rs` and `decode_file` both build their decoder through `codecs.rs`. A lossy codec now states no bit depth even when the container does (FFmpeg's WebM muxer writes 16 for Opus). The README also gets the CMake build note.
 
-- [ ] 7. Let streams play as Opus
+- [x] 7. Let streams play as Opus
   - Crate and files: `nemo-audio`: `src/decoder.rs` (`supported_stream_codecs()`). Touches nemo-audio/src/decoder.rs.
   - Does: Adds `Codec::Opus` to `supported_stream_codecs()` (owner approved 2026-11-14), so the YouTube and SoundCloud rankers can pick Opus. Separate PR so the change of stream choice is easy to review and revert.
   - _Requirements: none (groundwork)_
