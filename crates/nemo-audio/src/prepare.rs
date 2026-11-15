@@ -6,6 +6,7 @@ use std::thread;
 use std::time::Duration;
 
 use nemo_core::audio::{Codec, Origin, StreamInfo};
+use nemo_core::downloads::OfflineStore;
 use nemo_core::library::{LocalPlayback, LocalTrackLookup};
 use nemo_core::segment::SegmentSource;
 use nemo_core::services::{ByteSource, StreamOpener};
@@ -52,6 +53,9 @@ pub struct PrepareDeps {
     pub opener: Arc<dyn StreamOpener>,
     /// Span and gain of local tracks. Asked here, on the prepare thread, never in the callback.
     pub local: Option<Arc<dyn LocalTrackLookup>>,
+    /// Saved songs. Asked before the resolver: a hit plays the cached file with no stream
+    /// lookup and no audio request (offline-cache criterion 3).
+    pub offline: Option<Arc<dyn OfflineStore>>,
 }
 
 /// Open `track` on a new thread and report the result to the control thread.
@@ -128,6 +132,13 @@ fn prepare(deps: &PrepareDeps, track: &Track) -> Result<Prepared, String> {
     let Some(video) = &track.video_id else {
         return Err("this track has no playable source".into());
     };
+    if let Some(saved) = deps
+        .offline
+        .as_ref()
+        .and_then(|s| open_saved(s.as_ref(), video))
+    {
+        return Ok(saved);
+    }
     let resolve = || block_on(deps.resolver.resolve_with(video, &deps.request));
     let stream = resolve().map_err(|e| describe(&e))?;
     let source: Box<dyn ByteSource> = match deps.opener.open(&stream) {
@@ -146,6 +157,51 @@ fn prepare(deps: &PrepareDeps, track: &Track) -> Result<Prepared, String> {
         Err(e) => return Err(describe(&e)),
     };
     finish_stream(source, &stream)
+}
+
+/// The saved copy of `video`, opened and probed, or `None` when the cache has none. A copy that
+/// does not open or probe is marked unsaved and `None` is returned, so the caller streams the
+/// song instead; in offline mode the gated resolver then refuses and the user sees why.
+fn open_saved(store: &dyn OfflineStore, video: &VideoId) -> Option<Prepared> {
+    let cached = store.open(video)?;
+    // The one place the cache path is exposed (offline-cache design, Interfaces).
+    let opened = FileSource::open(cached.path.expose())
+        .ok()
+        .and_then(|source| {
+            let bytes = source.byte_len();
+            StreamDecoder::open(Box::new(source), None)
+                .ok()
+                .map(|decoder| (decoder, bytes))
+        });
+    let Some((decoder, bytes)) = opened else {
+        tracing::warn!("a saved song could not be opened; it is marked unsaved");
+        store.mark_unsaved(video);
+        return None;
+    };
+    let probed = decoder.info();
+    let info = StreamInfo {
+        origin: Origin::YoutubeMusic,
+        codec: probed.codec,
+        bitrate_kbps: measured_kbps(bytes, probed.duration),
+        format: Some(probed.format),
+    };
+    Some(Prepared {
+        decoder,
+        info,
+        playback: LocalPlayback::default(),
+    })
+}
+
+/// `bytes * 8 / duration` in kbps, rounded. `None` (shown as "Unknown") when either is missing
+/// or the duration is zero.
+fn measured_kbps(bytes: Option<u64>, duration: Option<Duration>) -> Option<u32> {
+    let millis = duration?.as_millis();
+    if millis == 0 {
+        return None;
+    }
+    // bits per millisecond is kbit per second.
+    let kbps = (u128::from(bytes?) * 8 + millis / 2) / millis;
+    u32::try_from(kbps).ok()
 }
 
 /// Probe an opened YouTube stream and describe it for the signal path.
@@ -180,5 +236,33 @@ fn local_info(decoder: &StreamDecoder) -> StreamInfo {
         codec: d.codec,
         bitrate_kbps: None,
         format: Some(d.format),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use super::measured_kbps;
+
+    #[test]
+    fn the_measured_bitrate_is_bytes_times_8_over_the_duration() {
+        let minute = Some(Duration::from_mins(1));
+        assert_eq!(measured_kbps(Some(1_200_000), minute), Some(160));
+        assert_eq!(
+            measured_kbps(Some(1_000), Some(Duration::from_millis(3))),
+            Some(2667)
+        );
+        assert_eq!(measured_kbps(None, minute), None, "no size: Unknown");
+        assert_eq!(
+            measured_kbps(Some(1_000), None),
+            None,
+            "no duration: Unknown"
+        );
+        assert_eq!(measured_kbps(Some(1_000), Some(Duration::ZERO)), None);
+        assert_eq!(
+            measured_kbps(Some(u64::MAX), Some(Duration::from_millis(1))),
+            None
+        );
     }
 }

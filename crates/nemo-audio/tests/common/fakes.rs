@@ -3,6 +3,7 @@
 
 use std::collections::HashMap;
 use std::io::{self, Read, Seek, SeekFrom};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
@@ -14,6 +15,7 @@ use nemo_audio::sink::{AudioSink, RenderCallback, SinkError, SinkFactory};
 use nemo_audio::source::MemorySource;
 use nemo_core::BoxFuture;
 use nemo_core::audio::{AudioFormat, Codec, Origin, OutputInfo, OutputMode, StreamInfo};
+use nemo_core::downloads::{CachedAudio, DownloadError, OfflineStore};
 use nemo_core::library::LocalTrackLookup;
 use nemo_core::player::{PlayerCommand, PlayerEvent};
 use nemo_core::secret::Secret;
@@ -25,6 +27,74 @@ use nemo_core::track::{Artwork, Track, TrackId, VideoId};
 /// Serves a video id from a map of in-memory files. Unknown ids are "not available".
 pub struct FakeResolver {
     pub known: Vec<String>,
+}
+
+/// A [`FakeResolver`] that counts every resolve and warm hint, for the offline-cache tests.
+pub struct CountingResolver {
+    pub inner: FakeResolver,
+    pub calls: Arc<AtomicUsize>,
+}
+
+impl StreamResolver for CountingResolver {
+    fn resolve<'a>(
+        &'a self,
+        video: &'a VideoId,
+    ) -> BoxFuture<'a, Result<ResolvedStream, StreamError>> {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        self.inner.resolve(video)
+    }
+
+    fn warm(&self, _video: &VideoId) {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+    }
+}
+
+/// An offline cache holding saved files by video id. It states Opus at 160 kbps for every
+/// file, as the index would, so a test can tell the stated facts from the measured ones.
+/// Records the songs the player marks unsaved.
+pub struct FakeOffline {
+    pub files: HashMap<String, PathBuf>,
+    pub unsaved: Mutex<Vec<String>>,
+}
+
+impl FakeOffline {
+    pub fn new(files: Vec<(String, PathBuf)>) -> Arc<Self> {
+        Arc::new(Self {
+            files: files.into_iter().collect(),
+            unsaved: Mutex::new(Vec::new()),
+        })
+    }
+}
+
+impl OfflineStore for FakeOffline {
+    fn open(&self, video: &VideoId) -> Option<CachedAudio> {
+        self.files.get(video.as_str()).map(|path| CachedAudio {
+            path: Secret::new(path.clone()),
+            info: StreamInfo {
+                origin: Origin::YoutubeMusic,
+                codec: Codec::Opus,
+                bitrate_kbps: Some(160),
+                format: None,
+            },
+        })
+    }
+
+    fn segments(&self, _video: &VideoId) -> Option<Vec<Segment>> {
+        None
+    }
+
+    fn mark_unsaved(&self, video: &VideoId) {
+        self.unsaved
+            .lock()
+            .expect("unsaved lock")
+            .push(video.as_str().to_owned());
+    }
+
+    fn record_play(&self, _video: &VideoId) {}
+
+    fn wipe(&self) -> Result<u64, DownloadError> {
+        Ok(0)
+    }
 }
 
 impl StreamResolver for FakeResolver {
@@ -223,6 +293,8 @@ pub struct Rig {
     pub opened: Arc<AtomicUsize>,
     pub events: Box<dyn EventReceiver>,
     pub seen: Vec<PlayerEvent>,
+    /// Resolve calls and warm hints the player made.
+    pub resolver_calls: Arc<AtomicUsize>,
 }
 
 /// Device and source settings for [`rig`].
@@ -237,6 +309,8 @@ pub struct RigOptions {
     pub local: Option<Arc<dyn LocalTrackLookup>>,
     /// The `ReplayGain` setting the test changes. `None` keeps it off.
     pub replay_gain: Option<ReplayGainSwitch>,
+    /// Saved songs (offline cache).
+    pub offline: Option<Arc<dyn OfflineStore>>,
 }
 
 impl Default for RigOptions {
@@ -252,6 +326,7 @@ impl Default for RigOptions {
             segments: None,
             local: None,
             replay_gain: None,
+            offline: None,
         }
     }
 }
@@ -260,12 +335,17 @@ impl Default for RigOptions {
 pub fn rig(streams: Vec<(String, Vec<u8>)>, options: RigOptions) -> Rig {
     let capture = Arc::new(Mutex::new(Vec::new()));
     let opened = Arc::new(AtomicUsize::new(0));
+    let resolver_calls = Arc::new(AtomicUsize::new(0));
     let deps = PlayerDeps {
-        resolver: Arc::new(FakeResolver {
-            known: streams.iter().map(|(id, _)| id.clone()).collect(),
+        resolver: Arc::new(CountingResolver {
+            inner: FakeResolver {
+                known: streams.iter().map(|(id, _)| id.clone()).collect(),
+            },
+            calls: Arc::clone(&resolver_calls),
         }),
         request: StreamRequest::default(),
         local: options.local,
+        offline: options.offline,
         opener: Arc::new(FakeOpener {
             files: streams.into_iter().collect(),
             chunk: options.chunk,
@@ -286,6 +366,7 @@ pub fn rig(streams: Vec<(String, Vec<u8>)>, options: RigOptions) -> Rig {
         opened,
         events,
         seen: Vec::new(),
+        resolver_calls,
     }
 }
 

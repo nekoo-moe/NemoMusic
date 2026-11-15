@@ -101,7 +101,7 @@ Cross-spec ids written `<spec>#?` name the owner's task by its ADR 0004 Decision
   - Wave: 2
   - Checks: service tests over a temp folder; `state` answers without SQL on the hot path; events arrive in order.
 
-- [ ] 13. Play saved songs from the cache
+- [x] 13. Play saved songs from the cache
   - Crate and files: `nemo-audio`: `src/prepare.rs` (`PrepareDeps.offline`), `tests/bit_exact.rs`, `tests/rt_no_alloc.rs`. Touches nemo-audio/src/prepare.rs; lands after local-library#19 and local-library#21, one at a time.
   - Does: For a YouTube track, `prepare()` asks `OfflineStore::open` before the resolver; a hit opens `FileSource` and `StreamDecoder::open(source, None)` with no lookup and no audio request. The badge uses the probed codec and `bytes * 8 / duration`, "Unknown" when either is missing, and `quality_class` stays Lossy (never Lossless, HD or Hi-Res). A failed open or probe calls `mark_unsaved`; online it falls back to the stream, offline it shows an error. Only this code calls `Secret::expose` on the path.
   - _Requirements: 3, 13, 15, 16, 24_

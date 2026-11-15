@@ -290,3 +290,45 @@ fn replay_gain_off_or_untagged_keeps_the_player_path_bit_exact() {
         std::fs::remove_file(path).expect("cleanup");
     }
 }
+
+/// The offline cache: a saved copy of a song plays through the player bit for bit like the
+/// streamed copy, and a cache that does not hold the song leaves streaming unchanged.
+#[test]
+fn a_saved_copy_plays_like_the_streamed_copy() {
+    use std::time::Duration;
+
+    use common::fakes::{FakeOffline, RigOptions, rig, video_id, video_track};
+    use nemo_core::player::{PlayState, PlayerCommand, PlayerEvent};
+
+    let play = |streams: Vec<(String, Vec<u8>)>, saved: Vec<(String, std::path::PathBuf)>| {
+        let mut r = rig(
+            streams,
+            RigOptions {
+                offline: Some(FakeOffline::new(saved)),
+                ..RigOptions::default()
+            },
+        );
+        r.send(PlayerCommand::Play(video_track(1)));
+        r.wait_event("the end", Duration::from_secs(20), |e| {
+            *e == PlayerEvent::StateChanged(PlayState::Stopped)
+        });
+        r.captured()
+    };
+    for bits in [16, 24] {
+        let (path, source) = temp_wav(bits, "saved");
+        let decoded = decode_file(&path).expect("decode");
+        let bytes = std::fs::read(&path).expect("read");
+        let streamed = play(vec![(video_id(1), bytes)], Vec::new());
+        let saved = play(Vec::new(), vec![(video_id(1), path.clone())]);
+        for (name, out) in [("streamed", &streamed), ("saved", &saved)] {
+            let got = out.get(..source.len()).expect("the whole song played");
+            let same = got
+                .iter()
+                .zip(&decoded.samples)
+                .all(|(a, b)| a.to_bits() == b.to_bits());
+            assert!(same, "{bits}-bit {name} copy changed");
+            assert_eq!(to_ints(got, bits), source);
+        }
+        std::fs::remove_file(path).expect("cleanup");
+    }
+}
