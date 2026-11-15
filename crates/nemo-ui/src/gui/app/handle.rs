@@ -60,6 +60,7 @@ impl App {
                 }
                 self.sync_viewport()
             }
+            Message::Rescaled(factor) => self.rescale(factor),
             Message::TogglePane => {
                 self.pane_open = !self.pane_open;
                 self.pane_user_set = true;
@@ -180,7 +181,11 @@ impl App {
                     .insert(key, entry, |e| matches!(e, ArtEntry::Loading));
                 Vec::new()
             }
-            Message::Cover { track, built } => self.on_cover(track, built),
+            Message::Cover {
+                track,
+                scale,
+                built,
+            } => self.on_cover(track, scale, built),
             Message::Lyrics {
                 track,
                 lookup,

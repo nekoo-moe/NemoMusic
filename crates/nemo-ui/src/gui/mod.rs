@@ -35,11 +35,14 @@ pub fn run(backend: Backend, options: UiOptions) -> iced::Result {
                 jobs.into_iter()
                     .map(|j| iced::Task::perform(app::run_job(j, b.clone()), |m| m)),
             );
-            // Ask for the real window size once; resize events keep it current afterwards.
+            // Ask for the real window size and scale once; events keep them current afterwards.
             let size = iced::window::oldest()
                 .and_then(iced::window::size)
                 .map(app::Message::Resized);
-            (app, iced::Task::batch([jobs, size]))
+            let scale = iced::window::oldest()
+                .and_then(iced::window::scale_factor)
+                .map(app::Message::Rescaled);
+            (app, iced::Task::batch([jobs, size, scale]))
         },
         App::update,
         App::view,

@@ -4,7 +4,7 @@ use iced::widget::{image, stack};
 use iced::{Element, Length};
 
 use crate::gui::app::{App, CoverView, Message};
-use crate::gui::views::kit::art_placeholder;
+use crate::gui::views::kit::{art_placeholder, fitted_art};
 
 /// One cover handle for a slot: the 128 px bar bake up to 96 px, the 480 px bake above.
 fn cover_handle(c: &CoverView, size: f32) -> image::Handle {
@@ -22,13 +22,9 @@ pub fn cover_art<'a>(app: &App, size: f32, radius: f32) -> Element<'a, Message> 
         return art_placeholder(size, radius, false);
     };
     let fade = app.anim.cover();
-    let draw = |handle: image::Handle, opacity: f32| {
-        image(handle)
-            .width(Length::Fixed(size))
-            .height(Length::Fixed(size))
-            .content_fit(iced::ContentFit::Fill)
-            .opacity(opacity)
-    };
+    let scale = app.scale_pct;
+    let draw =
+        |handle: image::Handle, opacity: f32| fitted_art(handle, size, radius, scale, opacity);
     match &app.prev_cover {
         Some(prev) if fade < 0.999 => stack![
             draw(cover_handle(prev, size), 1.0),
@@ -37,6 +33,6 @@ pub fn cover_art<'a>(app: &App, size: f32, radius: f32) -> Element<'a, Message> 
         .width(Length::Fixed(size))
         .height(Length::Fixed(size))
         .into(),
-        _ => draw(cover_handle(c, size), 1.0).into(),
+        _ => draw(cover_handle(c, size), 1.0),
     }
 }

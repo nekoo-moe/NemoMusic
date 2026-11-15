@@ -1,8 +1,11 @@
 //! Cover art loading with a disk cache.
 //!
-//! Remote art: [`pick_thumbnail`] chooses the size, the URL must be HTTPS on a host from
-//! [`ALLOWED_IMAGE_HOSTS`], and the bytes are stored under a file name that is the SHA-256 hex of
-//! the URL. No part of a server answer (header, redirect target, file name) is ever used in a file
+//! Remote art: [`pick_thumbnail`] chooses the listed size, [`variant::candidates`] turns it into
+//! addresses sized for the slot (rounded up to [`variant::SIZE_STEPS`]), every URL must be HTTPS on
+//! a host from [`ALLOWED_IMAGE_HOSTS`], and the bytes are stored under a file name that is the
+//! SHA-256 hex of the URL. A sized address the server does not have (404) is remembered with an
+//! empty `<hash>.missing` file, so it is not asked for again. Files of the format before sharp
+//! covers are deleted once, at the first start ([`prune`]). No part of a server answer (header, redirect target, file name) is ever used in a file
 //! name or path. Answers over [`MAX_IMAGE_BYTES`] and answers that do not look like an image are
 //! dropped. Local art: only files with an image extension are read.
 
@@ -15,6 +18,9 @@ use nemo_core::track::{Artwork, pick_thumbnail};
 
 use crate::http::{InitError, https_redirects};
 use crate::sponsorblock::sha256_hex;
+
+pub mod prune;
+pub mod variant;
 
 /// Hosts that may serve cover art. `*.` matches any subdomain (at least one label), not the bare
 /// domain. Adding a host needs owner approval (`tech.md`: every contacted host is listed).
@@ -59,10 +65,11 @@ pub fn is_allowed_image_url(url: &str) -> bool {
     })
 }
 
-/// Cache file name for a URL: SHA-256 of the URL text as lower-case hex.
+/// Cache file name for a URL: [`prune::FILE_PREFIX`] plus the SHA-256 of the URL text as
+/// lower-case hex.
 #[must_use]
 pub fn cache_file_name(url: &str) -> String {
-    sha256_hex(url.as_bytes())
+    format!("{}{}", prune::FILE_PREFIX, sha256_hex(url.as_bytes()))
 }
 
 /// JPEG, PNG, GIF or WebP by magic bytes.
@@ -99,6 +106,33 @@ fn read_local(path: &Path) -> Result<Vec<u8>, ImageError> {
     read_capped(path)
 }
 
+/// Why one download failed.
+#[derive(Debug)]
+enum Failure {
+    /// The server does not have this address (404 or 410): another candidate may exist.
+    Gone(ImageError),
+    /// The answer was an error status or not a usable image.
+    Answer(ImageError),
+    /// The request did not complete (offline, timeout): trying more addresses would only wait.
+    Transport(ImageError),
+}
+
+impl Failure {
+    fn into_error(self) -> ImageError {
+        match self {
+            Self::Gone(e) | Self::Answer(e) | Self::Transport(e) => e,
+        }
+    }
+}
+
+/// What the disk cache holds for one address.
+enum Cached {
+    Hit(Vec<u8>),
+    /// The server answered 404 for this sized address before.
+    Missing,
+    Absent,
+}
+
 #[derive(Debug)]
 struct Inner {
     client: reqwest::Client,
@@ -110,41 +144,48 @@ impl Inner {
         self.dir.join(cache_file_name(url))
     }
 
-    async fn download(&self, url: &str) -> Result<Vec<u8>, ImageError> {
+    fn missing_path(&self, url: &str) -> PathBuf {
+        self.dir.join(format!("{}.missing", cache_file_name(url)))
+    }
+
+    async fn download(&self, url: &str) -> Result<Vec<u8>, Failure> {
         let net = |text: &str| ImageError::Network(text.to_owned());
         let mut response = self.client.get(url).send().await.map_err(|e| {
-            if e.is_timeout() {
+            Failure::Transport(if e.is_timeout() {
                 net("request timed out")
             } else {
                 net("request failed")
-            }
+            })
         })?;
+        let status = response.status().as_u16();
         if !response.status().is_success() {
-            return Err(ImageError::Network(format!(
-                "HTTP status {}",
-                response.status().as_u16()
-            )));
+            let error = ImageError::Network(format!("HTTP status {status}"));
+            return Err(if matches!(status, 404 | 410) {
+                Failure::Gone(error)
+            } else {
+                Failure::Answer(error)
+            });
         }
         if response
             .content_length()
             .is_some_and(|n| n > MAX_IMAGE_BYTES)
         {
-            return Err(net("image too large"));
+            return Err(Failure::Answer(net("image too large")));
         }
         let mut body = Vec::new();
         while let Some(chunk) = response
             .chunk()
             .await
-            .map_err(|_| net("could not read the image"))?
+            .map_err(|_| Failure::Transport(net("could not read the image")))?
         {
             let total = u64::try_from(body.len() + chunk.len()).unwrap_or(u64::MAX);
             if total > MAX_IMAGE_BYTES {
-                return Err(net("image too large"));
+                return Err(Failure::Answer(net("image too large")));
             }
             body.extend_from_slice(&chunk);
         }
         if !looks_like_image(&body) {
-            return Err(net("answer is not an image"));
+            return Err(Failure::Answer(net("answer is not an image")));
         }
         Ok(body)
     }
@@ -158,27 +199,56 @@ impl Inner {
         }
     }
 
-    fn cached(&self, url: &str) -> Option<Vec<u8>> {
-        let bytes = read_capped(&self.cache_path(url)).ok()?;
-        looks_like_image(&bytes).then_some(bytes)
+    fn cached(&self, url: &str) -> Cached {
+        match read_capped(&self.cache_path(url)) {
+            Ok(bytes) if looks_like_image(&bytes) => Cached::Hit(bytes),
+            _ if self.missing_path(url).is_file() => Cached::Missing,
+            _ => Cached::Absent,
+        }
     }
 
-    async fn remote(self: Arc<Self>, url: String) -> Result<Vec<u8>, ImageError> {
-        let this = Arc::clone(&self);
-        let key = url.clone();
-        let hit = tokio::task::spawn_blocking(move || this.cached(&key))
-            .await
-            .ok()
-            .flatten();
-        if let Some(bytes) = hit {
-            return Ok(bytes);
+    /// Best effort: an empty marker so a 404 address is skipped next time.
+    fn mark_missing(&self, url: &str) {
+        // A lost marker only costs one more request later.
+        let _ = std::fs::write(self.missing_path(url), []);
+    }
+
+    /// The first of `urls` that loads, from the cache or the network. Every address but the
+    /// last is a sized guess: a 404 there is remembered and the next one is tried.
+    async fn remote(self: Arc<Self>, urls: Vec<String>) -> Result<Vec<u8>, ImageError> {
+        let last = urls.len().saturating_sub(1);
+        let mut error = ImageError::Missing;
+        for (index, url) in urls.into_iter().enumerate() {
+            let guess = index < last;
+            let this = Arc::clone(&self);
+            let key = url.clone();
+            let cached = tokio::task::spawn_blocking(move || this.cached(&key))
+                .await
+                .unwrap_or(Cached::Absent);
+            match cached {
+                Cached::Hit(bytes) => return Ok(bytes),
+                Cached::Missing if guess => continue,
+                Cached::Missing | Cached::Absent => {}
+            }
+            match self.download(&url).await {
+                Ok(bytes) => {
+                    let this = Arc::clone(&self);
+                    let to_store = bytes.clone();
+                    // Writing the cache must not delay the cover; ignore the outcome.
+                    let _ = tokio::task::spawn_blocking(move || this.store(&url, &to_store)).await;
+                    return Ok(bytes);
+                }
+                Err(Failure::Transport(e)) => return Err(e),
+                Err(Failure::Gone(e)) if guess => {
+                    let this = Arc::clone(&self);
+                    // The marker is an optimisation; ignore the outcome.
+                    let _ = tokio::task::spawn_blocking(move || this.mark_missing(&url)).await;
+                    error = e;
+                }
+                Err(failure) => error = failure.into_error(),
+            }
         }
-        let bytes = self.download(&url).await?;
-        let this = Arc::clone(&self);
-        let to_store = bytes.clone();
-        // Writing the cache must not delay the cover; ignore the outcome.
-        let _ = tokio::task::spawn_blocking(move || this.store(&url, &to_store)).await;
-        Ok(bytes)
+        Err(error)
     }
 }
 
@@ -193,12 +263,21 @@ pub struct ImageCache {
 
 impl ImageCache {
     /// Create the cache in `dir` (created when missing). `handle` is the runtime that does the work.
+    /// Old-format files in `dir` are deleted once in the background ([`prune`]).
     ///
     /// # Errors
     /// [`InitError::CacheDir`] when the directory cannot be created, [`InitError::Client`] when the
     /// HTTP client cannot be built.
     pub fn new(dir: impl Into<PathBuf>, handle: tokio::runtime::Handle) -> Result<Self, InitError> {
-        Self::build(dir.into(), handle, true)
+        let cache = Self::build(dir.into(), handle, true)?;
+        let dir = cache.inner.dir.clone();
+        // Pruning only frees space: on failure it runs again at the next start.
+        drop(
+            cache
+                .handle
+                .spawn_blocking(move || prune::prune_old_files(&dir)),
+        );
+        Ok(cache)
     }
 
     fn build(
@@ -237,9 +316,13 @@ impl ImageCache {
                 if self.check_allow_list && !is_allowed_image_url(&url) {
                     return Err(ImageError::Network("image host is not allowed".to_owned()));
                 }
+                let mut urls = variant::candidates(&url, target_px);
+                if self.check_allow_list {
+                    urls.retain(|u| is_allowed_image_url(u));
+                }
                 let inner = Arc::clone(&self.inner);
                 self.handle
-                    .spawn(inner.remote(url))
+                    .spawn(inner.remote(urls))
                     .await
                     .unwrap_or_else(|_| Err(ImageError::Network("load was cancelled".to_owned())))
             }
