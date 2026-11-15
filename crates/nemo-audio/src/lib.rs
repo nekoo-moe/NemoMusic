@@ -26,6 +26,7 @@ mod codecs;
 pub mod decoder;
 pub mod effects;
 pub mod engine;
+pub mod loudness;
 pub mod mix;
 pub mod pipeline;
 pub mod player;

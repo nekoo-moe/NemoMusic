@@ -35,6 +35,8 @@ cpal = { version = "=0.18.2", default-features = false }
 
 
 rubato = { version = "=5.0.1", default-features = false }
+# EBU R128 loudness for the opt-in ReplayGain scan (`loudness.rs`, local-library design).
+ebur128 = { version = "=0.1.11", default-features = false }
 
 [dev-dependencies]
 sha2.workspace = true
