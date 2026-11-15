@@ -1,17 +1,47 @@
-<h1 align="center">NemoMusic</h1>
-
-<p align="center">FOSS music streaming platform with fast perfomance, cross-platform native & easy to use.</p>
-
 <div align="center">
-  <img width="300" height="150" alt="badge1" src="https://github.com/user-attachments/assets/a3f8e948-470f-4b13-865b-3c304c159ab4" />
-  <img width="300" height="150" alt="badge2" src="https://github.com/user-attachments/assets/c6138556-398f-466d-822e-d1e7933eb469" />
+<h1>NemoMusic</h1>
+
+A calm FOSS desktop music player in Rust for YouTube Music and your own files,<br>with a bit-perfect output path, honest quality labels and Material 3 + Liquid Glass design.
+<br><br>
+<a href="https://github.com/nekoo-moe/NemoMusic/actions"><img src="https://github.com/nekoo-moe/NemoMusic/actions/workflows/ci.yml/badge.svg"></a>
+<a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue"></a>
+<img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-informational">
+<img src="https://img.shields.io/badge/rust-1.97-orange">
+<br><br>
+<img width="300" height="150" alt="badge1" src="https://github.com/user-attachments/assets/a3f8e948-470f-4b13-865b-3c304c159ab4" />
+<img width="300" height="150" alt="badge2" src="https://github.com/user-attachments/assets/c6138556-398f-466d-822e-d1e7933eb469" />
 </div>
 
-### 🎉 About NemoMusic
+> NemoMusic (*Nimomyūjikku*) is in early development. It runs on Windows 10/11 and Linux (x86_64). Plans and progress: [`docs/feature-wave-plan.md`](docs/feature-wave-plan.md) and [`docs/leftover-work.md`](docs/leftover-work.md).
 
-**NemoMusic** (or *Nimomyūjikku*) is a calm desktop music player for long listening sessions, written in Rust. It plays the YouTube Music catalog and your own files through an untouched output path, and it treats cover art, type and motion as part of the music.
+## Features ✨
 
-Status: early development. Runs on Windows 10/11 and Linux (x86_64).
+Working now:
+- Play YouTube Music: search, albums, artists, playlists, queue, gapless playback
+- Bit-perfect output on Windows (WASAPI exclusive) with a device picker and no resampling
+- Honest quality badge and a signal-path view: real codec, bitrate, rate and depth
+- Local files: FLAC, ALAC, WAV, AIFF, MP3, AAC, Vorbis and Opus, plus CUE sheets
+- Google sign-in, stored in the OS credential store, with library, likes, playlists and history
+- Synced lyrics from several providers (Unison, Better Lyrics, LRCLIB, your `.lrc` files), word by word where available, with a timing offset
+- SponsorBlock and ad blocking, each off by default with its own switch
+- Material 3 Expressive and Classic Now Playing styles, light and dark themes
+- Keyboard shortcuts and media keys
+
+Being built (feature wave, approved specs in `.kiro/specs/`):
+- Ten-band equalizer, AutoEq profiles, delay, reverb and crossfade, all off by default (DSP code merged, UI next)
+- ReplayGain and loudness scan for local files, off by default (merged, UI next)
+- Offline cache: save songs, albums and playlists, plus capped smart downloads
+- SoundCloud public tracks
+- Search all of YouTube, channels, live stations, comments and dislikes
+- Several accounts, preferred audio language, Premium quality (opt-in)
+- Own synced lyrics editor, romanization, lyrics translation (opt-in AI)
+- Listening stats, Last.fm scrobbling, Discord presence, OS media controls
+- Playlist import from Exportify and Soundiiz CSV files
+- Video playback through libmpv, Cast and DLNA, Listen Together rooms, song recognition
+- Apple Music-style Now Playing
+
+> **Warning**
+> NemoMusic is not made, approved or supported by Google or YouTube. It uses YouTube Music without an official API, which may break the YouTube Terms of Service. Your account could be limited, and playback can break without notice.
 
 ## What "lossless" means here
 
