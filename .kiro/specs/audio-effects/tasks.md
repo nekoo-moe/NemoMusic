@@ -42,7 +42,7 @@
   - Checks: `proptest` for parse/write round trip and for no panic on any input; refused-file cases for every `ProfileError` variant; `cargo test -p nemo-audio --test bit_exact`. Fixtures are written by hand in the AutoEq format and are not copied from AutoEq results (criterion 12; a measurer asked that its data not be published), licence noted in `fixtures/README.md`.
   - Steering: `structure.md`, `nemo-audio` ownership line: add effects (EQ, delay, reverb) and crossfade.
 
-- [ ] 6. Add the built-in presets and the preset store
+- [x] 6. Add the built-in presets and the preset store
   - Crate and files: `nemo-audio`: `src/effects/presets.rs` (new).
   - Does: Built-in Flat, Bass boost, Treble boost and Vocal as constants; Flat sets every band and the preamp to 0 dB. `PresetStore` lists, loads, saves, renames, deletes, imports and exports AutoEq-format text files in a folder that `nemo-app` passes in, reads at most 64 KiB per file, and returns `PresetError` (`Io`, `NameTaken`, `Profile`).
   - _Requirements: 8, 9, 12_
