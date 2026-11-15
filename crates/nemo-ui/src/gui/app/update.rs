@@ -171,6 +171,7 @@ impl App {
         self.last_frame = Some(now);
         let mut jobs = Vec::new();
         self.anim.step(dt);
+        self.surfaces.advance(dt);
         self.scheme_fade.advance(dt);
         self.bg_fade.advance(dt);
         for (sx, sw) in &mut self.chip_pills {
@@ -426,6 +427,7 @@ impl App {
         self.sync_anim();
         self.bg_fade.finish();
         self.anim.finish();
+        self.surfaces.finish();
     }
 
     /// Run jobs to completion on the calling thread (headless runs and tests).

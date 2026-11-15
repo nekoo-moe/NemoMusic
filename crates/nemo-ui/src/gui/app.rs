@@ -48,6 +48,7 @@ mod option;
 mod query;
 mod refresh;
 mod subscribe;
+mod surfaces;
 mod sync;
 mod update;
 
@@ -95,6 +96,8 @@ pub struct App {
     /// The cover before the current one, drawn under it while they cross-fade.
     pub(crate) prev_cover: Option<CoverView>,
     pub(crate) anim: Anim,
+    /// Enter and exit of the popovers, menus, sheets and the toast.
+    pub(crate) surfaces: surfaces::Surfaces,
     pub(crate) pane_open: bool,
     pane_user_set: bool,
     pub(crate) np_tab: NpTab,
@@ -229,6 +232,7 @@ impl App {
             cover: None,
             prev_cover: None,
             anim: Anim::new(reduced),
+            surfaces: surfaces::Surfaces::default(),
             pane_open,
             pane_user_set: false,
             np_tab: NpTab::default(),

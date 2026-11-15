@@ -373,6 +373,11 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for Fx<'_, M> {
             renderer.fill_quad(
                 renderer::Quad {
                     bounds: cover,
+                    // Rounded like the child, so a card's corners stay clean while it fades.
+                    border: Border {
+                        radius: (self.radius + 2.0).into(),
+                        ..Border::default()
+                    },
                     ..renderer::Quad::default()
                 },
                 Color {

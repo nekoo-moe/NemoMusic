@@ -91,9 +91,11 @@ pub fn spinner<'a>(size: f32, color: Color, angle: f32) -> Svg<'a> {
     icon(Icon::Spinner, size, color).rotation(iced::Radians(angle))
 }
 
-/// Wrap `content` in a tooltip that appears after 500 ms (`design.md` section 13).
+/// Wrap `content` in a tooltip that appears after 500 ms (`design.md` section 13) and fades in
+/// over `motion.fast` ([`super::fx::TipFade`]).
 pub fn tip<'a, M: 'a>(content: impl Into<Element<'a, M>>, text: &'a str) -> Element<'a, M> {
-    tooltip(
+    let delay = std::time::Duration::from_millis(500);
+    let tooltip = tooltip(
         content,
         container(label(
             text,
@@ -113,7 +115,13 @@ pub fn tip<'a, M: 'a>(content: impl Into<Element<'a, M>>, text: &'a str) -> Elem
         }),
         tooltip::Position::Top,
     )
-    .delay(std::time::Duration::from_millis(500))
+    .delay(delay);
+    super::fx::TipFade::new(
+        tooltip,
+        delay,
+        col(color::surface_container_high()),
+        shape::sm(),
+    )
     .into()
 }
 

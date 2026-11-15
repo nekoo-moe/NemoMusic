@@ -71,6 +71,7 @@ Owner direction (2026-11-10, evening): the first build looked "raw". Go full Mat
 
 ## 8. Motion (M3 motion tokens, standard scheme)
 - Springs, no overshoot by default: `spatial.fast` (stiffness 1400, damping 1.0), `spatial.default` (700, 1.0), `spatial.slow` (300, 1.0); `effects.*` (opacity/color) same stiffness, damping 1.0. Expressive overshoot (damping 0.8) only for the play button morph.
+- Floating surfaces (popovers, menus, sheets, dialogs, toasts, tooltips) enter with `motion.base` emphasized-decelerate and a rise of 8 px (sheets 16, tooltips 4), and leave with `motion.fast` emphasized-accelerate; the scrim fades with them (app-motion, 2026-11-15).
 - Duration cap for non-spring fades: `motion.fast` 100 ms, `base` 200, `slow` 400. Nothing over 400 ms. Easing fallback: emphasized-decelerate `cubic-bezier(0.05,0.7,0.1,1)` in, `cubic-bezier(0.3,0,0.8,0.15)` out, `linear` only for progress.
 - Animate only: opacity, translate <= 16 px, shape morph, accent crossfade, progress, focus ring, and the window backdrop drift of section 9 (its slow loop is the one allowed exception). Not: visualizers, other loops, marquees, anything while a menu is open.
 - Reduced motion: instant or 0 ms opacity swap, no lens or specular movement, no lyric glide (jump instead); progress keeps updating.
