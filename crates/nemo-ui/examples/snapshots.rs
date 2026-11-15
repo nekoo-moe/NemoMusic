@@ -12,6 +12,8 @@
 mod backdrop;
 #[path = "snapshots/feature.rs"]
 mod feature;
+#[path = "snapshots/lyrics_polish.rs"]
+mod lyrics_polish;
 #[path = "snapshots/np_classic.rs"]
 mod np_classic;
 #[path = "snapshots/opt_in.rs"]
@@ -87,6 +89,10 @@ fn main() {
         }
     }
     if let Err(e) = np_classic::render(&only, &out_dir) {
+        eprintln!("{e}");
+        std::process::exit(1);
+    }
+    if let Err(e) = lyrics_polish::render(&only, &out_dir) {
         eprintln!("{e}");
         std::process::exit(1);
     }

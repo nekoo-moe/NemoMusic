@@ -142,7 +142,9 @@ impl App {
         if !self.account.open {
             self.anim.sheet.snap(0.0);
         }
-        let line = self.ui.active_lyric();
+        // The line drawn as active: none while the intro or gap note waits, so the last line
+        // cross-fades back to the rest when a long break starts.
+        let line = self.ui.lyric_focus().active;
         if line != self.last_line {
             self.prev_line = self.last_line;
             self.last_line = line;

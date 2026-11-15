@@ -10,11 +10,10 @@ use super::super::app::{App, CompactTab, Message};
 use super::super::assets::Icon;
 use super::super::style::{animated, col, fit, gap, icon_button, label, label_w};
 use super::bar::{badge, cover_art, seek_row, transport};
-use super::lyrics::{self as lyr, Look};
+use super::lyrics as lyr;
 use crate::format;
 use crate::keys::{KeyAction, LYRICS_OFFSET_STEP_MS};
 use crate::layout;
-use crate::lyrics_view::LineRole;
 use crate::settings::NowPlayingStyle;
 use crate::state::{Event, LyricsState};
 use crate::theme::{color, shape, type_scale};
@@ -274,39 +273,8 @@ fn compact_lyrics(app: &App, width: f32) -> Element<'_, Message> {
     if doc.instrumental {
         return lyr::status_text("Instrumental", None);
     }
-    let active = app.ui.active_lyric();
-    let center = active.unwrap_or(0);
-    let first = center
-        .saturating_sub(1)
-        .min(doc.lines.len().saturating_sub(3));
-    // One step smaller than the wide layout so three lines fit above the footer.
-    let style = |role: LineRole| match role {
-        LineRole::Active => type_scale::TITLE_MD,
-        _ => type_scale::BODY_MD,
-    };
-    let role_of = |i: usize, at: Option<usize>| {
-        if at.is_some() {
-            LineRole::of(i, at)
-        } else {
-            LineRole::Other
-        }
-    };
-    let before = if app.anim.line() < 1.0 {
-        app.prev_line
-    } else {
-        active
-    };
-    let mut c = column![].align_x(Alignment::Center).width(Length::Fill);
-    for (i, line) in doc.lines.iter().enumerate().skip(first).take(3) {
-        let (from, to) = (role_of(i, before), role_of(i, active));
-        let look = Look {
-            from: (from, style(from)),
-            to: (to, style(to)),
-        };
-        c = c.push(lyr::lyric_line(app, line, width, look).0);
-    }
     column![
-        c,
+        lyr::three_lines(app, doc, width),
         Space::new().height(Length::Fill),
         lyr::footer(app, width),
         Space::new().height(gap::SM)
