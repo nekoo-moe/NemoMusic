@@ -12,6 +12,7 @@ use crate::frame_stats::FrameStats;
 use crate::layout;
 use crate::lru::{ART_CAPACITY, Lru};
 use crate::palette::Seed;
+use crate::refresh::Refresh;
 use crate::route::Route;
 use crate::scheme::{
     AccentIntensity, BaseMode, BgFade, CornerStyle, SchemeFade, ThemeChoice, bg_colors,
@@ -41,13 +42,14 @@ mod message;
 mod model;
 mod option;
 mod query;
+mod refresh;
 mod subscribe;
 mod sync;
 mod update;
 
 pub use art::{ArtEntry, ArtShape, ArtSpec, CanvasView, CoverView, TILE_RADIUS};
 pub use job::{art_key, run_job};
-pub use message::{AccountBundle, CoverBuilt, Job, Message};
+pub use message::{AccountBundle, CoverBuilt, Job, Message, RefreshData};
 pub use model::{
     AccountMsg, AccountUi, CompactTab, DetailData, DetailKey, DetailKind, DetailState, HomeFilter,
     HomePhase, HomeState, LibFilter, ListSource, NpTab, SettingsSection,
@@ -135,8 +137,11 @@ pub struct App {
     pub(crate) lib_tab: LibTab,
     pub(crate) lib_sort: LibSort,
     pub(crate) lib_layout: LibLayout,
-    /// Account library from the parent (hook); `None` until it arrives.
+    /// The account library (from the account calls, or the parent's hook); `None` until it
+    /// arrives, and again after the account changed. Read it through [`App::account_lists`].
     pub(crate) account_library: Option<Arc<AccountLibrary>>,
+    /// The last account load gave no library while signed in (the sidebar says so).
+    pub(crate) library_failed: bool,
     /// Shelves for Explore from the parent (hook).
     pub(crate) explore_shelves: Vec<Shelf>,
     /// Tools panel, shortcut sheet and "Create playlist" sheet.
@@ -169,7 +174,8 @@ pub struct App {
     /// Daily sections: the data, the built sections and what they were built from.
     pub(crate) daily: DailyData,
     pub(crate) daily_sections: Vec<DailySection>,
-    daily_requested: Option<bool>,
+    /// The reload after a sign-in or a switch, and on Refresh (library-refresh spec).
+    pub(crate) refresh: Refresh,
     daily_key: Option<(usize, bool, u64, usize, usize)>,
     daily_gen: usize,
     /// The local day (seed and greeting).
@@ -258,6 +264,7 @@ impl App {
             lib_sort: LibSort::default(),
             lib_layout: LibLayout::default(),
             account_library: None,
+            library_failed: false,
             explore_shelves: Vec::new(),
             tools_open: false,
             shortcuts_open: false,
@@ -277,7 +284,7 @@ impl App {
             pending_play: None,
             daily: DailyData::default(),
             daily_sections: Vec::new(),
-            daily_requested: None,
+            refresh: Refresh::default(),
             daily_key: None,
             daily_gen: 0,
             day: DayContext::from_unix(

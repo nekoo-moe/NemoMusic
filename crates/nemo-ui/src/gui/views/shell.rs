@@ -16,6 +16,8 @@ use crate::theme::{color, shape};
 
 mod nav;
 mod sidebar;
+#[cfg(test)]
+pub(crate) use sidebar::{hint as sidebar_hint, row_titles as sidebar_titles};
 mod topbar;
 
 use nav::left_pane;

@@ -5,6 +5,7 @@ use super::art::ArtEntry;
 use super::message::{Job, Message};
 use super::model::{DetailKey, DetailState, HomePhase};
 use super::{ART_PARALLEL, App, GATE_MESSAGE, ROWS_STEP};
+use crate::refresh::Owner;
 use crate::state::{Effect, Event};
 use std::collections::VecDeque;
 
@@ -90,9 +91,14 @@ impl App {
             self.library_requested = true;
             jobs.push(Job::Library);
         }
-        if self.ui.youtube_enabled() && self.daily_requested != Some(self.signed_in()) {
-            self.daily_requested = Some(self.signed_in());
-            jobs.push(Job::AccountData);
+        if self.ui.youtube_enabled() {
+            if self.refresh.ready() {
+                jobs.extend(self.watch_account());
+            } else {
+                // The start-up load. Later account changes reload through `self.refresh`.
+                self.refresh.begin(Owner::of(&self.backend.account.state()));
+                jobs.push(Job::AccountData);
+            }
         }
         if self.ui.youtube_enabled() && self.home.phase == HomePhase::Idle {
             self.home.phase = HomePhase::Loading;

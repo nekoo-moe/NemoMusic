@@ -13,7 +13,6 @@ use crate::state::{Event, LyricsState};
 use crate::{home, layout};
 use iced::widget::image;
 use nemo_core::track::Artwork;
-use std::sync::Arc;
 use std::time::Instant;
 
 impl App {
@@ -45,6 +44,7 @@ impl App {
                 Some(keys::KeyAction::FullScreen) => self.handle(Message::ToggleFullScreen),
                 Some(keys::KeyAction::Mini) => self.handle(Message::ToggleMini),
                 Some(keys::KeyAction::Tools) => self.handle(Message::Tools(!self.tools_open)),
+                Some(keys::KeyAction::Refresh) => self.refresh_msg(),
                 Some(keys::KeyAction::LikeCurrent) => match self.ui.snapshot.current.clone() {
                     Some(t) => self.handle(Message::ToggleLike(t)),
                     None => Vec::new(),
@@ -94,6 +94,12 @@ impl App {
                 }
             }
             Message::Account(msg) => self.account_msg(msg),
+            // A reload replaced the shelves already: a late start-up answer is older.
+            Message::HomeFeed(_) | Message::HomeSeed { .. }
+                if self.home.phase == HomePhase::Done =>
+            {
+                Vec::new()
+            }
             Message::HomeFeed(result) => match result {
                 Ok(shelves) if !shelves.is_empty() => {
                     self.home.shelves.clone_from(shelves.as_ref());
@@ -411,20 +417,19 @@ impl App {
                 self.page_seeds.insert(key, seed);
                 Vec::new()
             }
+            // The start-up bundle; once a reload ran, its answer is newer than this one.
+            Message::AccountData(_) if self.refresh.generation() > 0 => Vec::new(),
             Message::AccountData(b) => {
                 self.daily = b.daily.clone();
                 self.daily_gen += 1;
-                let lib = &b.library;
-                let any = !(lib.playlists.is_empty()
-                    && lib.albums.is_empty()
-                    && lib.artists.is_empty()
-                    && lib.songs.is_empty());
-                if self.signed_in() && any {
-                    self.account_library = Some(Arc::new(b.library.clone()));
+                if self.signed_in() {
+                    self.set_account_library(&b);
                 }
                 Vec::new()
             }
             Message::SearchFor(q) => self.dispatch(Event::Go(Route::Search(q))),
+            Message::Refresh => self.refresh_msg(),
+            Message::Refreshed { generation, data } => self.on_refreshed(generation, data),
             Message::TimerTick | Message::Noop => Vec::new(),
         }
     }
