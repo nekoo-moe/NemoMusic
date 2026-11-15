@@ -21,7 +21,7 @@ Cross-spec ids written `<spec>#?` point at the task in that spec that adds the n
   - Checks: `RoomError` `Display` holds no display name, room code or token.
   - Steering: ADR 0004 Decision 2 adds `RoomControl`, and notes that `nemo-together` takes `Arc<dyn PlayerControl>` from `nemo-app`.
 
-- [ ] 3. Create the nemo-together crate and validate server addresses
+- [x] 3. Create the nemo-together crate and validate server addresses
   - Crate and files: new `crates/nemo-together/` (`Cargo.toml`, `src/lib.rs`, `src/address.rs`), workspace member entry.
   - Does: Adds the crate with `#![forbid(unsafe_code)]`, `#![warn(missing_docs)]` and `[lints] workspace = true`, depending on `nemo-core` only. `ServerAddress::parse` accepts `wss://host[:port]/path`, and `ws://` only for loopback, private-range and `.local` hosts. No default address exists anywhere in the crate.
   - _Requirements: 3_
