@@ -257,7 +257,10 @@ fn shows_replaces_and_clears_on_a_fake_server() {
     assert_eq!(first.app_name, "NemoMusic");
     assert_eq!(first.replaces_id, 0);
     assert_eq!(first.app_icon, "nemomusic");
-    assert_eq!(first.summary, "Tom &amp; Jerry - Live");
+    assert_eq!(
+        first.summary, "Tom & Jerry - Live",
+        "the summary is plain text"
+    );
     assert_eq!(first.body, "Tom &amp; Jerry &lt;3");
     assert_eq!(first.actions, ["default", "Open"]);
     assert_eq!(first.expire_timeout, -1);

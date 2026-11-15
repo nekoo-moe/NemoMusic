@@ -83,7 +83,7 @@ impl NotifyArgs {
 pub(super) fn notify_args(n: &OsNotification, replaces_id: u32, caps: Capabilities) -> NotifyArgs {
     NotifyArgs {
         replaces_id,
-        summary: n.title.clone(),
+        summary: unescape_markup(&n.title),
         body: escape_markup(&n.body),
         actions: if caps.actions {
             vec![DEFAULT_ACTION, DEFAULT_ACTION_LABEL]
@@ -115,12 +115,41 @@ pub(super) fn escape_markup(text: &str) -> String {
     out
 }
 
+/// Undo the escapes `compose::sanitize` writes (`&amp;`, `&lt;`, `&gt;`) in one pass, so
+/// `&amp;lt;` becomes `&lt;` and not `<`. The freedesktop spec defines markup for the body only;
+/// the summary is plain text, so an escaped title would show `&amp;` literally. Control
+/// characters stay removed and the length cut stays, because both happened in `sanitize`.
+pub(super) fn unescape_markup(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(at) = rest.find('&') {
+        out.push_str(&rest[..at]);
+        rest = &rest[at..];
+        let (plain, len) = if rest.starts_with("&amp;") {
+            ('&', 5)
+        } else if rest.starts_with("&lt;") {
+            ('<', 4)
+        } else if rest.starts_with("&gt;") {
+            ('>', 4)
+        } else {
+            ('&', 1)
+        };
+        out.push(plain);
+        rest = &rest[len..];
+    }
+    out.push_str(rest);
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use nemo_core::notify::{NotificationGroup, OsNotification};
     use zbus::zvariant::Value;
 
-    use super::{APP_ICON, APP_NAME, Capabilities, DESKTOP_ENTRY, escape_markup, notify_args};
+    use super::{
+        APP_ICON, APP_NAME, Capabilities, DESKTOP_ENTRY, escape_markup, notify_args,
+        unescape_markup,
+    };
     use crate::notify::compose::sanitize;
 
     fn note(title: &str, body: &str) -> OsNotification {
@@ -179,5 +208,29 @@ mod tests {
             notify_args(&n, 0, Capabilities::default()).body,
             "Tom &amp; Jerry &lt;3"
         );
+    }
+
+    #[test]
+    fn the_summary_is_plain_text_and_the_body_stays_escaped() {
+        // Both go through `sanitize`, as `compose::release_notification` does.
+        let n = note(
+            &sanitize("Tom & Jerry <3\u{7}", 100),
+            &sanitize("Tom & Jerry <3", 200),
+        );
+        let args = notify_args(&n, 0, Capabilities::default());
+        assert_eq!(
+            args.summary, "Tom & Jerry <3",
+            "unescaped, control character still gone"
+        );
+        assert_eq!(args.body, "Tom &amp; Jerry &lt;3");
+        for (raw, plain) in [
+            ("AT&T", "AT&T"),
+            ("&amp; literally", "&amp; literally"),
+            ("<b>bold</b>", "<b>bold</b>"),
+            ("a & b &", "a & b &"),
+            ("", ""),
+        ] {
+            assert_eq!(unescape_markup(&sanitize(raw, 100)), plain, "{raw}");
+        }
     }
 }

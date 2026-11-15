@@ -14,8 +14,9 @@
 //!
 //! Text: the caller passes text that `compose::sanitize` already cleaned and escaped. The body
 //! is escaped again here in a way that leaves those escapes alone, so a body is always escaped
-//! whether or not the server lists `body-markup`. The summary is sent as given. Notification
-//! text is never logged, only its length at `debug`.
+//! whether or not the server lists `body-markup`. The summary is plain text in the freedesktop
+//! spec (markup is defined for the body only), so its escapes are undone; control characters
+//! stay removed. Notification text is never logged, only its length at `debug`.
 //!
 //! No session bus, or no notification server on it, gives
 //! `Unavailable(NotifyUnavailable::NoService)`. A failed `Notify` is dropped, not retried.
