@@ -9,7 +9,7 @@
   - Checks: unit tests for the defaults, the range clamps and that `format!("{:?}", id)` does not contain the ID.
   - Steering: `structure.md`, `nemo-core` ownership line: add `output.rs`. ADR 0004: no edit (Decision 4 row 5 already lists the types).
 
-- [ ] 2. Extend the sink traits for health, reporting and device lists
+- [x] 2. Extend the sink traits for health, reporting and device lists
   - Crate and files: `nemo-audio`: `src/sink.rs`, `src/lib.rs`.
   - Does: Adds `SinkHealth { Ok, Lost, Taken }`, `AudioSink::health()` (default `Ok`), `OpenedSink`, `OutputSelection`, and `SinkFactory::{open_reported, select, list_devices}` with defaults that keep `CpalSinkFactory` and the test fakes unchanged. `SinkError` gains `DeviceBusy`, `ExclusiveRefused(String)` and `FormatNotAccepted`.
   - _Requirements: none (groundwork)_
