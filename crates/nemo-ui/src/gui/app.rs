@@ -49,7 +49,9 @@ mod subscribe;
 mod sync;
 mod update;
 
-pub use art::{ArtEntry, ArtShape, ArtSpec, CanvasView, CoverView, TILE_RADIUS};
+pub use art::{
+    ArtEntry, ArtFit, ArtShape, ArtSpec, CanvasView, CoverView, TILE_RADIUS, art_fit, handle_px,
+};
 pub use job::{art_key, run_job};
 pub use message::{AccountBundle, CoverBuilt, ExploreMsg, Job, Message, RefreshData};
 pub use model::{
@@ -75,6 +77,8 @@ pub struct App {
     pub(crate) backend: Backend,
     pub(crate) ui: UiState,
     pub(crate) window: Size,
+    /// Window scale factor in percent (100 is 1x); covers are fetched at slot times this.
+    pub(crate) scale_pct: u32,
     pub(crate) home: HomeState,
     pub(crate) local_albums: Vec<AlbumSummary>,
     pub(crate) local_tracks: Vec<Track>,
@@ -207,6 +211,7 @@ impl App {
             backend,
             ui,
             window: Size::new(options.window_size.0, options.window_size.1),
+            scale_pct: 100,
             home: HomeState::default(),
             local_albums: Vec::new(),
             local_tracks: Vec::new(),

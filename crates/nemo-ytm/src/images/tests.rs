@@ -106,14 +106,13 @@ fn allow_list_accepts_only_listed_https_hosts() {
 
 #[test]
 fn cache_name_is_the_sha256_hex_of_the_url() {
-    // NIST vector: SHA-256("abc").
+    // NIST vector: SHA-256("abc"), behind the format prefix.
     assert_eq!(
         cache_file_name("abc"),
-        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        "v2-ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
     );
     let name = cache_file_name("https://i.ytimg.com/a/../b?x=y/z");
-    assert_eq!(name.len(), 64);
-    assert!(name.bytes().all(|b| b.is_ascii_hexdigit()));
+    assert!(prune::is_current_name(&name), "{name}");
 }
 
 #[test]
@@ -240,4 +239,58 @@ fn the_cache_directory_is_created() {
     let nested = dir.0.join("a").join("b");
     ImageCache::new(&nested, rt.handle().clone()).expect("cache");
     assert!(nested.is_dir());
+}
+
+#[test]
+fn a_missing_sized_address_falls_back_and_is_not_asked_for_again() {
+    let dir = TempDir::new("variants");
+    let body = png_body(50);
+    let payload = body.clone();
+    let server = TestServer::start(move |request, _| match request.path.as_str() {
+        "/maxresdefault.jpg" => Response::new(404, Vec::new()),
+        "/sddefault.jpg" => Response::new(200, payload.clone()),
+        _ => Response::new(500, Vec::new()),
+    });
+    let rt = runtime();
+    let cache = ImageCache::build(dir.0.clone(), rt.handle().clone(), false).expect("cache");
+    let urls = vec![
+        server.url("/maxresdefault.jpg"),
+        server.url("/sddefault.jpg"),
+        server.url("/listed.jpg"),
+    ];
+    let first = rt.block_on(Arc::clone(&cache.inner).remote(urls.clone()));
+    assert_eq!(first, Ok(body.clone()));
+    assert_eq!(server.requests().len(), 2);
+
+    // The 404 is remembered and the found image is cached: no request the second time.
+    let again = ImageCache::build(dir.0.clone(), rt.handle().clone(), false).expect("cache");
+    assert_eq!(rt.block_on(Arc::clone(&again.inner).remote(urls)), Ok(body));
+    assert_eq!(server.requests().len(), 2);
+}
+
+#[test]
+fn the_listed_address_is_the_last_resort_and_its_error_is_reported() {
+    let dir = TempDir::new("last");
+    let server = TestServer::start(|_, _| Response::new(404, Vec::new()));
+    let rt = runtime();
+    let cache = ImageCache::build(dir.0.clone(), rt.handle().clone(), false).expect("cache");
+    let urls = vec![server.url("/guess.jpg"), server.url("/listed.jpg")];
+    let result = rt.block_on(Arc::clone(&cache.inner).remote(urls));
+    assert_eq!(
+        result,
+        Err(ImageError::Network("HTTP status 404".to_owned()))
+    );
+    assert_eq!(server.requests().len(), 2);
+    // Only the guessed address gets a marker; the listed one is asked for again next time.
+    let names: Vec<String> = std::fs::read_dir(&dir.0)
+        .expect("read dir")
+        .map(|e| e.expect("entry").file_name().to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(
+        names,
+        vec![format!(
+            "{}.missing",
+            cache_file_name(&server.url("/guess.jpg"))
+        )]
+    );
 }

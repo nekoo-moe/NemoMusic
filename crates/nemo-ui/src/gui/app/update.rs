@@ -242,18 +242,43 @@ impl App {
         jobs
     }
 
+    /// The window scale factor changed: covers are asked for again at the new size. Grid
+    /// pictures follow by themselves (the scale is part of their cache key).
+    pub(super) fn rescale(&mut self, factor: f32) -> Vec<Job> {
+        let pct = super::art::scale_pct(factor);
+        if pct == self.scale_pct {
+            return Vec::new();
+        }
+        self.scale_pct = pct;
+        self.ui
+            .snapshot
+            .current
+            .clone()
+            .map(|track| vec![Job::Cover(track, pct)])
+            .unwrap_or_default()
+    }
+
     pub(super) fn on_cover(
         &mut self,
         track: TrackId,
+        scale: u32,
         built: Result<Arc<CoverBuilt>, String>,
     ) -> Vec<Job> {
-        let is_current = self.ui.snapshot.current.as_ref().map(|t| &t.id) == Some(&track);
+        // A bake for an older window scale is dropped: the one for the current scale follows.
+        let is_current = scale == self.scale_pct
+            && self.ui.snapshot.current.as_ref().map(|t| &t.id) == Some(&track);
         match built {
             Ok(b) if is_current => {
                 let handle =
                     |p: &Baked| image::Handle::from_rgba(p.width, p.height, p.rgba.clone());
+                let same = self.cover.as_ref().is_some_and(|c| c.track == track);
                 self.prev_cover = self.cover.take();
-                self.anim.restart_cover();
+                if same {
+                    // A sharper bake of the same cover (new scale): swap it without a fade.
+                    self.prev_cover = None;
+                } else {
+                    self.anim.restart_cover();
+                }
                 self.cover = Some(CoverView {
                     track: track.clone(),
                     art: handle(&b.art),
@@ -376,6 +401,12 @@ impl App {
         let mut subs = vec![
             keyboard::listen().filter_map(map_key),
             window::resize_events().map(|(_, size)| Message::Resized(size)),
+            iced::event::listen_with(|event, _, _| match event {
+                iced::Event::Window(window::Event::Rescaled(factor)) => {
+                    Some(Message::Rescaled(factor))
+                }
+                _ => None,
+            }),
             Subscription::run_with(PlayerKey(Arc::clone(&self.backend.player)), player_events),
         ];
         if self.sleep.is_some() {
