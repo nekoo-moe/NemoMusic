@@ -3,7 +3,7 @@
 use super::account::shuffle;
 use super::art::ArtEntry;
 use super::message::{Job, Message};
-use super::model::{AccountMsg, DetailData, DetailState, HomePhase, ListSource, NpTab};
+use super::model::{AccountMsg, DetailData, DetailKey, DetailState, HomePhase, ListSource, NpTab};
 use super::option::{CreateMsg, SleepState};
 use super::{App, ROWS_STEP};
 use crate::explore::MOODS;
@@ -162,9 +162,9 @@ impl App {
                 self.details.insert(key.clone(), state);
                 if self.pending_play.as_ref() == Some(&key) {
                     self.pending_play = None;
+                    let shuffled = std::mem::take(&mut self.pending_shuffle);
                     if ready {
-                        let tracks = self.tracks_of(&ListSource::Detail(key));
-                        jobs.extend(self.dispatch(Event::PlayTracks { tracks, start: 0 }));
+                        jobs.extend(self.play_loaded(key, shuffled));
                     }
                 }
                 jobs
@@ -312,18 +312,8 @@ impl App {
                 self.lib_layout = l;
                 Vec::new()
             }
-            Message::PlayCollection(key) => {
-                if let Some(DetailState::Ready(_)) = self.details.get(&key) {
-                    let tracks = self.tracks_of(&ListSource::Detail(key));
-                    return self.dispatch(Event::PlayTracks { tracks, start: 0 });
-                }
-                self.pending_play = Some(key.clone());
-                if self.details.contains_key(&key) {
-                    return Vec::new();
-                }
-                self.details.insert(key.clone(), DetailState::Loading);
-                vec![Job::Detail(key)]
-            }
+            Message::PlayCollection(key) => self.play_collection(key, false),
+            Message::ShuffleCollection(key) => self.play_collection(key, true),
             Message::PickMood(i) => {
                 let mood = MOODS[i.min(MOODS.len() - 1)];
                 self.dispatch(Event::Go(Route::Search(mood.query.to_owned())))
@@ -439,5 +429,28 @@ impl App {
             Message::Refreshed { generation, data } => self.on_refreshed(generation, data),
             Message::TimerTick | Message::Noop => Vec::new(),
         }
+    }
+
+    /// Play a page's songs, in order or shuffled; load the page first when needed.
+    fn play_collection(&mut self, key: DetailKey, shuffled: bool) -> Vec<Job> {
+        if let Some(DetailState::Ready(_)) = self.details.get(&key) {
+            return self.play_loaded(key, shuffled);
+        }
+        self.pending_play = Some(key.clone());
+        self.pending_shuffle = shuffled;
+        if self.details.contains_key(&key) {
+            return Vec::new();
+        }
+        self.details.insert(key.clone(), DetailState::Loading);
+        vec![Job::Detail(key)]
+    }
+
+    /// Play the songs of a page that has loaded.
+    fn play_loaded(&mut self, key: DetailKey, shuffled: bool) -> Vec<Job> {
+        let mut tracks = self.tracks_of(&ListSource::Detail(key));
+        if shuffled {
+            shuffle(&mut tracks);
+        }
+        self.dispatch(Event::PlayTracks { tracks, start: 0 })
     }
 }

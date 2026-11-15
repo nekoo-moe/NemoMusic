@@ -14,7 +14,8 @@ use nemo_core::audio::{
 use nemo_core::catalog::{
     AlbumDetail, AlbumSummary, ArtistDetail, ArtistSummary, BrowseId, Catalog, CatalogError,
     Explore, FeedItem, FeedShelf, HistorySection, HomeFeed, MoodChip, PlaylistDetail,
-    PlaylistSummary, PodcastSummary, SearchResults, Shelf, ShelfItem, ShelfKind,
+    PlaylistSummary, PodcastSummary, SearchKind, SearchResults, Shelf, ShelfItem, ShelfKind,
+    TopResult,
 };
 use nemo_core::services::Backend;
 use nemo_core::track::Track;
@@ -44,15 +45,25 @@ impl Catalog for MockCatalog {
             .map(playlist_summary)
             .filter(|p| hit(&p.title))
             .collect();
-        Box::pin(async move {
-            Ok(SearchResults {
-                songs,
-                albums,
-                artists,
-                playlists,
-                ..SearchResults::default()
-            })
-        })
+        let mut results = SearchResults {
+            songs,
+            albums,
+            artists,
+            playlists,
+            ..SearchResults::default()
+        };
+        // Like YouTube Music: a typed query gets a top result (the first matching album) and a
+        // ranked order of the kinds.
+        if !query.trim().is_empty() && !results.albums.is_empty() {
+            results.top = Some(TopResult::Album(results.albums.remove(0)));
+            results.order = vec![
+                SearchKind::Songs,
+                SearchKind::Artists,
+                SearchKind::Albums,
+                SearchKind::Playlists,
+            ];
+        }
+        Box::pin(async move { Ok(results) })
     }
 
     fn album<'a>(&'a self, id: &'a BrowseId) -> BoxFuture<'a, Result<AlbumDetail, CatalogError>> {

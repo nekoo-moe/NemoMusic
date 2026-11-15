@@ -160,6 +160,8 @@ pub enum Message {
     LibLayout(LibLayout),
     /// Play every song of a page (loads it first when needed).
     PlayCollection(DetailKey),
+    /// Play every song of a page shuffled (loads it first when needed).
+    ShuffleCollection(DetailKey),
     /// A built-in mood tile on Explore (index into [`MOODS`]), shown when the catalog gave none.
     PickMood(usize),
     /// Hook: shelves for the Explore page from the catalog.

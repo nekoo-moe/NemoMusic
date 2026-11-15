@@ -1,22 +1,20 @@
-//! Search: a query box (300 ms debounce in the reducer), then results grouped as Songs, Albums,
-//! Artists and Playlists. Enter plays the top song.
+//! Search: a query box (300 ms debounce in the reducer), then YouTube Music's Top result card
+//! and the result sections (Songs, Videos, Albums, Artists, Playlists) in the order YouTube
+//! Music ranked them (search-like-ytm). Enter plays the top song.
 
 use iced::widget::{Space, column, container, stack, text_input};
 use iced::{Alignment, Border, Element, Length, Padding};
 
-use super::super::app::{App, ArtShape, DetailKey, DetailKind, ListSource, Message, SEARCH_ID};
+use super::super::app::{App, Message, SEARCH_ID};
 use super::super::assets::Icon;
 use super::super::style::{col, gap, icon, label};
-use super::kit::{
-    Card, RowCtx, card_grid, page, page_title, section_title, status, track_list, vspace,
-};
-use crate::format;
+use super::kit::{page, page_title, status, vspace};
 use crate::layout;
-use crate::route::Route;
-use crate::search::SONGS_SHOWN;
 use crate::state::Event;
 use crate::theme::{color, shape, type_scale};
-use nemo_core::track::Artwork;
+
+mod section;
+mod top;
 
 /// The Search screen.
 pub fn view(app: &App, w: u32) -> Element<'_, Message> {
@@ -53,11 +51,7 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
             None,
         ));
     } else if let Some(r) = results {
-        let any = !(r.songs.is_empty()
-            && r.albums.is_empty()
-            && r.artists.is_empty()
-            && r.playlists.is_empty());
-        if !any && !search.loading {
+        if r.is_empty() && !search.loading {
             c = c.push(status(
                 Icon::Search,
                 format!("No results for \u{201c}{}\u{201d}", search.query()),
@@ -65,81 +59,18 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
                 None,
             ));
         }
-        if !r.songs.is_empty() {
-            let shown = r.songs.len().min(SONGS_SHOWN.max(1));
-            let ctx = RowCtx {
-                width: content_w,
-                source: ListSource::Search,
-                numbered: false,
-                show_album: true,
-            };
-            c = c
-                .push(section_title("Songs"))
-                .push(vspace(gap::SM))
-                .push(track_list(app, &r.songs, shown, &ctx))
-                .push(vspace(gap::XXL));
+        if let Some(top) = &r.top {
+            c = c.push(top::top_card(app, top, content_w));
         }
-        if !r.albums.is_empty() {
-            let cards = r
-                .albums
-                .iter()
-                .map(|a| Card {
-                    artwork: Artwork::Remote(a.thumbnails.clone()),
-                    title: a.title.clone(),
-                    subtitle: format::artists(&a.artists),
-                    shape: ArtShape::Tile,
-                    on_press: Message::Ui(Event::Go(Route::Album(a.id.clone()))),
-                    play: Some(Message::PlayCollection(DetailKey {
-                        kind: DetailKind::Album,
-                        id: a.id.clone(),
-                    })),
-                })
-                .collect();
-            c = c
-                .push(section_title("Albums"))
-                .push(vspace(gap::MD))
-                .push(card_grid(app, grid, cards, 1, 0))
-                .push(vspace(gap::XXL));
-        }
-        if !r.artists.is_empty() {
-            let cards = r
-                .artists
-                .iter()
-                .map(|a| Card {
-                    artwork: Artwork::Remote(a.thumbnails.clone()),
-                    title: a.name.clone(),
-                    subtitle: "Artist".to_owned(),
-                    shape: ArtShape::Circle,
-                    on_press: Message::Ui(Event::Go(Route::Artist(a.id.clone()))),
-                    play: None,
-                })
-                .collect();
-            c = c
-                .push(section_title("Artists"))
-                .push(vspace(gap::MD))
-                .push(card_grid(app, grid, cards, 1, 1))
-                .push(vspace(gap::XXL));
-        }
-        if !r.playlists.is_empty() {
-            let cards = r
-                .playlists
-                .iter()
-                .map(|p| Card {
-                    artwork: Artwork::Remote(p.thumbnails.clone()),
-                    title: p.title.clone(),
-                    subtitle: p.author.clone().unwrap_or_else(|| "Playlist".to_owned()),
-                    shape: ArtShape::Tile,
-                    on_press: Message::Ui(Event::Go(Route::Playlist(p.id.clone()))),
-                    play: Some(Message::PlayCollection(DetailKey {
-                        kind: DetailKind::Playlist,
-                        id: p.id.clone(),
-                    })),
-                })
-                .collect();
-            c = c
-                .push(section_title("Playlists"))
-                .push(vspace(gap::MD))
-                .push(card_grid(app, grid, cards, 1, 2));
+        let frame = section::Frame {
+            grid,
+            width: content_w,
+        };
+        // YouTube Music's order of the kinds, then the rest.
+        for (i, kind) in r.sections().into_iter().enumerate() {
+            if let Some(s) = section::section(app, r, kind, &frame, i) {
+                c = c.push(s);
+            }
         }
     } else if let Some(e) = &search.error {
         c = c.push(status(

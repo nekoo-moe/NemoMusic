@@ -11,7 +11,7 @@ Status: pre-approved by the owner on 2026-11-15.
   - Checks: fmt, workspace clippy and tests; fixture tests in `nemo-ytm`.
   - Steering: code.md (tests use fixtures only), coc.md (no new host, human-paced).
 
-- [ ] 2. Top result card and ranked sections on the Search screen
+- [x] 2. Top result card and ranked sections on the Search screen
   - Crate and files: `nemo-ui` (gui/views/search.rs, gui/views/search/{top,section}.rs, gui/app.rs, gui/app/{handle,message,model,query}.rs, mock/catalog.rs), `docs/ui/snapshots/search-*.png`.
   - Does: the Top result card (Play and Shuffle for an album or playlist, Play for a song or video, an artist opens its page), then the sections in `SearchResults::sections()` order, with a Videos section of track rows.
   - _Requirements: 6, 7_

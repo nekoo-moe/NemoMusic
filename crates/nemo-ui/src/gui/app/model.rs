@@ -113,6 +113,8 @@ pub enum ListSource {
     Daily(usize),
     /// Music videos of the home feed.
     Videos,
+    /// Music videos of the search results.
+    SearchVideos,
     /// Songs and videos of Explore shelf number `n` (charts first).
     Explore(usize),
     /// Songs and videos of shelf number `n` of a mood page.
