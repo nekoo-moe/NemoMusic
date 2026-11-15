@@ -1,12 +1,14 @@
 //! Running a [`Job`] against the backend.
 
-use super::message::{AccountBundle, CoverBuilt, Job, Message};
+use super::message::{AccountBundle, CoverBuilt, Job, Message, RefreshData};
 use super::model::{AccountMsg, DetailData, DetailKind};
 use crate::cover;
 use crate::home;
+use crate::refresh::{Start, Step};
 use crate::route::Route;
 use crate::search::DEBOUNCE_MS;
 use crate::state::{Event, ResolveKind};
+use nemo_core::catalog::CatalogError;
 use nemo_core::lyrics::LyricsQuery;
 use nemo_core::services::Backend;
 use nemo_core::track::{Artwork, Track};
@@ -184,6 +186,7 @@ pub async fn run_job(job: Job, backend: Backend) -> Message {
             Err(_) => Message::Noop,
         },
         Job::AccountData => Message::AccountData(Arc::new(account_bundle(&backend).await)),
+        Job::Refresh(start) => refresh_step(start, &backend).await,
         Job::Radio(seed) => {
             let query = format!(
                 "{} {}",
@@ -247,6 +250,23 @@ pub(super) async fn account_bundle(backend: &Backend) -> AccountBundle {
         b.daily.feed_shelves = feed.shelves;
     }
     b
+}
+
+/// Run one reload step. The account step is the same call chain as the start-up load.
+async fn refresh_step(start: Start, backend: &Backend) -> Message {
+    let data = match start.step {
+        Step::Home => RefreshData::Home(match backend.catalog.home().await {
+            Ok(shelves) => Ok(Some(Arc::new(shelves))),
+            // No home page without a session: nothing to reload, and nothing failed.
+            Err(CatalogError::Unavailable(_)) => Ok(None),
+            Err(e) => Err(e.to_string()),
+        }),
+        Step::Account => RefreshData::Account(Arc::new(account_bundle(backend).await)),
+    };
+    Message::Refreshed {
+        generation: start.generation,
+        data,
+    }
 }
 
 /// Find the page of a track's artist or album; fall back to a search for the name.

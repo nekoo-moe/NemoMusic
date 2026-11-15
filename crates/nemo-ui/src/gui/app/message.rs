@@ -16,6 +16,7 @@ use crate::daily::DailyData;
 use crate::explore::{ContentFilter, LibLayout, LibSort, LibTab, SleepChoice};
 use crate::keys::{Key, Mods};
 use crate::palette::Seed;
+use crate::refresh::Start;
 use crate::state::{Event, ResolveKind};
 use iced::Size;
 use nemo_core::catalog::{SearchResults, Shelf};
@@ -212,8 +213,24 @@ pub enum Message {
     AccountData(Arc<AccountBundle>),
     /// Open a search for this text (a mood tile).
     SearchFor(String),
+    /// A step of a reload answered.
+    Refreshed {
+        /// The run the step belongs to.
+        generation: u64,
+        /// The answer.
+        data: RefreshData,
+    },
     /// Nothing.
     Noop,
+}
+
+/// The answer of one reload step.
+#[derive(Debug, Clone)]
+pub enum RefreshData {
+    /// The Home shelves. `Ok(None)` when the catalog has no home page (signed out).
+    Home(Result<Option<Arc<Vec<Shelf>>>, String>),
+    /// The account library, history and explore data.
+    Account(Arc<AccountBundle>),
 }
 
 /// What one pass over the account calls of the catalog returned.
@@ -284,6 +301,8 @@ pub enum Job {
     /// Ask the catalog for the account library, history and explore data (one call after the
     /// other, at human pace).
     AccountData,
+    /// Run one step of a reload.
+    Refresh(Start),
     /// Find songs like this one.
     Radio(Track),
     /// Find the album or artist page of a track.
