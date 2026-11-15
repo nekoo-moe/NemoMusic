@@ -142,6 +142,10 @@ pub mod motion {
     pub const ACCENT_CROSSFADE_MS: u32 = 400;
     /// 60 fps frame budget in milliseconds.
     pub const FRAME_BUDGET_MS: f64 = 16.6;
+    /// One full cycle of the backdrop drift (owner override of "static", 2026-11-15).
+    pub const AMBIENT_CYCLE_MS: u32 = 48_000;
+    /// Frame cap of the backdrop drift.
+    pub const AMBIENT_FPS: u32 = 24;
 }
 
 /// Glass tokens (`design.md` section 6). Tier Low draws no live blur.

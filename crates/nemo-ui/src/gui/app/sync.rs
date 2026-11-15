@@ -86,14 +86,11 @@ impl App {
     }
 
     /// Point the background field at the colour it should have now: a fixed theme keeps its own
-    /// seed; Dynamic uses the page being viewed (album or playlist) and otherwise the song.
+    /// seed; Dynamic follows the playing song on every screen (living-backdrop spec: an open
+    /// album or playlist page no longer holds the window colour).
     pub(super) fn sync_bg(&mut self) {
         let s = &self.ui.settings;
-        let seed = s.theme.seed().or_else(|| {
-            DetailKey::of(self.ui.route())
-                .and_then(|k| self.page_seeds.get(&k).copied())
-                .or(self.cover_seed)
-        });
+        let seed = scheme::field_seed(s.theme, self.cover_seed);
         let colors = bg_colors(seed, s.base);
         let reduced = self.ui.reduced_motion;
         self.bg_fade.retarget(colors, reduced);

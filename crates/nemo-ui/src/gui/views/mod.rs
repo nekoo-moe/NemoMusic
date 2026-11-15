@@ -44,7 +44,7 @@ pub fn root(app: &App) -> Element<'_, Message> {
         shell::view(app, w, h)
     };
     let mut layers: Vec<Element<'_, Message>> = vec![
-        background(app),
+        backdrop::window_field(app),
         container(page)
             .width(Length::Fill)
             .height(Length::Fill)
@@ -160,38 +160,4 @@ pub fn root(app: &App) -> Element<'_, Message> {
         layers.push(overlays::tos_sheet(app));
     }
     stack(layers).into()
-}
-
-/// The coloured field behind the panes: a soft diagonal gradient of three dark tonal colours
-/// from the song or the page, with a vignette toward the bottom for depth. The colours
-/// cross-fade (`scheme::BgFade`), so the whole window changes colour with the song.
-fn background(app: &App) -> Element<'_, Message> {
-    let [c0, c1, c2] = app.bg_fade.current();
-    let base = color::surface_container_lowest();
-    let diag = iced::gradient::Linear::new(iced::Radians(2.35))
-        .add_stop(0.0, col(c0))
-        .add_stop(0.55, col(c1))
-        .add_stop(1.0, col(c2));
-    let vignette = iced::gradient::Linear::new(iced::Radians(super::style::DOWN))
-        .add_stop(0.0, iced::Color::TRANSPARENT)
-        .add_stop(1.0, col(base.with_alpha(0.45)));
-    iced::widget::stack![
-        container(iced::widget::Space::new())
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .style(move |_| container::Style {
-                background: Some(iced::Background::Gradient(diag.into())),
-                ..container::Style::default()
-            }),
-        container(iced::widget::Space::new())
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .style(move |_| container::Style {
-                background: Some(iced::Background::Gradient(vignette.into())),
-                ..container::Style::default()
-            }),
-    ]
-    .width(Length::Fill)
-    .height(Length::Fill)
-    .into()
 }

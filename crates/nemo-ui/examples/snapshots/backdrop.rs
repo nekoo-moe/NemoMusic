@@ -45,7 +45,19 @@ pub(super) fn backdrops(out: &mut Vec<Shot>) {
                 ..at(Route::Home)
             },
         ));
-        // A page colour wins while the page is open.
+        // Reduce transparency: one flat tonal colour from the cover, no texture.
+        out.push(shot(
+            named("bg-flat", size),
+            Scenario {
+                track: 1,
+                settings: nemo_ui::UiSettings {
+                    reduce_transparency: true,
+                    ..Scenario::default().settings
+                },
+                ..at(Route::Home)
+            },
+        ));
+        // The window follows the song on an open page too (living-backdrop spec).
         out.push(shot(
             named("bg-page-album", size),
             at(Route::Album(BrowseId("mock-album-4".to_owned()))),

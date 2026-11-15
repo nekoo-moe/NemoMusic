@@ -18,6 +18,7 @@ pub mod canvas;
 pub mod copy;
 pub mod cover;
 pub mod daily;
+pub mod drift;
 pub mod editor;
 pub mod explore;
 pub mod explore_feed;

@@ -177,7 +177,7 @@ fn background_field_keeps_text_legible_for_any_seed_and_mode() {
 }
 
 #[test]
-fn background_fade_takes_under_a_second_and_snaps_when_reduced() {
+fn background_fade_ends_within_the_accent_cross_fade_and_snaps_when_reduced() {
     let a = bg_colors(None, BaseMode::Dark);
     let b = bg_colors(
         Some(Seed {
@@ -194,7 +194,7 @@ fn background_fade_takes_under_a_second_and_snaps_when_reduced() {
         f.advance(16.0);
         ms += 16.0;
     }
-    assert!((300.0..1100.0).contains(&ms), "settled after {ms} ms");
+    assert!((150.0..=400.0).contains(&ms), "settled after {ms} ms");
     assert_eq!(f.current(), b);
     f.retarget(a, true);
     assert!(f.is_done() && f.current() == a);
@@ -205,4 +205,28 @@ fn corner_scales_are_ordered() {
     assert!(CornerStyle::Sharp.percent() < CornerStyle::Soft.percent());
     assert!(CornerStyle::Soft.percent() < CornerStyle::Round.percent());
     assert_eq!(CornerStyle::Soft.percent(), 100);
+}
+
+#[test]
+fn the_window_follows_the_song_and_a_fixed_theme_keeps_its_seed() {
+    let a = Seed {
+        hue: 20.0,
+        chroma: 0.12,
+    };
+    let b = Seed {
+        hue: 250.0,
+        chroma: 0.08,
+    };
+    // A new cover gives a new seed and new field colours (the rebuild on a track change).
+    assert_eq!(field_seed(ThemeChoice::Dynamic, Some(a)), Some(a));
+    assert_eq!(field_seed(ThemeChoice::Dynamic, Some(b)), Some(b));
+    assert_ne!(
+        bg_colors(field_seed(ThemeChoice::Dynamic, Some(a)), BaseMode::Dark),
+        bg_colors(field_seed(ThemeChoice::Dynamic, Some(b)), BaseMode::Dark)
+    );
+    assert_eq!(field_seed(ThemeChoice::Dynamic, None), None);
+    assert_eq!(
+        field_seed(ThemeChoice::Ocean, Some(a)),
+        ThemeChoice::Ocean.seed()
+    );
 }

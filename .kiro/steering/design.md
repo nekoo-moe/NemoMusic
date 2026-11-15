@@ -64,19 +64,20 @@ Owner direction (2026-11-10, evening): the first build looked "raw". Go full Mat
 | Medium | 12 px, half-res | off | static | on | UI <= 8 ms, glass <= 1.5 ms |
 | Low | pre-blurred cover texture, no live sampling | off | off | off | UI <= 5 ms |
 | Off | tonal surface | off | off | off | UI <= 4 ms |
-- Auto-downgrade one tier when 30 consecutive frames exceed 16.6 ms; upgrade only on user request. Idle (no motion) must render 0 frames.
+- Auto-downgrade one tier when 30 consecutive frames exceed 16.6 ms; upgrade only on user request. Idle (no motion) must render 0 frames. One exception (owner, 2026-11-15): the window backdrop drift (section 9) draws at most 24 fps while a song plays in a focused window, and 0 frames otherwise.
 - No UI effect may touch, wait on, or block the audio thread. Effects run on the UI/GPU side, read only via `PlayerEvent`; frame drops never affect playback (code.md RT rules).
 
 ## 8. Motion (M3 motion tokens, standard scheme)
 - Springs, no overshoot by default: `spatial.fast` (stiffness 1400, damping 1.0), `spatial.default` (700, 1.0), `spatial.slow` (300, 1.0); `effects.*` (opacity/color) same stiffness, damping 1.0. Expressive overshoot (damping 0.8) only for the play button morph.
 - Duration cap for non-spring fades: `motion.fast` 100 ms, `base` 200, `slow` 400. Nothing over 400 ms. Easing fallback: emphasized-decelerate `cubic-bezier(0.05,0.7,0.1,1)` in, `cubic-bezier(0.3,0,0.8,0.15)` out, `linear` only for progress.
-- Animate only: opacity, translate <= 16 px, shape morph, accent crossfade, progress, focus ring. Not: visualizers, loops, marquees, anything while a menu is open.
+- Animate only: opacity, translate <= 16 px, shape morph, accent crossfade, progress, focus ring, and the window backdrop drift of section 9 (its slow loop is the one allowed exception). Not: visualizers, other loops, marquees, anything while a menu is open.
 - Reduced motion: instant or 0 ms opacity swap, no lens or specular movement, no lyric glide (jump instead); progress keeps updating.
 
 ## 9. Album art
 - Sizes `art.row` 40, `card` 160, `player` 64, `hero` 320. Radius per section 4. Never upscale above 1.0x source pixels (center at native size on `surface-container` or use a smaller slot). Request nearest size to slot x DPI.
 - Missing art: neutral placeholder with note glyph. 1:1 `cover` crop. 150 ms fade-in; cache thumbnails.
-- Backdrop blur from cover: >= 60 px, overlay alpha >= 0.60, static, `on-surface` keeps >= 4.5:1. Accent glow alpha <= 0.25, blur <= 48 px, hero only.
+- Backdrop blur from cover: >= 60 px, overlay alpha >= 0.60, `on-surface` keeps >= 4.5:1. Accent glow alpha <= 0.25, blur <= 48 px, hero only.
+- Window backdrop (owner, 2026-11-15, living-backdrop spec): follows the playing song on every screen; slow drift of the pre-blurred cover (48 s cycle, translate <= 3%, scale breathe +/- 2%), capped at 24 fps, never re-blurred per frame. Static under reduced motion, while the window is unfocused, while nothing plays and on the CPU renderer; a flat tonal colour under reduce transparency. Panes over it at 0.66 alpha act as the scrim.
 
 ## 10. Lyrics view
 - Content on `surface` with the blurred cover backdrop (section 9), never glass. Only the floating bar and header controls use glass.
