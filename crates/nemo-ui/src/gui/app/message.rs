@@ -39,6 +39,8 @@ pub enum Message {
     Key(Key, Mods),
     /// The window changed size.
     Resized(Size),
+    /// The window scale factor is known or changed (moved to another screen, OS scale setting).
+    Rescaled(f32),
     /// Player event from the subscription.
     Player(PlayerEvent),
     /// The catalog's home feed answered.
@@ -77,6 +79,8 @@ pub enum Message {
     Cover {
         /// Track.
         track: TrackId,
+        /// Window scale in percent the cover was baked for.
+        scale: u32,
         /// Result.
         built: Result<Arc<CoverBuilt>, String>,
     },
@@ -303,8 +307,8 @@ pub enum Job {
     Detail(DetailKey),
     /// Load one picture.
     Art(ArtSpec),
-    /// Load and analyse a cover.
-    Cover(Track),
+    /// Load and analyse a cover for a window scale in percent.
+    Cover(Track, u32),
     /// Look up lyrics.
     Lyrics(Track),
     /// Ask every lyrics provider (for the switcher).

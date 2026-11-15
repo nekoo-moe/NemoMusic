@@ -26,7 +26,7 @@ impl App {
                         pending.push_back(Event::Snapshot(self.backend.player.snapshot()));
                         pending.push_back(Event::Position(self.backend.player.position()));
                     }
-                    Effect::LoadCover(t) => jobs.push(Job::Cover(t)),
+                    Effect::LoadCover(t) => jobs.push(Job::Cover(t, self.scale_pct)),
                     Effect::LoadLyrics(t) => jobs.push(Job::Lyrics(t)),
                     Effect::SaveLyricsOffset {
                         track_key,
