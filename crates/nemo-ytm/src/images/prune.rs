@@ -115,11 +115,11 @@ mod tests {
         for name in old.iter().chain(&new) {
             std::fs::write(dir.0.join(name), b"x").expect("write");
         }
-        std::fs::create_dir(dir.0.join(&hex)).expect("sub folder");
+        std::fs::create_dir(dir.0.join("folder")).expect("sub folder");
 
         assert_eq!(prune_old_files(&dir.0).expect("prune"), 3);
         let mut expected = vec![
-            hex.clone(),
+            "folder".to_owned(),
             MARKER.to_owned(),
             new[0].clone(),
             new[1].clone(),

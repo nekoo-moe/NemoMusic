@@ -106,14 +106,13 @@ fn allow_list_accepts_only_listed_https_hosts() {
 
 #[test]
 fn cache_name_is_the_sha256_hex_of_the_url() {
-    // NIST vector: SHA-256("abc").
+    // NIST vector: SHA-256("abc"), behind the format prefix.
     assert_eq!(
         cache_file_name("abc"),
-        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        "v2-ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
     );
     let name = cache_file_name("https://i.ytimg.com/a/../b?x=y/z");
-    assert_eq!(name.len(), 64);
-    assert!(name.bytes().all(|b| b.is_ascii_hexdigit()));
+    assert!(prune::is_current_name(&name), "{name}");
 }
 
 #[test]
