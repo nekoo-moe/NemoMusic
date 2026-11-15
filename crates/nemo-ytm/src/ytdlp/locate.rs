@@ -29,6 +29,17 @@ pub fn locate_yt_dlp() -> Option<PathBuf> {
     )
 }
 
+/// The folder of the app-managed copy: `<data>/NemoMusic/bin/yt-dlp`, the first place
+/// [`locate_yt_dlp`] looks. `None` when the data folder is unknown.
+#[must_use]
+pub fn managed_dir() -> Option<PathBuf> {
+    platform_data_dir().map(|base| managed_dir_in(&base))
+}
+
+fn managed_dir_in(base: &Path) -> PathBuf {
+    base.join("NemoMusic").join("bin").join(ONEDIR_DIR)
+}
+
 /// `%LOCALAPPDATA%` on Windows, `$XDG_DATA_HOME` or `~/.local/share` elsewhere (the same base
 /// folder `nemo-app` uses for its data).
 fn platform_data_dir() -> Option<PathBuf> {
@@ -55,12 +66,7 @@ fn locate_in(
     } else {
         "yt-dlp"
     };
-    let onedir = data_dir.map(|base| {
-        base.join("NemoMusic")
-            .join("bin")
-            .join(ONEDIR_DIR)
-            .join(name)
-    });
+    let onedir = data_dir.map(|base| managed_dir_in(base).join(name));
     let on_path = path_var
         .into_iter()
         .flat_map(std::env::split_paths)

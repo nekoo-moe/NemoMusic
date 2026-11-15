@@ -57,6 +57,9 @@ pub struct Settings {
     pub output_device: Option<String>,
     /// Path to `yt-dlp`; `None` searches the usual places.
     pub yt_dlp_path: Option<PathBuf>,
+    /// Install and update the app's own `yt-dlp` copy when none is found (on by default,
+    /// owner decision 2026-11-15). Never touches a `yt-dlp` the user installed.
+    pub yt_dlp_auto_install: bool,
     /// Theme accent source, stored as its menu label (empty = default).
     pub theme: String,
     /// Surface mode label (Dark, AMOLED, Light; empty = default).
@@ -106,6 +109,7 @@ impl Default for Settings {
             reduce_motion: false,
             output_device: None,
             yt_dlp_path: None,
+            yt_dlp_auto_install: true,
             theme: String::new(),
             base_mode: String::new(),
             accent_intensity: String::new(),
@@ -244,6 +248,22 @@ mod tests {
         assert_eq!(Settings::load(&root), s);
         std::fs::write(root.join(CONFIG_FILE), r#"{"volume_percent": 40}"#).expect("write");
         assert!(Settings::load(&root).opt_ins.is_empty());
+        std::fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[test]
+    fn yt_dlp_auto_install_is_on_by_default_and_round_trips() {
+        assert!(Settings::default().yt_dlp_auto_install);
+        let root = temp_root("ytdlp-auto");
+        // A file written before the switch existed: on.
+        std::fs::write(root.join(CONFIG_FILE), r#"{"volume_percent": 40}"#).expect("write");
+        assert!(Settings::load(&root).yt_dlp_auto_install);
+        let off = Settings {
+            yt_dlp_auto_install: false,
+            ..Settings::default()
+        };
+        off.save(&root).expect("save");
+        assert!(!Settings::load(&root).yt_dlp_auto_install);
         std::fs::remove_dir_all(root).expect("cleanup");
     }
 

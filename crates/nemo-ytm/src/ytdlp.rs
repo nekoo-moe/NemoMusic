@@ -13,7 +13,7 @@ use std::future::Future;
 use std::io::ErrorKind;
 use std::path::PathBuf;
 use std::process::Stdio;
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::time::Duration;
 
 use nemo_core::BoxFuture;
@@ -24,13 +24,14 @@ use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tokio::runtime::Handle;
 
-pub use crate::ytdlp_install::{InstallError, install_onedir};
+pub use crate::ytdlp_install::{InstallError, install_onedir, install_onefile};
 
 mod locate;
+pub mod managed;
 mod parse;
 mod tracks;
 
-pub use locate::{ONEDIR_DIR, locate_yt_dlp};
+pub use locate::{ONEDIR_DIR, locate_yt_dlp, managed_dir};
 pub(crate) use parse::expiry;
 use parse::{classify_stderr, parse_err};
 pub use parse::{parse, parse_for, parse_with};
@@ -93,6 +94,27 @@ fn build_args(video: &VideoId, extractor_args: Option<&str>) -> Vec<OsString> {
     list
 }
 
+/// A program path that is set at most once, later, and then used by every resolver clone in
+/// place of the configured program: the copy the app installed while it was running.
+///
+/// Reads are lock-free ([`OnceLock`]).
+#[derive(Debug, Clone, Default)]
+pub struct ProgramSlot(Arc<OnceLock<PathBuf>>);
+
+impl ProgramSlot {
+    /// Use `program` from now on. Returns `false` when a program was already set (it stays).
+    #[must_use]
+    pub fn set(&self, program: PathBuf) -> bool {
+        self.0.set(program).is_ok()
+    }
+
+    /// The program set so far, if any.
+    #[must_use]
+    pub fn get(&self) -> Option<&PathBuf> {
+        self.0.get()
+    }
+}
+
 /// Resolves streams by running `yt-dlp` as a subprocess, without a shell.
 ///
 /// Each resolve first runs with [`fast_args`]; when that fails (or a stream it gave could not
@@ -100,6 +122,8 @@ fn build_args(video: &VideoId, extractor_args: Option<&str>) -> Vec<OsString> {
 #[derive(Debug, Clone)]
 pub struct YtDlpResolver {
     program: PathBuf,
+    /// Replaces `program` once set (an app-installed copy, see [`managed`]).
+    installed: ProgramSlot,
     allowed: Option<Vec<Codec>>,
     handle: Option<Handle>,
     fast: bool,
@@ -129,6 +153,7 @@ impl YtDlpResolver {
     pub fn with_program(program: impl Into<PathBuf>) -> Self {
         Self {
             program: program.into(),
+            installed: ProgramSlot::default(),
             allowed: None,
             handle: None,
             fast: true,
@@ -158,15 +183,23 @@ impl YtDlpResolver {
         self
     }
 
-    /// The configured executable path.
+    /// The executable in use: the installed copy once [`Self::program_slot`] is set, else the
+    /// configured path.
     #[must_use]
     pub fn program(&self) -> &OsStr {
-        self.program.as_os_str()
+        self.installed.get().unwrap_or(&self.program).as_os_str()
+    }
+
+    /// The slot that switches this resolver (and every clone of it) to a newly installed
+    /// program without a restart.
+    #[must_use]
+    pub fn program_slot(&self) -> ProgramSlot {
+        self.installed.clone()
     }
 
     fn job(&self) -> Job {
         Job {
-            program: self.program.clone(),
+            program: self.installed.get().unwrap_or(&self.program).clone(),
             allowed: self.allowed.clone(),
             fast: self.fast,
             language: None,

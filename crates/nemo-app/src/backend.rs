@@ -25,7 +25,7 @@ use nemo_ytm::resolver::default_chain;
 use nemo_ytm::session::YtmSessionBackend;
 use nemo_ytm::sponsorblock::{ReqwestHttp, SponsorBlockSource};
 use nemo_ytm::stream::HttpStreamOpener;
-use nemo_ytm::ytdlp::{YtDlpResolver, locate_yt_dlp};
+use nemo_ytm::ytdlp::{YtDlpResolver, locate_yt_dlp, managed};
 use tokio::runtime::Handle;
 
 use crate::config::Settings;
@@ -73,14 +73,24 @@ pub fn build(
         LOCAL_ALBUM_PREFIX,
     );
 
+    let user_set = settings.yt_dlp_path.is_some();
     let program = settings.yt_dlp_path.clone().or_else(locate_yt_dlp);
     if program.is_none() {
         tracing::warn!("yt-dlp not found; YouTube Music playback will use the native path only");
     }
     let ytdlp = program
+        .clone()
         .map_or_else(YtDlpResolver::new, YtDlpResolver::with_program)
         .with_allowed_codecs(supported_stream_codecs())
         .with_handle(handle.clone());
+    // Install or update the app's own copy on a worker thread; startup does not wait. A new
+    // install reaches playback through the slot, without a restart.
+    managed::start_in_background(
+        settings.yt_dlp_auto_install,
+        user_set,
+        program,
+        ytdlp.program_slot(),
+    );
     // Cache -> native player request -> yt-dlp (fast arguments, then the full extraction).
     let resolver = default_chain(ytdlp, supported_stream_codecs(), handle);
 

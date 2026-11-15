@@ -60,6 +60,8 @@ Priorities: 1) sound quality, 2) beauty, 3) calm daily use. Versions checked on 
 
 Pick: `ytmapi-rs` for search, browse, and library metadata; `yt-dlp` for resolving playable stream URLs. Both sit behind one trait in `nemo-ytm` so either can be replaced.
 
+`yt-dlp` is not bundled, so the project does not redistribute its binary. When no `yt-dlp` is found (and the `yt_dlp_auto_install` setting is on, the default), `nemo-ytm` downloads the official release asset at run time from `github.com` (`release-assets.githubusercontent.com`) into the app data folder and keeps that copy up to date, at most one check a day (owner, 2026-11-15; ytdlp-auto-install spec). Windows x64 gets the onedir zip, Linux `x86_64` the one-file build; other platforms get no install. Only TLS and the release's published `SHA2-256SUMS` list protect the download; the GPG signature is not checked. A `yt-dlp` the user installed is never changed.
+
 Risks (all must stay in README and the first-run dialog):
 - May breach YouTube's Terms of Service; the account used could be restricted. Never ship a default account or API key.
 - Can break at any time; the app must degrade to local-only playback with a clear message.

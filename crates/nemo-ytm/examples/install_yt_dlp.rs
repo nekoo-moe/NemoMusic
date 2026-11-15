@@ -1,10 +1,11 @@
-//! Install the official yt-dlp onedir build for this user (development aid; the app never
-//! downloads it on its own).
+//! Install the official yt-dlp build by hand (development aid). The app does the same on its
+//! own when it finds no yt-dlp (`nemo_ytm::ytdlp::managed`).
 //!
 //! `cargo run -p nemo-ytm --example install_yt_dlp [-- <target folder>]`
 //!
-//! Default target: `%LOCALAPPDATA%\NemoMusic\bin\yt-dlp`, the first place `locate_yt_dlp`
-//! looks. Downloads two files from the latest GitHub release, checks the SHA-256, unpacks.
+//! Windows x64: the onedir build; Linux `x86_64`: the one-file `yt-dlp_linux`. Default target:
+//! `<data>/NemoMusic/bin/yt-dlp`, the first place `locate_yt_dlp` looks. Downloads two files
+//! from the latest GitHub release and checks the SHA-256 before anything is put in place.
 #![allow(
     clippy::print_stdout,
     clippy::print_stderr,
@@ -15,28 +16,28 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 use std::time::Instant;
 
-use nemo_ytm::ytdlp::{ONEDIR_DIR, install_onedir, locate_yt_dlp};
+use nemo_ytm::ytdlp::managed::Build;
+use nemo_ytm::ytdlp::{install_onedir, install_onefile, locate_yt_dlp, managed_dir};
 
 fn main() -> ExitCode {
-    // The onedir asset is a Windows build. On Linux, install yt-dlp from the distro or pip.
-    if !cfg!(windows) {
-        eprintln!("this installs the Windows build only; on Linux use your package manager");
+    let Some(build) = Build::for_this_platform() else {
+        eprintln!("no yt-dlp build is installed on this platform; use your package manager");
         return ExitCode::FAILURE;
-    }
-    let target = std::env::args().nth(1).map(PathBuf::from).or_else(|| {
-        std::env::var_os("LOCALAPPDATA").map(|base| {
-            PathBuf::from(base)
-                .join("NemoMusic")
-                .join("bin")
-                .join(ONEDIR_DIR)
-        })
-    });
+    };
+    let target = std::env::args()
+        .nth(1)
+        .map(PathBuf::from)
+        .or_else(managed_dir);
     let Some(target) = target else {
-        eprintln!("LOCALAPPDATA is not set; pass a target folder");
+        eprintln!("the data folder is not set; pass a target folder");
         return ExitCode::FAILURE;
     };
     let start = Instant::now();
-    match install_onedir(&target) {
+    let installed = match build {
+        Build::WindowsOnedir => install_onedir(&target),
+        Build::LinuxOnefile => install_onefile(&target),
+    };
+    match installed {
         Ok(program) => {
             println!(
                 "installed {} in {:.1} s (checksum verified)",
