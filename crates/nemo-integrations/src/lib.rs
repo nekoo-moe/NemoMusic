@@ -6,7 +6,7 @@
 //! depends on `nemo-core` only.
 //!
 //! - [`info`]: the settings rows of the three integrations.
-//! - [`lastfm`]: the Last.fm scrobble queue.
+//! - [`lastfm`]: the signed Last.fm API client and the scrobble queue.
 //! - [`notify`]: the text of OS notifications.
 //! - [`service`]: the service and its observer fan-out. The workers (media controls, Last.fm,
 //!   Discord) come in later tasks; until then every switch is in memory only and nothing

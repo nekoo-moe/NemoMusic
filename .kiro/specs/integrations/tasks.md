@@ -153,7 +153,7 @@ Cross-spec ids written `<spec>#?` name the other spec's task by the ADR 0004 Dec
   - Wave: 3
   - Checks: `iced_test` snapshot; keyboard reach and focus; switching off removes the OS session within 1 s; `design.md` checklist with a screenshot.
 
-- [ ] 19. Add the signed Last.fm API client
+- [x] 19. Add the signed Last.fm API client
   - Crate and files: `nemo-integrations` (`src/lastfm/api.rs` new).
   - Does: `sign` builds `api_sig` (MD5 over sorted `name+value` pairs without `format`, plus the secret, via `md-5`). Calls `track.updateNowPlaying` and `track.scrobble` over HTTPS only, reads JSON whatever the status, and takes the base URL as a constructor argument (plain HTTP only under `#[cfg(test)]`). Key, secret, session key and request bodies are `Secret` or never logged.
   - _Requirements: 13, 21, 29_

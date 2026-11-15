@@ -13,5 +13,14 @@ workspace = true
 [dependencies]
 nemo-core.workspace = true
 rusqlite = { version = "=0.41.1", features = ["bundled"] }
+serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+# Last.fm `api_sig` (MD5 over the sorted parameters and the secret).
+md-5 = { version = "=0.11.0", default-features = false }
+# Last.fm API calls. `form` sends the signed parameters as a POST body, never in the URL.
+reqwest = { version = "=0.13.5", default-features = false, features = ["native-tls", "form"] }
+
+[dev-dependencies]
+tokio = { version = "=1.54.1", default-features = false, features = ["rt", "macros"] }
+tracing-subscriber = { version = "=0.3.23", default-features = false, features = ["fmt", "std"] }
