@@ -1,5 +1,6 @@
 //! Shots of the round 3 features: Explore, Library, Tools, shortcuts, queue, lyrics and the mini player.
 
+use nemo_core::catalog::BrowseId;
 use nemo_ui::explore::{ContentFilter, LibLayout, LibTab};
 use nemo_ui::gui::app::{NpTab, SettingsSection};
 use nemo_ui::gui::headless::Scenario;
@@ -22,6 +23,13 @@ pub(super) fn features(out: &mut Vec<Shot>) {
             ..shot(name, sc)
         };
         out.push(shot(named("explore", size), at(Route::Explore)));
+        out.push(shot(
+            named("explore-mood", size),
+            at(Route::Mood {
+                id: BrowseId("mock-mood-10".to_owned()),
+                title: "Chill".to_owned(),
+            }),
+        ));
         out.push(signed(named("library-signed-in", size), at(Route::Library)));
         out.push(shot(named("library-signed-out", size), at(Route::Library)));
         out.push(signed(

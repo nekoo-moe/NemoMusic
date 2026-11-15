@@ -100,6 +100,7 @@ impl App {
                 jobs.push(Job::AccountData);
             }
         }
+        jobs.extend(self.pump_explore());
         if self.ui.youtube_enabled() && self.home.phase == HomePhase::Idle {
             self.home.phase = HomePhase::Loading;
             jobs.push(Job::HomeFeed);
