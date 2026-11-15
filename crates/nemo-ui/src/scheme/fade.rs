@@ -66,8 +66,9 @@ impl SchemeFade {
     }
 }
 
-/// The cross-fade of the background field: a critically damped spring of about 0.7 s (a snap
-/// with reduced motion).
+/// The cross-fade of the background field: a critically damped spring (`effects.fast`,
+/// stiffness 1400) that settles in under 400 ms, inside the 400 ms accent cross-fade (a snap with
+/// reduced motion).
 #[derive(Debug, Clone)]
 pub struct BgFade {
     from: [Rgba; 3],
@@ -82,7 +83,7 @@ impl BgFade {
         Self {
             from: colors,
             to: colors,
-            spring: crate::motion::Spring::tuned(1.0, 150.0, 1.0),
+            spring: crate::motion::Spring::tuned(1.0, 1400.0, 1.0),
         }
     }
 

@@ -62,9 +62,18 @@ pub fn blend(a: Rgba, b: Rgba, t: f64) -> Rgba {
     mix_rgb(a, b, t)
 }
 
+/// The seed of the window background: a fixed theme's own seed, else the playing cover's. The
+/// page being viewed plays no part (living-backdrop spec), so the window follows every song.
+#[must_use]
+pub fn field_seed(choice: ThemeChoice, cover: Option<Seed>) -> Option<Seed> {
+    choice.seed().or(cover)
+}
+
 /// Alpha of the panes over the background field: they stay mostly opaque (text contrast is
-/// checked against this exact mix) and let the colour of the song show through.
-pub const PANE_ALPHA: f32 = 0.74;
+/// checked against this exact mix, and it stays above the 0.60 scrim of `design.md` section 9)
+/// and let the colour and the drift of the song show through (0.74 before the living-backdrop
+/// spec).
+pub const PANE_ALPHA: f32 = 0.66;
 
 /// The three colours of the window background for a seed (a cover, a page or a theme). Dark,
 /// low chroma, and darker toward the corner opposite the light source. Without a seed the field
