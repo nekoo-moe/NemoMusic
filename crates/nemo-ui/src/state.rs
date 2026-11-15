@@ -171,6 +171,21 @@ impl UiState {
         }
     }
 
+    /// What the synced lyrics centre on now: the line drawn as active, and the intro or gap
+    /// note (lyrics-polish). Empty without synced lyrics.
+    #[must_use]
+    pub fn lyric_focus(&self) -> lyrics_view::note::Focus {
+        match &self.lyrics {
+            LyricsState::Ready(doc) => lyrics_view::note::focus(
+                doc,
+                i64::try_from(self.position.as_millis()).unwrap_or(i64::MAX),
+                self.lyrics_offset_ms,
+                self.reduced_motion,
+            ),
+            _ => lyrics_view::note::Focus::default(),
+        }
+    }
+
     /// `true` while following the current line (no manual-scroll pause).
     #[must_use]
     pub fn lyrics_following(&self) -> bool {

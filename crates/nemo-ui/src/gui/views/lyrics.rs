@@ -21,6 +21,11 @@ use crate::lyrics_view::{self, LINE_GAP, LineRole, LineRows};
 use crate::state::{Event, LyricsState};
 use crate::theme::{TextStyle, color, type_scale};
 
+mod note;
+mod three;
+
+pub use three::lines as three_lines;
+
 /// Room kept at the right of a lyric line for the glow copies, px.
 pub const GLOW_INSET: f32 = 4.0;
 /// Offset of the glow copies of the active line, px.
@@ -226,14 +231,20 @@ pub fn synced_list<'a>(
     width: f32,
     dense: bool,
 ) -> Element<'a, Message> {
-    let active = app.ui.active_lyric();
+    let focus = app.ui.lyric_focus();
+    let active = focus.active;
     let before = if app.anim.line() < 1.0 {
         app.prev_line
     } else {
         active
     };
+    let note = focus.note.filter(|n| n.presence > 0.0);
     let mut c = column![].width(Length::Fill);
     for (i, line) in doc.lines.iter().enumerate() {
+        if let Some(n) = note.filter(|n| n.before == i) {
+            let (el, h) = note::row_for(n, LineRole::Active.style_d(dense));
+            c = c.push(container(el).height(Length::Fixed(h)).width(Length::Fill));
+        }
         let (from, to) = (LineRole::of(i, before), LineRole::of(i, active));
         let look = Look {
             from: (from, from.style_d(dense)),
@@ -458,36 +469,4 @@ pub fn footer(app: &App, width: f32) -> Element<'_, Message> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn credit_names_the_submitter_and_the_link_host() {
-        let c = LyricsCredit {
-            label: "Lyrics via Better Lyrics".to_owned(),
-            url: Some("https://better-lyrics.boidu.dev/".to_owned()),
-            by: None,
-            by_url: None,
-            note: None,
-        };
-        assert_eq!(
-            credit_text(&c),
-            "Lyrics via Better Lyrics \u{b7} better-lyrics.boidu.dev"
-        );
-        let u = LyricsCredit {
-            label: "Lyrics from Unison".to_owned(),
-            url: None,
-            by: Some("mira_k".to_owned()),
-            by_url: None,
-            note: None,
-        };
-        assert_eq!(credit_text(&u), "Lyrics from Unison \u{b7} by mira_k");
-    }
-
-    #[test]
-    fn long_lines_wrap_instead_of_being_cut() {
-        let long = "và tâm hồn tôi là một bản nhạc chưa bao giờ được hát hết, dù đêm đã rất dài";
-        assert!(rows_at(long, 292.0, 20.0) >= 2);
-        assert_eq!(rows_at("short", 292.0, 20.0), 1);
-    }
-}
+mod tests;

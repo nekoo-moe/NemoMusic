@@ -223,10 +223,10 @@ impl UiState {
     }
 
     pub(super) fn retarget_scroll(&mut self) {
-        let active = self.active_lyric();
-        self.last_active = active;
-        self.lyric_scroll.target = lyrics_view::scroll_target_rows(
-            active,
+        self.last_active = self.active_lyric();
+        // The intro or gap note takes the anchor while it waits (lyrics-polish).
+        self.lyric_scroll.target = lyrics_view::scroll_target_focus(
+            &self.lyric_focus(),
             self.lyric_viewport_h,
             self.lyric_dense,
             &self.lyric_rows,

@@ -8,6 +8,8 @@ use nemo_core::lyrics::{Granularity, LyricsDoc};
 use crate::theme::TextStyle;
 use crate::theme::type_scale::{BODY_MD, HEADLINE_MD, TITLE_MD, TITLE_SM};
 
+pub mod note;
+
 /// A line changes when `position >= start - 150 ms`.
 pub const LEAD_MS: i64 = 150;
 /// The active line sits at this fraction of the viewport height.
@@ -179,14 +181,28 @@ pub fn scroll_target_rows(
     let Some(a) = active else {
         return 0.0;
     };
-    let height = |i: usize| {
-        let role = LineRole::of(i, Some(a));
-        wrapped_height(role, dense, rows.get(i).map_or(1, |r| r[role.slot()]))
+    let heights: Vec<f32> = (0..=a)
+        .map(|i| line_height_in(i, Some(a), dense, rows))
+        .collect();
+    anchored(&heights, viewport_h, dense)
+}
+
+/// Height in px of line `i` when `active` is the active line, from its wrapped row counts.
+fn line_height_in(i: usize, active: Option<usize>, dense: bool, rows: &[LineRows]) -> f32 {
+    let role = LineRole::of(i, active);
+    wrapped_height(role, dense, rows.get(i).map_or(1, |r| r[role.slot()]))
+}
+
+/// The scroll offset that anchors the last of `heights` (the rows of the list from the top
+/// down to the anchored one) at [`ANCHOR`] of the viewport.
+fn anchored(heights: &[f32], viewport_h: f32, dense: bool) -> f32 {
+    let Some((&own, rest)) = heights.split_last() else {
+        return 0.0;
     };
-    let above: f32 = (0..a).map(height).sum();
+    let above: f32 = rest.iter().sum();
     // The anchor puts the line's top at 35%; a line that wraps onto more rows than fit below
     // the anchor moves up so its last row stays in view (its top never leaves the view).
-    let fit = (above + height(a) - viewport_h).max(0.0);
+    let fit = (above + own - viewport_h).max(0.0);
     let raw = (above - ANCHOR * viewport_h).max(fit).min(above).max(0.0);
     if !dense {
         return raw;
@@ -195,17 +211,42 @@ pub fn scroll_target_rows(
     // active line needs more room, the next edge down is used instead.
     let mut edge = 0.0;
     let mut acc = 0.0;
-    for i in 0..=a {
+    for h in heights {
         if acc > raw {
             break;
         }
         edge = acc;
-        acc += height(i);
+        acc += h;
     }
     if edge + 0.5 < fit {
         edge = acc.min(above);
     }
     edge
+}
+
+/// [`scroll_target_rows`] for a [`note::Focus`]: while the intro or gap note waits, the note
+/// row is anchored where the active line would be; while it fades out, its shrinking row still
+/// counts above the line it waited for.
+#[must_use]
+pub fn scroll_target_focus(
+    focus: &note::Focus,
+    viewport_h: f32,
+    dense: bool,
+    rows: &[LineRows],
+) -> f32 {
+    let Some(n) = focus.note else {
+        return scroll_target_rows(focus.active, viewport_h, dense, rows);
+    };
+    let line = |i: usize| line_height_in(i, focus.active, dense, rows);
+    let mut heights: Vec<f32> = (0..n.before).map(line).collect();
+    heights.push(note::row_height(dense) * n.presence);
+    match focus.active {
+        // Waiting: the note is the anchored row.
+        None => {}
+        Some(a) if a < n.before => heights.truncate(a + 1),
+        Some(a) => heights.extend((n.before..=a).map(line)),
+    }
+    anchored(&heights, viewport_h, dense)
 }
 
 /// Footer text: `Lyrics: <provider> . <level>` (design.md section 10, wave-lyrics criterion 9).
