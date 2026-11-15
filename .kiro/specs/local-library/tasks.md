@@ -81,7 +81,7 @@ Cross-spec ids written `<spec>#?` name the owner's task by its ADR 0004 Decision
   - Wave: 1
   - Checks: a truncated file triggers the rebuild and keeps the copy.
 
-- [ ] 10. Load the library from the store at start
+- [x] 10. Load the library from the store at start
   - Crate and files: `nemo-library`: `src/library.rs`, `src/catalog.rs`.
   - Does: Loads every row into an `Arc<RwLock<Snapshot>>` on a worker thread and makes `LocalCatalog` read the snapshot instead of rescanning.
   - _Requirements: 5_
