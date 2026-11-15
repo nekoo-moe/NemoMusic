@@ -21,6 +21,11 @@ md-5 = { version = "=0.11.0", default-features = false }
 # Last.fm API calls. `form` sends the signed parameters as a POST body, never in the URL.
 reqwest = { version = "=0.13.5", default-features = false, features = ["native-tls", "form"] }
 
+# Linux desktop notifications over the session bus. The same version and features the Secret
+# Service store already builds (`nemo-secrets`); pure Rust, no libdbus.
+[target.'cfg(target_os = "linux")'.dependencies]
+zbus = { version = "=5.19.0", default-features = false, features = ["async-io", "blocking-api"] }
+
 [dev-dependencies]
 tokio = { version = "=1.54.1", default-features = false, features = ["rt", "macros"] }
 tracing-subscriber = { version = "=0.3.23", default-features = false, features = ["fmt", "std"] }

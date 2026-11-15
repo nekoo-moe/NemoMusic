@@ -229,7 +229,7 @@ Cross-spec ids written `<spec>#?` name the other spec's task by the ADR 0004 Dec
   - Checks: shortcut check against a temp folder; `#[ignore]` manual test from an installed build (task 33). No host contacted.
   - Steering: `tech.md` row `tauri-winrt-notification` =0.8.1 (Windows only).
 
-- [ ] 28. Show notifications on Linux
+- [x] 28. Show notifications on Linux
   - Crate and files: `nemo-integrations` (`src/notify/linux.rs` new).
   - Does: Talks to `org.freedesktop.Notifications` with blocking `zbus` on one thread: `GetCapabilities` once, `Notify` with `replaces_id`, `desktop-entry` `nemomusic`, urgency normal, `default` action only when listed, body always escaped. `ActionInvoked` becomes `Activated`; `clear` calls `CloseNotification`. No session bus gives `Unavailable(NoService)`.
   - _Requirements: 31, 35, 37, 38, 39, 40_
