@@ -40,7 +40,7 @@ Being built (feature wave, approved specs in `.kiro/specs/`):
 - Video playback through libmpv, Cast and DLNA, Listen Together rooms, song recognition
 - Apple Music-style Now Playing
 
-> **Warning**
+> [!WARNING]
 > NemoMusic is not made, approved or supported by Google or YouTube. It uses YouTube Music without an official API, which may break the YouTube Terms of Service. Your account could be limited, and playback can break without notice.
 
 ## What "lossless" means here
