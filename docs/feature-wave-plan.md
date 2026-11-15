@@ -1,6 +1,6 @@
 # Feature wave plan: build order
 
-Generated from the 17 `tasks.md` files of the 2026-11-14 wave: 417 tasks in 26 steps. Done: 47 of 417 (a task is done when its `tasks.md` line is ticked).
+Generated from the 17 `tasks.md` files of the 2026-11-14 wave: 418 tasks in 26 steps. Done: 83 of 418 (a task is done when its `tasks.md` line is ticked).
 A step starts when every task of the step before it has merged. Tasks inside one step do not depend on each other and never edit the same `nemo-core` file, so they may run in parallel (at most a few at a time on the build machine). Steps of the same dependency depth are split only by those file clashes.
 Each task is one PR (`workflow.md` section 3). Regenerate this file when a `tasks.md` changes.
 
@@ -61,14 +61,14 @@ Each task is one PR (`workflow.md` section 3). Regenerate this file when a `task
 ## Step 6 (0 of 1 done)
 - [ ] `youtube-extras#4` (wave 0, nemo-core) Add `captions.rs` with `SubtitleSource`, `SubtitleCue` and `CaptionError` - nemo-core: captions, lib
 
-## Step 7 (17 of 35 done)
+## Step 7 (29 of 35 done)
 - [x] `account-actions#2` (wave 0, nemo-secrets) Add the `nemo-secrets` crate with the platform stores
 - [x] `account-actions#5` (wave 0, nemo-ytm) Run the registered wipe steps on sign-out
 - [x] `account-actions#6` (wave 0, nemo-core) Add the account list types and `AccountSwitcher` - nemo-core: account
 - [x] `account-actions#9` (wave 0, nemo-audio) Resolve through a `StreamRequest` in `nemo-audio`
 - [x] `audio-effects#2` (wave 0, nemo-core) Add the new `ProcessingStage` values - nemo-core: audio
-- [ ] `audio-effects#3` (wave 0, nemo-core) Add the effects and transition commands, events and snapshot fields - nemo-core: player
-- [ ] `cast#3` (wave 0, nemo-core) Add the Cast control trait and its types to nemo-core - nemo-core: cast, lib
+- [x] `audio-effects#3` (wave 0, nemo-core) Add the effects and transition commands, events and snapshot fields - nemo-core: player
+- [x] `cast#3` (wave 0, nemo-core) Add the Cast control trait and its types to nemo-core - nemo-core: cast, lib
 - [x] `integrations#2` (wave 0, nemo-ui) Add the shared `OptInRow` settings component
 - [x] `integrations#3` (wave 0, nemo-app) Add the opt-in gate and the egress-list check in `nemo-app`
 - [x] `integrations#5` (wave 0, nemo-core) Add `PlayTracker`, `PlayHookEvent`, `FinishedPlay` and `PlayObserver` - nemo-core: hooks
@@ -76,34 +76,34 @@ Each task is one PR (`workflow.md` section 3). Regenerate this file when a `task
 - [x] `local-library#2` (wave 0, nemo-core) Add the library service types to `nemo-core` - nemo-core: library
 - [x] `lyrics-plus#2` (wave 0, nemo-core) Add the own-lyrics contract - nemo-core: lyrics_plus
 - [x] `lyrics-plus#5` (wave 0, nemo-core) Add the Spotify account contract - nemo-core: spotify
-- [ ] `soundcloud#2` (wave 0, nemo-core) Add `Transport`, the four new `ResolvedStream` fields and `Track.source_url` in one change - nemo-core: stream, track
-- [ ] `audio-effects#5` (wave 1, nemo-audio) Parse and write AutoEq profile files
+- [x] `soundcloud#2` (wave 0, nemo-core) Add `Transport`, the four new `ResolvedStream` fields and `Track.source_url` in one change - nemo-core: stream, track
+- [x] `audio-effects#5` (wave 1, nemo-audio) Parse and write AutoEq profile files
 - [x] `local-library#6` (wave 1, nemo-audio) Add the Opus decoder through one codec registry
 - [ ] `now-playing-styles#1` (wave 1, ) Spike: Spotify Canvas lookup with an owner test account
 - [x] `offline-cache#4` (wave 1, nemo-ytm) Create the offline index and file layout
 - [x] `offline-cache#8` (wave 1, nemo-lyrics) Pin saved lyrics in the lyrics cache
 - [ ] `playlist-import#3` (wave 1, nemo-library) Read Exportify and Soundiiz CSV files in nemo-library
-- [ ] `playlist-import#4` (wave 1, nemo-library) Normalize text and score candidates
+- [x] `playlist-import#4` (wave 1, nemo-library) Normalize text and score candidates
 - [ ] `youtube-extras#8` (wave 1, nemo-ytm) Add the pure caption functions: `parse_json3`, `cues_to_doc`, `pick_track`
 - [ ] `account-actions#18` (wave 2, nemo-ytm) Like and dislike through `set_rating`
 - [ ] `account-actions#19` (wave 2, nemo-ytm) Edit playlist details on YouTube Music
-- [ ] `account-actions#27` (wave 2, nemo-ytm) Choose the audio track by preferred language
-- [ ] `audio-effects#7` (wave 2, nemo-audio) Add the biquad filters and the automatic preamp
-- [ ] `audio-effects#8` (wave 2, nemo-audio) Add the delay stage
-- [ ] `audio-effects#9` (wave 2, nemo-audio) Add the reverb stage
-- [ ] `audio-effects#14` (wave 2, nemo-audio) Build the `TransitionMixer`
-- [ ] `integrations#26` (wave 2, nemo-integrations) Compose release notifications as plain text
+- [x] `account-actions#27` (wave 2, nemo-ytm) Choose the audio track by preferred language
+- [x] `audio-effects#7` (wave 2, nemo-audio) Add the biquad filters and the automatic preamp
+- [x] `audio-effects#8` (wave 2, nemo-audio) Add the delay stage
+- [x] `audio-effects#9` (wave 2, nemo-audio) Add the reverb stage
+- [x] `audio-effects#14` (wave 2, nemo-audio) Build the `TransitionMixer`
+- [x] `integrations#26` (wave 2, nemo-integrations) Compose release notifications as plain text
 - [x] `local-library#19` (wave 2, nemo-audio) Play CUE spans in the player
 - [ ] `lyrics-plus#31` (wave 2, nemo-ui) Render the share card
 - [x] `now-playing-styles#4` (wave 2, nemo-ui) Dispatch the Now Playing views on the style
-- [ ] `youtube-extras#12` (wave 2, nemo-ytm) Search all of YouTube
+- [x] `youtube-extras#12` (wave 2, nemo-ytm) Search all of YouTube
 
-## Step 8 (0 of 2 done)
-- [ ] `listen-together#2` (wave 0, nemo-core) Add the room control trait and its types to nemo-core - nemo-core: lib, together
-- [ ] `soundcloud#5` (wave 0, nemo-core) Add `Backend.soundcloud` - nemo-core: services
+## Step 8 (2 of 2 done)
+- [x] `listen-together#2` (wave 0, nemo-core) Add the room control trait and its types to nemo-core - nemo-core: lib, together
+- [x] `soundcloud#5` (wave 0, nemo-core) Add `Backend.soundcloud` - nemo-core: services
 
-## Step 9 (0 of 1 done)
-- [ ] `output-devices#1` (wave 0, nemo-core) Add the output device types to `nemo-core` - nemo-core: lib, output
+## Step 9 (1 of 1 done)
+- [x] `output-devices#1` (wave 0, nemo-core) Add the output device types to `nemo-core` - nemo-core: lib, output
 
 ## Step 10 (0 of 1 done)
 - [ ] `song-recognition#2` (wave 0, nemo-core) Add the Recognizer trait and its types to nemo-core - nemo-core: lib, recognize
@@ -111,17 +111,17 @@ Each task is one PR (`workflow.md` section 3). Regenerate this file when a `task
 ## Step 11 (0 of 1 done)
 - [ ] `video-playback#2` (wave 0, nemo-core) Add the video types and traits - nemo-core: lib, video
 
-## Step 12 (0 of 44 done)
-- [ ] `account-actions#3` (wave 0, nemo-secrets) Add `ScopedStore` to `nemo-secrets`
-- [ ] `account-actions#10` (wave 0, nemo-core) Add `PlayerCommand::SwitchAudioTrack` - nemo-core: player
+## Step 12 (21 of 45 done)
+- [x] `account-actions#3` (wave 0, nemo-secrets) Add `ScopedStore` to `nemo-secrets`
+- [x] `account-actions#10` (wave 0, nemo-core) Add `PlayerCommand::SwitchAudioTrack` - nemo-core: player
 - [ ] `cast#5` (wave 0, nemo-cast) Create the nemo-cast crate skeleton
-- [ ] `integrations#8` (wave 0, nemo-integrations) Create the `nemo-integrations` crate skeleton
-- [ ] `integrations#9` (wave 0, nemo-app) Add the play hub thread in `nemo-app`
-- [ ] `listening-stats#1` (wave 0, nemo-core) Add the `StatsService` contract and `Backend.stats` - nemo-core: services, stats
+- [x] `integrations#8` (wave 0, nemo-integrations) Create the `nemo-integrations` crate skeleton
+- [x] `integrations#9` (wave 0, nemo-app) Add the play hub thread in `nemo-app`
+- [x] `listening-stats#1` (wave 0, nemo-core) Add the `StatsService` contract and `Backend.stats` - nemo-core: services, stats
 - [ ] `listen-together#3` (wave 0, nemo-together) Create the nemo-together crate and validate server addresses
-- [ ] `lyrics-plus#3` (wave 0, nemo-core) Add the romanizer contract - nemo-core: lyrics_plus
-- [ ] `lyrics-plus#6` (wave 0, nemo-core) Add the animated-art source contract - nemo-core: animated_art
-- [ ] `lyrics-plus#7` (wave 0, nemo-spotify) Create the `nemo-spotify` crate skeleton
+- [x] `lyrics-plus#3` (wave 0, nemo-core) Add the romanizer contract - nemo-core: lyrics_plus
+- [x] `lyrics-plus#6` (wave 0, nemo-core) Add the animated-art source contract - nemo-core: animated_art
+- [x] `lyrics-plus#7` (wave 0, nemo-spotify) Create the `nemo-spotify` crate skeleton
 - [ ] `output-devices#2` (wave 0, nemo-audio) Extend the sink traits for health, reporting and device lists
 - [ ] `song-recognition#3` (wave 0, nemo-recognize) Create the nemo-recognize crate skeleton
 - [ ] `soundcloud#4` (wave 0, nemo-core) Add `url_resolver.rs` with the `UrlResolver` trait and `rank_formats` - nemo-core: lib, url_resolver
@@ -129,12 +129,12 @@ Each task is one PR (`workflow.md` section 3). Regenerate this file when a `task
 - [ ] `account-actions#17` (wave 1, nemo-ytm) Add the release notice store
 - [ ] `audio-effects#4` (wave 1, nemo-app) Save the effects and transition settings in `settings.json`
 - [ ] `audio-effects#6` (wave 1, nemo-audio) Add the built-in presets and the preset store
-- [ ] `local-library#7` (wave 1, nemo-audio) Let streams play as Opus
-- [ ] `local-library#8` (wave 1, nemo-library) Create the `library.db` store with migrations
-- [ ] `lyrics-plus#10` (wave 1, nemo-lyrics) Store own lyrics in the lyrics database
-- [ ] `offline-cache#5` (wave 1, nemo-ytm) Clean up the cache at start
-- [ ] `offline-cache#6` (wave 1, nemo-ytm) Remove songs and wipe the cache
-- [ ] `offline-cache#7` (wave 1, nemo-ytm) Download one song with ranged reads
+- [x] `local-library#7` (wave 1, nemo-audio) Let streams play as Opus
+- [x] `local-library#8` (wave 1, nemo-library) Create the `library.db` store with migrations
+- [x] `lyrics-plus#10` (wave 1, nemo-lyrics) Store own lyrics in the lyrics database
+- [x] `offline-cache#5` (wave 1, nemo-ytm) Clean up the cache at start
+- [x] `offline-cache#6` (wave 1, nemo-ytm) Remove songs and wipe the cache
+- [x] `offline-cache#7` (wave 1, nemo-ytm) Download one song with ranged reads
 - [ ] `output-devices#5` (wave 1, nemo-app) Save the chosen device by ID and name
 - [ ] `playlist-import#5` (wave 1, nemo-library) Implement `ImportEngine` and the match session
 - [ ] `soundcloud#10` (wave 1, nemo-ytm) Add `HlsSource` for on-demand HLS in nemo-ytm
@@ -142,18 +142,19 @@ Each task is one PR (`workflow.md` section 3). Regenerate this file when a `task
 - [ ] `video-playback#8` (wave 1, nemo-ytm) Resolve the video stream and the caption list
 - [ ] `youtube-extras#9` (wave 1, nemo-ytm) Implement `YtmCaptions` over the `yt-dlp` runner
 - [ ] `account-actions#20` (wave 2, nemo-ytm) Create playlists and add, remove and move songs
+- [ ] `account-actions#39` (wave 2, nemo-ytm) Pass the stream request through the resolver chain
 - [ ] `audio-effects#10` (wave 2, nemo-audio) Build the `EffectsChain` with ramps and the clip counter
 - [ ] `integrations#27` (wave 2, nemo-integrations) Show notifications on Windows
 - [ ] `integrations#28` (wave 2, nemo-integrations) Show notifications on Linux
-- [ ] `local-library#21` (wave 2, nemo-audio) Apply ReplayGain as an off-by-default stage
-- [ ] `local-library#22` (wave 2, nemo-audio) Measure loudness with `ebur128`
-- [ ] `local-library#25` (wave 2, nemo-core) Keep the lossless badge honest for local formats - nemo-core: audio
-- [ ] `lyrics-plus#28` (wave 2, nemo-ui) Build the lyrics editor model
+- [x] `local-library#21` (wave 2, nemo-audio) Apply ReplayGain as an off-by-default stage
+- [x] `local-library#22` (wave 2, nemo-audio) Measure loudness with `ebur128`
+- [x] `local-library#25` (wave 2, nemo-core) Keep the lossless badge honest for local formats - nemo-core: audio
+- [x] `lyrics-plus#28` (wave 2, nemo-ui) Build the lyrics editor model
 - [ ] `lyrics-plus#32` (wave 2, nemo-ui) Save the card as PNG or copy it to the clipboard
-- [ ] `now-playing-styles#5` (wave 2, nemo-ui) Add the Classic style
+- [x] `now-playing-styles#5` (wave 2, nemo-ui) Add the Classic style
 - [ ] `now-playing-styles#6` (wave 2, nemo-ui) Add the Apple Music style layout and its `design.md` exceptions
-- [ ] `offline-cache#13` (wave 2, nemo-audio) Play saved songs from the cache
-- [ ] `offline-cache#15` (wave 2, nemo-ytm) Add offline mode with the offline catalog and request gates
+- [x] `offline-cache#13` (wave 2, nemo-audio) Play saved songs from the cache
+- [x] `offline-cache#15` (wave 2, nemo-ytm) Add offline mode with the offline catalog and request gates
 - [ ] `youtube-extras#13` (wave 2, nemo-ytm) Open channel pages
 - [ ] `video-playback#17` (wave 3, nemo-ui) Draw frames with `VideoSurface`
 

@@ -339,9 +339,18 @@ Tasks in other specs are cited by spec and the ADR 0004 Decision 4 row they own,
   - Crate and files: none (results in the PR description).
   - Does: With two throwaway accounts and one Premium account, on Windows and on Linux: add, switch while a song plays, sign out of one and of all, dislike, edit a playlist, Premium on and off, a dubbed video, one release check. Confirms the README egress list holds `music.youtube.com`, `www.youtube.com` and `accounts.google.com` and no new host.
   - _Requirements: 11, 12, 13, 15, 18, 22, 35_
-  - Depends on: account-actions#31, account-actions#32, account-actions#33, account-actions#34, account-actions#35, account-actions#36, account-actions#37
+  - Depends on: account-actions#31, account-actions#32, account-actions#33, account-actions#34, account-actions#35, account-actions#36, account-actions#37, account-actions#39
   - Wave: 3
   - Checks: needs the owner (throwaway and Premium accounts, a Linux machine); `cargo test -p nemo-audio --test bit_exact`.
+  - Steering: none.
+
+- [ ] 39. Pass the stream request through the resolver chain
+  - Crate and files: `nemo-ytm` (`src/resolver.rs`).
+  - Does: `CachedResolver` and `FallbackResolver`, the chain `default_chain` builds, implement `resolve_with` and hand the `StreamRequest` to the resolvers they wrap, so the audio language (task 27) and Premium (task 25) reach `yt-dlp` in the app. The cache keys by video and request, so a song resolved in one language is not served for another. Found in the review of PR #103: the chain uses the default `resolve_with`, which calls `resolve` and drops the request.
+  - _Requirements: 18, 24, 25, 26, 27_
+  - Depends on: account-actions#27
+  - Wave: 2
+  - Checks: a counting fake shows the request reaches the inner resolver through both wrappers; two requests for one video make two cache entries; the default request hits the cache as today.
   - Steering: none.
 
 ## Definition of Done
