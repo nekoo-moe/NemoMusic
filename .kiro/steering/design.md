@@ -34,6 +34,7 @@ Owner direction (2026-11-10, evening): the first build looked "raw". Go full Mat
 ## 4. Shape, spacing, layout
 - Spacing unit 4 px; allowed 4, 8, 12, 16, 24, 32, 48, 64.
 - Shape scale (M3): `shape.xs` 4, `sm` 8, `md` 12, `lg` 16, `xl` 28, `full` 999. Cards and rows `md`; hero art `lg`; sheets `xl`; artists `full`.
+- Album and playlist pages (owner, 2026-11-15, collection-page-ytm spec): YouTube Music layout. A tall gradient from the page cover (`scheme::page_glow`) fades into the pane; a centred left column (cover, title `headline-md`, owner, meta lines, round Shuffle 48 and a white Play disc 64) and the track list (cover, title, `Artist • Album`, badge, duration, menu). Two columns at window W >= 1280 with content >= 640 (left 38%, 260 to 360), each column scrolling on its own; stacked below. The white Play disc (`on-surface` with a `surface` glyph) is the one place the play button is not the accent.
 - Min window 960 x 600, default 1280 x 800. Sidebar 240 (64 icons below 1100 px width). Player bar 88 high, floating, 12 px inset from window edges. Queue panel 320. Content max 1200. Track row 48 (compact 40). Padding 24. Works at 100/150/200% DPI.
 
 ## 5. Elevation and state layers

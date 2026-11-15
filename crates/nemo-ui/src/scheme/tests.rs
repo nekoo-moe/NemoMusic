@@ -207,6 +207,54 @@ fn corner_scales_are_ordered() {
     assert_eq!(CornerStyle::Soft.percent(), 100);
 }
 
+/// The page glow under the hero text: every ink on the glow (at its top, middle and faded
+/// opacities) over a pane over any field colour, and the white Play disc on the glow.
+#[test]
+fn page_glow_keeps_text_and_the_play_disc_legible() {
+    let seeds: Vec<Option<Seed>> = std::iter::once(None)
+        .chain((0..36).flat_map(|h| {
+            [0.0, 0.06, 0.14].into_iter().map(move |c| {
+                Some(Seed {
+                    hue: f64::from(h) * 10.0,
+                    chroma: c,
+                })
+            })
+        }))
+        .collect();
+    for base in BaseMode::ALL {
+        let n = base.neutrals();
+        // What can lie under the pane: the cover canvas (any cover, retoned into its band) or
+        // the gradient field.
+        let mut fields: Vec<Rgba> = [
+            0x00_0000, 0xFF_FFFF, 0x80_8080, 0xFF_148C, 0xFA_E600, 0x00_FFFF,
+        ]
+        .map(|c| crate::canvas::retone(Rgba::from_rgb_hex(c), base))
+        .to_vec();
+        fields.extend(bg_colors(None, base));
+        for seed in &seeds {
+            let [top, mid] = page_glow(*seed, base);
+            for &field in &fields {
+                let pane = n.container.with_alpha(PANE_ALPHA).over(field);
+                for (glow, alpha) in [(top, GLOW_TOP_ALPHA), (mid, GLOW_MID_ALPHA)] {
+                    let under = glow.with_alpha(alpha).over(pane);
+                    for (name, ink) in [
+                        ("on-surface", n.on_surface),
+                        ("variant", n.on_surface_variant),
+                    ] {
+                        let ratio = contrast_ratio(ink, under);
+                        assert!(
+                            ratio >= 4.5,
+                            "{base:?} {seed:?} {field:?} {name}: {ratio:.2}"
+                        );
+                    }
+                }
+                let disc = contrast_ratio(n.on_surface, top.with_alpha(GLOW_TOP_ALPHA).over(pane));
+                assert!(disc >= 3.0, "{base:?} {seed:?}: play disc {disc:.2}");
+            }
+        }
+    }
+}
+
 #[test]
 fn the_window_follows_the_song_and_a_fixed_theme_keeps_its_seed() {
     let a = Seed {

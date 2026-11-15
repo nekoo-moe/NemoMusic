@@ -10,6 +10,17 @@ use super::{SIZES, Shot, named, shot};
 /// Coloured background, daily Home, skeletons.
 #[allow(clippy::too_many_lines)] // a flat list of scenarios
 pub(super) fn backdrops(out: &mut Vec<Shot>) {
+    // The collection page stacks below a 1280 px window.
+    for size in [(1100, 700), (960, 600)] {
+        out.push(shot(
+            named("playlist-ytm-stacked", size),
+            Scenario {
+                route: Route::Playlist(BrowseId("mock-playlist-1".to_owned())),
+                size,
+                ..Scenario::default()
+            },
+        ));
+    }
     // Round 4: coloured background, daily Home, skeletons.
     for size in SIZES {
         let at = |route: Route| Scenario {
@@ -43,6 +54,17 @@ pub(super) fn backdrops(out: &mut Vec<Shot>) {
             Scenario {
                 track: 14,
                 ..at(Route::Home)
+            },
+        ));
+        // The YouTube Music style collection page (collection-page-ytm spec) in light mode.
+        out.push(shot(
+            named("album-ytm-light", size),
+            Scenario {
+                settings: nemo_ui::UiSettings {
+                    base: nemo_ui::scheme::BaseMode::Light,
+                    ..Scenario::default().settings
+                },
+                ..at(Route::Album(BrowseId("mock-album-4".to_owned())))
             },
         ));
         // Reduce transparency: one flat tonal colour from the cover, no texture.

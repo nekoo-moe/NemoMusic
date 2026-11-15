@@ -1,8 +1,7 @@
-//! Album, Artist and Playlist pages (`ui-reference.md` section 4): a 320 px hero with title, meta,
-//! Play and Shuffle, then the numbered track list. Pressing a row plays it with the whole list as
-//! the queue.
-
-use std::time::Duration;
+//! Album, Artist and Playlist pages. Albums and playlists use the YouTube Music layout in
+//! [`collection`] (collection-page-ytm spec); the Artist page keeps the 320 px hero with title,
+//! Play and Shuffle, then its songs and albums (`ui-reference.md` section 4). Pressing a row plays
+//! it with the whole list as the queue.
 
 use iced::widget::{Space, column, container, row};
 use iced::{Alignment, Element, Length};
@@ -24,6 +23,9 @@ use crate::route::Route;
 use crate::state::Event;
 use crate::theme::{color, type_scale};
 
+pub mod collection;
+mod song_row;
+
 /// Hero art size.
 const HERO: u32 = 320;
 
@@ -44,7 +46,11 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
             ),
         );
     }
+    let collection_page = !matches!(key.kind, DetailKind::Artist);
     let body: Element<'_, Message> = match app.details.get(&key) {
+        None | Some(DetailState::Loading) if collection_page => {
+            return collection::skeleton(app, grid.content);
+        }
         None | Some(DetailState::Loading) => skeleton_page(app, grid),
         Some(DetailState::Failed(e)) => status(
             Icon::Info,
@@ -53,35 +59,12 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
             Some(("Try again", Message::RetryDetail(key.clone()))),
         ),
         Some(DetailState::Ready(data)) => match data.as_ref() {
-            DetailData::Album(a) => album(app, &key, a, grid),
+            DetailData::Album(a) => return album(app, &key, a, grid),
             DetailData::Artist(a) => artist(app, &key, a, grid),
-            DetailData::Playlist(p) => playlist(app, &key, p, grid),
+            DetailData::Playlist(p) => return playlist(app, &key, p, grid),
         },
     };
     page(grid.content, body)
-}
-
-/// `2019 · 12 songs · 45 min`, skipping what is unknown.
-fn meta_line(year: Option<u16>, tracks: &[Track]) -> String {
-    let mut parts = Vec::new();
-    if let Some(y) = year {
-        parts.push(y.to_string());
-    }
-    parts.push(if tracks.len() == 1 {
-        "1 song".to_owned()
-    } else {
-        format!("{} songs", tracks.len())
-    });
-    let total: Duration = tracks.iter().filter_map(|t| t.duration).sum();
-    if !total.is_zero() {
-        let mins = total.as_secs().div_ceil(60);
-        parts.push(if mins >= 60 {
-            format!("{} h {} min", mins / 60, mins % 60)
-        } else {
-            format!("{mins} min")
-        });
-    }
-    parts.join(" \u{b7} ")
 }
 
 struct Hero<'a> {
@@ -181,24 +164,16 @@ fn album<'a>(
     a: &'a AlbumDetail,
     grid: layout::Grid,
 ) -> Element<'a, Message> {
-    // Content widths are small exact numbers.
-    #[allow(clippy::cast_precision_loss)]
-    let w = grid.content as f32;
-    let h = Hero {
-        artwork: Artwork::Remote(a.summary.thumbnails.clone()),
-        shape: ArtShape::Hero,
+    let c = collection::Collection {
         kind: "Album",
+        artwork: Artwork::Remote(a.summary.thumbnails.clone()),
         title: &a.summary.title,
-        subtitle: Some(format::artists(&a.summary.artists)),
-        meta: Some(meta_line(a.summary.year, &a.tracks)),
-        note: None,
+        owner: (!a.summary.artists.is_empty()).then(|| format::artists(&a.summary.artists)),
+        year: a.summary.year,
+        tracks: &a.tracks,
+        numbered: true,
     };
-    column![
-        hero(app, &h, key, w),
-        vspace(gap::XXL),
-        rows(app, key, &a.tracks, w, true)
-    ]
-    .into()
+    collection::view(app, key, &c, grid.content)
 }
 
 fn playlist<'a>(
@@ -207,24 +182,16 @@ fn playlist<'a>(
     p: &'a PlaylistDetail,
     grid: layout::Grid,
 ) -> Element<'a, Message> {
-    // Content widths are small exact numbers.
-    #[allow(clippy::cast_precision_loss)]
-    let w = grid.content as f32;
-    let h = Hero {
-        artwork: Artwork::Remote(p.summary.thumbnails.clone()),
-        shape: ArtShape::Hero,
+    let c = collection::Collection {
         kind: "Playlist",
+        artwork: Artwork::Remote(p.summary.thumbnails.clone()),
         title: &p.summary.title,
-        subtitle: p.summary.author.clone(),
-        meta: Some(meta_line(None, &p.tracks)),
-        note: None,
+        owner: p.summary.author.clone(),
+        year: None,
+        tracks: &p.tracks,
+        numbered: false,
     };
-    column![
-        hero(app, &h, key, w),
-        vspace(gap::XXL),
-        rows(app, key, &p.tracks, w, false)
-    ]
-    .into()
+    collection::view(app, key, &c, grid.content)
 }
 
 fn artist<'a>(
@@ -374,22 +341,4 @@ fn skeleton_page(app: &App, grid: layout::Grid) -> Element<'_, Message> {
         );
     }
     c.into()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::meta_line;
-    use crate::mock;
-
-    #[test]
-    fn meta_line_counts_songs_and_minutes() {
-        let tracks = mock::tracks().into_iter().take(4).collect::<Vec<_>>();
-        let m = meta_line(Some(2019), &tracks);
-        assert!(m.starts_with("2019 \u{b7} 4 songs \u{b7} "), "{m}");
-        assert!(m.ends_with(" min"), "{m}");
-        assert_eq!(
-            meta_line(None, &tracks[..1]).split(" \u{b7} ").next(),
-            Some("1 song")
-        );
-    }
 }
