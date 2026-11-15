@@ -6,8 +6,8 @@
 //! only ends the list early.
 
 use nemo_core::catalog::{
-    AlbumDetail, AlbumSummary, ArtistSummary, BrowseId, CatalogError, Explore, FeedShelf,
-    HistorySection, HomeFeed, PlaylistDetail, PlaylistSummary, PodcastDetail,
+    AlbumDetail, AlbumSummary, ArtistSummary, BrowseId, CatalogError, CollectionMeta, Explore,
+    FeedShelf, HistorySection, HomeFeed, PlaylistDetail, PlaylistSummary, PodcastDetail,
 };
 use nemo_core::track::Track;
 use ytmapi_rs::YtMusic;
@@ -208,6 +208,7 @@ pub(crate) async fn playlist<A: AuthToken>(
             },
             tracks: album.tracks,
             edit: None,
+            meta: album.meta,
         });
     }
     let browsed = browse_playlist(api, id).await;
@@ -240,6 +241,7 @@ pub(crate) async fn playlist<A: AuthToken>(
                     },
                     tracks,
                     edit: None,
+                    meta: CollectionMeta::default(),
                 }),
                 (Ok(detail), true) => Ok(detail),
                 (Err(e), true) => Err(e),
@@ -273,8 +275,9 @@ pub(crate) async fn album<A: AuthToken>(
     let header = crate::feeds::PlaylistHeader {
         title: Some(detail.summary.title),
         author: detail.summary.author,
-        year: None,
+        year: detail.meta.year,
         thumbnails: detail.summary.thumbnails,
+        meta: detail.meta,
     };
     album_from_parts(id, header, detail.tracks).ok_or(CatalogError::NotFound)
 }
@@ -296,6 +299,9 @@ pub(crate) fn album_from_parts(
     mut tracks: Vec<Track>,
 ) -> Option<AlbumDetail> {
     let title = header.title?;
+    let mut meta = header.meta;
+    // Album pages never carry privacy; a playlist-style album id can, and it means nothing here.
+    meta.privacy = None;
     let artists: Vec<String> = header.author.into_iter().collect();
     for track in &mut tracks {
         if track.artists.is_empty() {
@@ -317,6 +323,7 @@ pub(crate) fn album_from_parts(
             thumbnails: header.thumbnails,
         },
         tracks,
+        meta,
     })
 }
 
@@ -357,6 +364,7 @@ async fn browse_playlist<A: AuthToken>(
         },
         tracks,
         edit: None,
+        meta: header.meta,
     })
 }
 
@@ -395,6 +403,10 @@ mod tests {
             author: Some("Band".to_owned()),
             year: Some(2019),
             thumbnails: cover.clone(),
+            meta: CollectionMeta {
+                track_count: Some(2),
+                ..CollectionMeta::default()
+            },
         };
         let id = BrowseId("OLAK5uy_synthetic".to_owned());
         let detail = album_from_parts(
@@ -405,6 +417,7 @@ mod tests {
         .expect("album");
         assert_eq!(detail.summary.id, id);
         assert_eq!(detail.summary.year, Some(2019));
+        assert_eq!(detail.meta.track_count, Some(2));
         assert_eq!(detail.summary.artists, vec!["Band".to_owned()]);
         assert_eq!(detail.tracks[0].artists, vec!["Band".to_owned()]);
         assert_eq!(detail.tracks[1].artists, vec!["Guest".to_owned()]);

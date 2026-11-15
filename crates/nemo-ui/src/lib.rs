@@ -15,6 +15,7 @@
 
 pub mod anim;
 pub mod canvas;
+pub mod collection_sort;
 pub mod copy;
 pub mod cover;
 pub mod daily;

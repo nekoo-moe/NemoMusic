@@ -117,6 +117,9 @@ pub fn album_page(a: &GetAlbum) -> RawAlbumPage {
                 duration: Some(t.duration.clone()),
             })
             .collect(),
+        artist_thumbnails: thumbs(&a.artist_thumbnails),
+        track_count_text: a.track_count_text.clone(),
+        duration_text: Some(a.duration.clone()),
     }
 }
 

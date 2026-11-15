@@ -6,6 +6,7 @@ use super::message::{Job, Message};
 use super::model::{AccountMsg, DetailData, DetailKey, DetailState, HomePhase, ListSource, NpTab};
 use super::option::{CreateMsg, SleepState};
 use super::{App, ROWS_STEP};
+use crate::collection_sort::CollectionSort;
 use crate::explore::MOODS;
 use crate::keys::{self};
 use crate::route::Route;
@@ -25,6 +26,10 @@ impl App {
                 // Esc closes the sign-in sheet first.
                 Some(keys::KeyAction::Close) if self.account.open => {
                     self.account_msg(AccountMsg::Close)
+                }
+                Some(keys::KeyAction::Close) if self.sort_menu.is_some() => {
+                    self.sort_menu = None;
+                    Vec::new()
                 }
                 Some(keys::KeyAction::Close) if self.create_open => {
                     self.create_msg(CreateMsg::Close)
@@ -244,6 +249,11 @@ impl App {
                 shuffle(&mut tracks);
                 self.dispatch(Event::PlayTracks { tracks, start: 0 })
             }
+            Message::SortMenu(key) => {
+                self.sort_menu = key;
+                Vec::new()
+            }
+            Message::SortCollection { key, sort } => self.sort_collection(&key, sort),
             Message::CompactTab(tab) => {
                 self.compact_tab = tab;
                 Vec::new()
@@ -443,6 +453,20 @@ impl App {
         }
         self.details.insert(key.clone(), DetailState::Loading);
         vec![Job::Detail(key)]
+    }
+
+    /// Show a page in `sort` order, remember it in the settings and save them. The queue that
+    /// plays now is left alone; the next Play or Shuffle uses the new order.
+    fn sort_collection(&mut self, key: &DetailKey, sort: CollectionSort) -> Vec<Job> {
+        self.sort_menu = None;
+        let Some(page) = Self::sort_key(key) else {
+            return Vec::new();
+        };
+        crate::collection_sort::remember(&mut self.ui.settings.collection_sorts, &page, sort);
+        if let Some(cb) = &self.on_settings {
+            cb(self.ui.settings.clone());
+        }
+        Vec::new()
     }
 
     /// Play the songs of a page that has loaded.

@@ -1,0 +1,345 @@
+{
+ "contents": {
+  "twoColumnBrowseResultsRenderer": {
+   "secondaryContents": {
+    "sectionListRenderer": {
+     "contents": [
+      {
+       "musicShelfRenderer": {
+        "contents": [
+         {
+          "musicResponsiveListItemRenderer": {
+           "flexColumns": [
+            {
+             "musicResponsiveListItemFlexColumnRenderer": {
+              "text": {
+               "runs": [
+                {
+                 "text": "烂奇迹(不小心惹了上帝)",
+                 "navigationEndpoint": {
+                  "watchEndpoint": {
+                   "videoId": "mBuoYV4OJpI",
+                   "playlistId": "OLAK5uy_nU1Pdb4XEs7mwByAYfoDp6jcB-07AByuQ",
+                   "watchEndpointMusicSupportedConfigs": {
+                    "watchEndpointMusicConfig": {
+                     "musicVideoType": "MUSIC_VIDEO_TYPE_ATV"
+                    }
+                   }
+                  }
+                 }
+                }
+               ]
+              }
+             }
+            },
+            {
+             "musicResponsiveListItemFlexColumnRenderer": {
+              "text": {}
+             }
+            },
+            {
+             "musicResponsiveListItemFlexColumnRenderer": {
+              "text": {
+               "runs": [
+                {
+                 "text": "50K plays"
+                }
+               ]
+              }
+             }
+            }
+           ],
+           "fixedColumns": [
+            {
+             "musicResponsiveListItemFixedColumnRenderer": {
+              "text": {
+               "runs": [
+                {
+                 "text": "3:28"
+                }
+               ]
+              },
+              "size": "MUSIC_RESPONSIVE_LIST_ITEM_FIXED_COLUMN_SIZE_SMALL"
+             }
+            }
+           ],
+           "index": {
+            "runs": [
+             {
+              "text": "1"
+             }
+            ]
+           }
+          }
+         },
+         {
+          "musicResponsiveListItemRenderer": {
+           "flexColumns": [
+            {
+             "musicResponsiveListItemFlexColumnRenderer": {
+              "text": {
+               "runs": [
+                {
+                 "text": "烂奇迹 (福音版)",
+                 "navigationEndpoint": {
+                  "watchEndpoint": {
+                   "videoId": "Rv8hGc0fHC0",
+                   "playlistId": "OLAK5uy_nU1Pdb4XEs7mwByAYfoDp6jcB-07AByuQ",
+                   "watchEndpointMusicSupportedConfigs": {
+                    "watchEndpointMusicConfig": {
+                     "musicVideoType": "MUSIC_VIDEO_TYPE_ATV"
+                    }
+                   }
+                  }
+                 }
+                }
+               ]
+              }
+             }
+            },
+            {
+             "musicResponsiveListItemFlexColumnRenderer": {
+              "text": {}
+             }
+            },
+            {
+             "musicResponsiveListItemFlexColumnRenderer": {
+              "text": {
+               "runs": [
+                {
+                 "text": "863 plays"
+                }
+               ]
+              }
+             }
+            }
+           ],
+           "fixedColumns": [
+            {
+             "musicResponsiveListItemFixedColumnRenderer": {
+              "text": {
+               "runs": [
+                {
+                 "text": "3:23"
+                }
+               ]
+              },
+              "size": "MUSIC_RESPONSIVE_LIST_ITEM_FIXED_COLUMN_SIZE_SMALL"
+             }
+            }
+           ],
+           "index": {
+            "runs": [
+             {
+              "text": "2"
+             }
+            ]
+           }
+          }
+         },
+         {
+          "musicResponsiveListItemRenderer": {
+           "flexColumns": [
+            {
+             "musicResponsiveListItemFlexColumnRenderer": {
+              "text": {
+               "runs": [
+                {
+                 "text": "烂奇迹 (慢摇版)",
+                 "navigationEndpoint": {
+                  "watchEndpoint": {
+                   "videoId": "z0q1LG9qaho",
+                   "playlistId": "OLAK5uy_nU1Pdb4XEs7mwByAYfoDp6jcB-07AByuQ",
+                   "watchEndpointMusicSupportedConfigs": {
+                    "watchEndpointMusicConfig": {
+                     "musicVideoType": "MUSIC_VIDEO_TYPE_ATV"
+                    }
+                   }
+                  }
+                 }
+                }
+               ]
+              }
+             }
+            },
+            {
+             "musicResponsiveListItemFlexColumnRenderer": {
+              "text": {}
+             }
+            },
+            {
+             "musicResponsiveListItemFlexColumnRenderer": {
+              "text": {
+               "runs": [
+                {
+                 "text": "700 plays"
+                }
+               ]
+              }
+             }
+            }
+           ],
+           "fixedColumns": [
+            {
+             "musicResponsiveListItemFixedColumnRenderer": {
+              "text": {
+               "runs": [
+                {
+                 "text": "3:35"
+                }
+               ]
+              },
+              "size": "MUSIC_RESPONSIVE_LIST_ITEM_FIXED_COLUMN_SIZE_SMALL"
+             }
+            }
+           ],
+           "index": {
+            "runs": [
+             {
+              "text": "3"
+             }
+            ]
+           }
+          }
+         }
+        ],
+        "shelfDivider": {
+         "musicShelfDividerRenderer": {
+          "hidden": true
+         }
+        },
+        "contentsMultiSelectable": true
+       }
+      }
+     ]
+    }
+   },
+   "tabs": [
+    {
+     "tabRenderer": {
+      "content": {
+       "sectionListRenderer": {
+        "contents": [
+         {
+          "musicResponsiveHeaderRenderer": {
+           "thumbnail": {
+            "musicThumbnailRenderer": {
+             "thumbnail": {
+              "thumbnails": [
+               {
+                "url": "https://yt3.googleusercontent.com/ZdqVD0yO90KsuOGFFVp22JrIPZJG9MnfVcGBiy_HC2fzd9xX1q6UAf-I-R8oKXOF15sfubeJpu4Efr8=w60-h60-l90-rj",
+                "width": 60,
+                "height": 60
+               },
+               {
+                "url": "https://yt3.googleusercontent.com/ZdqVD0yO90KsuOGFFVp22JrIPZJG9MnfVcGBiy_HC2fzd9xX1q6UAf-I-R8oKXOF15sfubeJpu4Efr8=w120-h120-l90-rj",
+                "width": 120,
+                "height": 120
+               },
+               {
+                "url": "https://yt3.googleusercontent.com/ZdqVD0yO90KsuOGFFVp22JrIPZJG9MnfVcGBiy_HC2fzd9xX1q6UAf-I-R8oKXOF15sfubeJpu4Efr8=w226-h226-l90-rj",
+                "width": 226,
+                "height": 226
+               },
+               {
+                "url": "https://yt3.googleusercontent.com/ZdqVD0yO90KsuOGFFVp22JrIPZJG9MnfVcGBiy_HC2fzd9xX1q6UAf-I-R8oKXOF15sfubeJpu4Efr8=w544-h544-l90-rj",
+                "width": 544,
+                "height": 544
+               }
+              ]
+             },
+             "thumbnailCrop": "MUSIC_THUMBNAIL_CROP_UNSPECIFIED",
+             "thumbnailScale": "MUSIC_THUMBNAIL_SCALE_UNSPECIFIED"
+            }
+           },
+           "title": {
+            "runs": [
+             {
+              "text": "烂奇迹(不小心惹了上帝)"
+             }
+            ]
+           },
+           "subtitle": {
+            "runs": [
+             {
+              "text": "Album"
+             },
+             {
+              "text": " • "
+             },
+             {
+              "text": "2026"
+             }
+            ]
+           },
+           "straplineTextOne": {
+            "runs": [
+             {
+              "text": "杨羊烊",
+              "navigationEndpoint": {
+               "browseEndpoint": {
+                "browseId": "UCsNDLWp1kvrOgAhT5U-2EoA",
+                "browseEndpointContextSupportedConfigs": {
+                 "browseEndpointContextMusicConfig": {
+                  "pageType": "MUSIC_PAGE_TYPE_ARTIST"
+                 }
+                }
+               }
+              }
+             }
+            ]
+           },
+           "straplineThumbnail": {
+            "musicThumbnailRenderer": {
+             "thumbnail": {
+              "thumbnails": [
+               {
+                "url": "https://yt3.googleusercontent.com/KHng9M8yb63GcbltJuUbU7dOzwl1kONNmflmMP3sUMduMfrpDQC2AmeDxxDSJPv9fYHxC6yw1T8453bSgQ=w60-h60-l90-rj",
+                "width": 60,
+                "height": 60
+               },
+               {
+                "url": "https://yt3.googleusercontent.com/KHng9M8yb63GcbltJuUbU7dOzwl1kONNmflmMP3sUMduMfrpDQC2AmeDxxDSJPv9fYHxC6yw1T8453bSgQ=w120-h120-l90-rj",
+                "width": 120,
+                "height": 120
+               },
+               {
+                "url": "https://yt3.googleusercontent.com/KHng9M8yb63GcbltJuUbU7dOzwl1kONNmflmMP3sUMduMfrpDQC2AmeDxxDSJPv9fYHxC6yw1T8453bSgQ=w226-h226-l90-rj",
+                "width": 226,
+                "height": 226
+               },
+               {
+                "url": "https://yt3.googleusercontent.com/KHng9M8yb63GcbltJuUbU7dOzwl1kONNmflmMP3sUMduMfrpDQC2AmeDxxDSJPv9fYHxC6yw1T8453bSgQ=w544-h544-l90-rj",
+                "width": 544,
+                "height": 544
+               }
+              ]
+             },
+             "thumbnailCrop": "MUSIC_THUMBNAIL_CROP_UNSPECIFIED",
+             "thumbnailScale": "MUSIC_THUMBNAIL_SCALE_UNSPECIFIED"
+            }
+           },
+           "secondSubtitle": {
+            "runs": [
+             {
+              "text": "8 songs"
+             },
+             {
+              "text": " • "
+             },
+             {
+              "text": "28 minutes"
+             }
+            ]
+           }
+          }
+         }
+        ]
+       }
+      }
+     }
+    }
+   ]
+  }
+ }
+}

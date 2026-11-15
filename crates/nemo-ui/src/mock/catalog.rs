@@ -13,9 +13,9 @@ use nemo_core::audio::{
 };
 use nemo_core::catalog::{
     AlbumDetail, AlbumSummary, ArtistDetail, ArtistSummary, BrowseId, Catalog, CatalogError,
-    Explore, FeedItem, FeedShelf, HistorySection, HomeFeed, MoodChip, PlaylistDetail,
-    PlaylistSummary, PodcastSummary, SearchKind, SearchResults, Shelf, ShelfItem, ShelfKind,
-    TopResult,
+    CollectionMeta, Explore, FeedItem, FeedShelf, HistorySection, HomeFeed, MoodChip,
+    PlaylistDetail, PlaylistSummary, PodcastSummary, Privacy, SearchKind, SearchResults, Shelf,
+    ShelfItem, ShelfKind, TopResult,
 };
 use nemo_core::services::Backend;
 use nemo_core::track::Track;
@@ -99,6 +99,7 @@ impl Catalog for MockCatalog {
                 .skip(a * PER_ALBUM)
                 .take(PER_ALBUM)
                 .collect(),
+            meta: CollectionMeta::default(),
         });
         let result = local
             .or_else(|| {
@@ -107,6 +108,7 @@ impl Catalog for MockCatalog {
                     .map(|a| AlbumDetail {
                         summary: album_summary(a),
                         tracks: (a * PER_ALBUM..(a + 1) * PER_ALBUM).map(track).collect(),
+                        meta: mock_album_meta(),
                     })
             })
             .ok_or(CatalogError::NotFound);
@@ -145,6 +147,7 @@ impl Catalog for MockCatalog {
                 summary: playlist_summary(p),
                 tracks: (0..12).map(|i| track(p * 5 + i * 3)).collect(),
                 edit: None,
+                meta: mock_playlist_meta(p),
             })
             .ok_or(CatalogError::NotFound);
         Box::pin(async move { result })
@@ -429,5 +432,32 @@ pub fn mock_backend_seeded() -> Backend {
     Backend {
         catalog: Arc::new(SeededCatalog),
         ..mock_backend()
+    }
+}
+
+/// Header facts of a mock album: the track count only, as the album pages show it.
+fn mock_album_meta() -> CollectionMeta {
+    CollectionMeta {
+        // A tiny constant.
+        #[allow(clippy::cast_possible_truncation)]
+        track_count: Some(PER_ALBUM as u32),
+        ..CollectionMeta::default()
+    }
+}
+
+/// Header facts of mock playlist `p`: the even ones show the full YouTube Music header, the odd
+/// ones show none (so the page hides the missing fields).
+fn mock_playlist_meta(p: usize) -> CollectionMeta {
+    if p % 2 == 1 {
+        return CollectionMeta::default();
+    }
+    CollectionMeta {
+        owner: Some("NemoMusic mock".to_owned()),
+        owner_avatar: thumbs(p + 3),
+        privacy: Some(Privacy::Public),
+        year: Some(2026),
+        view_count: Some(411),
+        track_count: Some(12),
+        duration_text: None,
     }
 }

@@ -7,11 +7,13 @@ use crate::BoxFuture;
 use crate::track::{Thumbnail, Track, VideoId};
 
 mod comments;
+mod meta;
 mod playlist_edit;
 mod search;
 mod video;
 
 pub use comments::{Comment, CommentCursor, CommentError, CommentId, CommentPage};
+pub use meta::CollectionMeta;
 pub use playlist_edit::{PlaylistEditInfo, PlaylistEditor, Privacy, SetVideoId};
 pub use search::{SearchKind, TopResult};
 pub use video::{ChannelDetail, ChannelRef, ChannelSummary, SearchScope, VideoSummary};
@@ -91,6 +93,8 @@ pub struct AlbumDetail {
     pub summary: AlbumSummary,
     /// Tracks in album order.
     pub tracks: Vec<Track>,
+    /// Header facts beyond the summary (track count, length, artist picture), when shown.
+    pub meta: CollectionMeta,
 }
 
 /// An artist page.
@@ -115,6 +119,9 @@ pub struct PlaylistDetail {
     pub tracks: Vec<Track>,
     /// Editing data, present only when the signed-in user owns the playlist.
     pub edit: Option<PlaylistEditInfo>,
+    /// Header facts beyond the summary (owner picture, privacy, year, views, count, length),
+    /// when shown.
+    pub meta: CollectionMeta,
 }
 
 /// One entry of a home-feed shelf.

@@ -4,8 +4,8 @@ use std::time::Duration;
 
 use nemo_core::audio::Origin;
 use nemo_core::catalog::{
-    AlbumDetail, AlbumSummary, ArtistDetail, ArtistSummary, BrowseId, PlaylistDetail,
-    PlaylistSummary, SearchResults,
+    AlbumDetail, AlbumSummary, ArtistDetail, ArtistSummary, BrowseId, CollectionMeta,
+    PlaylistDetail, PlaylistSummary, SearchResults,
 };
 use nemo_core::track::{Artwork, Thumbnail, Track, TrackId, VideoId};
 
@@ -167,7 +167,23 @@ pub(crate) fn map_album_page(raw: &RawAlbumPage, requested: &BrowseId) -> Option
             )
         })
         .collect();
-    Some(AlbumDetail { summary, tracks })
+    let meta = CollectionMeta {
+        owner: summary.artists.first().cloned(),
+        owner_avatar: raw.artist_thumbnails.clone(),
+        year: summary.year,
+        track_count: raw
+            .track_count_text
+            .as_deref()
+            .and_then(crate::feeds::count_of)
+            .and_then(|n| u32::try_from(n).ok()),
+        duration_text: raw.duration_text.as_deref().and_then(clean),
+        ..CollectionMeta::default()
+    };
+    Some(AlbumDetail {
+        summary,
+        tracks,
+        meta,
+    })
 }
 
 /// Artist page.
@@ -189,10 +205,15 @@ pub(crate) fn map_playlist_page(
 ) -> Option<PlaylistDetail> {
     let mut summary = map_playlist(&raw.playlist)?;
     summary.id = requested.clone();
+    let meta = CollectionMeta {
+        owner: summary.author.clone(),
+        ..CollectionMeta::default()
+    };
     Some(PlaylistDetail {
         summary,
         tracks: map_songs(&raw.songs),
         edit: None,
+        meta,
     })
 }
 

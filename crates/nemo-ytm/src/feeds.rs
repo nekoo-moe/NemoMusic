@@ -11,6 +11,7 @@
 
 use std::time::Duration;
 
+mod header_meta;
 mod item;
 mod json;
 mod list;
@@ -18,6 +19,7 @@ mod playlist;
 mod runs;
 mod shelf;
 
+pub(crate) use header_meta::count_of;
 pub(crate) use item::split_mood_id;
 pub(crate) use json::{find_key, text_of, thumbnails_of};
 pub(crate) use list::{

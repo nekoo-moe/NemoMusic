@@ -227,6 +227,8 @@ pub struct Scenario {
     pub sleep: bool,
     /// Show the page of the route as still loading (skeleton).
     pub loading_detail: bool,
+    /// Open the Sort menu of the album or playlist page of the route.
+    pub sort_menu: bool,
     /// Pick this lyrics provider in the switcher (index into the candidates).
     pub lyrics_pick: Option<usize>,
     /// Report the output device as opened in shared mode (through the system mixer).
@@ -287,6 +289,7 @@ impl Default for Scenario {
             mini: false,
             sleep: false,
             loading_detail: false,
+            sort_menu: false,
             lyrics_pick: None,
             shared_output: false,
         }
@@ -431,6 +434,9 @@ pub fn build_app(backend: &Backend, scenario: &Scenario) -> App {
             left_ms: 10_000.0,
             undo: false,
         });
+    }
+    if scenario.sort_menu {
+        app.sort_menu = super::app::DetailKey::of(&scenario.route);
     }
     if scenario.loading_detail
         && let Some(key) = super::app::DetailKey::of(&scenario.route)

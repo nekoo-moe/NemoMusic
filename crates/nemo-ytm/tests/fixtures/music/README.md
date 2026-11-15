@@ -43,3 +43,18 @@ Videos `EgWKAQIQAWoQEAkQAxAFEAQQChAVEBAQEQ%3D%3D`, Community playlists
 `EgeKAQQoAEABahAQCRADEAUQBBAKEBUQEBAR`, Profiles `EgWKAQJYAWoQEAkQAxAFEAQQChAVEBAQEQ%3D%3D`,
 Episodes `EgWKAQJIAWoQEAkQAxAFEAQQChAVEBAQEQ%3D%3D`, Podcasts
 `EgWKAQJQAWoQEAkQAxAFEAQQChAVEBAQEQ%3D%3D`.
+
+## Album and playlist headers (collection-sort-meta spec)
+
+`browse` answers with `clientVersion` 1.20261111.01.00, `hl=en`, `gl=VN`, no cookies (two
+requests on 2026-11-15, 25 s apart). Stripped like the pages above: `responseContext`, tracking,
+menus, buttons, overlays, badges, accessibility text, the playlist `description` and the sort
+menu of the playlist shelf are removed, and the track lists are cut to their first three rows.
+The playlist owner is a person's channel, so its name (`Playlist Owner`), channel id
+(`UCsyntheticowner000000000`) and picture URL were replaced by synthetic values; the album
+artist is public catalog data and kept.
+
+| File | Request | Shows |
+|---|---|---|
+| `browse-playlist.json` | `browseId` `VLPLRzHtJL72A7MlKdmSGwaL9VlvVSqUM7MT` | `musicResponsiveHeaderRenderer` with `subtitle` "Playlist • 2026", `secondSubtitle` "437K views • 30 tracks • 36 minutes" and the owner in `facepile.avatarStackViewModel`; a `musicPlaylistShelfRenderer` |
+| `browse-album.json` | `browseId` `MPREb_7uoXaDktF5l` | `musicResponsiveHeaderRenderer` with `subtitle` "Album • 2026", `secondSubtitle` "8 songs • 28 minutes", the artist in `straplineTextOne` and their picture in `straplineThumbnail`; a `musicShelfRenderer` of rows |
