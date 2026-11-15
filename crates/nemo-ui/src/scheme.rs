@@ -69,6 +69,36 @@ pub fn field_seed(choice: ThemeChoice, cover: Option<Seed>) -> Option<Seed> {
     choice.seed().or(cover)
 }
 
+/// Opacity of the page glow at its top (collection-page-ytm spec).
+pub const GLOW_TOP_ALPHA: f32 = 0.92;
+/// Opacity of the page glow at [`GLOW_MID_AT`] of its height; it is transparent at the bottom.
+pub const GLOW_MID_ALPHA: f32 = 0.55;
+/// Where the middle stop of the page glow sits, as a fraction of its height.
+pub const GLOW_MID_AT: f32 = 0.45;
+
+/// The two colours of the tall gradient behind an album or playlist page, from the page cover's
+/// seed: the top colour, then a darker middle one (dark modes) that fades into the pane. Light
+/// mode uses pale tints instead. Without a seed the glow is a quiet neutral.
+#[must_use]
+pub fn page_glow(seed: Option<Seed>, base: BaseMode) -> [Rgba; 2] {
+    let s = seed.unwrap_or(Seed {
+        hue: 262.0,
+        chroma: 0.0,
+    });
+    let (l, c_max): ([f64; 2], f64) = match base {
+        BaseMode::Dark => ([0.36, 0.27], 0.10),
+        BaseMode::Amoled => ([0.31, 0.21], 0.10),
+        BaseMode::Light => ([0.88, 0.92], 0.05),
+    };
+    [0, 1].map(|i| {
+        oklch_to_rgb(Oklch {
+            l: l[i],
+            c: (s.chroma * [1.0, 0.85][i]).min(c_max),
+            h: s.hue,
+        })
+    })
+}
+
 /// Alpha of the panes over the background field: they stay mostly opaque (text contrast is
 /// checked against this exact mix, and it stays above the 0.60 scrim of `design.md` section 9)
 /// and let the colour and the drift of the song show through (0.74 before the living-backdrop

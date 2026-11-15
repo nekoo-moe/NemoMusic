@@ -132,7 +132,7 @@ pub struct App {
     /// The coloured background field behind the panes, and its cross-fade.
     pub(crate) bg_fade: BgFade,
     /// Seeds of the album and playlist pages that were opened (their cover colour).
-    page_seeds: HashMap<DetailKey, Seed>,
+    pub(crate) page_seeds: HashMap<DetailKey, Seed>,
     /// Seed of the playing cover, for the Dynamic theme.
     cover_seed: Option<Seed>,
     /// The theme settings the screen shows right now.
