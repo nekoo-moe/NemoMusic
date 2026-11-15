@@ -22,6 +22,9 @@ NemoMusic/
     nemo-soundcloud/    # SoundCloud catalog of public tracks, through the yt-dlp URL resolver
     nemo-integrations/  # OS media controls, Last.fm, Discord presence, OS notifications
     nemo-spotify/       # the user's Spotify session, Spotify lyrics, Canvas animated covers
+    nemo-cast/          # Cast and DLNA discovery and control, LAN-only stream server
+    nemo-stats/         # local play log and listening-statistics aggregates
+    nemo-together/      # Listen Together room client
     nemo-ui/            # iced views, theme, widgets, album-art effects
     nemo-app/           # binary: wiring, config, logging, startup
   assets/               # fonts/, icons/, shaders/, images/ (with licenses)
@@ -42,6 +45,9 @@ NemoMusic/
 - nemo-soundcloud: the SoundCloud catalog (public tracks only, no sign-in), its host list and its opt-in settings entry. Never starts a process or opens a socket: search, pages and streams go through the `nemo-core` URL-resolver trait that `nemo-ytm` implements with `yt-dlp`. Depends only on `nemo-core`.
 - nemo-integrations: OS media controls and media keys, Last.fm scrobbling, Discord Rich Presence and OS notifications, behind the `nemo-core` `IntegrationsService`, `PlayObserver` and `OsNotifier` contracts, with their opt-in settings rows. Depends only on `nemo-core`.
 - nemo-spotify: the user's own Spotify session (`SpotifyAccount`, the `sp_dc` cookie only through `SecretStore`), the Spotify `LyricsProvider` and the Canvas `AnimatedArtSource`. Depends only on `nemo-core`.
+- nemo-cast: Cast and DLNA discovery and control, and the LAN-only stream server (cast spec). All its network work runs on its own tokio runtime, never on the audio thread. Depends only on `nemo-core`.
+- nemo-stats: the local play log and every listening-statistics aggregate (listening-stats spec). No network code. Depends only on `nemo-core`.
+- nemo-together: the Listen Together room client (listen-together spec). No server address is built in; the user types one. Depends only on `nemo-core`.
 - nemo-ui: all iced code, theme, fonts, widgets, animations. Talks to the player only through `PlayerCommand` and `PlayerEvent`. Now Playing styles (now-playing-styles): `gui/views/now_playing.rs` (Material 3 Expressive, and the dispatch), `gui/views/np_classic.rs` (Classic), and `gui/views/np_apple.rs` with `np_apple_lyrics.rs` (Apple Music, task 6).
 - nemo-app: `main`, config file, tracing setup, crate wiring, packaging metadata, and the play hub thread (`src/play_hub.rs`: feeds the `nemo-core` `PlayTracker` and hands play events to the registered `PlayObserver`s without blocking). No business logic.
 
@@ -60,6 +66,9 @@ nemo-app
  ├─> nemo-soundcloud ─> nemo-core
  ├─> nemo-integrations ─> nemo-core
  ├─> nemo-spotify ─> nemo-core
+ ├─> nemo-cast ────> nemo-core
+ ├─> nemo-stats ───> nemo-core
+ ├─> nemo-together ─> nemo-core
  └─> nemo-core
 ```
 
