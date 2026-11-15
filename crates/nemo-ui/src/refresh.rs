@@ -57,7 +57,8 @@ impl Owner {
 pub enum Step {
     /// The Home shelves (with the account's playlists and liked songs when signed in).
     Home,
-    /// Library playlists, liked songs, albums, artists, history and the explore data.
+    /// Library playlists, liked songs, albums, artists, history and the home feed. The Explore
+    /// page reloads on its own beside it.
     Account,
 }
 
