@@ -83,12 +83,14 @@ Owner direction (2026-11-10, evening): the first build looked "raw". Go full Mat
 ## 10. Lyrics view
 - Content on `surface` with the blurred cover backdrop (section 9), never glass. Only the floating bar and header controls use glass.
 - Sizes: active line `headline-md` 28/36 at 600; neighbor lines `title-md` 20/28 at 400; others `title-sm` 16/24. Active `on-surface`; others `on-surface-variant` at 0.72 (contrast >= 4.5:1 still). Max line width 640 px; left aligned (RTL aware).
+- Full-screen lyrics (owner, 2026-11-15; lyrics-polish): active `headline-lg` 32/40, neighbours `headline-sm` 24/32, others `title-md` 20/28, line gap 24 (the right pane keeps 20/28, 16/24, 14/20 and gap 8). Every lyric line height is >= 1.25 x its size. Lines fade to 0 over the top and bottom 20% of the viewport (soft mask); a line in that band is decorative and may fall under 4.5:1, and it is back to full contrast in the middle band.
+- Full-screen controls (owner, 2026-11-15): previous and next icon-only, `on-surface-variant` at rest, `on-surface` under the pointer; play/pause the only filled control, an `on-surface` disc with a `surface` glyph (no accent); a 3 px progress rail with `label-sm` tabular times; the quality badge as a quiet `label-sm` text label that still opens the signal path.
 - Word-level highlight: when the provider gives word timing, the active word goes `on-surface`, past words 0.9, future words 0.55, transition `effects.fast`; line-level only otherwise. No karaoke wipes or bouncing.
 - Scroll: active line anchored at 35% of the viewport height, spring `spatial.default`, 200 ms equivalent; line change when `position >= start - 150 ms`. Manual scroll pauses auto-follow for 4 s, then a `Back to current line` pill returns. Seeking jumps with `motion.base`.
 - Intro and gap note (owner, 2026-11-15; lyrics-polish): before the first line (when it starts >= 1 s in) and in breaks >= 5 s, one music note sits in the place of the next line and fills from the bottom with the position; it is full when the line starts, then fades out with `motion.fast`. Reduced motion keeps the fill, drops the fades. None for unsynced lyrics.
 - Provider label: always visible footer, `label-sm`: `Lyrics: <provider name>` plus `Synced` or `Not synced`. Never hide attribution. Unknown provider shows `Unknown`.
 - Unsynced fallback: static text in `title-sm` 16/24, user scrolls, no auto-scroll, label `Not synced`.
-- Offset control: per track, -10.0 to +10.0 s, 50 ms steps (ADR 0002), buttons `-50 ms` / `+50 ms` and reset, tabular numerals, value shown (`+0.30 s`), stored locally per track. Keyboard `[` and `]`.
+- Offset control: per track, -10.0 to +10.0 s, 50 ms steps (ADR 0002), buttons `-50 ms` / `+50 ms` and reset, tabular numerals, value shown (`+0.30 s`), stored locally per track. Keyboard `[` and `]`. In the full-screen Now Playing these sit in a small opaque Timing popover opened by an icon in the top bar (owner, 2026-11-15).
 - No lyrics: `No lyrics found` with provider list tried; no fake text. Lyrics cannot be exported or copied in bulk.
 
 ## 11. Account and sign-in screen

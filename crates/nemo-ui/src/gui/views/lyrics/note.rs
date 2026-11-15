@@ -40,9 +40,10 @@ pub fn note_svg(fill: f32, ink: Rgba, filled: f32, dim: f32) -> String {
 }
 
 /// The note row and its height in px: one active-line row times the note's presence, so it
-/// folds away while it fades out. `size` is the glyph box, `line_h` the row it sits in.
-pub fn row<'a>(n: GapNote, size: f32, line_h: f32) -> (Element<'a, Message>, f32) {
-    let height = (line_h + crate::lyrics_view::LINE_GAP) * n.presence;
+/// folds away while it fades out. `size` is the glyph box, `line_h` the row it sits in and
+/// `gap` the line gap under it.
+pub fn row<'a>(n: GapNote, size: f32, line_h: f32, gap: f32) -> (Element<'a, Message>, f32) {
+    let height = (line_h + gap) * n.presence;
     let ink = color::on_surface();
     let base = ink.alpha();
     let dim = super::line_ink(LineRole::Other).a;
@@ -62,6 +63,10 @@ pub fn row<'a>(n: GapNote, size: f32, line_h: f32) -> (Element<'a, Message>, f32
 }
 
 /// [`row`] in the sizes of the active line of `style`.
-pub fn row_for<'a>(n: GapNote, st: crate::theme::TextStyle) -> (Element<'a, Message>, f32) {
-    row(n, f32::from(st.size), f32::from(st.line))
+pub fn row_for<'a>(
+    n: GapNote,
+    st: crate::theme::TextStyle,
+    gap: f32,
+) -> (Element<'a, Message>, f32) {
+    row(n, f32::from(st.size), f32::from(st.line), gap)
 }

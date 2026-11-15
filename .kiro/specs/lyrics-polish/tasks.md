@@ -9,8 +9,8 @@ Owner pre-approved 2026-11-15. The three tasks stack: 2 builds on 1, 3 on 2.
   - Branch: `fix/nemo-ui-lyrics-intro-note`
   - Checks: unit tests of `(show, fill)` at the intro, in a gap, in a short gap and at the exact line start; `lyrics-*` snapshots.
 
-- [ ] 2. Refined full-screen lyrics and controls
-  - Crate and files: `nemo-ui`: `src/gui/views/now_playing.rs` and new `now_playing/` modules, `src/lyrics_view.rs`, `src/gui/views/lyrics.rs`, the state for the Timing popover.
+- [x] 2. Refined full-screen lyrics and controls
+  - Crate and files: `nemo-ui`: `src/gui/views/now_playing.rs` and new `now_playing/controls.rs`, `src/lyrics_view.rs`, `src/gui/views/lyrics.rs` (+ `lyrics/note.rs`, `lyrics/three.rs`), `src/state.rs`, `src/state/event.rs`, `src/state/reduce.rs`, `.kiro/steering/design.md` section 10.
   - Does: Quiet icon-only controls and a neutral play button, a thin progress bar with tabular times, the Timing popover, a quiet quality label, and a lyric column with more air, size and opacity steps and an edge fade; footer, sync state and pill kept.
   - _Requirements: 8, 9, 10, 11, 12, 13_
   - Branch: `fix/nemo-ui-lyrics-fullscreen` (stacked on 1)

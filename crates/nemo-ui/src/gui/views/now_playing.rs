@@ -9,15 +9,13 @@ use iced::{Alignment, Color, Element, Length, Padding};
 use super::super::app::{App, CompactTab, Message};
 use super::super::assets::Icon;
 use super::super::style::{animated, col, fit, gap, icon_button, label, label_w};
-use super::bar::{badge, cover_art, seek_row, transport};
+use super::bar::cover_art;
 use super::lyrics as lyr;
 use crate::format;
-use crate::keys::{KeyAction, LYRICS_OFFSET_STEP_MS};
 use crate::layout;
 use crate::settings::NowPlayingStyle;
 use crate::state::{Event, LyricsState};
 use crate::theme::{color, shape, type_scale};
-use nemo_core::lyrics::Granularity;
 use nemo_core::player::PlayerCommand;
 
 /// Height of the lyrics viewport in the wide layout: window minus header (56), padding (2 x 24)
@@ -85,51 +83,26 @@ pub fn pill_button(text: &str, message: Message) -> Element<'_, Message> {
     )
 }
 
-/// Lyrics offset control: `-50 ms`, value, `+50 ms`, reset (ADR 0002). Only for synced lyrics.
-fn offset_controls(app: &App) -> Element<'_, Message> {
-    let synced =
-        matches!(&app.ui.lyrics, LyricsState::Ready(d) if d.granularity != Granularity::Unsynced);
-    if !synced {
-        return Space::new().into();
+/// The top bar: close, then the Timing icon (full window only) and the quiet quality label.
+fn header(app: &App, height: f32, with_timing: bool) -> Element<'_, Message> {
+    let mut r = row![close_button(), Space::new().width(Length::Fill)]
+        .spacing(gap::SM)
+        .align_y(Alignment::Center);
+    if with_timing {
+        r = r.push(controls::timing_button(app));
     }
-    row![
-        pill_button(
-            "-50\u{2009}ms",
-            Message::Ui(Event::Key(KeyAction::LyricsOffsetBy(
-                -LYRICS_OFFSET_STEP_MS
-            ))),
-        ),
-        container(label(
-            format::offset_seconds(app.ui.lyrics_offset_ms),
-            type_scale::LABEL_SM,
-            false,
-            col(color::on_surface()),
-        ))
-        .width(Length::Fixed(64.0))
-        .center_x(Length::Fixed(64.0)),
-        pill_button(
-            "+50\u{2009}ms",
-            Message::Ui(Event::Key(KeyAction::LyricsOffsetBy(LYRICS_OFFSET_STEP_MS))),
-        ),
-        Space::new().width(gap::SM),
-        pill_button("Reset", Message::Ui(Event::LyricsOffsetReset)),
-    ]
-    .spacing(gap::XS)
-    .align_y(Alignment::Center)
-    .into()
-}
-
-fn header(app: &App, height: f32, with_offset: bool) -> Element<'_, Message> {
-    let mut r = row![close_button(), Space::new().width(Length::Fill)].align_y(Alignment::Center);
-    if with_offset {
-        r = r
-            .push(offset_controls(app))
-            .push(Space::new().width(gap::LG));
-    }
-    r.push(badge(app, 300.0))
+    r.push(controls::quality_label(app, 300.0))
         .padding(Padding::from([0.0, gap::XL]))
         .height(Length::Fixed(height))
         .into()
+}
+
+/// `page` with the Timing popover over it while it is open.
+fn with_timing<'a>(app: &'a App, page: Element<'a, Message>, top: f32) -> Element<'a, Message> {
+    match controls::timing_layer(app, top) {
+        Some(layer) => stack![page, layer].into(),
+        None => page,
+    }
 }
 
 fn titles(app: &App, width: f32, centered: bool) -> Element<'_, Message> {
@@ -172,22 +145,21 @@ fn wide(app: &App, w: u32, h: u32) -> Element<'_, Message> {
     // Pixel sizes are small, exact in f32.
     #[allow(clippy::cast_precision_loss)]
     let (art, lyrics_w) = (art as f32, lyrics_w as f32);
-    let accent = app.accent();
 
     let left = column![
         super::pane::breathing(app, cover_art(app, art, shape::xl())),
         Space::new().height(gap::XL),
         titles(app, art, false),
         Space::new().height(gap::LG),
-        seek_row(app, accent),
+        controls::seek(app),
         Space::new().height(gap::MD),
-        container(transport(app, accent, 56.0)).center_x(Length::Fill),
+        container(controls::transport(app, 56.0)).center_x(Length::Fill),
     ]
     .width(Length::Fixed(art));
 
     let right = lyrics_panel(app, lyrics_w, lyrics_viewport_height(w, h));
     let body = row![left, Space::new().width(gap::HUGE), right].align_y(Alignment::Center);
-    column![
+    let page = column![
         header(app, 56.0, true),
         container(body)
             .width(Length::Fill)
@@ -195,8 +167,8 @@ fn wide(app: &App, w: u32, h: u32) -> Element<'_, Message> {
             .center_x(Length::Fill)
             .center_y(Length::Fill)
             .padding(Padding::from([gap::XL, gap::XL])),
-    ]
-    .into()
+    ];
+    with_timing(app, page.into(), 56.0)
 }
 
 fn compact(app: &App, w: u32, h: u32) -> Element<'_, Message> {
@@ -204,7 +176,6 @@ fn compact(app: &App, w: u32, h: u32) -> Element<'_, Message> {
     // Pixel sizes are small, exact in f32.
     #[allow(clippy::cast_precision_loss)]
     let (art, width) = (art as f32, (w as f32 - 2.0 * gap::XL).min(480.0));
-    let accent = app.accent();
 
     let tab = |text: &'static str, which: CompactTab| {
         let on = app.compact_tab == which;
@@ -243,9 +214,9 @@ fn compact(app: &App, w: u32, h: u32) -> Element<'_, Message> {
         Space::new().height(gap::MD),
         titles(app, width, true),
         Space::new().height(gap::MD),
-        container(seek_row(app, accent)).width(Length::Fixed(width)),
+        container(controls::seek(app)).width(Length::Fixed(width)),
         Space::new().height(gap::SM),
-        transport(app, accent, 56.0),
+        controls::transport(app, 56.0),
         Space::new().height(gap::SM),
         container(
             row![
@@ -262,7 +233,8 @@ fn compact(app: &App, w: u32, h: u32) -> Element<'_, Message> {
     ]
     .align_x(Alignment::Center)
     .width(Length::Fill);
-    column![header(app, 48.0, false), body].into()
+    let page = column![header(app, 48.0, true), body];
+    with_timing(app, page.into(), 48.0)
 }
 
 /// Three lyric lines (previous, current, next) for the compact layout.
@@ -341,6 +313,8 @@ fn lyrics_panel(app: &App, width: f32, viewport_h: f32) -> Element<'_, Message> 
     .width(Length::Fixed(width))
     .into()
 }
+
+mod controls;
 
 #[cfg(test)]
 mod tests;

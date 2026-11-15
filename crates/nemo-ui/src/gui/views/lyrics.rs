@@ -93,17 +93,28 @@ pub struct Look {
     pub from: (LineRole, TextStyle),
     /// Role and style now.
     pub to: (LineRole, TextStyle),
+    /// Space under the line, px.
+    pub gap: f32,
+    /// Opacity from the soft edge mask of the full-screen lyrics (1 elsewhere).
+    pub fade: f32,
 }
 
 impl Look {
-    /// A line that did not change.
+    /// A line that did not change, with the dense line gap and no edge fade.
     #[must_use]
     pub fn settled(role: LineRole, st: TextStyle) -> Self {
         Self {
             from: (role, st),
             to: (role, st),
+            gap: LINE_GAP,
+            fade: 1.0,
         }
     }
+}
+
+/// `c` with its alpha scaled by `k`.
+fn faded(c: Color, k: f32) -> Color {
+    Color { a: c.a * k, ..c }
 }
 
 fn text_run<'a>(content: String, size: f32, line_h: f32, bold: bool, ink: Color) -> text::Text<'a> {
@@ -115,6 +126,16 @@ fn text_run<'a>(content: String, size: f32, line_h: f32, bold: bool, ink: Color)
         .wrapping(Wrapping::WordOrGlyph)
 }
 
+/// Size, row height and full height (wrapped rows plus the gap) of a line, px, mid-change.
+fn metrics(app: &App, line: &LyricLine, width: f32, look: Look) -> (f32, f32, f32) {
+    let p = app.anim.line().clamp(0.0, 1.0);
+    let (from_st, st) = (look.from.1, look.to.1);
+    let size = mix(f32::from(from_st.size), f32::from(st.size), p);
+    let line_h = mix(f32::from(from_st.line), f32::from(st.line), p);
+    let rows = rows_at(&line.text, width, size);
+    (size, line_h, f32::from(rows) * line_h + look.gap)
+}
+
 /// One lyric line `width` px wide and its height in px (wrapped rows plus the line gap).
 pub fn lyric_line<'a>(
     app: &App,
@@ -123,14 +144,11 @@ pub fn lyric_line<'a>(
     look: Look,
 ) -> (Element<'a, Message>, f32) {
     let p = app.anim.line().clamp(0.0, 1.0);
-    let (from_role, from_st) = look.from;
-    let (role, st) = look.to;
-    let size = mix(f32::from(from_st.size), f32::from(st.size), p);
-    let line_h = mix(f32::from(from_st.line), f32::from(st.line), p);
-    let rows = rows_at(&line.text, width, size);
-    let height = f32::from(rows) * line_h + LINE_GAP;
+    let (from_role, _) = look.from;
+    let (role, _) = look.to;
+    let (size, line_h, height) = metrics(app, line, width, look);
     let wrap = wrap_width(width);
-    let ink = mix_color(line_ink(from_role), line_ink(role), p);
+    let ink = faded(mix_color(line_ink(from_role), line_ink(role), p), look.fade);
     let bold = role == LineRole::Active;
     if role != LineRole::Active {
         let body = text_run(line.text.clone(), size, line_h, bold, ink).width(Length::Fixed(wrap));
@@ -142,10 +160,10 @@ pub fn lyric_line<'a>(
     let mut layers: Vec<Element<'a, Message>> = if timed {
         Vec::new()
     } else {
-        glow_layers(app, &line.text, (size, line_h), wrap, p)
+        glow_layers(app, &line.text, (size, line_h), wrap, p * look.fade)
     };
     let main: Element<'a, Message> = if timed {
-        pieces_text(app, line, size, line_h, wrap)
+        pieces_text(app, line, (size, line_h), wrap, look.fade)
     } else {
         text_run(line.text.clone(), size, line_h, true, ink)
             .width(Length::Fixed(wrap))
@@ -200,9 +218,9 @@ fn glow_layers<'a>(
 fn pieces_text<'a>(
     app: &App,
     line: &LyricLine,
-    size: f32,
-    line_h: f32,
+    (size, line_h): (f32, f32),
     wrap: f32,
+    fade: f32,
 ) -> Element<'a, Message> {
     let t = i64::try_from(app.ui.position.as_millis())
         .unwrap_or(i64::MAX)
@@ -212,7 +230,7 @@ fn pieces_text<'a>(
     let spans: Vec<Span<'a, (), iced::Font>> =
         lyric_pieces::pieces(line, t, coming, app.ui.reduced_motion)
             .into_iter()
-            .map(|piece| Span::new(piece.text).color(col(base.with_alpha(piece.alpha))))
+            .map(|piece| Span::new(piece.text).color(col(base.with_alpha(piece.alpha * fade))))
             .collect();
     rich_text(spans)
         .size(Pixels(size))
@@ -239,18 +257,36 @@ pub fn synced_list<'a>(
         active
     };
     let note = focus.note.filter(|n| n.presence > 0.0);
+    let gap_px = lyrics_view::line_gap(dense);
+    // The full-screen lines fade toward the top and bottom edges (soft mask); `top` is the
+    // line's top in the viewport, after the scroll.
+    let (scroll, vh) = (app.ui.lyric_scroll.value, app.ui.lyric_viewport_h);
+    let mut top = -scroll;
     let mut c = column![].width(Length::Fill);
     for (i, line) in doc.lines.iter().enumerate() {
         if let Some(n) = note.filter(|n| n.before == i) {
-            let (el, h) = note::row_for(n, LineRole::Active.style_d(dense));
+            let (el, h) = note::row_for(n, LineRole::Active.style_d(dense), gap_px);
             c = c.push(container(el).height(Length::Fixed(h)).width(Length::Fill));
+            top += h;
         }
         let (from, to) = (LineRole::of(i, before), LineRole::of(i, active));
-        let look = Look {
+        let mut look = Look {
             from: (from, from.style_d(dense)),
             to: (to, to.style_d(dense)),
+            gap: gap_px,
+            fade: 1.0,
         };
-        let (el, h) = lyric_line(app, line, width, look);
+        let h = metrics(app, line, width, look).2;
+        if !dense {
+            look.fade = lyrics_view::edge_fade(top + (h - gap_px) / 2.0, vh);
+        }
+        top += h;
+        // A line fully under the mask is only its height.
+        let el: Element<'a, Message> = if look.fade <= 0.01 {
+            Space::new().into()
+        } else {
+            lyric_line(app, line, width, look).0
+        };
         c = c.push(container(el).height(Length::Fixed(h)).width(Length::Fill));
     }
     let list = mouse_area(Offset::new(c, app.ui.lyric_scroll.value)).on_scroll(|delta| {

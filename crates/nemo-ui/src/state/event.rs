@@ -180,6 +180,8 @@ pub enum Event {
     UndoSkip,
     /// Open or close the signal-path popover.
     ToggleSignalPath,
+    /// Open or close the Timing popover (lyric offset tools) of the full-screen lyrics.
+    ToggleLyricsTiming,
     /// Show a short calm notice above the bar.
     Notice(String),
 }

@@ -160,3 +160,19 @@ fn recent_tracks_and_menu_actions() {
         "queue is a panel"
     );
 }
+
+#[test]
+fn the_lyrics_timing_popover_toggles_and_closes_with_esc_or_the_signal_path() {
+    let mut s = state();
+    s.apply(Event::ToggleLyricsTiming);
+    assert!(s.timing_open);
+    s.apply(Event::ToggleSignalPath);
+    assert!(s.signal_open && !s.timing_open, "one popover at a time");
+    s.apply(Event::ToggleLyricsTiming);
+    assert!(s.timing_open && !s.signal_open);
+    s.apply(Event::Key(KeyAction::Close));
+    assert!(!s.timing_open);
+    s.apply(Event::ToggleLyricsTiming);
+    s.apply(Event::Go(crate::route::Route::Home));
+    assert!(!s.timing_open, "leaving the screen closes it");
+}
