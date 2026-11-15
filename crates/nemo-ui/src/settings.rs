@@ -93,11 +93,11 @@ pub struct UiSettings {
 }
 
 impl Default for UiSettings {
-    /// Both switches start off (README); the notice is not accepted yet.
+    /// Both switches start on (owner, 2026-11-15; README); the notice is not accepted yet.
     fn default() -> Self {
         Self {
-            sponsorblock: false,
-            block_ads: false,
+            sponsorblock: true,
+            block_ads: true,
             volume: 100,
             glass_tier: GlassTier::Low,
             reduce_motion: false,
@@ -170,7 +170,7 @@ mod tests {
     #[test]
     fn defaults_are_calm_and_unacknowledged() {
         let s = UiSettings::default();
-        assert!(!s.sponsorblock && !s.block_ads && !s.tos_acknowledged);
+        assert!(s.sponsorblock && s.block_ads && !s.tos_acknowledged);
         assert_eq!(s.volume, 100);
         assert!(!s.opaque_chrome());
     }

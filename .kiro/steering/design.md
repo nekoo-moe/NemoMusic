@@ -98,7 +98,7 @@ Owner direction (2026-11-10, evening): the first build looked "raw". Go full Mat
 ## 12. SponsorBlock indicator and ad blocking
 - Skip indicator: a pill above the player bar, `label-sm`, `Skipped sponsor segment (0:42)` with `Undo` button (target >= 40 px) valid for 5 s (ADR 0003); Undo seeks to the segment start and marks that segment ignored for this play. Segment ranges tinted on the seek bar at 0.35 alpha with category in accessible text. No sound, no flashing; polite announcement.
 - Settings `SponsorBlock`: switch `Skip non-music parts of music videos`, source line `Data from SponsorBlock` plus the license text required by ADR 0003 (license unverified here).
-- Ad blocking switch label: `Don't request or play ads`. Helper text: `This can restrict your account and reduces income for artists. It does not unlock Premium quality.` Default state is an owner decision (ADR 0003); state always shown as text `On`/`Off`.
+- Ad blocking switch label: `Don't request or play ads`. Helper text: `This can restrict your account and reduces income for artists. It does not unlock Premium quality.` Default state: On (owner, 2026-11-15; ADR 0003); state always shown as text `On`/`Off`.
 
 ## 13. Signal path, icons, keyboard, accessibility
 - Quality badge in the player bar opens the signal-path popover (opaque, not glass): `Source` -> `Decode` -> `Process` -> `Output`, from real engine state only. `Lossless` only for lossless local sources; `Bit-perfect` only when no resample/gain/EQ and exclusive mode; lossy shows `Lossy` in `on-surface-variant`, never success green. `Unknown` for missing values; text copyable. Badge name reads: `Opus, 160 kilobits per second, lossy`.

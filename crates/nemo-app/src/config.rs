@@ -97,8 +97,9 @@ impl Default for Settings {
         Self {
             music_folders: default_music_folder().into_iter().collect(),
             volume_percent: 100,
-            sponsorblock: false,
-            block_ads: false,
+            // On by default (owner decision, 2026-11-15); each has its own switch.
+            sponsorblock: true,
+            block_ads: true,
             tos_acknowledged: false,
             glass_tier: GlassTier::Low,
             reduce_transparency: false,
@@ -178,9 +179,9 @@ mod tests {
     }
 
     #[test]
-    fn defaults_have_no_pre_checked_consent() {
+    fn defaults_block_ads_and_skip_sponsors_but_leave_the_notice_unread() {
         let s = Settings::default();
-        assert!(!s.sponsorblock && !s.block_ads && !s.tos_acknowledged);
+        assert!(s.sponsorblock && s.block_ads && !s.tos_acknowledged);
         assert_eq!(s.volume_percent, 100);
         assert_eq!(s.glass_tier, GlassTier::Low);
     }
@@ -190,7 +191,7 @@ mod tests {
         let root = temp_root("roundtrip");
         let s = Settings {
             volume_percent: 40,
-            sponsorblock: true,
+            sponsorblock: false,
             glass_tier: GlassTier::Off,
             ..Settings::default()
         };
@@ -266,7 +267,7 @@ mod tests {
         let s = Settings::load(&root);
         assert_eq!(s.volume_percent, 100);
         assert_eq!(s.music_folders, Vec::<PathBuf>::new());
-        assert!(!s.block_ads);
+        assert!(s.block_ads && s.sponsorblock);
         std::fs::remove_dir_all(root).expect("cleanup");
     }
 }
