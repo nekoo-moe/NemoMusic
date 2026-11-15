@@ -118,6 +118,6 @@ Look:
 9. SponsorBlock data is CC BY-NC-SA 4.0 (ADR 0003). NemoMusic must stay non-commercial while it uses that data. Confirm.
 10. Pass the signed-in cookies to `yt-dlp` so Premium accounts get Premium audio quality: DECIDED (2026-11-14), yes. The `account-actions` spec sets the switch and its default.
 11. Approve opt-in NetEase and QQ lyrics (unofficial, ToS unverified) and the hosts `lrclib.net` and `sponsor.ajay.app` for the egress list (ADR 0002, 0003).
-12. Ad blocking and SponsorBlock default OFF with a first-run choice (ADRs recommend this, matching the no-pre-checked-consent rule). Confirm.
+12. Ad blocking and SponsorBlock default: DECIDED (owner, 2026-11-15), both ON. Each keeps its own switch in Settings, shown as `On`/`Off`, and the first-run notice says both can be switched off. No checkbox is pre-ticked.
 
 <!-- Source for the "YouTube Music is lossy, max 256 kbps AAC/Opus" claim: https://support.google.com/youtubemusic/answer/9076559 (corroborated by https://www.tunecable.com/youtube-music-tip/youtube-music-lossless.html) -->

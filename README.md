@@ -23,7 +23,7 @@ Working now:
 - Local files: FLAC, ALAC, WAV, AIFF, MP3, AAC, Vorbis and Opus, plus CUE sheets
 - Google sign-in, stored in the OS credential store, with library, likes, playlists and history
 - Synced lyrics from several providers (Unison, Better Lyrics, LRCLIB, your `.lrc` files), word by word where available, with a timing offset
-- SponsorBlock and ad blocking, each off by default with its own switch
+- SponsorBlock and ad blocking, each on by default with its own switch
 - Material 3 Expressive and Classic Now Playing styles, light and dark themes
 - Keyboard shortcuts and media keys
 
@@ -52,8 +52,8 @@ Being built (feature wave, approved specs in `.kiro/specs/`):
 ## Please read: risks
 
 - NemoMusic is not made, approved or supported by Google or YouTube. It uses YouTube Music without an official API. This may break the YouTube Terms of Service. Google could limit or suspend the account you use, and access can stop working without notice.
-- Ad blocking (off by default) means the app never requests or plays ads. Artists and rights holders earn less from those listens. It does not unlock Premium audio quality.
-- SponsorBlock (off by default) skips non-music parts of music videos. Its data is CC BY-NC-SA 4.0, so NemoMusic stays non-commercial while it uses that data.
+- Ad blocking (on by default, switch it off in Settings) means the app never requests or plays ads. Artists and rights holders earn less from those listens. It does not unlock Premium audio quality.
+- SponsorBlock (on by default, switch it off in Settings) skips non-music parts of music videos. It sends a 4-character hash prefix of the video id to `sponsor.ajay.app`. Its data is CC BY-NC-SA 4.0, so NemoMusic stays non-commercial while it uses that data.
 
 ## Local only
 

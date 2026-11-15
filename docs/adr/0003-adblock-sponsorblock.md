@@ -32,7 +32,7 @@ Unverified: YouTube has tested server-side ad insertion (ads stitched into the s
 
 ### Switch and wording
 - Setting: Settings > Playback > "Don't play ads". Applies only to YouTube Music sources.
-- Default: off, with no pre-checked consent (`coc.md`, No Dark Patterns). The first-run dialog explains the risk and offers the switch, unchecked.
+- Default: on (owner decision, 2026-11-15; was off). No consent box is pre-ticked: the switch is shown `On` in Settings, and the first-run notice says it can be switched off.
 - Helper text under the switch: "Ads are never requested. This may break YouTube's Terms of Service, can get your account restricted, and means artists earn less from your listens. Premium accounts already have no ads."
 - The README repeats the same text. UI uses Material + Liquid Glass switch styling per `design.md`.
 ## Part B: SponsorBlock
@@ -78,7 +78,7 @@ pub struct Segment { pub start: Duration, pub end: Duration, pub category: Segme
 - `mute` segments are not used: muting is a sample change and breaks the bit-perfect rule. `full` is shown as a label only ("whole video marked X"), no action.
 - Skip behavior: the decode stage seeks past the segment while the position is inside it. Seek only: no crossfade, no gain change, no DSP. Seeking happens at the decoder position ahead of the ring buffer, so the buffer never plays a gap. A splice click is possible; its audibility is unverified, measure in the first prototype.
 - Gapless: a segment that reaches the track end (`end >= duration - 1 s`) is treated as "go to next track" and uses the normal gapless handoff. A skip never trims encoder delay or padding differently and never touches the next track's pre-buffer.
-- Per-category settings (Settings > Playback > SponsorBlock), each: Off / Skip / Ask. Master switch off by default; the first-run dialog offers it with the privacy note below.
+- Per-category settings (Settings > Playback > SponsorBlock), each: Off / Skip / Ask. Master switch on by default (owner decision, 2026-11-15; was off); the first-run notice says it can be switched off, and Settings shows the privacy note below.
 
 | Category | Default when master is on |
 |---|---|
@@ -97,7 +97,7 @@ pub struct Segment { pub start: Duration, pub end: Duration, pub category: Segme
 - `sponsor.ajay.app` (HTTPS, GET `/api/skipSegments/:prefix`). Add to the README network egress list; needs owner approval (`product.md`).
 - Ad blocking adds no host.
 ## Open points for the owner
-Confirm: (1) the NonCommercial limit and no-redistribution rule, (2) both switches default off with a first-run dialog, (3) the default categories.
+Confirm: (1) the NonCommercial limit and no-redistribution rule, (2) DECIDED 2026-11-15: both switches default on, (3) the default categories.
 
 <!-- Sources (fetched 2026-11-10):
 https://wiki.sponsor.ajay.app/w/API_Docs
