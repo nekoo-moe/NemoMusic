@@ -68,10 +68,14 @@ mod tests {
 
     impl TempDir {
         fn new(tag: &str) -> Self {
+            // Only digits, letters and dashes: `{:?}` of a time holds `:`, which Windows
+            // does not allow in a folder name.
+            let nanos = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |d| d.as_nanos());
             let dir = std::env::temp_dir().join(format!(
-                "nemo-prune-{tag}-{}-{:?}",
-                std::process::id(),
-                std::time::SystemTime::now()
+                "nemo-prune-{tag}-{}-{nanos}",
+                std::process::id()
             ));
             std::fs::create_dir_all(&dir).expect("temp dir");
             Self(dir)
