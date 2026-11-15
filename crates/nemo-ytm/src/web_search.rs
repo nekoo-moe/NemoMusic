@@ -1,4 +1,4 @@
-//! Search over all of YouTube (youtube-extras): the music search, then one web search.
+//! Search over all of YouTube and channel pages (youtube-extras), over the `WEB` client.
 //!
 //! [`WebCatalogExt`] wraps the music catalog. For [`SearchScope::AllOfYoutube`] it runs the
 //! music search first and, only after it answered, one `POST /youtubei/v1/search` to
@@ -6,11 +6,14 @@
 //! list). The answer's `videoRenderer` items become videos (a `BADGE_STYLE_TYPE_LIVE_NOW` badge
 //! marks a live stream), `officialCardViewModel` cards become channels, and playlist
 //! `lockupViewModel` items join the playlists (shapes from the youtube-extras spike, task 7).
-//! [`SearchScope::Music`] and every other call go to the music catalog unchanged.
+//! [`Catalog::channel`] opens a `UC...` channel with up to three `POST /youtubei/v1/browse`
+//! calls, one after the other: the channel, then its Videos and Playlists tabs, whose `params`
+//! are copied from the tab endpoints of the first answer. [`SearchScope::Music`] and every other
+//! call go to the music catalog unchanged.
 //!
-//! Human-paced: one web request per user search and no retry. A 429 stops all-YouTube search
-//! for its `Retry-After` (default [`DEFAULT_BACKOFF`]); in that time it answers
-//! [`CatalogError::RateLimited`] without a request. Access is unofficial and may breach
+//! Human-paced: one web request per user search, at most three per opened channel, and no
+//! retry. A 429 stops all web requests for its `Retry-After` (default [`DEFAULT_BACKOFF`]); in
+//! that time they answer [`CatalogError::RateLimited`] without a request. Access is unofficial and may breach
 //! YouTube's Terms of Service (`coc.md`). No URL or query is logged.
 
 use std::sync::{Arc, Mutex, PoisonError};
@@ -19,20 +22,25 @@ use std::time::{Duration, Instant};
 use nemo_core::BoxFuture;
 use nemo_core::catalog::{
     AlbumDetail, AlbumSummary, ArtistDetail, ArtistSummary, BrowseId, Catalog, CatalogError,
-    ChannelDetail, Explore, FeedShelf, HistorySection, HomeFeed, LikeStatus, PlaylistDetail,
-    PlaylistSummary, PodcastDetail, SearchResults, SearchScope, Shelf, VideoSummary,
+    ChannelDetail, ChannelRef, Explore, FeedShelf, HistorySection, HomeFeed, LikeStatus,
+    PlaylistDetail, PlaylistSummary, PodcastDetail, SearchResults, SearchScope, Shelf,
+    VideoSummary,
 };
 use nemo_core::track::{Track, VideoId};
 use serde_json::json;
 
 use crate::http::{InitError, https_redirects, parse_retry_after};
 
+mod channel;
 mod parse;
 
+pub use channel::{ChannelPage, parse_channel, parse_playlists, parse_uploads};
 pub use parse::{WebResults, parse_search};
 
 /// Endpoint of the web search.
 pub const SEARCH_URL: &str = "https://www.youtube.com/youtubei/v1/search?prettyPrint=false";
+/// Endpoint of the web channel page and its tabs.
+pub const BROWSE_URL: &str = "https://www.youtube.com/youtubei/v1/browse?prettyPrint=false";
 /// `clientVersion` of the `WEB` client, as captured in the spike fixtures.
 pub const WEB_CLIENT_VERSION: &str = "2.20261112.10.00";
 /// `X-YouTube-Client-Name` of the `WEB` client.
@@ -149,26 +157,38 @@ impl WebPost for ReqwestWeb {
     }
 }
 
+/// The `WEB` client context every request carries.
+fn client_context() -> serde_json::Value {
+    json!({ "client": {
+        "clientName": "WEB",
+        "clientVersion": WEB_CLIENT_VERSION,
+        "hl": "en",
+        "gl": "US",
+    } })
+}
+
 /// The JSON body of a web search for `query`: the `WEB` client context and no `params`.
 #[must_use]
 pub fn search_body(query: &str) -> String {
-    json!({
-        "context": { "client": {
-            "clientName": "WEB",
-            "clientVersion": WEB_CLIENT_VERSION,
-            "hl": "en",
-            "gl": "US",
-        } },
-        "query": query,
-    })
-    .to_string()
+    json!({ "context": client_context(), "query": query }).to_string()
+}
+
+/// The JSON body that opens a channel (`params` is `None`) or one of its tabs. `params` is
+/// copied from a tab endpoint of the channel answer, never built.
+#[must_use]
+pub fn browse_body(channel: &BrowseId, params: Option<&str>) -> String {
+    let mut body = json!({ "context": client_context(), "browseId": channel.0 });
+    if let Some(params) = params {
+        body["params"] = json!(params);
+    }
+    body.to_string()
 }
 
 /// The music catalog with all-YouTube search added. Built only when that setting is on.
 pub struct WebCatalogExt<P: WebPost = ReqwestWeb> {
     music: Arc<dyn Catalog>,
     web: P,
-    /// Until when a 429 stops web searches.
+    /// Until when a 429 stops web requests.
     blocked_until: Mutex<Option<Instant>>,
 }
 
@@ -205,25 +225,79 @@ impl<P: WebPost> WebCatalogExt<P> {
             .unwrap_or_else(PoisonError::into_inner) = Instant::now().checked_add(wait);
         tracing::warn!(
             wait_secs = wait.as_secs(),
-            "YouTube asked to slow down; all-YouTube search paused"
+            "YouTube asked to slow down; web search and channel pages paused"
         );
     }
 
-    /// One web search, after the music search answered.
-    async fn web_search(&self, query: &str) -> Result<WebResults, CatalogError> {
+    /// One `POST`; `what` names the request in errors. A 429 pauses every web request for its
+    /// `Retry-After`; no retry.
+    async fn post_json(&self, what: &str, url: &str, body: String) -> Result<String, CatalogError> {
+        if self.blocked() {
+            return Err(CatalogError::RateLimited);
+        }
         let answer = self
             .web
-            .post(SEARCH_URL, search_body(query))
+            .post(url, body)
             .await
             .map_err(CatalogError::Network)?;
         match answer.status {
-            200 => parse_search(&answer.body),
+            200 => Ok(answer.body),
             429 => {
                 self.back_off(answer.retry_after);
                 Err(CatalogError::RateLimited)
             }
-            other => Err(CatalogError::Network(format!("web search: HTTP {other}"))),
+            other => Err(CatalogError::Network(format!("{what}: HTTP {other}"))),
         }
+    }
+
+    /// One web search, after the music search answered.
+    async fn web_search(&self, query: &str) -> Result<WebResults, CatalogError> {
+        parse_search(
+            &self
+                .post_json("web search", SEARCH_URL, search_body(query))
+                .await?,
+        )
+    }
+
+    /// A channel page: the header, then the Videos tab, then the Playlists tab, one after the
+    /// other. A tab the page does not list is empty.
+    async fn channel_page(&self, id: &BrowseId) -> Result<ChannelDetail, CatalogError> {
+        const CHANNEL: &str = "channel page";
+        if parse::channel_id(&id.0).is_none() {
+            return Err(CatalogError::NotFound);
+        }
+        let page = parse_channel(
+            &self
+                .post_json(CHANNEL, BROWSE_URL, browse_body(id, None))
+                .await?,
+        )?;
+        let by = ChannelRef {
+            id: page.summary.id.clone(),
+            name: page.summary.name.clone(),
+        };
+        let uploads = match page.videos_params.as_deref() {
+            Some(params) => {
+                let body = self
+                    .post_json(CHANNEL, BROWSE_URL, browse_body(id, Some(params)))
+                    .await?;
+                parse_uploads(&body, &by)?
+            }
+            None => Vec::new(),
+        };
+        let playlists = match page.playlists_params.as_deref() {
+            Some(params) => {
+                let body = self
+                    .post_json(CHANNEL, BROWSE_URL, browse_body(id, Some(params)))
+                    .await?;
+                parse_playlists(&body)?
+            }
+            None => Vec::new(),
+        };
+        Ok(ChannelDetail {
+            summary: page.summary,
+            uploads,
+            playlists,
+        })
     }
 
     async fn all_of_youtube(&self, query: &str) -> Result<SearchResults, CatalogError> {
@@ -344,7 +418,7 @@ impl<P: WebPost> Catalog for WebCatalogExt<P> {
         &'a self,
         id: &'a BrowseId,
     ) -> BoxFuture<'a, Result<ChannelDetail, CatalogError>> {
-        self.music.channel(id)
+        Box::pin(self.channel_page(id))
     }
 
     fn live_streams(&self) -> BoxFuture<'_, Result<Vec<VideoSummary>, CatalogError>> {

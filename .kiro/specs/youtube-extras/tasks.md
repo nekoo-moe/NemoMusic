@@ -115,7 +115,7 @@ Cross-spec ids written `<spec>#?` name the task in that spec that adds the ADR 0
   - Spike result (task 7): no `channelRenderer` was served; channels came as `officialCardViewModel` and playlists as `lockupViewModel` (`LOCKUP_CONTENT_TYPE_PLAYLIST`), so parse those instead of `channelRenderer` and `playlistRenderer`. Live badge: `BADGE_STYLE_TYPE_LIVE_NOW`. Fixture: `tests/fixtures/web/search.json`.
   - Steering: none
 
-- [ ] 13. Open channel pages
+- [x] 13. Open channel pages
   - Crate and files: `nemo-ytm` (`web_search.rs` or `channel.rs`).
   - Does: `Catalog::channel` via `POST /youtubei/v1/browse` with the `UC...` id; tab `params` read from the answer's tab endpoints, never constants; uploads and playlists.
   - _Requirements: 4_
