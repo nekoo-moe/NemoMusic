@@ -10,7 +10,7 @@ use std::time::Duration;
 
 use crate::BoxFuture;
 use crate::account::AccountService;
-use crate::catalog::Catalog;
+use crate::catalog::{Catalog, Comment, CommentCursor, CommentError, CommentId, CommentPage};
 use crate::integrations::IntegrationsService;
 use crate::lyrics::{
     Granularity, LyricsCandidate, LyricsCredit, LyricsDoc, LyricsQuery, ProviderId,
@@ -20,7 +20,7 @@ use crate::notify::OsNotifier;
 use crate::player::{PlayerCommand, PlayerEvent, PlayerSnapshot};
 use crate::stats::StatsService;
 use crate::stream::{ResolvedStream, StreamError};
-use crate::track::Artwork;
+use crate::track::{Artwork, VideoId};
 
 /// A stream of bytes, for example an HTTP resource read with range requests. Most sources seek;
 /// a live stream reports [`is_seekable`](Self::is_seekable) `false`.
@@ -192,6 +192,75 @@ pub trait ImageSource: Send + Sync {
     ) -> BoxFuture<'a, Result<Vec<u8>, ImageError>>;
 }
 
+/// Reads and writes the comments of a video. Human-paced: one call per user action, and nothing
+/// loads before the listener opens the comments panel.
+pub trait CommentSource: Send + Sync {
+    /// Load one page of top-level comments. `None` asks for the first page.
+    ///
+    /// # Errors
+    /// [`CommentError::Disabled`] when the video has comments off, otherwise a network or parse
+    /// error.
+    fn comments<'a>(
+        &'a self,
+        video: &'a VideoId,
+        page: Option<&'a CommentCursor>,
+    ) -> BoxFuture<'a, Result<CommentPage, CommentError>>;
+
+    /// Load the replies behind [`Comment::replies`].
+    ///
+    /// # Errors
+    /// A network or parse error.
+    fn replies<'a>(
+        &'a self,
+        cursor: &'a CommentCursor,
+    ) -> BoxFuture<'a, Result<CommentPage, CommentError>>;
+
+    /// Post a new comment. Needs the signed-in session.
+    ///
+    /// # Errors
+    /// [`CommentError::SignInNeeded`], [`CommentError::Rejected`] or a network error.
+    fn post<'a>(
+        &'a self,
+        video: &'a VideoId,
+        text: &'a str,
+    ) -> BoxFuture<'a, Result<Comment, CommentError>>;
+
+    /// Reply to a comment. Needs the signed-in session.
+    ///
+    /// # Errors
+    /// The same errors as [`CommentSource::post`].
+    fn reply<'a>(
+        &'a self,
+        to: &'a CommentId,
+        text: &'a str,
+    ) -> BoxFuture<'a, Result<Comment, CommentError>>;
+
+    /// Like or un-like a comment. Needs the signed-in session.
+    ///
+    /// # Errors
+    /// [`CommentError::SignInNeeded`] or a network error.
+    fn set_liked<'a>(
+        &'a self,
+        id: &'a CommentId,
+        liked: bool,
+    ) -> BoxFuture<'a, Result<(), CommentError>>;
+}
+
+/// A video's dislike count from a third-party estimate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Dislikes {
+    /// An estimated count. Show it as an estimate.
+    Estimate(u64),
+    /// No count: the service has none, is paused, failed or is off.
+    Unknown,
+}
+
+/// Dislike counts for videos. Human-paced: the source caches and limits its own requests.
+pub trait VideoRatings: Send + Sync {
+    /// The estimated dislikes of `video`. Never fails: every failure is [`Dislikes::Unknown`].
+    fn dislikes<'a>(&'a self, video: &'a VideoId) -> BoxFuture<'a, Dislikes>;
+}
+
 /// Everything the UI needs from the rest of the app.
 #[derive(Clone)]
 pub struct Backend {
@@ -217,4 +286,10 @@ pub struct Backend {
     /// Listening stats. [`NoStats`](crate::stats::NoStats) while recording is off or the store
     /// could not open.
     pub stats: Arc<dyn StatsService>,
+    /// Video comments. `None` until the app builds it (the opt-in switch is on), so the UI shows
+    /// no comments panel.
+    pub comments: Option<Arc<dyn CommentSource>>,
+    /// Dislike counts. `None` until the app builds it (the opt-in switch is on), so the UI shows
+    /// no dislike label.
+    pub ratings: Option<Arc<dyn VideoRatings>>,
 }

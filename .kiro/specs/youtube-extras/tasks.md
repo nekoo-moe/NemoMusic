@@ -11,7 +11,7 @@ Cross-spec ids written `<spec>#?` name the task in that spec that adds the ADR 0
   - Checks: existing catalog tests pass unchanged; a test that the default methods answer `Unavailable`.
   - Steering: none
 
-- [ ] 2. Add comment and dislike types, `CommentSource`, `VideoRatings` and the `Backend` fields
+- [x] 2. Add comment and dislike types, `CommentSource`, `VideoRatings` and the `Backend` fields
   - Crate and files: `nemo-core` (touches nemo-core/src/catalog.rs, nemo-core/src/services.rs); mock backends in `nemo-ui` and `nemo-app` set `None`.
   - Does: `CommentId`, `CommentCursor` (opaque, untrusted text), `Comment`, `CommentPage`, `CommentError`, `Dislikes`, the two traits, and `Backend.{comments, ratings}` as `None` by default.
   - _Requirements: none (groundwork)_
