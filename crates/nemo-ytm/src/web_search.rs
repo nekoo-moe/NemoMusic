@@ -23,7 +23,7 @@ use nemo_core::BoxFuture;
 use nemo_core::catalog::{
     AlbumDetail, AlbumSummary, ArtistDetail, ArtistSummary, BrowseId, Catalog, CatalogError,
     ChannelDetail, ChannelRef, Explore, FeedShelf, HistorySection, HomeFeed, LikeStatus,
-    PlaylistDetail, PlaylistSummary, PodcastDetail, SearchResults, SearchScope, Shelf,
+    PlaylistDetail, PlaylistSummary, PodcastDetail, SearchKind, SearchResults, SearchScope, Shelf,
     VideoSummary,
 };
 use nemo_core::track::{Track, VideoId};
@@ -340,6 +340,14 @@ impl<P: WebPost> Catalog for WebCatalogExt<P> {
             SearchScope::Music => self.music.search(query),
             SearchScope::AllOfYoutube => Box::pin(self.all_of_youtube(query)),
         }
+    }
+
+    fn search_kind<'a>(
+        &'a self,
+        query: &'a str,
+        kind: SearchKind,
+    ) -> BoxFuture<'a, Result<SearchResults, CatalogError>> {
+        self.music.search_kind(query, kind)
     }
 
     fn album<'a>(&'a self, id: &'a BrowseId) -> BoxFuture<'a, Result<AlbumDetail, CatalogError>> {

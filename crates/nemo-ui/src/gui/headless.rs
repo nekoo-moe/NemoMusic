@@ -184,6 +184,8 @@ pub struct Scenario {
     pub queue_open: bool,
     /// Type this into the search box (and wait for the answer).
     pub search: Option<String>,
+    /// Then pick this search filter chip.
+    pub search_filter: Option<nemo_core::catalog::SearchKind>,
     /// Show the player as buffering.
     pub buffering: bool,
     /// Open the signal-path popover.
@@ -264,6 +266,7 @@ impl Default for Scenario {
             music_folders: Vec::new(),
             queue_open: false,
             search: None,
+            search_filter: None,
             buffering: false,
             signal_open: false,
             menu_track: None,
@@ -342,6 +345,12 @@ pub fn build_app(backend: &Backend, scenario: &Scenario) -> App {
     app.dispatch(Event::Position(backend.player.position()));
     if let Some(q) = &scenario.search {
         run(&mut app, Message::Ui(Event::Go(Route::Search(q.clone()))));
+        if scenario.search_filter.is_some() {
+            run(
+                &mut app,
+                Message::Ui(Event::SearchFilter(scenario.search_filter)),
+            );
+        }
     }
     if scenario.queue_open {
         run(&mut app, Message::Ui(Event::ToggleQueue));

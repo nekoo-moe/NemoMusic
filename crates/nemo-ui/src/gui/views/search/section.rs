@@ -21,6 +21,8 @@ pub(super) struct Frame {
     pub(super) grid: Grid,
     /// Content width in px.
     pub(super) width: f32,
+    /// One filtered kind: every result, with "Show more" on long lists, instead of a preview.
+    pub(super) full: bool,
 }
 
 /// The section of `kind`, titled, or `None` when it shows nothing. `stagger` is the entrance
@@ -65,7 +67,12 @@ fn rows<'a>(
     source: ListSource,
     frame: &Frame,
 ) -> Element<'a, Message> {
-    let shown = tracks.len().min(SONGS_SHOWN.max(1));
+    let limit = if frame.full {
+        app.rows_limit
+    } else {
+        SONGS_SHOWN
+    };
+    let shown = tracks.len().min(limit.max(1));
     let ctx = RowCtx {
         width: frame.width,
         source,
@@ -76,7 +83,9 @@ fn rows<'a>(
 }
 
 fn cards<'a>(app: &App, cards: Vec<Card>, frame: &Frame, stagger: usize) -> Element<'a, Message> {
-    card_grid(app, frame.grid, cards, 1, stagger)
+    // A preview is one row; a filtered kind shows every card (at most one per row needed).
+    let rows = if frame.full { cards.len().max(1) } else { 1 };
+    card_grid(app, frame.grid, cards, rows, stagger)
 }
 
 fn album_cards(r: &SearchResults) -> Vec<Card> {

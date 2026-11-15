@@ -8,6 +8,8 @@ Status: pre-approved by the owner on 2026-11-15.
 
 Live layout (one anonymous request for "HVL", 2026-11-15, `WEB_REMIX`, recorded in `crates/nemo-ytm/tests/fixtures/music/search-hvl.json`): `contents.tabbedSearchResultsRenderer.tabs[0].tabRenderer.content.sectionListRenderer` with a `chipCloudRenderer` header (filter chips with `searchEndpoint.params`), then a `musicCardShelfRenderer` (the top result, here the album "HVL" by RPT MCK, 2026, with Play and Shuffle `watchPlaylistEndpoint` buttons), then 24 `itemSectionRenderer` sections of one `musicResponsiveListItemRenderer` each, in YouTube's order: song, artist, songs, videos, artist, playlists, singles, profiles, episodes, podcasts. The older layout (titled `musicShelfRenderer` shelves and a card with `contents`) is read too.
 
+Filter chips (task 3): a chip sends the same `search` request plus the chip's `params`, copied from the `chipCloudRenderer` of the live answer. The filtered answer (three recorded: Songs, Albums, Community playlists for "HVL") is one titled `musicShelfRenderer` of about 20 rows of that kind, which `parse_search` already reads; `search_kind` keeps only that kind's list. The UI keeps the unfiltered answer and the latest filtered answer apart (`SearchState.results` and `.filtered`), so switching back to All sends nothing. When the filtered layout is unknown or the request is refused, the typed filtered search of `ytmapi-rs` runs for songs, albums, artists and playlists; videos have no typed fallback and answer a parse error.
+
 ## Affected Crates
 
 - `nemo-core`: `catalog/search.rs` (new: `SearchKind`, `TopResult`, `SearchResults::{count, is_empty, sections}`), `catalog.rs` (`SearchResults.{top, order}`).
@@ -33,14 +35,23 @@ impl SearchResults {
     pub fn sections(&self) -> Vec<SearchKind>; // non-empty kinds: `order` first, then DEFAULT_ORDER
 }
 
+// nemo-core::catalog (filter chips, task 3)
+impl SearchKind { pub const FILTERS: [Self; 5]; } // Songs, Videos, Albums, Artists, Playlists
+trait Catalog { fn search_kind<'a>(&'a self, query: &'a str, kind: SearchKind) -> BoxFuture<'a, Result<SearchResults, CatalogError>>; } // default: Unavailable("search filter")
+
 // nemo-ytm (crate-private)
 pub(crate) struct SearchQuery; // PostQuery, path "search", body {"query"}
 pub(crate) async fn search<A: AuthToken>(api: &YtMusic<A>, query: &str) -> Result<SearchResults, CatalogError>;
 pub(crate) fn parse_search(json: &str) -> Option<SearchResults>;
+pub(crate) fn filter_params(kind: SearchKind) -> Option<&'static str>; // chip params as served
+pub(crate) async fn search_kind<A: AuthToken>(api: &YtMusic<A>, query: &str, kind: SearchKind) -> Result<SearchResults, CatalogError>;
 
 // nemo-ui
 Message::ShuffleCollection(DetailKey);
 ListSource::SearchVideos;
+Event::SearchFilter(Option<SearchKind>); Event::SearchFilterDone { query, kind, result };
+Effect::RunFilteredSearch { query, kind }; Job::SearchKind { query, kind };
+SearchState::{filter, filtered, pick, filter_done, filtered_now, filter_loading, shown};
 ```
 
 ## Error Handling

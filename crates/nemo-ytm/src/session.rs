@@ -12,7 +12,7 @@ use nemo_core::account::{AccountError, AccountInfo};
 use nemo_core::catalog::{
     AlbumDetail, AlbumSummary, ArtistDetail, ArtistSummary, BrowseId, Catalog, CatalogError,
     Explore, FeedShelf, HistorySection, HomeFeed, PlaylistDetail, PlaylistSummary, PodcastDetail,
-    SearchResults, Shelf, ShelfItem,
+    SearchKind, SearchResults, Shelf, ShelfItem,
 };
 use nemo_core::secret::Secret;
 use nemo_core::track::Track;
@@ -150,6 +150,14 @@ impl Inner {
 
     async fn search(&self, query: String) -> Result<SearchResults, CatalogError> {
         crate::search::search(self.api().await?, &query).await
+    }
+
+    async fn search_kind(
+        &self,
+        query: String,
+        kind: SearchKind,
+    ) -> Result<SearchResults, CatalogError> {
+        crate::search::search_kind(self.api().await?, &query, kind).await
     }
 
     async fn album(&self, id: BrowseId) -> Result<AlbumDetail, CatalogError> {
@@ -328,6 +336,19 @@ impl Catalog for SessionCatalog {
         }
         let inner = Arc::clone(&self.inner);
         self.run(async move { inner.search(text).await })
+    }
+
+    fn search_kind<'a>(
+        &'a self,
+        query: &'a str,
+        kind: SearchKind,
+    ) -> BoxFuture<'a, Result<SearchResults, CatalogError>> {
+        let text: String = query.trim().chars().take(MAX_QUERY_CHARS).collect();
+        if text.is_empty() {
+            return Box::pin(async { Ok(SearchResults::default()) });
+        }
+        let inner = Arc::clone(&self.inner);
+        self.run(async move { inner.search_kind(text, kind).await })
     }
 
     fn album<'a>(&'a self, id: &'a BrowseId) -> BoxFuture<'a, Result<AlbumDetail, CatalogError>> {

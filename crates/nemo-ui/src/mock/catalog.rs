@@ -24,34 +24,39 @@ use nemo_core::track::Track;
 #[derive(Debug, Default, Clone, Copy)]
 pub struct MockCatalog;
 
+/// The mock results matching `query` (every item for an empty query), no top result.
+fn find(query: &str) -> SearchResults {
+    let q = query.trim().to_lowercase();
+    let hit = move |text: &str| q.is_empty() || text.to_lowercase().contains(&q);
+    let songs = tracks()
+        .into_iter()
+        .filter(|t| hit(&t.title) || t.artists.iter().any(|a| hit(a)))
+        .collect();
+    let albums = (0..LOCAL_ALBUMS)
+        .map(local_album_summary)
+        .chain((0..TRACKS / PER_ALBUM).map(album_summary))
+        .filter(|a| hit(&a.title) || a.artists.iter().any(|x| hit(x)))
+        .collect();
+    let artists = (0..ARTISTS)
+        .map(artist_summary)
+        .filter(|a| hit(&a.name))
+        .collect();
+    let playlists = (0..PLAYLISTS)
+        .map(playlist_summary)
+        .filter(|p| hit(&p.title))
+        .collect();
+    SearchResults {
+        songs,
+        albums,
+        artists,
+        playlists,
+        ..SearchResults::default()
+    }
+}
+
 impl Catalog for MockCatalog {
     fn search<'a>(&'a self, query: &'a str) -> BoxFuture<'a, Result<SearchResults, CatalogError>> {
-        let q = query.trim().to_lowercase();
-        let hit = move |text: &str| q.is_empty() || text.to_lowercase().contains(&q);
-        let songs = tracks()
-            .into_iter()
-            .filter(|t| hit(&t.title) || t.artists.iter().any(|a| hit(a)))
-            .collect();
-        let albums = (0..LOCAL_ALBUMS)
-            .map(local_album_summary)
-            .chain((0..TRACKS / PER_ALBUM).map(album_summary))
-            .filter(|a| hit(&a.title) || a.artists.iter().any(|x| hit(x)))
-            .collect();
-        let artists = (0..ARTISTS)
-            .map(artist_summary)
-            .filter(|a| hit(&a.name))
-            .collect();
-        let playlists = (0..PLAYLISTS)
-            .map(playlist_summary)
-            .filter(|p| hit(&p.title))
-            .collect();
-        let mut results = SearchResults {
-            songs,
-            albums,
-            artists,
-            playlists,
-            ..SearchResults::default()
-        };
+        let mut results = find(query);
         // Like YouTube Music: a typed query gets a top result (the first matching album) and a
         // ranked order of the kinds.
         if !query.trim().is_empty() && !results.albums.is_empty() {
@@ -62,6 +67,26 @@ impl Catalog for MockCatalog {
                 SearchKind::Albums,
                 SearchKind::Playlists,
             ];
+        }
+        Box::pin(async move { Ok(results) })
+    }
+
+    fn search_kind<'a>(
+        &'a self,
+        query: &'a str,
+        kind: SearchKind,
+    ) -> BoxFuture<'a, Result<SearchResults, CatalogError>> {
+        let all = find(query);
+        let mut results = SearchResults {
+            order: vec![kind],
+            ..SearchResults::default()
+        };
+        match kind {
+            SearchKind::Songs => results.songs = all.songs,
+            SearchKind::Albums => results.albums = all.albums,
+            SearchKind::Artists => results.artists = all.artists,
+            SearchKind::Playlists => results.playlists = all.playlists,
+            SearchKind::Videos | SearchKind::Channels => {}
         }
         Box::pin(async move { Ok(results) })
     }

@@ -6,7 +6,7 @@ use nemo_core::BoxFuture;
 use nemo_core::catalog::{
     AlbumDetail, AlbumSummary, ArtistDetail, ArtistSummary, BrowseId, Catalog, CatalogError,
     Explore, FeedShelf, HistorySection, HomeFeed, PlaylistDetail, PlaylistSummary, PodcastDetail,
-    SearchResults, Shelf,
+    SearchKind, SearchResults, Shelf,
 };
 use nemo_core::track::Track;
 
@@ -45,6 +45,15 @@ impl Catalog for AccountCatalog {
     fn search<'a>(&'a self, query: &'a str) -> BoxFuture<'a, Result<SearchResults, CatalogError>> {
         let catalog = self.current();
         Box::pin(async move { catalog.search(query).await })
+    }
+
+    fn search_kind<'a>(
+        &'a self,
+        query: &'a str,
+        kind: SearchKind,
+    ) -> BoxFuture<'a, Result<SearchResults, CatalogError>> {
+        let catalog = self.current();
+        Box::pin(async move { catalog.search_kind(query, kind).await })
     }
 
     fn album<'a>(&'a self, id: &'a BrowseId) -> BoxFuture<'a, Result<AlbumDetail, CatalogError>> {

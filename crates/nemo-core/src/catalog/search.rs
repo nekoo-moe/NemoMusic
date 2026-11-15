@@ -31,6 +31,16 @@ impl SearchKind {
         Self::Videos,
         Self::Channels,
     ];
+
+    /// The kinds a search can be narrowed to with [`Catalog::search_kind`](super::Catalog::search_kind),
+    /// in the order the filter chips show them.
+    pub const FILTERS: [Self; 5] = [
+        Self::Songs,
+        Self::Videos,
+        Self::Albums,
+        Self::Artists,
+        Self::Playlists,
+    ];
 }
 
 /// The single best match, shown above the sections (YouTube Music's "Top result").

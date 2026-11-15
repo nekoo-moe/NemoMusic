@@ -31,3 +31,15 @@ cut to 12 of its 25 entries (one or more of each kind).
 | File | Request | Shows |
 |---|---|---|
 | `search-hvl.json` | `search`, query "HVL" | the `chipCloudRenderer` header (two chips), the top-result `musicCardShelfRenderer` (album, Play and Shuffle buttons), then one `itemSectionRenderer` per result in YouTube's order: songs, an artist, music videos (`OMV`, `OFFICIAL_SOURCE_MUSIC`), a second artist, a playlist, a single, a profile (`MUSIC_PAGE_TYPE_USER_CHANNEL`), a podcast episode and a podcast |
+| `search-hvl-songs.json` | `search`, query "HVL", `params` of the Songs chip | the selected chip, one `musicShelfRenderer` "Songs" (4 of 20 rows: artist and album linked, duration, no type label) |
+| `search-hvl-albums.json` | `search`, query "HVL", `params` of the Albums chip | one `musicShelfRenderer` "Albums" (4 of 20 rows with the "Album" / "Single" label, linked artist, year) |
+| `search-hvl-playlists.json` | `search`, query "HVL", `params` of the Community playlists chip | one `musicShelfRenderer` "Community playlists" (4 of 20 rows: linked author, views) |
+
+The filtered answers came from three more requests on 2026-11-15, 25 s apart, same client and
+no cookies. Their continuations were removed. The chip `params` of that day, all from the
+unfiltered answer: Albums `EgWKAQIYAWoQEAkQAxAFEAQQChAVEBAQEQ%3D%3D`, Songs
+`EgWKAQIIAWoQEAkQAxAFEAQQChAVEBAQEQ%3D%3D`, Artists `EgWKAQIgAWoQEAkQAxAFEAQQChAVEBAQEQ%3D%3D`,
+Videos `EgWKAQIQAWoQEAkQAxAFEAQQChAVEBAQEQ%3D%3D`, Community playlists
+`EgeKAQQoAEABahAQCRADEAUQBBAKEBUQEBAR`, Profiles `EgWKAQJYAWoQEAkQAxAFEAQQChAVEBAQEQ%3D%3D`,
+Episodes `EgWKAQJIAWoQEAkQAxAFEAQQChAVEBAQEQ%3D%3D`, Podcasts
+`EgWKAQJQAWoQEAkQAxAFEAQQChAVEBAQEQ%3D%3D`.

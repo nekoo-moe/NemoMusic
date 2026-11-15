@@ -18,8 +18,15 @@ Status: pre-approved by the owner on 2026-11-15.
   - Checks: fmt, clippy, tests; design.md section 15 checklist; snapshot.
   - Steering: design.md.
 
-- [ ] 3. Follow-up (owner to decide): filter chips All, Songs, Albums, Artists, Playlists, Videos
-  - Needs a kind filter in `SearchScope` or a new `Catalog` method (public API change), mapped to the filtered searches or the chip `params` of the answer.
+- [x] 3. Filter chips under the search box (owner said yes, 2026-11-15)
+  - Crate and files: `nemo-core` (catalog.rs `Catalog::search_kind`, catalog/search.rs `SearchKind::FILTERS`), `nemo-ytm` (search.rs, search/tests.rs, catalog.rs, session.rs, account/catalog.rs, web_search.rs, tests/fixtures/music/search-hvl-{songs,albums,playlists}.json), `nemo-app` (merged.rs), `nemo-ui` (search.rs, state.rs, state/event.rs, gui/app/{dispatch,job,message,query}.rs, gui/views/search.rs, gui/views/search/{filter,section}.rs, gui/headless.rs, mock/catalog.rs, examples/snapshots/screen.rs), `docs/ui/snapshots/search-*.png`.
+  - Does: chips All, Songs, Videos, Albums, Artists, Community playlists; a chip runs one search with YouTube Music's own chip `params` and shows that kind in full ("Show more" on long song lists); typing a new query returns to All.
+  - _Requirements: 10, 11, 12, 13_
+  - Checks: fmt, workspace clippy and tests; fixture tests of the filtered answers; snapshots `search-songs-*`, `search-albums-*`.
+  - Steering: design.md (chips), code.md (fixtures only), coc.md (one request per chip, no new host).
+
+- [ ] 4. Follow-up: Podcasts, Episodes and Profiles chips
+  - Needs additive `SearchResults` fields (`podcasts`, `episodes`, `profiles`) and `SearchKind` variants, their sections, and a page for user profiles (`MUSIC_PAGE_TYPE_USER_CHANNEL`), which the app cannot open yet. The chip `params` are recorded in the fixture README.
   - _Requirements: none yet_
 
 ## Definition of Done

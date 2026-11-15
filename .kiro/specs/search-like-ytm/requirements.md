@@ -31,14 +31,18 @@ Root cause (checked in the code and with one anonymous request on 2026-11-15):
 7. WHEN results are shown THE SYSTEM SHALL keep the existing track rows, their quality labels and the songs limit, and SHALL never label a YouTube item lossless.
 8. WHEN local and YouTube Music results are merged THE SYSTEM SHALL keep YouTube Music's top result and order, and keep its videos and channels.
 9. WHEN other crates build `SearchResults` THE SYSTEM SHALL keep them building with `..SearchResults::default()` (additive change).
+10. WHEN a query has been typed THE SYSTEM SHALL show filter chips under the search box: All first, then Songs, Videos, Albums, Artists and Community playlists, as pill buttons reachable with Tab and picked with Enter or Space.
+11. WHEN the user picks a chip other than All THE SYSTEM SHALL send one `search` request with that chip's `params` as YouTube Music serves them, and show only that kind, in full and in YouTube's order; WHEN that answer is already here THE SYSTEM SHALL send nothing.
+12. WHEN the user picks All, or types a new query, THE SYSTEM SHALL show the unfiltered answer (Top result and sections).
+13. WHEN a filtered search fails THE SYSTEM SHALL show the error with "Try again", which runs that filtered search again.
 
 ## Out of Scope
 
-- Filter chips (All, Songs, Albums, Artists, Playlists, Videos): `Catalog::search_scoped` takes only `SearchScope::{Music, AllOfYoutube}`, so there is no kind filter to call. Follow-up task in `tasks.md`.
-- Podcasts, episodes and user profiles in search results: `SearchResults` has no field for them; they are skipped.
+- Podcasts, Episodes and Profiles chips and results: `SearchResults` has no field for them; they are skipped (follow-up task 4).
 - Play counts on song rows ("23M plays"): `Track` has no field for them (`nemo-core/src/track.rs` belongs to another lane).
 - Paging past the first answer ("Show all" continuations).
 
 ## Open Questions
 
-- None blocking. Follow-ups for the owner: filter chips need a kind filter in `SearchScope` (public API change); podcasts and profiles in search need new `SearchResults` fields.
+- Filter chips: answered by the owner on 2026-11-15 (yes, as a third PR, additive `nemo-core` change).
+- Follow-up for the owner: Podcasts, Episodes and Profiles chips need new `SearchResults` fields and a profile page.

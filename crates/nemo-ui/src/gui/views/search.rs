@@ -1,6 +1,7 @@
-//! Search: a query box (300 ms debounce in the reducer), then YouTube Music's Top result card
-//! and the result sections (Songs, Videos, Albums, Artists, Playlists) in the order YouTube
-//! Music ranked them (search-like-ytm). Enter plays the top song.
+//! Search: a query box (300 ms debounce in the reducer), the filter chips (All, Songs, Videos,
+//! Albums, Artists, Community playlists), then for All YouTube Music's Top result card and the
+//! result sections in the order YouTube Music ranked them, or one kind in full for a chip
+//! (search-like-ytm). Enter plays the top song.
 
 use iced::widget::{Space, column, container, stack, text_input};
 use iced::{Alignment, Border, Element, Length, Padding};
@@ -13,6 +14,7 @@ use crate::layout;
 use crate::state::Event;
 use crate::theme::{color, shape, type_scale};
 
+mod filter;
 mod section;
 mod top;
 
@@ -42,7 +44,6 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
         return page(grid.content, c);
     }
 
-    let results = search.results.as_ref();
     if search.query().is_empty() {
         c = c.push(status(
             Icon::Search,
@@ -50,25 +51,38 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
             "Search songs, albums, artists and playlists. Press Enter to play the top song.",
             None,
         ));
-    } else if let Some(r) = results {
+        return page(grid.content, c);
+    }
+    c = c
+        .push(filter::chips(app, search.filter))
+        .push(vspace(gap::XL));
+    let frame = section::Frame {
+        grid,
+        width: content_w,
+        full: search.filter.is_some(),
+    };
+    c = c.push(match search.filter {
+        Some(kind) => filter::filtered(app, kind, &frame),
+        None => all(app, &frame),
+    });
+    page(grid.content, c)
+}
+
+/// The "All" answer: the Top result card, then the sections in YouTube Music's order.
+fn all<'a>(app: &'a App, frame: &section::Frame) -> Element<'a, Message> {
+    let search = &app.ui.search;
+    let mut c = column![];
+    let results = search.results.as_ref();
+    if let Some(r) = results {
         if r.is_empty() && !search.loading {
-            c = c.push(status(
-                Icon::Search,
-                format!("No results for \u{201c}{}\u{201d}", search.query()),
-                "Check the spelling or try fewer words.",
-                None,
-            ));
+            c = c.push(no_results(search.query()));
         }
         if let Some(top) = &r.top {
-            c = c.push(top::top_card(app, top, content_w));
+            c = c.push(top::top_card(app, top, frame.width));
         }
-        let frame = section::Frame {
-            grid,
-            width: content_w,
-        };
         // YouTube Music's order of the kinds, then the rest.
         for (i, kind) in r.sections().into_iter().enumerate() {
-            if let Some(s) = section::section(app, r, kind, &frame, i) {
+            if let Some(s) = section::section(app, r, kind, frame, i) {
                 c = c.push(s);
             }
         }
@@ -80,12 +94,7 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
             Some(("Try again", Message::Ui(Event::SearchRetry))),
         ));
     } else {
-        c = c.push(label(
-            "Searching\u{2026}",
-            type_scale::BODY_MD,
-            false,
-            col(color::on_surface_variant()),
-        ));
+        c = c.push(searching());
     }
     if results.is_some()
         && let Some(e) = &search.error
@@ -98,7 +107,28 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
             Some(("Try again", Message::Ui(Event::SearchRetry))),
         ));
     }
-    page(grid.content, c)
+    c.into()
+}
+
+/// The empty answer.
+pub(super) fn no_results(query: &str) -> Element<'_, Message> {
+    status(
+        Icon::Search,
+        format!("No results for \u{201c}{query}\u{201d}"),
+        "Check the spelling or try fewer words.",
+        None,
+    )
+}
+
+/// The line shown while an answer is on its way.
+pub(super) fn searching<'a>() -> Element<'a, Message> {
+    label(
+        "Searching\u{2026}",
+        type_scale::BODY_MD,
+        false,
+        col(color::on_surface_variant()),
+    )
+    .into()
 }
 
 /// The query box: a pill, height 48, glyph on the left, "Searching" hint on the right. The pill
