@@ -267,6 +267,86 @@ fn ten_seconds_of_reverb_allocate_nothing() {
     assert!(out.iter().all(|s| s.is_finite()));
 }
 
+/// The whole effects chain on a stereo 48 kHz stream, 512-frame callbacks for 10 s: twelve
+/// equalizer filters, delay and reverb on, with the first on ramp, a coefficient crossfade, a
+/// delay parameter switch, reverb off and on again, then `process_tail` until the tail ends.
+#[test]
+fn ten_seconds_of_the_effects_chain_allocate_nothing() {
+    use nemo_audio::effects::{EffectsChain, EffectsUpdate, effects_ring, ten_band};
+    use nemo_core::effects::{
+        DelaySettings, EffectsSettings, EqFilter, EqSettings, FilterKind, ReverbSettings,
+    };
+
+    let mut filters = ten_band([60, -30, 45, 0, -15, 30, -60, 90, -120, 120]);
+    let shelf = |kind, freq_hz| {
+        Some(EqFilter {
+            kind,
+            freq_hz,
+            gain_tenth_db: 30,
+            q_hundredths: 70,
+        })
+    };
+    let [.., eleventh, twelfth] = &mut filters;
+    *eleventh = shelf(FilterKind::LowShelf, 105);
+    *twelfth = shelf(FilterKind::HighShelf, 10_000);
+    let all_on = EffectsSettings {
+        equalizer: EqSettings {
+            enabled: true,
+            preamp_tenth_db: 0,
+            filters,
+        },
+        delay: DelaySettings {
+            enabled: true,
+            time_ms: 250,
+            feedback_pct: 60,
+            mix_pct: 30,
+        },
+        reverb: ReverbSettings {
+            enabled: true,
+            size_pct: 80,
+            damping_pct: 50,
+            mix_pct: 30,
+        },
+    };
+    let mut other_eq = all_on;
+    other_eq.equalizer.preamp_tenth_db = -30;
+    let mut other_delay = other_eq;
+    other_delay.delay.time_ms = 40;
+    let mut no_reverb = other_delay;
+    no_reverb.reverb.enabled = false;
+    // Every update is built before counting: building one allocates on the control thread.
+    let updates = [all_on, other_eq, other_delay, no_reverb, other_delay]
+        .map(|settings| EffectsUpdate::new(&settings, 48_000));
+    let (mut tx, rx) = effects_ring();
+    let mut chain = EffectsChain::new(2, 48_000, rx);
+    let block: Vec<f32> = (0..u16::try_from(CALLBACK_SAMPLES).unwrap_or(u16::MAX))
+        .map(|i| (f32::from(i) * 0.37).sin() * 0.5)
+        .collect();
+    let mut out = vec![0.0_f32; CALLBACK_SAMPLES];
+    let step = CALLBACKS_10S / updates.len();
+
+    let before = count();
+    for n in 0..CALLBACKS_10S {
+        if n % step == 0
+            && let Some(update) = updates.get(n / step)
+        {
+            assert!(tx.push(*update).is_ok());
+        }
+        out.copy_from_slice(&block);
+        chain.process(&mut out);
+    }
+    let mut tail_callbacks = 0;
+    while chain.process_tail(&mut out) {
+        tail_callbacks += 1;
+    }
+    let after = count();
+
+    assert_eq!(after - before, 0, "the effects chain allocated");
+    assert!(chain.is_active());
+    assert!(tail_callbacks > 0, "the delay rang out");
+    assert!(out.iter().all(|s| *s == 0.0));
+}
+
 mod player_callback {
     use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};

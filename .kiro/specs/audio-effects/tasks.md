@@ -75,7 +75,7 @@
   - Wave: 2
   - Checks: the tail ends inside `tail_frames` at the largest size; output stays bounded for any settings (`proptest`); counting-allocator case in `cargo test -p nemo-audio --test rt_no_alloc`; `cargo test -p nemo-audio --test bit_exact`.
 
-- [ ] 10. Build the `EffectsChain` with ramps and the clip counter
+- [x] 10. Build the `EffectsChain` with ramps and the clip counter
   - Crate and files: `nemo-audio`: `src/effects/chain.rs`, `src/effects/fade.rs` (new).
   - Does: Runs equalizer, delay, reverb, then a clamp that counts samples past full scale and never wraps; NaN or infinite samples become 0, count as clipped and reset the filter state. Pops one `Copy` `EffectsUpdate` per block from an `rtrb` ring of 8, ramps on/off and coefficient changes over 10 ms, and skips a fully-off stage. One `bool` guards the chain so all-off does no arithmetic. Every function is `/// RT-SAFE`.
   - _Requirements: 2, 3, 7, 23_
