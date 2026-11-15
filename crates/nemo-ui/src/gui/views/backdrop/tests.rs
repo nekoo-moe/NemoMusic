@@ -47,7 +47,10 @@ fn a_track_change_rebuilds_the_backdrop_from_the_new_cover() {
     let now = app.ui.snapshot.current.clone().expect("a song plays");
     assert_ne!(now.id, first.track, "the player moved on");
     let second = app.cover.clone().expect("the next mock song has a cover");
-    assert_eq!(second.track, now.id, "the backdrop is built from the new cover");
+    assert_eq!(
+        second.track, now.id,
+        "the backdrop is built from the new cover"
+    );
     assert_eq!(
         app.prev_cover.as_ref().map(|c| c.track.clone()),
         Some(first.track.clone()),
@@ -58,7 +61,11 @@ fn a_track_change_rebuilds_the_backdrop_from_the_new_cover() {
         second.canvas.stops(BaseMode::Dark),
         "a different cover gives a different canvas"
     );
-    assert_ne!(field_before, app.bg_fade.current(), "the fallback field moved too");
+    assert_ne!(
+        field_before,
+        app.bg_fade.current(),
+        "the fallback field moved too"
+    );
 }
 
 #[test]
