@@ -117,7 +117,7 @@ Cross-spec ids written `<spec>#?` name the owner's task by its ADR 0004 Decision
   - Wave: 2
   - Checks: with the online source failing, a saved song still returns its segments and cover, and the player skips a stored segment.
 
-- [ ] 15. Add offline mode with the offline catalog and request gates
+- [x] 15. Add offline mode with the offline catalog and request gates
   - Crate and files: `nemo-ytm`: `src/offline/catalog.rs` (new), `src/offline/gate.rs` (new).
   - Does: The offline `Catalog` lists only saved songs, albums and playlists. Gates around the resolver, stream opener, segment source and image source refuse at once while `NetworkMode::is_offline`. Mode switches on by itself after two network failures within 30 s on user actions, with one notice, and only the user switches it off; no connectivity probe is sent.
   - _Requirements: 4, 5_

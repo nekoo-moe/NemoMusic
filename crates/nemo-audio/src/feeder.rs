@@ -15,6 +15,7 @@ use nemo_core::segment::Segment;
 
 use crate::chain::Chain;
 use crate::pipeline::{CmdQueue, FeedCmd, FeedEvent, Job, PREFILL_MS, PipeShared};
+use crate::replay_gain::ReplayGain;
 use crate::ring::{Producer, push_slice};
 use crate::stream_decoder::StreamDecoder;
 
@@ -56,6 +57,8 @@ struct Active {
     span: Option<FrameSpan>,
     segments: Vec<Segment>,
     ignored: HashSet<String>,
+    /// The song's `ReplayGain`, applied to every converted block. `None`: no arithmetic.
+    replay_gain: Option<ReplayGain>,
 }
 
 /// The feeder thread state.
@@ -263,6 +266,7 @@ impl Feeder {
             chain,
             segments: std::mem::take(&mut job.segments),
             ignored: HashSet::new(),
+            replay_gain: job.replay_gain,
         });
         true
     }
@@ -445,7 +449,13 @@ impl Feeder {
     }
     /// Write `self.converted` into the ring. Returns `false` when a command or a stop
     /// request cut the write short.
+    ///
+    /// Every block of the active song reaches the ring through here, after the song's `Chain`,
+    /// so its `ReplayGain` scalar is applied here, once per block, in place.
     fn push_converted(&mut self) -> bool {
+        if let Some(gain) = self.active.as_ref().and_then(|a| a.replay_gain) {
+            gain.apply(&mut self.converted);
+        }
         let channels = usize::from(self.out.channels);
         let mut offset = 0;
         let total = self.converted.len();

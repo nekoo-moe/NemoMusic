@@ -48,13 +48,12 @@ fn temp_file(tag: &str, bytes: &[u8]) -> std::path::PathBuf {
 #[test]
 fn supported_codecs_list_only_what_decodes() {
     let codecs = supported_stream_codecs();
-    for c in [Codec::Aac, Codec::Flac, Codec::Mp3, Codec::Pcm] {
+    for c in [Codec::Aac, Codec::Flac, Codec::Mp3, Codec::Opus, Codec::Pcm] {
         assert!(codecs.contains(&c), "{c:?}");
     }
-    assert!(
-        !codecs.contains(&Codec::Opus),
-        "Opus decodes but joins the list in its own change (local-library task 7)"
-    );
+    for c in [Codec::Alac, Codec::Vorbis, Codec::Unknown] {
+        assert!(!codecs.contains(&c), "{c:?} is not offered for streams");
+    }
 }
 
 #[test]

@@ -3636,6 +3636,7 @@ version = "0.0.1"
 dependencies = [
  "cpal",
  "nemo-core",
+ "proptest",
  "rtrb",
  "rubato",
  "sha2 0.11.1",
@@ -3666,6 +3667,9 @@ version = "0.0.1"
 dependencies = [
  "lofty",
  "nemo-core",
+ "rusqlite",
+ "serde_json",
+ "unicode-normalization",
 ]
 
 [[package]]

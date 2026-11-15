@@ -302,7 +302,7 @@ fn an_existing_cache_file_gets_the_pinned_flag() {
         .lock()
         .query_row("PRAGMA user_version", [], |r| r.get(0))
         .expect("version");
-    assert_eq!(version, 1);
+    assert_eq!(version, 2);
     drop(cache);
     // Opening again runs no change twice.
     let again = LyricsCache::open_with_clock(&dir, clock).expect("reopen");
