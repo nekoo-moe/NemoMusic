@@ -4,6 +4,7 @@
 //! shared mode and refuses a device whose rate or channel count differs from the source.
 
 use nemo_core::audio::{AudioFormat, OutputInfo, OutputMode};
+use nemo_core::output::{DeviceId, FallbackReason, OutputDevice, OutputOptions};
 
 pub use crate::cpal_sink::{CpalSink, CpalSinkFactory, OutputDeviceInfo, list_output_devices};
 
@@ -44,6 +45,45 @@ pub enum SinkError {
     /// The sink was started twice.
     #[error("the sink is already started")]
     AlreadyStarted,
+    /// Another app holds the device.
+    #[error("the output device is in use by another app")]
+    DeviceBusy,
+    /// The driver refused exclusive mode, with the backend's reason.
+    #[error("exclusive mode was refused: {0}")]
+    ExclusiveRefused(String),
+    /// The device accepts no format close to the source.
+    #[error("the output device accepts no format for this source")]
+    FormatNotAccepted,
+}
+
+/// Whether an open sink can still play, as its own error path last saw it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SinkHealth {
+    /// The device plays.
+    #[default]
+    Ok,
+    /// The device is gone (unplugged or disabled).
+    Lost,
+    /// Another app took the device (exclusive mode).
+    Taken,
+}
+
+/// A sink opened by [`SinkFactory::open_reported`], with the reason exclusive mode was not used
+/// when the factory fell back to shared mode.
+pub struct OpenedSink {
+    /// The opened sink.
+    pub sink: Box<dyn AudioSink>,
+    /// Why exclusive mode fell back to shared, if it did.
+    pub fallback: Option<FallbackReason>,
+}
+
+/// The device and options a [`SinkFactory`] opens next, set with [`SinkFactory::select`].
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct OutputSelection {
+    /// The chosen device; `None` follows the system default.
+    pub device: Option<DeviceId>,
+    /// How the device is used.
+    pub options: OutputOptions,
 }
 
 /// Check that a device format equals the source format in rate and channels.
@@ -81,6 +121,11 @@ pub trait AudioSink {
     fn latency_frames(&self) -> u64 {
         0
     }
+    /// Whether the device can still play. The control thread polls it on its tick; a sink
+    /// reports loss through an atomic its error path sets. The default is [`SinkHealth::Ok`].
+    fn health(&self) -> SinkHealth {
+        SinkHealth::Ok
+    }
 }
 
 /// Opens the output sink for a track. Called on the player's control thread.
@@ -94,9 +139,35 @@ pub trait SinkFactory: Send + Sync {
 
     /// `true` when [open](Self::open) can return a sink in the source rate and channel count
     /// (an exclusive device). The player then reopens the sink when the next track has another
-    /// format. alse when the device fixes the format (shared mode).
+    /// format. False when the device fixes the format (shared mode).
     fn can_follow_source(&self) -> bool {
         false
+    }
+
+    /// Open a sink like [open](Self::open) and report why exclusive mode was not used, if it
+    /// was asked for. The default wraps [open](Self::open) with no fallback.
+    ///
+    /// # Errors
+    /// Returns [`SinkError`] when no device can be opened.
+    fn open_reported(&self, source: AudioFormat) -> Result<OpenedSink, SinkError> {
+        Ok(OpenedSink {
+            sink: self.open(source)?,
+            fallback: None,
+        })
+    }
+
+    /// Set the device and options the next [open](Self::open) uses. The default ignores it.
+    fn select(&self, selection: OutputSelection) {
+        // A factory with one fixed device has nothing to select.
+        drop(selection);
+    }
+
+    /// The output devices the system offers. The default is an empty list.
+    ///
+    /// # Errors
+    /// Returns [`SinkError::Backend`] when the host cannot enumerate devices.
+    fn list_devices(&self) -> Result<Vec<OutputDevice>, SinkError> {
+        Ok(Vec::new())
     }
 }
 
@@ -187,5 +258,34 @@ mod tests {
             check_format(fmt(48_000, 1), fmt(48_000, 2)),
             Err(SinkError::FormatMismatch { .. })
         ));
+    }
+
+    /// A factory that only implements the required method, like the existing fakes.
+    struct Plain;
+
+    impl SinkFactory for Plain {
+        fn open(&self, source: AudioFormat) -> Result<Box<dyn AudioSink>, SinkError> {
+            Ok(Box::new(CaptureSink::new(source)))
+        }
+    }
+
+    #[test]
+    fn default_trait_methods_keep_old_sinks_and_factories_working() {
+        let factory = Plain;
+        factory.select(OutputSelection {
+            device: Some(DeviceId("test-device".to_owned())),
+            options: OutputOptions::default(),
+        });
+        assert!(factory.list_devices().is_ok_and(|d| d.is_empty()));
+        let opened = factory.open_reported(fmt(44_100, 2));
+        assert!(opened.as_ref().is_ok_and(|o| o.fallback.is_none()));
+        if let Ok(opened) = opened {
+            assert_eq!(opened.sink.health(), SinkHealth::Ok);
+            assert_eq!(opened.sink.output_info().format, fmt(44_100, 2));
+        }
+        assert_eq!(SinkHealth::default(), SinkHealth::Ok);
+        let selection = OutputSelection::default();
+        assert!(selection.device.is_none());
+        assert_eq!(selection.options, OutputOptions::default());
     }
 }
