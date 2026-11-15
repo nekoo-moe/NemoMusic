@@ -1,10 +1,12 @@
 //! Lyrics extras that travel beside a [`LyricsDoc`]: per-line facts
 //! such as the singer, background vocals and the provider's romanization, the user's own
-//! lyrics, and the romanizer contract.
+//! lyrics, the romanizer contract and the lyrics-translation contract.
 //!
 //! `LyricsDoc` and `LyricLine` are built as struct literals in many crates, so this data is
 //! kept apart from them and indexed by line number (lyrics-plus design).
 
+use crate::BoxFuture;
+use crate::ai::{AiError, PayloadPreview};
 use crate::lyrics::{Granularity, LyricWord, LyricsDoc, ProviderId};
 
 /// The provider id of lyrics the user wrote or synced. They win over every other provider.
@@ -183,12 +185,93 @@ pub trait Romanizer: Send + Sync {
     fn romanize(&self, doc: &LyricsDoc, meta: &[LineMeta], opts: &RomanOptions) -> Romanization;
 }
 
+/// A language as a BCP 47 tag, for example `"vi"`.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct LangTag(pub String);
+
+/// Whether lyrics translation can be offered.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TranslationAvailability {
+    /// An AI endpoint is set and the user confirmed the warning.
+    Ready,
+    /// No AI endpoint is set (or translation is off there): the lyrics view hides the toggle
+    /// and Settings > Lyrics shows "Set up an AI endpoint first".
+    NoEndpoint,
+    /// An endpoint is set, but the user has not confirmed the BETA warning yet.
+    NotConfirmed,
+}
+
+/// The translation of one lyrics document.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Translation {
+    /// The target language.
+    pub lang: LangTag,
+    /// One entry per lyric line, same index as `LyricsDoc.lines`; `None` for a line with no
+    /// translation.
+    pub lines: Vec<Option<String>>,
+    /// Host of the AI endpoint that translated it, shown beside the lines.
+    pub endpoint_host: String,
+}
+
+/// A lyrics translation failed. Nothing is sent for [`NoEndpoint`](Self::NoEndpoint) and
+/// [`NotConfirmed`](Self::NotConfirmed).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
+pub enum TranslationError {
+    /// No AI endpoint is set.
+    #[error("no AI endpoint is set")]
+    NoEndpoint,
+    /// The user has not confirmed the translation warning.
+    #[error("not confirmed")]
+    NotConfirmed,
+    /// The AI request failed; the error keeps its short text.
+    #[error("{0}")]
+    Ai(AiError),
+}
+
+/// Translates the lyrics on screen through the AI endpoint the user set (BETA). Implemented
+/// over the ai-features [`Translator`](crate::ai::Translator); answers are kept on this
+/// computer.
+pub trait LyricsTranslation: Send + Sync {
+    /// Whether translation can be offered now. [`TranslationAvailability::NoEndpoint`] while
+    /// `Translator::available()` is false.
+    fn availability(&self) -> TranslationAvailability;
+
+    /// A stored translation of a track into `lang`, if any. Reads the local store only.
+    fn cached(&self, track_key: &str, lang: &LangTag) -> Option<Translation>;
+
+    /// Build the exact request for the user to see, through `Translator::prepare`. No I/O.
+    ///
+    /// # Errors
+    /// [`TranslationError::NoEndpoint`], [`TranslationError::NotConfirmed`], or
+    /// [`TranslationError::Ai`] when the request cannot be built (for example too many lines).
+    fn prepare(&self, doc: &LyricsDoc, lang: &LangTag) -> Result<PayloadPreview, TranslationError>;
+
+    /// Send a confirmed preview in one `Translator::translate(preview, doc.lines.len())` call,
+    /// store the answer and return it.
+    ///
+    /// # Errors
+    /// [`TranslationError::Ai`] when the request fails or the answer has the wrong number of
+    /// lines; the stored translations stay unchanged.
+    fn translate<'a>(
+        &'a self,
+        track_key: &'a str,
+        doc: &'a LyricsDoc,
+        lang: &'a LangTag,
+        preview: &'a PayloadPreview,
+    ) -> BoxFuture<'a, Result<Translation, TranslationError>>;
+
+    /// Delete every stored translation of a track.
+    fn forget(&self, track_key: &str);
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        LineMeta, OWN_LYRICS, OwnLyricsDraft, OwnLyricsError, RomanLang, RomanOptions, Romanization,
+        LineMeta, OWN_LYRICS, OwnLyricsDraft, OwnLyricsError, RomanLang, RomanOptions,
+        Romanization, TranslationError,
     };
     use crate::BoxFuture;
+    use crate::ai::AiError;
     use crate::lyrics::{LyricsQuery, ProviderId};
     use crate::services::{LyricsLookup, LyricsService};
 
@@ -244,5 +327,18 @@ mod tests {
         assert_eq!(opts.han, RomanLang::Mandarin);
         let r = Romanization::default();
         assert!(r.scheme.is_none() && r.lines.is_empty() && !r.from_provider);
+    }
+
+    #[test]
+    fn translation_errors_keep_short_texts() {
+        assert_eq!(
+            TranslationError::NoEndpoint.to_string(),
+            "no AI endpoint is set"
+        );
+        assert_eq!(TranslationError::NotConfirmed.to_string(), "not confirmed");
+        assert_eq!(
+            TranslationError::Ai(AiError::BadAnswer).to_string(),
+            AiError::BadAnswer.to_string()
+        );
     }
 }
