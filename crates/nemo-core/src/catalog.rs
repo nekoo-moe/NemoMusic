@@ -6,9 +6,11 @@
 use crate::BoxFuture;
 use crate::track::{Thumbnail, Track, VideoId};
 
+mod comments;
 mod playlist_edit;
 mod video;
 
+pub use comments::{Comment, CommentCursor, CommentError, CommentId, CommentPage};
 pub use playlist_edit::{PlaylistEditInfo, PlaylistEditor, Privacy, SetVideoId};
 pub use video::{ChannelDetail, ChannelRef, ChannelSummary, SearchScope, VideoSummary};
 

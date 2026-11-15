@@ -124,6 +124,8 @@ pub fn build(
             notifier: Arc::new(NoNotifier),
             soundcloud: None,
             stats: Arc::new(NoStats),
+            comments: None,
+            ratings: None,
         },
         local,
     })
