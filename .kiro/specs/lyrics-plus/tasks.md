@@ -243,7 +243,7 @@ Cross-spec ids written `<spec>#?` point at the task of that spec that adds the n
   - Wave: 2
   - Checks: pure state tests for tap, step back, re-tap and nudge; no even spreading.
 
-- [ ] 29. Preview the draft with the lyrics-view line finder
+- [x] 29. Preview the draft with the lyrics-view line finder
   - Crate and files: `nemo-ui`: `src/editor.rs`, `src/lyrics_view.rs` (shared line finding).
   - Does: The preview feeds the unsaved draft through the same code as the lyrics view, with the track offset applied.
   - _Requirements: 5, 29_
