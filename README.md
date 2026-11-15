@@ -74,6 +74,7 @@ These are the only hosts NemoMusic contacts. Adding a host needs owner approval.
 | `api.betterlyrics.org` | Better Lyrics API, syllable timing, cached answers only (no key), credited in the lyrics view | When lyrics are shown (on by default, can be switched off in settings) |
 | `music.163.com`, `api-lyrics.simpmusic.org` | Extra lyrics sources, grey area, line timing | Only if you switch the source on in settings (off by default) |
 | `sponsor.ajay.app` | SponsorBlock segments (only a 4-character hash prefix is sent) | Only when SponsorBlock is on |
+| `ws.audioscrobbler.com` | Last.fm API: now playing and scrobbles (title, artist, album, play time), over HTTPS only | Only when Last.fm is on |
 | `accounts.google.com`, `*.gstatic.com` | Google sign-in page | Only while you sign in |
 | `github.com`, `release-assets.githubusercontent.com` | Download the official [yt-dlp](https://github.com/yt-dlp/yt-dlp) release and its SHA-256 list | Only to install or update yt-dlp, and only when the app manages its own copy (no yt-dlp found, automatic install on); at most one update check a day |
 
