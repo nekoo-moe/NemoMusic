@@ -27,7 +27,7 @@ concurrency:
 jobs:
   prepare:
     name: prepare
-    if: startsWith(github.event.head_commit.message, 'release: v')
+    if: "startsWith(github.event.head_commit.message, 'release: v')"
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.ver.outputs.version }}
