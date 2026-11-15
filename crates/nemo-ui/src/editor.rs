@@ -5,11 +5,17 @@
 //! can step back, re-tap a line, nudge a start by [`NUDGE`], and run an optional word pass over
 //! the same text. No time is ever made up: a line without a tap has no start, and
 //! [`EditorModel::draft`] names the first such line instead of spreading times (criterion 6).
+//!
+//! The preview plays the song with the unsaved draft: [`EditorModel::preview_doc`] gives the
+//! lyrics the view will show after saving, and [`EditorModel::preview_line`] finds the active
+//! line with the lyrics view's own finder and the track offset (criteria 5 and 29).
 
 use std::time::Duration;
 
-use nemo_core::lyrics::{LyricWord, LyricsDoc};
-use nemo_core::lyrics_plus::{DraftLine, OwnLyricsDraft, OwnLyricsError};
+use nemo_core::lyrics::{Granularity, LyricLine, LyricWord, LyricsDoc};
+use nemo_core::lyrics_plus::{DraftLine, OWN_LYRICS, OwnLyricsDraft, OwnLyricsError};
+
+use crate::lyrics_view;
 
 /// One nudge step.
 pub const NUDGE: Duration = Duration::from_millis(50);
@@ -243,6 +249,60 @@ impl EditorModel {
         }
     }
 
+    /// The words of a line as saved: all of them when every word was tapped, else none.
+    fn saved_words(line: &Line) -> Vec<LyricWord> {
+        line.words
+            .iter()
+            .map(|(text, start)| {
+                start.map(|start_ms| LyricWord {
+                    start_ms,
+                    end_ms: None,
+                    text: text.clone(),
+                })
+            })
+            .collect::<Option<Vec<_>>>()
+            .unwrap_or_default()
+    }
+
+    /// The unsaved draft as the lyrics the view will show once it is saved: the same lines,
+    /// starts and words as [`EditorModel::draft`], `Word` granularity when every line has
+    /// words and `Line` otherwise, and the own-lyrics provider. A line not tapped yet keeps no
+    /// start, so the highlight stops before it; nothing is spread.
+    #[must_use]
+    pub fn preview_doc(&self) -> LyricsDoc {
+        let lines: Vec<LyricLine> = self
+            .lines
+            .iter()
+            .map(|l| LyricLine {
+                start_ms: l.start_ms,
+                end_ms: None,
+                text: l.text.clone(),
+                words: Self::saved_words(l),
+            })
+            .collect();
+        let granularity = if !lines.is_empty() && lines.iter().all(|l| !l.words.is_empty()) {
+            Granularity::Word
+        } else {
+            Granularity::Line
+        };
+        LyricsDoc {
+            lines,
+            granularity,
+            provider: OWN_LYRICS,
+            matched: None,
+            instrumental: false,
+        }
+    }
+
+    /// The line the preview highlights at the playback `position` with the track's
+    /// `offset_ms` (`lyrics_offset_ms`), found by [`lyrics_view::active_line_at`] exactly as
+    /// the lyrics view finds it. Builds [`EditorModel::preview_doc`]; a view that draws every
+    /// frame keeps that doc and calls [`lyrics_view::active_line_at`] itself.
+    #[must_use]
+    pub fn preview_line(&self, position: Duration, offset_ms: i64) -> Option<usize> {
+        lyrics_view::active_line_at(&self.preview_doc(), position, offset_ms)
+    }
+
     /// The draft to save. A line keeps its words only when every word of it was tapped.
     ///
     /// # Errors
@@ -253,23 +313,10 @@ impl EditorModel {
         let lines = self
             .lines
             .iter()
-            .map(|l| {
-                let words: Option<Vec<LyricWord>> = l
-                    .words
-                    .iter()
-                    .map(|(text, start)| {
-                        start.map(|start_ms| LyricWord {
-                            start_ms,
-                            end_ms: None,
-                            text: text.clone(),
-                        })
-                    })
-                    .collect();
-                DraftLine {
-                    text: l.text.clone(),
-                    start_ms: l.start_ms,
-                    words: words.unwrap_or_default(),
-                }
+            .map(|l| DraftLine {
+                text: l.text.clone(),
+                start_ms: l.start_ms,
+                words: Self::saved_words(l),
             })
             .collect();
         Ok(OwnLyricsDraft { lines })
@@ -277,143 +324,4 @@ impl EditorModel {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    const TEXT: &str = "first line\n\n  second line  \nthird\nfourth";
-
-    fn at(ms: u64) -> Duration {
-        Duration::from_millis(ms)
-    }
-
-    fn starts(model: &EditorModel) -> Vec<Option<u64>> {
-        (0..model.len())
-            .map(|i| model.line(i).and_then(|(_, s)| s))
-            .collect()
-    }
-
-    #[test]
-    fn pasted_text_becomes_untimed_lines() {
-        let model = EditorModel::from_text(TEXT);
-        assert_eq!(model.len(), 4);
-        assert_eq!(model.line(1), Some(("second line", None)));
-        assert_eq!(model.pass(), Pass::Lines);
-        assert!(EditorModel::from_text(" \n ").is_empty());
-    }
-
-    #[test]
-    fn a_tap_starts_the_current_line_and_moves_on() {
-        let mut model = EditorModel::from_text(TEXT);
-        model.tap(at(1_200));
-        model.tap(at(3_450));
-        assert_eq!(starts(&model), vec![Some(1_200), Some(3_450), None, None]);
-        assert_eq!(model.current_line(), 2);
-        model.tap(at(5_000));
-        model.tap(at(7_000));
-        model.tap(at(9_000));
-        assert_eq!(
-            model.current_line(),
-            4,
-            "a tap after the last line does nothing"
-        );
-        assert_eq!(starts(&model)[3], Some(7_000));
-    }
-
-    #[test]
-    fn step_back_and_retap_time_a_line_again() {
-        let mut model = EditorModel::from_text(TEXT);
-        model.tap(at(1_000));
-        model.tap(at(2_000));
-        model.step_back();
-        assert_eq!(model.current_line(), 1);
-        assert_eq!(starts(&model)[1], Some(2_000), "kept until the next tap");
-        model.tap(at(2_400));
-        assert_eq!(starts(&model)[1], Some(2_400));
-        model.retap(0, at(900));
-        assert_eq!(starts(&model)[0], Some(900));
-        assert_eq!(model.current_line(), 1);
-        model.step_back();
-        model.step_back();
-        assert_eq!(model.current_line(), 0, "never before the first line");
-    }
-
-    #[test]
-    fn nudge_moves_a_start_by_50_ms_and_not_below_zero() {
-        let mut model = EditorModel::from_text(TEXT);
-        model.tap(at(100));
-        model.nudge(0, 1);
-        assert_eq!(starts(&model)[0], Some(150));
-        model.nudge(0, -2);
-        assert_eq!(starts(&model)[0], Some(50));
-        model.nudge(0, -5);
-        assert_eq!(starts(&model)[0], Some(0));
-        model.nudge(1, 3);
-        assert_eq!(starts(&model)[1], None, "an untimed line gets no start");
-    }
-
-    #[test]
-    fn saving_names_the_first_line_with_no_start_and_spreads_nothing() {
-        let mut model = EditorModel::from_text(TEXT);
-        model.tap(at(1_000));
-        model.tap(at(2_000));
-        assert_eq!(model.draft(), Err(OwnLyricsError::MissingStart { line: 3 }));
-        assert_eq!(starts(&model), vec![Some(1_000), Some(2_000), None, None]);
-        assert_eq!(
-            EditorModel::from_text("").draft(),
-            Err(OwnLyricsError::Empty)
-        );
-        model.tap(at(3_000));
-        model.tap(at(4_000));
-        let draft = model.draft().expect("complete");
-        assert_eq!(draft.lines[2].start_ms, Some(3_000));
-        assert!(draft.lines.iter().all(|l| l.words.is_empty()));
-    }
-
-    #[test]
-    fn the_word_pass_times_words_line_by_line() {
-        let mut model = EditorModel::from_text("a b\nc");
-        assert_eq!(
-            model.start_word_pass(),
-            Err(OwnLyricsError::MissingStart { line: 1 })
-        );
-        model.tap(at(0));
-        model.tap(at(1_000));
-        model.start_word_pass().expect("lines are timed");
-        assert_eq!(model.pass(), Pass::Words);
-        model.tap(at(10));
-        model.step_back();
-        model.tap(at(20));
-        model.tap(at(400));
-        assert_eq!(model.current_line(), 1);
-        assert_eq!(model.words(0), vec![("a ", Some(20)), ("b", Some(400))]);
-        let half = model.draft().expect("draft");
-        assert_eq!(half.lines[0].words.len(), 2);
-        assert!(
-            half.lines[1].words.is_empty(),
-            "an untapped word keeps the line line-timed"
-        );
-        model.tap(at(1_050));
-        let full = model.draft().expect("draft");
-        assert_eq!(full.lines[1].words[0].start_ms, 1_050);
-        model.step_back();
-        assert_eq!((model.current_line(), model.current_word()), (1, 0));
-    }
-
-    #[test]
-    fn existing_lyrics_keep_their_starts() {
-        let doc = LyricsDoc {
-            lines: vec![nemo_core::lyrics::LyricLine {
-                start_ms: Some(500),
-                end_ms: None,
-                text: "kept".to_owned(),
-                words: Vec::new(),
-            }],
-            granularity: nemo_core::lyrics::Granularity::Line,
-            provider: nemo_core::lyrics::ProviderId::new("LRCLIB"),
-            matched: None,
-            instrumental: false,
-        };
-        let model = EditorModel::from_doc(&doc);
-        assert_eq!(model.line(0), Some(("kept", Some(500))));
-    }
-}
+mod tests;

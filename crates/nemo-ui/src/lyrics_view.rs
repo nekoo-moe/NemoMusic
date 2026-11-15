@@ -1,6 +1,8 @@
 //! Lyrics view logic (`design.md` section 10). Pure: which line is active, how tall each line is,
 //! where the scroll offset must be, and the footer text.
 
+use std::time::Duration;
+
 use nemo_core::lyrics::{Granularity, LyricsDoc};
 
 use crate::theme::TextStyle;
@@ -131,6 +133,15 @@ pub fn active_line(doc: &LyricsDoc, position_ms: i64, offset_ms: i64) -> Option<
         .last()
 }
 
+/// [`active_line`] at a playback `position`, read in whole milliseconds as the lyrics view
+/// reads `PlayerSnapshot.position`. The lyrics view and the editor preview both find their
+/// line here, so they agree for the same position and offset (lyrics-plus criterion 5).
+#[must_use]
+pub fn active_line_at(doc: &LyricsDoc, position: Duration, offset_ms: i64) -> Option<usize> {
+    let position_ms = i64::try_from(position.as_millis()).unwrap_or(i64::MAX);
+    active_line(doc, position_ms, offset_ms)
+}
+
 /// Height in px of a one-line row of the given role.
 #[must_use]
 pub fn row_height(role: LineRole) -> f32 {
@@ -251,6 +262,18 @@ mod tests {
         assert_eq!(active_line(&d, 3000, 2000), Some(1));
         assert_eq!(active_line(&d, 3000, -2500), None);
         assert_eq!(active_line(&d, i64::MAX, i64::MAX), Some(1));
+    }
+
+    #[test]
+    fn active_line_at_reads_the_position_in_whole_milliseconds() {
+        let d = doc(&[Some(1000), Some(5000)], Granularity::Line);
+        assert_eq!(active_line_at(&d, Duration::from_micros(849_999), 0), None);
+        assert_eq!(active_line_at(&d, Duration::from_millis(850), 0), Some(0));
+        assert_eq!(
+            active_line_at(&d, Duration::from_millis(3000), 2000),
+            Some(1)
+        );
+        assert_eq!(active_line_at(&d, Duration::MAX, 0), Some(1));
     }
 
     #[test]
