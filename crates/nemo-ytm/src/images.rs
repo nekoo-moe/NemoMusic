@@ -4,7 +4,8 @@
 //! addresses sized for the slot (rounded up to [`variant::SIZE_STEPS`]), every URL must be HTTPS on
 //! a host from [`ALLOWED_IMAGE_HOSTS`], and the bytes are stored under a file name that is the
 //! SHA-256 hex of the URL. A sized address the server does not have (404) is remembered with an
-//! empty `<hash>.missing` file, so it is not asked for again. No part of a server answer (header, redirect target, file name) is ever used in a file
+//! empty `<hash>.missing` file, so it is not asked for again. Files of the format before sharp
+//! covers are deleted once, at the first start ([`prune`]). No part of a server answer (header, redirect target, file name) is ever used in a file
 //! name or path. Answers over [`MAX_IMAGE_BYTES`] and answers that do not look like an image are
 //! dropped. Local art: only files with an image extension are read.
 
@@ -18,6 +19,7 @@ use nemo_core::track::{Artwork, pick_thumbnail};
 use crate::http::{InitError, https_redirects};
 use crate::sponsorblock::sha256_hex;
 
+pub mod prune;
 pub mod variant;
 
 /// Hosts that may serve cover art. `*.` matches any subdomain (at least one label), not the bare
@@ -63,10 +65,11 @@ pub fn is_allowed_image_url(url: &str) -> bool {
     })
 }
 
-/// Cache file name for a URL: SHA-256 of the URL text as lower-case hex.
+/// Cache file name for a URL: [`prune::FILE_PREFIX`] plus the SHA-256 of the URL text as
+/// lower-case hex.
 #[must_use]
 pub fn cache_file_name(url: &str) -> String {
-    sha256_hex(url.as_bytes())
+    format!("{}{}", prune::FILE_PREFIX, sha256_hex(url.as_bytes()))
 }
 
 /// JPEG, PNG, GIF or WebP by magic bytes.
@@ -260,12 +263,21 @@ pub struct ImageCache {
 
 impl ImageCache {
     /// Create the cache in `dir` (created when missing). `handle` is the runtime that does the work.
+    /// Old-format files in `dir` are deleted once in the background ([`prune`]).
     ///
     /// # Errors
     /// [`InitError::CacheDir`] when the directory cannot be created, [`InitError::Client`] when the
     /// HTTP client cannot be built.
     pub fn new(dir: impl Into<PathBuf>, handle: tokio::runtime::Handle) -> Result<Self, InitError> {
-        Self::build(dir.into(), handle, true)
+        let cache = Self::build(dir.into(), handle, true)?;
+        let dir = cache.inner.dir.clone();
+        // Pruning only frees space: on failure it runs again at the next start.
+        drop(
+            cache
+                .handle
+                .spawn_blocking(move || prune::prune_old_files(&dir)),
+        );
+        Ok(cache)
     }
 
     fn build(
