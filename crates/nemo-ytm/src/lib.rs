@@ -30,6 +30,7 @@ pub mod offline;
 pub(crate) mod pages;
 pub mod raw;
 pub mod resolver;
+pub(crate) mod search;
 pub mod session;
 pub mod sponsorblock;
 pub mod stream;

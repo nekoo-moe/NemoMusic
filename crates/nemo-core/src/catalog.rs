@@ -8,10 +8,12 @@ use crate::track::{Thumbnail, Track, VideoId};
 
 mod comments;
 mod playlist_edit;
+mod search;
 mod video;
 
 pub use comments::{Comment, CommentCursor, CommentError, CommentId, CommentPage};
 pub use playlist_edit::{PlaylistEditInfo, PlaylistEditor, Privacy, SetVideoId};
+pub use search::{SearchKind, TopResult};
 pub use video::{ChannelDetail, ChannelRef, ChannelSummary, SearchScope, VideoSummary};
 
 /// Opaque id of an album, artist or playlist page. Treat it as untrusted text.
@@ -58,6 +60,8 @@ pub struct PlaylistSummary {
 }
 
 /// Search answer, grouped by kind.
+///
+/// Build it with `..SearchResults::default()` so new fields need no change at the call site.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SearchResults {
     /// Matching songs.
@@ -68,10 +72,16 @@ pub struct SearchResults {
     pub artists: Vec<ArtistSummary>,
     /// Matching playlists.
     pub playlists: Vec<PlaylistSummary>,
-    /// Matching videos ([`SearchScope::AllOfYoutube`] only).
+    /// Matching videos: music videos from YouTube Music's search, and with
+    /// [`SearchScope::AllOfYoutube`] the videos of all of YouTube.
     pub videos: Vec<VideoSummary>,
     /// Matching channels ([`SearchScope::AllOfYoutube`] only).
     pub channels: Vec<ChannelSummary>,
+    /// The best match the source puts first, if it named one. It is not repeated in the lists.
+    pub top: Option<TopResult>,
+    /// The order in which the source ranked the kinds, best first. Empty when it gave none;
+    /// [`SearchResults::sections`] fills in the rest.
+    pub order: Vec<SearchKind>,
 }
 
 /// An album page.
