@@ -74,8 +74,8 @@ impl ImageSource for MockImages {
                 .and_then(|t| t.url.strip_prefix(COVER_PREFIX))
                 .and_then(|n| n.parse::<usize>().ok())
                 .map(|n| {
-                    // Never produce more pixels than the picked thumbnail has.
-                    let px = target_px.clamp(64, 544);
+                    // Like the real cache, which asks the server for the slot size (sharp-covers).
+                    let px = target_px.clamp(64, 1024);
                     let mut cache = self
                         .cache
                         .lock()

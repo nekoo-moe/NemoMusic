@@ -14,6 +14,8 @@ use std::io::Cursor;
 
 use image::{ImageFormat, imageops};
 
+mod letterbox;
+
 use crate::palette::{self, Palette, PaletteError};
 use crate::theme::{Rgba, color, contrast_ratio, glass};
 
@@ -45,7 +47,7 @@ pub struct CoverData {
 /// # Errors
 /// [`PaletteError::Decode`] when the bytes are not a supported image.
 pub fn analyze(bytes: &[u8]) -> Result<CoverData, PaletteError> {
-    let img = image::load_from_memory(bytes).map_err(|_| PaletteError::Decode)?;
+    let img = letterbox::strip(image::load_from_memory(bytes).map_err(|_| PaletteError::Decode)?);
     let sample = img
         .thumbnail(palette::SAMPLE_PX, palette::SAMPLE_PX)
         .to_rgba8();
@@ -163,14 +165,15 @@ pub struct Baked {
     pub rgba: Vec<u8>,
 }
 
-/// Decode `bytes`, crop to a centred square (`cover`), shrink to at most `max_px` (a smaller
-/// source stays at its own size: covers are never upscaled) and cut the corners with a radius of
-/// `fraction` x width (0.5 gives a circle). Runs on a worker thread.
+/// Decode `bytes`, drop letterbox bars of a video thumbnail, crop to a centred square (`cover`),
+/// shrink to at most `max_px` with a Lanczos3 filter (a smaller source stays at its own size:
+/// covers are never upscaled) and cut the corners with a radius of `fraction` x width (0.5 gives
+/// a circle). Runs on a worker thread.
 ///
 /// # Errors
 /// [`PaletteError::Decode`] when the bytes are not a supported image.
 pub fn bake(bytes: &[u8], max_px: u32, fraction: f32) -> Result<Baked, PaletteError> {
-    let img = image::load_from_memory(bytes).map_err(|_| PaletteError::Decode)?;
+    let img = letterbox::strip(image::load_from_memory(bytes).map_err(|_| PaletteError::Decode)?);
     let (w, h) = (img.width(), img.height());
     let side = w.min(h).max(1);
     let square = img.crop_imm((w - side) / 2, (h - side) / 2, side, side);
@@ -180,7 +183,7 @@ pub fn bake(bytes: &[u8], max_px: u32, fraction: f32) -> Result<Baked, PaletteEr
             &square.to_rgba8(),
             target,
             target,
-            imageops::FilterType::Triangle,
+            imageops::FilterType::Lanczos3,
         )
     } else {
         square.to_rgba8()
@@ -263,6 +266,25 @@ mod tests {
         let shrunk = bake(&png(&big), 150, 0.5).expect("bake");
         assert_eq!((shrunk.width, shrunk.height), (150, 150));
         assert!(bake(b"not an image", 100, 0.1).is_err());
+    }
+
+    #[test]
+    fn video_thumbnail_bakes_to_a_square_of_the_picture_without_bars() {
+        // `hqdefault`: 480 x 360 with 45 px black bars above and below a 16:9 picture.
+        let thumb = RgbaImage::from_fn(480, 360, |_, y| {
+            if (45..315).contains(&y) {
+                ImgRgba([30, 120, 220, 255])
+            } else {
+                ImgRgba([0, 0, 0, 255])
+            }
+        });
+        let baked = bake(&png(&thumb), 240, 0.0).expect("bake");
+        assert_eq!((baked.width, baked.height), (240, 240));
+        let top_middle = (120 * 4) as usize;
+        let bottom_middle = ((239 * 240 + 120) * 4) as usize;
+        for at in [top_middle, bottom_middle] {
+            assert!(baked.rgba[at + 2] > 200, "no black bar left at {at}");
+        }
     }
 
     #[test]

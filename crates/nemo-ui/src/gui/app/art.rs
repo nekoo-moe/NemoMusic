@@ -41,28 +41,56 @@ impl ArtShape {
     }
 }
 
-/// One picture a view wants: where it comes from, the slot size and the shape.
+/// Largest picture decoded for one slot, in device px (the largest fetch step).
+pub const MAX_ART_PX: u32 = 1080;
+
+/// A window scale factor in percent (100 is 1x), so it can be part of a cache key.
+#[must_use]
+pub fn scale_pct(factor: f32) -> u32 {
+    if !factor.is_finite() {
+        return 100;
+    }
+    // Clamped to 50..=400 first, so the cast is exact and in range.
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let pct = (factor * 100.0).round().clamp(50.0, 400.0) as u32;
+    pct
+}
+
+/// Device px of a slot `slot` logical px wide at `scale_pct`, rounded up, at most
+/// [`MAX_ART_PX`].
+#[must_use]
+pub fn device_px(slot: u32, scale_pct: u32) -> u32 {
+    slot.saturating_mul(scale_pct)
+        .div_ceil(100)
+        .clamp(1, MAX_ART_PX)
+}
+
+/// One picture a view wants: where it comes from, the slot size, the window scale and the shape.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ArtSpec {
     /// Source.
     pub artwork: Artwork,
     /// Slot size in logical px.
     pub size: u32,
+    /// Window scale factor in percent ([`scale_pct`]).
+    pub scale_pct: u32,
     /// Corner shape.
     pub shape: ArtShape,
 }
 
 impl ArtSpec {
-    /// Cache key: the source address plus slot and shape. `None` without artwork.
+    /// Cache key: the source address plus slot, scale and shape. `None` without artwork.
     #[must_use]
     pub fn key(&self) -> Option<String> {
-        art_key(&self.artwork).map(|k| format!("{k}|{}|{:?}", self.size, self.shape))
+        art_key(&self.artwork)
+            .map(|k| format!("{k}|{}|{}|{:?}", self.size, self.scale_pct, self.shape))
     }
 
-    /// Pixels to decode: 1.5 times the slot for sharp covers on high-DPI screens, at most 480.
+    /// Pixels to fetch and decode: the slot times the window scale, so one source pixel lands on
+    /// one screen pixel ([`device_px`]).
     #[must_use]
     pub fn px(&self) -> u32 {
-        (self.size * 3 / 2).clamp(48, 480)
+        device_px(self.size, self.scale_pct)
     }
 
     /// Corner radius as a fraction of the width.
@@ -139,5 +167,45 @@ impl CanvasView {
     #[must_use]
     pub fn stops(&self, base: BaseMode) -> [crate::theme::Rgba; crate::canvas::STOPS] {
         self.stops[crate::canvas::mode_index(base)]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ArtShape, ArtSpec, MAX_ART_PX, device_px, scale_pct};
+    use nemo_core::track::Artwork;
+
+    fn spec(size: u32, scale: f32) -> ArtSpec {
+        ArtSpec {
+            artwork: Artwork::LocalFile("cover.jpg".into()),
+            size,
+            scale_pct: scale_pct(scale),
+            shape: ArtShape::Card,
+        }
+    }
+
+    #[test]
+    fn art_asks_for_the_slot_size_times_the_window_scale() {
+        assert_eq!(spec(160, 1.0).px(), 160);
+        assert_eq!(spec(160, 1.25).px(), 200);
+        assert_eq!(spec(160, 1.5).px(), 240);
+        assert_eq!(spec(44, 1.75).px(), 77);
+        assert_eq!(spec(160, 2.0).px(), 320);
+        assert_eq!(spec(480, 2.0).px(), 960);
+        assert_eq!(spec(480, 3.0).px(), MAX_ART_PX);
+    }
+
+    #[test]
+    fn a_new_scale_is_a_new_cache_entry() {
+        assert_ne!(spec(160, 1.0).key(), spec(160, 2.0).key());
+        assert_eq!(spec(160, 2.0).key(), spec(160, 2.0).key());
+    }
+
+    #[test]
+    fn odd_scale_factors_stay_in_range() {
+        assert_eq!(scale_pct(f32::NAN), 100);
+        assert_eq!(scale_pct(0.0), 50);
+        assert_eq!(scale_pct(9.0), 400);
+        assert_eq!(device_px(0, 100), 1);
     }
 }
