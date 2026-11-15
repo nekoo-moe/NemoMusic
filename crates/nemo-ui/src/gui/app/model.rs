@@ -113,6 +113,8 @@ pub enum ListSource {
     Daily(usize),
     /// Music videos of the home feed.
     Videos,
+    /// Music videos of the search results.
+    SearchVideos,
 }
 
 /// Lower area of compact Now Playing.

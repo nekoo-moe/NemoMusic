@@ -118,6 +118,13 @@ impl App {
                 .map(|s| s.tracks.clone())
                 .unwrap_or_default(),
             ListSource::Videos => self.daily.videos.clone(),
+            ListSource::SearchVideos => self
+                .ui
+                .search
+                .results
+                .as_ref()
+                .map(|r| r.videos.iter().map(|v| v.track.clone()).collect())
+                .unwrap_or_default(),
             ListSource::Account => match &self.account_library {
                 Some(lib) => lib.songs.clone(),
                 None => self

@@ -166,6 +166,8 @@ pub struct App {
     pub(crate) lyric_sources: Vec<LyricsProviderStatus>,
     /// A page whose songs should play as soon as it has loaded.
     pending_play: Option<DetailKey>,
+    /// The pending page plays shuffled.
+    pending_shuffle: bool,
     /// Daily sections: the data, the built sections and what they were built from.
     pub(crate) daily: DailyData,
     pub(crate) daily_sections: Vec<DailySection>,
@@ -275,6 +277,7 @@ impl App {
             lyric_credit: None,
             lyric_sources: Vec::new(),
             pending_play: None,
+            pending_shuffle: false,
             daily: DailyData::default(),
             daily_sections: Vec::new(),
             daily_requested: None,
