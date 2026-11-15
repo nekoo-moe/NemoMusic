@@ -7,6 +7,8 @@
 //!   errors for 15 minutes (or the provider's `Retry-After`). Timeouts are not stored.
 //! - Offsets, the per-track provider pick and provider on/off choices live in SQLite. Offsets are
 //!   clamped to +-10 s, as the ADR allows.
+//! - A hit is stored with its per-line side data (singer, background vocals, provider
+//!   romanization), which [`LyricsService::line_meta`] reads back from the cache.
 //! - [`LyricsService::lookup_all`] asks every enabled provider (local file included) and returns
 //!   all acceptable answers for the picker.
 //!
@@ -21,6 +23,7 @@ use nemo_core::BoxFuture;
 use nemo_core::lyrics::{
     LyricsCandidate, LyricsCredit, LyricsError, LyricsProvider, LyricsQuery, ProviderId,
 };
+use nemo_core::lyrics_plus::LineMeta;
 use nemo_core::services::{LyricsLookup, LyricsProviderStatus, LyricsService};
 use sha2::{Digest, Sha256};
 use tokio::runtime::Handle;
@@ -254,6 +257,16 @@ impl LyricsService for LyricsHub {
         if let Err(e) = self.inner.cache.clear_choice(track_key) {
             tracing::warn!(error = %e, "lyrics choice clear failed");
         }
+    }
+
+    fn line_meta(&self, track_key: &str, provider: ProviderId) -> Vec<LineMeta> {
+        self.inner
+            .cache
+            .line_meta(track_key, provider)
+            .unwrap_or_else(|e| {
+                tracing::warn!(error = %e, "lyrics line data read failed");
+                Vec::new()
+            })
     }
 
     fn keep_offline(&self, track_key: &str, keep: bool) {

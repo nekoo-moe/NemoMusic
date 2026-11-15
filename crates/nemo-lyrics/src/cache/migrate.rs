@@ -9,7 +9,7 @@ use rusqlite::Connection;
 use super::CacheError;
 
 /// Changes in order; change `n` moves `user_version` from `n - 1` to `n`.
-const CHANGES: [&str; 2] = [
+const CHANGES: [&str; 3] = [
     // 1: a pinned flag, so the lyrics of songs saved offline do not expire (offline-cache).
     "ALTER TABLE lyrics_cache ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0;",
     // 2: lyrics the user wrote, synced or copied (lyrics-plus). `clear` never touches them.
@@ -19,6 +19,9 @@ const CHANGES: [&str; 2] = [
          body        BLOB NOT NULL,
          saved_at    INTEGER NOT NULL
      );",
+    // 3: per-line side data of a hit (singer, background vocals, provider romanization;
+    // lyrics-plus). Rows from before have none.
+    "ALTER TABLE lyrics_cache ADD COLUMN meta BLOB;",
 ];
 
 /// Apply every change newer than the file's `user_version`, each in its own transaction.

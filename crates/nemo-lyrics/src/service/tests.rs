@@ -417,3 +417,52 @@ async fn provider_list_and_choices_persist() {
     drop(again);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// A provider that sends line data with its lyrics.
+struct WithMeta(Vec<LineMeta>);
+
+impl LyricsProvider for WithMeta {
+    fn id(&self) -> ProviderId {
+        ProviderId::new("meta-src")
+    }
+    fn hosts(&self) -> &'static [&'static str] {
+        &["meta.example"]
+    }
+    fn fetch<'a>(&'a self, _q: &'a LyricsQuery) -> BoxFuture<'a, Answer> {
+        Box::pin(async { Ok(Some(doc("meta-src"))) })
+    }
+    fn fetch_detailed<'a>(
+        &'a self,
+        _q: &'a LyricsQuery,
+    ) -> BoxFuture<'a, Result<Option<nemo_core::lyrics::DetailedDoc>, LyricsError>> {
+        let meta = self.0.clone();
+        Box::pin(async move { Ok(Some((doc("meta-src"), None, meta))) })
+    }
+}
+
+#[tokio::test]
+async fn line_meta_from_the_provider_survives_the_cache() {
+    let s = setup("line-meta", Ok(Some(doc("fake"))));
+    let meta = vec![LineMeta {
+        singer: Some(1),
+        background: true,
+        roman: Some("ha".into()),
+    }];
+    let hub = LyricsHub::with_chain(
+        LyricsCache::open(&s.dir.join("meta")).expect("cache"),
+        Handle::current(),
+        vec![ChainEntry::new(Arc::new(WithMeta(meta.clone())))],
+        ChainOptions::default(),
+    );
+    let q = query();
+    let key = track_key(&q);
+    let id = ProviderId::new("meta-src");
+    assert!(hub.line_meta(&key, id).is_empty());
+    assert!(hub.lookup(&q).await.doc.is_some());
+    assert_eq!(hub.line_meta(&key, id), meta);
+    // A provider that sends none (the default `fetch_detailed`) stores none.
+    let _ = s.hub.lookup(&q).await;
+    assert!(s.hub.line_meta(&key, ProviderId::new("fake")).is_empty());
+    hub.refetch(&key);
+    assert!(hub.line_meta(&key, id).is_empty());
+}

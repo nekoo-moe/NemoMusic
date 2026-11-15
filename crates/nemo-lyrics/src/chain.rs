@@ -18,8 +18,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use nemo_core::lyrics::{
-    CreditedDoc, LyricsCredit, LyricsDoc, LyricsError, LyricsProvider, LyricsQuery, ProviderId,
+    DetailedDoc, LyricsCredit, LyricsDoc, LyricsError, LyricsProvider, LyricsQuery, ProviderId,
 };
+use nemo_core::lyrics_plus::LineMeta;
 use nemo_core::services::LyricsLookup;
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
@@ -88,6 +89,9 @@ pub enum Outcome {
         score: u8,
         /// Credit the source asks for.
         credit: Option<LyricsCredit>,
+        /// Per-line side data (singer, background, romanization), same index as `doc.lines`;
+        /// empty when the source gives none.
+        meta: Vec<LineMeta>,
     },
     /// The provider has no lyrics for the track.
     Miss,
@@ -133,7 +137,7 @@ impl ChainResult {
 
 /// Judge one provider answer.
 fn judge(query: &LyricsQuery, chain_order: usize, answer: Answer) -> (Outcome, Option<Candidate>) {
-    let (doc, credit) = match answer {
+    let (doc, credit, meta) = match answer {
         Ok(Some(found)) => found,
         Ok(None) => return (Outcome::Miss, None),
         Err(e) => return (Outcome::Error(e), None),
@@ -153,10 +157,16 @@ fn judge(query: &LyricsQuery, chain_order: usize, answer: Answer) -> (Outcome, O
         score,
         chain_order,
     };
-    (Outcome::Hit { doc, score, credit }, Some(candidate))
+    let hit = Outcome::Hit {
+        doc,
+        score,
+        credit,
+        meta,
+    };
+    (hit, Some(candidate))
 }
 
-type Answer = Result<Option<CreditedDoc>, LyricsError>;
+type Answer = Result<Option<DetailedDoc>, LyricsError>;
 
 /// Fetch with a timeout; the timeout also covers waiting for the host permits.
 async fn fetch_limited(
@@ -177,7 +187,7 @@ async fn fetch_limited(
                 }
             }
         }
-        provider.fetch_credited(&query).await
+        provider.fetch_detailed(&query).await
     };
     timeout(limit, work).await.ok()
 }

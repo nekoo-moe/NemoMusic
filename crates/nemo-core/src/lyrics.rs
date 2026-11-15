@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use crate::BoxFuture;
+use crate::lyrics_plus::LineMeta;
 use crate::track::{Track, VideoId};
 
 /// Stable name of a provider, shown in the UI ("Lyrics: LRCLIB").
@@ -194,6 +195,10 @@ impl ProviderInfo {
 /// A lyrics document with the credit its source asks for.
 pub type CreditedDoc = (LyricsDoc, Option<LyricsCredit>);
 
+/// A credited lyrics document with its per-line side data, same index as `LyricsDoc.lines`
+/// (empty when the source gives none).
+pub type DetailedDoc = (LyricsDoc, Option<LyricsCredit>, Vec<LineMeta>);
+
 /// One provider's answer for a track, for the "rotate providers" picker.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LyricsCandidate {
@@ -232,6 +237,18 @@ pub trait LyricsProvider: Send + Sync {
         query: &'a LyricsQuery,
     ) -> BoxFuture<'a, Result<Option<CreditedDoc>, LyricsError>> {
         Box::pin(async move { Ok(self.fetch(query).await?.map(|doc| (doc, None))) })
+    }
+
+    /// Like [`fetch_credited`](Self::fetch_credited), plus the singer, background-vocal and
+    /// romanization facts of each line. The lyrics chain calls this one. The default has none.
+    fn fetch_detailed<'a>(
+        &'a self,
+        query: &'a LyricsQuery,
+    ) -> BoxFuture<'a, Result<Option<DetailedDoc>, LyricsError>> {
+        Box::pin(async move {
+            let found = self.fetch_credited(query).await?;
+            Ok(found.map(|(doc, credit)| (doc, credit, Vec::new())))
+        })
     }
 
     /// Default on or off, and the risk note. The default is an open source that is on.
