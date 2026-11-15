@@ -7,6 +7,7 @@ use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
+use nemo_core::downloads::OfflineStore;
 use nemo_core::library::LocalTrackLookup;
 use nemo_core::player::{PlayerCommand, PlayerEvent, PlayerSnapshot};
 use nemo_core::segment::{Segment, SegmentSource};
@@ -36,6 +37,9 @@ pub struct PlayerDeps {
     /// Span and gain of local library tracks (a CUE track plays one span of its file). Asked on
     /// the prepare thread only, never in the audio callback. `None` plays every file whole.
     pub local: Option<Arc<dyn LocalTrackLookup>>,
+    /// Saved songs (offline cache). Asked on the prepare thread before the resolver; a saved
+    /// song plays from its file with no stream lookup. `None` streams every song.
+    pub offline: Option<Arc<dyn OfflineStore>>,
 }
 
 /// Messages to the control thread.

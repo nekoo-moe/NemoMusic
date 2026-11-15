@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use nemo_core::effects::EffectsSettings;
 use nemo_core::player::{PlayState, PlayerCommand, PlayerEvent, RepeatMode};
-use nemo_core::track::Track;
+use nemo_core::track::{Track, VideoId};
 
 use crate::control::{Core, NextSlot, NextState, Run, micros};
 use crate::pipeline::FeedCmd;
@@ -348,6 +348,7 @@ impl Core {
             request: self.deps.request.clone(),
             opener: Arc::clone(&self.deps.opener),
             local: self.deps.local.clone(),
+            offline: self.deps.offline.clone(),
         };
         spawn_prepare(deps, self.tx.clone(), token, track);
     }
@@ -367,15 +368,25 @@ impl Core {
         order.into_iter().filter(ok).take(WARM_AHEAD).collect()
     }
 
-    /// Tell the resolver which YouTube tracks come next. Returns at once.
+    /// Tell the resolver which YouTube tracks come next. Returns at once. A saved song is left
+    /// out: it plays from the cache with no stream lookup (offline-cache criterion 3).
     fn warm_ahead(&self) {
         for i in self.upcoming() {
             if let Some(video) = &self.queue[i].track.video_id
                 && self.queue[i].track.local_path.is_none()
+                && !self.is_saved(video)
             {
                 self.deps.resolver.warm(video);
             }
         }
+    }
+
+    /// Whether the offline cache holds a saved copy of `video`.
+    fn is_saved(&self, video: &VideoId) -> bool {
+        self.deps
+            .offline
+            .as_ref()
+            .is_some_and(|store| store.open(video).is_some())
     }
 }
 

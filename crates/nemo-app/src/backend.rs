@@ -99,6 +99,8 @@ pub fn build(
         request: StreamRequest::default(),
         // No library store yet: every local file plays whole.
         local: None,
+        // No offline cache wired yet (offline-cache): every song streams.
+        offline: None,
         opener: Arc::new(HttpStreamOpener::default()),
         segments,
         sink_factory: Arc::new(CpalSinkFactory::new(settings.output_device.clone())),

@@ -274,12 +274,15 @@ mod player_callback {
     use std::time::Duration;
 
     use super::count;
-    use crate::common::fakes::{FakeOpener, FakeResolver, local_track};
+    use crate::common::fakes::{
+        FakeOffline, FakeOpener, FakeResolver, local_track, video_id, video_track,
+    };
     use crate::common::fixtures::{tone_i16, wav_bytes};
     use nemo_audio::player::{Player, PlayerDeps};
     use nemo_audio::replay_gain::{ReplayGainSettings, ReplayGainSwitch};
     use nemo_audio::sink::{AudioSink, RenderCallback, SinkError, SinkFactory};
     use nemo_core::audio::{AudioFormat, OutputInfo, OutputMode};
+    use nemo_core::downloads::OfflineStore;
     use nemo_core::library::{LocalPlayback, LocalTrackLookup, ReplayGainValues, TrackSpan};
     use nemo_core::player::PlayerCommand;
     use nemo_core::track::Track;
@@ -368,7 +371,12 @@ mod player_callback {
 
     #[test]
     fn the_real_player_callback_allocates_nothing_at_volume_100_and_50() {
-        check_callback_allocates_nothing("long.wav", None, ReplayGainSwitch::default());
+        check_callback_allocates_nothing("long.wav", None, ReplayGainSwitch::default(), false);
+    }
+
+    #[test]
+    fn the_callback_allocates_nothing_while_a_saved_song_plays_from_the_cache() {
+        check_callback_allocates_nothing("saved.wav", None, ReplayGainSwitch::default(), true);
     }
 
     #[test]
@@ -381,6 +389,7 @@ mod player_callback {
             "span.wav",
             Some(Arc::new(OneSpan(span))),
             ReplayGainSwitch::default(),
+            false,
         );
     }
 
@@ -406,26 +415,35 @@ mod player_callback {
             enabled: true,
             ..ReplayGainSettings::default()
         });
-        check_callback_allocates_nothing("gain.wav", Some(Arc::new(Tagged)), replay_gain);
+        check_callback_allocates_nothing("gain.wav", Some(Arc::new(Tagged)), replay_gain, false);
     }
 
-    /// Play a 60 s local file, then lower the volume, counting allocations in the callback.
+    /// Play a 60 s file, then lower the volume, counting allocations in the callback. The file
+    /// is a local track, or with `from_cache` a saved YouTube song in the offline cache.
     fn check_callback_allocates_nothing(
         name: &str,
         local: Option<Arc<dyn LocalTrackLookup>>,
         replay_gain: ReplayGainSwitch,
+        from_cache: bool,
     ) {
         let ints = tone_i16(48_000, 2, 60 * 48_000, 440.0);
         let dir = std::env::temp_dir().join(format!("nemo-rt-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("temp dir");
         let path = dir.join(name);
         std::fs::write(&path, wav_bytes(&ints, 16, 48_000, 2)).expect("fixture");
+        let (track, offline) = if from_cache {
+            let store: Arc<dyn OfflineStore> = FakeOffline::new(vec![(video_id(1), path.clone())]);
+            (video_track(1), Some(store))
+        } else {
+            (local_track(1, path.clone()), None)
+        };
         let callbacks = Arc::new(AtomicU64::new(0));
         let allocations = Arc::new(AtomicU64::new(0));
         let deps = PlayerDeps {
             resolver: Arc::new(FakeResolver { known: vec![] }),
             request: nemo_core::stream::StreamRequest::default(),
             local,
+            offline,
             opener: Arc::new(FakeOpener {
                 files: std::collections::HashMap::default(),
                 chunk: None,
@@ -437,7 +455,7 @@ mod player_callback {
             }),
         };
         let player = Player::spawn_with_replay_gain(deps, replay_gain);
-        player.send(PlayerCommand::Play(local_track(1, path.clone())));
+        player.send(PlayerCommand::Play(track));
         let wait = |n: u64| {
             let start = std::time::Instant::now();
             while callbacks.load(Ordering::SeqCst) < n {

@@ -177,6 +177,7 @@ fn player(resolver: &Arc<Recorder>) -> Arc<dyn PlayerControl> {
         segments: None,
         sink_factory: Arc::new(Ticking),
         local: None,
+        offline: None,
     })
 }
 

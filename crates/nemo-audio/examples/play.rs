@@ -98,6 +98,7 @@ fn run(args: Args) {
         resolver: no_network.clone(),
         request: StreamRequest::default(),
         local: None,
+        offline: None,
         opener: no_network,
         segments: None,
         sink_factory: Arc::new(CpalSinkFactory::new(args.device)),
