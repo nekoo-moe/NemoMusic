@@ -253,6 +253,29 @@ mod tests {
         assert_eq!(names, ["B", "E", "C", "A", "D"]);
     }
 
+    /// The row a grey syllable source gets (`LyricsPlus`, syllable-lyrics spec): listed with
+    /// the other syllable sources, off until the user turns it on, its host and risk named.
+    #[test]
+    fn grey_syllable_source_row_sorts_by_level_and_says_it_is_off() {
+        let mut grey = status("LyricsPlus", Granularity::Syllable);
+        grey.enabled = false;
+        grey.default_enabled = false;
+        grey.hosts = &["lyricsplus.prjktla.my.id"];
+        grey.risk_note = Some("Unofficial relay.");
+        let list = [
+            status("LRCLIB", Granularity::Line),
+            status("Unison", Granularity::Syllable),
+            grey,
+            status("NetEase", Granularity::Line),
+        ];
+        let names: Vec<&str> = sorted(&list).iter().map(|s| s.id.as_str()).collect();
+        assert_eq!(names, ["Unison", "LyricsPlus", "LRCLIB", "NetEase"]);
+        assert_eq!(
+            helper(&list[2]),
+            "Asks lyricsplus.prjktla.my.id. Off until you turn it on. Risk: Unofficial relay."
+        );
+    }
+
     #[test]
     fn helper_names_hosts_default_and_risk() {
         let mut s = status("A", Granularity::Line);

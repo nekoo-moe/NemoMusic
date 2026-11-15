@@ -14,6 +14,7 @@ use nemo_core::lyrics::{LyricsError, LyricsProvider, LyricsQuery};
 use nemo_core::track::VideoId;
 use nemo_lyrics::LrclibProvider;
 use nemo_lyrics::blapi::BetterLyricsProvider;
+use nemo_lyrics::lyricsplus::LyricsPlusProvider;
 use nemo_lyrics::netease::NeteaseProvider;
 use nemo_lyrics::simpmusic::SimpMusicProvider;
 use nemo_lyrics::unison::UnisonProvider;
@@ -59,7 +60,7 @@ async fn probe(label: &str, provider: &dyn LyricsProvider, q: &LyricsQuery) {
 }
 
 #[tokio::test]
-#[ignore = "talks to unison.betterlyrics.org, lrclib.net, api.betterlyrics.org, music.163.com"]
+#[ignore = "talks to unison.betterlyrics.org, lrclib.net, api.betterlyrics.org, lyricsplus.prjktla.my.id, music.163.com"]
 async fn providers_answer_with_the_documented_shapes() {
     let english = query("Blinding Lights", "The Weeknd", Some(200_000), None);
     // The duration is unknown to us, so it is not sent.
@@ -68,6 +69,7 @@ async fn providers_answer_with_the_documented_shapes() {
     let unison = UnisonProvider::new().expect("client");
     let lrclib = LrclibProvider::new().expect("client");
     let better = BetterLyricsProvider::new().expect("client");
+    let lyricsplus = LyricsPlusProvider::new().expect("client");
     let netease = NeteaseProvider::new().expect("client");
 
     // The lookup example from Unison's own README, to prove the happy path.
@@ -78,6 +80,7 @@ async fn providers_answer_with_the_documented_shapes() {
         probe(label, &unison, q).await;
         probe(label, &lrclib, q).await;
         probe(label, &better, q).await;
+        probe(label, &lyricsplus, q).await;
         probe(label, &netease, q).await;
     }
 

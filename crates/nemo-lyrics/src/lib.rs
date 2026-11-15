@@ -7,9 +7,9 @@
 //! - [`pick`]: choose the best candidate (Syllable > Word > Line > Unsynced, then score, then
 //!   chain order).
 //! - [`ttml`]: Apple-style TTML parser (line, word and syllable timing).
-//! - [`lrclib`], [`local`], [`unison`], [`blapi`], [`simpmusic`], [`netease`]: providers. Open
-//!   sources are on by default; grey ones are opt-in (see each module and ADR 0002). Each
-//!   reports its finest level through `LyricsProvider::best_granularity`.
+//! - [`lrclib`], [`local`], [`unison`], [`blapi`], [`lyricsplus`], [`simpmusic`], [`netease`]:
+//!   providers. Open sources are on by default; grey ones are opt-in (see each module and
+//!   ADR 0002). Each reports its finest level through `LyricsProvider::best_granularity`.
 //! - [`http`]: shared request helpers.
 //! - [`chain`]: run providers with timeouts and a per-host limit.
 //! - [`cache`]: SQLite cache and per-track offsets.
@@ -30,6 +30,7 @@ pub mod http;
 pub mod local;
 pub mod lrc;
 pub mod lrclib;
+pub mod lyricsplus;
 pub mod netease;
 pub mod normalize;
 pub mod own;

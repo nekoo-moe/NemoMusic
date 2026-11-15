@@ -33,6 +33,7 @@ use crate::cache::{CacheError, LyricsCache};
 use crate::chain::{ChainEntry, ChainOptions};
 use crate::local::LocalProvider;
 use crate::lrclib::LrclibProvider;
+use crate::lyricsplus::LyricsPlusProvider;
 use crate::netease::NeteaseProvider;
 use crate::normalize::normalize;
 use crate::simpmusic::SimpMusicProvider;
@@ -97,8 +98,8 @@ impl std::fmt::Debug for LyricsHub {
 impl LyricsHub {
     /// Build the hub. The default chain is: local file, then `providers` in the order given
     /// (the app adds the YouTube Music provider here), then Unison, LRCLIB, Better Lyrics API,
-    /// and the opt-in providers (`SimpMusic`, `NetEase`), which stay off until the user turns
-    /// them on. Every syllable- or word-capable source is on by default (owner decision
+    /// and the opt-in providers (`LyricsPlus`, `SimpMusic`, `NetEase`), which stay off until the
+    /// user turns them on. Every syllable- or word-capable source is on by default (owner decision
     /// 2026-11-11). A provider's on/off state is read from the cache database only when the
     /// user stored a choice, so the user's choice survives restarts and a changed default
     /// reaches users who never touched the switch; with no choice stored,
@@ -119,6 +120,7 @@ impl LyricsHub {
         all.push(Arc::new(UnisonProvider::new()?));
         all.push(Arc::new(LrclibProvider::new()?));
         all.push(Arc::new(BetterLyricsProvider::new()?));
+        all.push(Arc::new(LyricsPlusProvider::new()?));
         all.push(Arc::new(SimpMusicProvider::new()?));
         all.push(Arc::new(NeteaseProvider::new()?));
         let entries = all

@@ -380,8 +380,9 @@ async fn provider_list_and_choices_persist() {
             .map(|p| (p.id.as_str(), p.enabled, p.best))
             .collect::<Vec<_>>()
     };
-    // With no stored choice: syllable- and word-capable sources on, line-only grey sources
-    // off, each grey one with a risk note.
+    // With no stored choice: open syllable- and word-capable sources on, grey sources off
+    // (line-only ones, and LyricsPlus: unofficial sources are off by default, owner
+    // 2026-11-15), each grey one with a risk note.
     assert_eq!(
         state(&hub),
         [
@@ -389,6 +390,7 @@ async fn provider_list_and_choices_persist() {
             ("Unison", true, Granularity::Syllable),
             ("LRCLIB", true, Granularity::Line),
             ("Better Lyrics", true, Granularity::Syllable),
+            ("LyricsPlus", false, Granularity::Syllable),
             ("SimpMusic", false, Granularity::Line),
             ("NetEase", false, Granularity::Line),
         ]
@@ -401,7 +403,6 @@ async fn provider_list_and_choices_persist() {
             p.id.as_str()
         );
         assert!(p.id == LOCAL_ID || !p.hosts.is_empty());
-        assert!(p.default_enabled || p.best <= Granularity::Line);
     }
     assert!(hub.set_provider_enabled(ProviderId::new("NetEase"), true));
     assert!(hub.set_provider_enabled(ProviderId::new("Unison"), false));

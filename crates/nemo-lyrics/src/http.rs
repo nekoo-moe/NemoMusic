@@ -64,6 +64,20 @@ pub fn status_error(status: u16, retry_after: Option<&str>) -> Option<LyricsErro
 /// [`LyricsError::RateLimited`] on 429 and 503, [`LyricsError::Network`] on other failures,
 /// [`LyricsError::Parse`] when the body is too large or not text.
 pub async fn send_text(req: RequestBuilder) -> Result<(u16, String), LyricsError> {
+    send(req, false).await
+}
+
+/// Like [`send_text`], but also returns the body of a 4xx answer (for hosts that explain a miss
+/// in it). That body is read up to [`MAX_BODY_BYTES`] and decoded leniently; it never fails the
+/// request.
+///
+/// # Errors
+/// As [`send_text`].
+pub async fn send_any(req: RequestBuilder) -> Result<(u16, String), LyricsError> {
+    send(req, true).await
+}
+
+async fn send(req: RequestBuilder, keep_4xx_body: bool) -> Result<(u16, String), LyricsError> {
     let resp = req
         .send()
         .await
@@ -76,6 +90,13 @@ pub async fn send_text(req: RequestBuilder) -> Result<(u16, String), LyricsError
         .map(str::to_owned);
     if let Some(e) = status_error(status, retry_after.as_deref()) {
         return Err(e);
+    }
+    if (400..500).contains(&status) && keep_4xx_body {
+        let body = match resp.bytes().await {
+            Ok(b) if b.len() <= MAX_BODY_BYTES => String::from_utf8_lossy(&b).into_owned(),
+            _ => String::new(),
+        };
+        return Ok((status, body));
     }
     if !(200..300).contains(&status) {
         return Ok((status, String::new()));
