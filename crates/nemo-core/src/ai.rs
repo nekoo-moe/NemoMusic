@@ -391,6 +391,54 @@ impl AiService for NoAi {
     fn delete_reading(&self, _id: i64) {}
 }
 
+/// The narrow translation contract lyrics-plus uses; it never sees [`AiService`].
+pub trait Translator: Send + Sync {
+    /// Whether translation can run: a provider is saved and translation is switched on.
+    fn available(&self) -> bool;
+
+    /// Build the exact request that translates `lines` into `target_language` (BCP 47), for the
+    /// user to see. No I/O.
+    ///
+    /// # Errors
+    /// [`AiError::NoProvider`], [`AiError::FeatureOff`], or [`AiError::TooLarge`] past 200 lines
+    /// or 64 KiB.
+    fn prepare(&self, lines: &[String], target_language: &str) -> Result<PayloadPreview, AiError>;
+
+    /// Send a confirmed preview and return the translated lines, one per sent line.
+    ///
+    /// # Errors
+    /// Any request error, or [`AiError::BadAnswer`] unless the answer holds exactly
+    /// `expected_lines` strings.
+    fn translate<'a>(
+        &'a self,
+        preview: &'a PayloadPreview,
+        expected_lines: usize,
+    ) -> BoxFuture<'a, Result<Vec<String>, AiError>>;
+}
+
+/// A translator with no provider: never available, every call fails with
+/// [`AiError::NoProvider`].
+#[derive(Debug, Clone, Copy, Default)]
+pub struct NoTranslator;
+
+impl Translator for NoTranslator {
+    fn available(&self) -> bool {
+        false
+    }
+
+    fn prepare(&self, _lines: &[String], _target: &str) -> Result<PayloadPreview, AiError> {
+        Err(AiError::NoProvider)
+    }
+
+    fn translate<'a>(
+        &'a self,
+        _preview: &'a PayloadPreview,
+        _expected_lines: usize,
+    ) -> BoxFuture<'a, Result<Vec<String>, AiError>> {
+        Box::pin(async { Err(AiError::NoProvider) })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -429,5 +477,13 @@ mod tests {
         assert!(NoAi.readings().is_empty());
         let req = AiRequest::Suggest { seeds: Vec::new() };
         assert_eq!(NoAi.prepare(&req), Err(AiError::NoProvider));
+    }
+
+    #[test]
+    fn no_translator_is_never_available() {
+        assert!(!NoTranslator.available());
+        let lines = vec!["la la la".to_owned()];
+        let preview = NoTranslator.prepare(&lines, "en");
+        assert_eq!(preview, Err(AiError::NoProvider));
     }
 }

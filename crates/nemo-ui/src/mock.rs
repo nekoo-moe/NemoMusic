@@ -14,6 +14,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
+use nemo_core::ai::{NoAi, NoTranslator};
 use nemo_core::audio::Origin;
 use nemo_core::catalog::{AlbumSummary, ArtistSummary, BrowseId, PlaylistSummary};
 use nemo_core::integrations::NoIntegrations;
@@ -290,6 +291,8 @@ pub fn mock_backend() -> Backend {
         stats: Arc::new(NoStats),
         comments: None,
         ratings: None,
+        ai: Arc::new(NoAi),
+        translator: Arc::new(NoTranslator),
     }
 }
 

@@ -11,7 +11,7 @@ Cross-spec ids written `<spec>#?` name the other spec's task by the ADR 0004 Dec
   - Checks: `Debug` of `AiProviderConfig` prints the key as `[redacted]`; `TasteSource::from_account` table.
   - Steering: `structure.md`, add the `ai` module to the `nemo-core` entry.
 
-- [ ] 2. Add the `Translator` contract and the `Backend` fields
+- [x] 2. Add the `Translator` contract and the `Backend` fields
   - Crate and files: `nemo-core` (`src/ai.rs`, `src/services.rs`); touches nemo-core/src/ai.rs and nemo-core/src/services.rs.
   - Does: Adds `Translator` (`available`, `prepare`, `translate` with an expected line count), `NoTranslator`, and `Backend.ai` and `Backend.translator` defaulting to `NoAi` and `NoTranslator`. lyrics-plus calls only `Translator`.
   - _Requirements: none (groundwork)_

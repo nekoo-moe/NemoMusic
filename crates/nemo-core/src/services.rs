@@ -10,6 +10,7 @@ use std::time::Duration;
 
 use crate::BoxFuture;
 use crate::account::AccountService;
+use crate::ai::{AiService, Translator};
 use crate::catalog::{Catalog, Comment, CommentCursor, CommentError, CommentId, CommentPage};
 use crate::integrations::IntegrationsService;
 use crate::lyrics::{
@@ -292,4 +293,10 @@ pub struct Backend {
     /// Dislike counts. `None` until the app builds it (the opt-in switch is on), so the UI shows
     /// no dislike label.
     pub ratings: Option<Arc<dyn VideoRatings>>,
+    /// The AI provider. [`NoAi`](crate::ai::NoAi) until the app builds the real client, so the
+    /// UI shows no AI control.
+    pub ai: Arc<dyn AiService>,
+    /// Lyrics translation, the only AI contract lyrics-plus calls.
+    /// [`NoTranslator`](crate::ai::NoTranslator) until the app builds the real client.
+    pub translator: Arc<dyn Translator>,
 }
