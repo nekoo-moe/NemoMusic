@@ -1,0 +1,94 @@
+# Windows release build (workflow.md section 7).
+#
+# Runs when a commit whose subject is exactly `release: vX.Y.Z` (or `release: vX.Y.Z-pre`) lands
+# on `main`. Main is protected, so land it as a squash merge with that subject. The version must
+# match `[workspace.package] version` in Cargo.toml. The job builds `nemo-app` and `nemo-signin`
+# in release mode, zips them with the licence and README, and publishes tag `vX.Y.Z` as a
+# GitHub release with the zip and its SHA-256.
+#
+# Not done here yet (section 7): code signing, the MSI/NSIS installer, the clean-VM smoke test.
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    name: release (windows-latest)
+    if: startsWith(github.event.head_commit.message, 'release: v')
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Read the version from the commit subject
+        id: ver
+        shell: pwsh
+        env:
+          # Passed through env, never pasted into the script, so the message cannot inject code.
+          MSG: ${{ github.event.head_commit.message }}
+        run: |
+          $subject = ($env:MSG -split "`r?`n")[0].Trim()
+          if ($subject -notmatch '^release: v(\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?)$') {
+            throw "Commit subject must be 'release: vX.Y.Z', got: $subject"
+          }
+          $version = $Matches[1]
+          $toml = Get-Content Cargo.toml -Raw
+          if ($toml -notmatch '(?m)^version\s*=\s*"([^"]+)"') { throw "No version in Cargo.toml" }
+          if ($Matches[1] -ne $version) {
+            throw "Cargo.toml version $($Matches[1]) does not match release v$version"
+          }
+          if (git ls-remote --tags origin "refs/tags/v$version") { throw "Tag v$version already exists" }
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      # With no argument, rustup installs the channel and components from rust-toolchain.toml.
+      - name: Install the pinned toolchain
+        run: rustup toolchain install
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+
+      # CMake for libopus ships on the windows-latest image.
+      - name: Build
+        run: cargo build --release --locked -p nemo-app -p nemo-signin
+
+      - name: Package
+        id: pkg
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          $name = "NemoMusic-$env:VERSION-windows-x64"
+          New-Item -ItemType Directory $name | Out-Null
+          Copy-Item target/release/nemo-app.exe, target/release/nemo-signin.exe, LICENSE, README.md $name
+          Compress-Archive -Path $name -DestinationPath "$name.zip"
+          $hash = (Get-FileHash "$name.zip" -Algorithm SHA256).Hash.ToLower()
+          "$hash  $name.zip" | Out-File "$name.zip.sha256" -Encoding ascii
+          "name=$name" >> $env:GITHUB_OUTPUT
+
+      - name: Publish the release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.ver.outputs.version }}
+          NAME: ${{ steps.pkg.outputs.name }}
+        run: |
+          $notes = @"
+          Windows x64 build of NemoMusic v$env:VERSION (unsigned, early development).
+
+          Unzip and run ``nemo-app.exe``; keep ``nemo-signin.exe`` next to it. YouTube playback needs
+          [yt-dlp](https://github.com/yt-dlp/yt-dlp) on PATH (``winget install --id yt-dlp.yt-dlp -e --scope user``).
+
+          NemoMusic is not made, approved or supported by Google or YouTube. It uses YouTube Music
+          without an official API, which may break the YouTube Terms of Service; your account could
+          be limited. YouTube streams are lossy; the badge never calls them lossless.
+          "@
+          gh release create "v$env:VERSION" "$env:NAME.zip" "$env:NAME.zip.sha256" `
+            --target $env:GITHUB_SHA --title "NemoMusic v$env:VERSION" --notes $notes
