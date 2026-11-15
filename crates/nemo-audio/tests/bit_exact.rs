@@ -96,3 +96,197 @@ fn engine_rejects_a_sink_with_another_rate() {
     assert!(err.is_some_and(|e| e.to_string().contains("does not match")));
     std::fs::remove_file(path).expect("cleanup");
 }
+
+/// The equalizer stage: a Flat ten-band equalizer is ten identity filters, and running every
+/// sample through them in `f64` gives back every decoded sample bit for bit.
+#[test]
+fn a_flat_ten_band_equalizer_keeps_every_sample() {
+    use nemo_audio::effects::{Biquad, Coefficients, ten_band};
+
+    for bits in [16, 24] {
+        let (path, source) = temp_wav(bits, "flat-eq");
+        let decoded = decode_file(&path).expect("decode");
+        let flat = ten_band([0; 10]).map(|band| {
+            band.map_or(Coefficients::IDENTITY, |f| {
+                Coefficients::for_filter(&f, 48_000)
+            })
+        });
+        assert!(flat.iter().all(|c| *c == Coefficients::IDENTITY));
+        let mut channels = [flat.map(Biquad::new); 2];
+        let mut out = decoded.samples.clone();
+        for frame in out.chunks_exact_mut(2) {
+            for (sample, bank) in frame.iter_mut().zip(channels.iter_mut()) {
+                *sample = bank.iter_mut().fold(*sample, |s, b| b.process(s));
+            }
+        }
+        let same = out
+            .iter()
+            .zip(&decoded.samples)
+            .all(|(a, b)| a.to_bits() == b.to_bits());
+        assert!(same, "{bits}-bit samples changed");
+        assert_eq!(to_ints(&out, bits), source);
+        std::fs::remove_file(path).expect("cleanup");
+    }
+}
+
+/// The delay stage: at a mix of 0 the dry path keeps every decoded sample bit for bit, with
+/// the line running underneath.
+#[test]
+fn a_delay_at_mix_0_keeps_every_sample() {
+    use nemo_audio::effects::{Delay, DelayParams};
+    use nemo_core::effects::DelaySettings;
+
+    for bits in [16, 24] {
+        let (path, source) = temp_wav(bits, "dry-delay");
+        let decoded = decode_file(&path).expect("decode");
+        let settings = DelaySettings {
+            enabled: true,
+            time_ms: 120,
+            feedback_pct: 85,
+            mix_pct: 0,
+        };
+        let mut delay = Delay::new(2, 48_000, DelayParams::new(&settings, 48_000));
+        let mut out = decoded.samples.clone();
+        for block in out.chunks_mut(512 * 2) {
+            delay.process(block);
+        }
+        let same = out
+            .iter()
+            .zip(&decoded.samples)
+            .all(|(a, b)| a.to_bits() == b.to_bits());
+        assert!(same, "{bits}-bit samples changed");
+        assert_eq!(to_ints(&out, bits), source);
+        std::fs::remove_file(path).expect("cleanup");
+    }
+}
+
+/// The reverb stage: at a mix of 0 the dry path keeps every decoded sample bit for bit, with
+/// the combs running underneath.
+#[test]
+fn a_reverb_at_mix_0_keeps_every_sample() {
+    use nemo_audio::effects::{Reverb, ReverbParams};
+    use nemo_core::effects::ReverbSettings;
+
+    for bits in [16, 24] {
+        let (path, source) = temp_wav(bits, "dry-reverb");
+        let decoded = decode_file(&path).expect("decode");
+        let settings = ReverbSettings {
+            enabled: true,
+            size_pct: 100,
+            damping_pct: 0,
+            mix_pct: 0,
+        };
+        let mut reverb = Reverb::new(2, 48_000, ReverbParams::new(&settings, 48_000));
+        let mut out = decoded.samples.clone();
+        for block in out.chunks_mut(512 * 2) {
+            reverb.process(block);
+        }
+        let same = out
+            .iter()
+            .zip(&decoded.samples)
+            .all(|(a, b)| a.to_bits() == b.to_bits());
+        assert!(same, "{bits}-bit samples changed");
+        assert_eq!(to_ints(&out, bits), source);
+        std::fs::remove_file(path).expect("cleanup");
+    }
+}
+
+/// The transition stage: with the mode `Off`, or a gapless join picked by the policy, two songs
+/// cut from one decoded file come out of the transition mixer bit for bit and in order.
+#[test]
+fn a_gapless_transition_keeps_every_sample() {
+    use nemo_audio::transition::{TransitionMixer, TransitionPlan};
+    use nemo_core::effects::{TransitionKind, TransitionMode};
+
+    for bits in [16, 24] {
+        let (path, source) = temp_wav(bits, "gapless-mix");
+        let decoded = decode_file(&path).expect("decode");
+        let (first, second) = decoded.samples.split_at(30_000 * 2);
+        for mode in [TransitionMode::Off, TransitionMode::Smart] {
+            let plan = TransitionPlan {
+                kind_hint: mode,
+                frames: 24_000,
+            };
+            let mut mixer = TransitionMixer::new(decoded.format, plan);
+            let mut out = Vec::new();
+            for block in first.chunks(512 * 2) {
+                mixer.push(block, &mut out);
+            }
+            let kind = mixer.at_end(second, true);
+            assert_eq!(kind, TransitionKind::Gapless);
+            let t = mixer.mix_into(kind, second, &mut out);
+            out.extend_from_slice(&second[t.head_used() * 2..]);
+            let same = out.len() == decoded.samples.len()
+                && out
+                    .iter()
+                    .zip(&decoded.samples)
+                    .all(|(a, b)| a.to_bits() == b.to_bits());
+            assert!(same, "{bits}-bit samples changed with {mode:?}");
+            assert_eq!(to_ints(&out, bits), source);
+        }
+        std::fs::remove_file(path).expect("cleanup");
+    }
+}
+
+/// The `ReplayGain` stage: with the setting off a tagged song, and with it on an untagged song,
+/// go through the streaming player (prepare, feeder, ring, callback) bit for bit.
+#[test]
+fn replay_gain_off_or_untagged_keeps_the_player_path_bit_exact() {
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    use common::fakes::{RigOptions, local_track, rig};
+    use nemo_audio::replay_gain::{ReplayGainSettings, ReplayGainSwitch};
+    use nemo_core::library::{LocalPlayback, LocalTrackLookup, ReplayGainValues};
+    use nemo_core::player::{PlayState, PlayerCommand, PlayerEvent};
+    use nemo_core::track::Track;
+
+    struct Tagged(Option<f32>);
+    impl LocalTrackLookup for Tagged {
+        fn playback(&self, _track: &Track) -> Option<LocalPlayback> {
+            Some(LocalPlayback {
+                gain: ReplayGainValues {
+                    track_gain_db: self.0,
+                    ..ReplayGainValues::default()
+                },
+                ..LocalPlayback::default()
+            })
+        }
+    }
+
+    let on = ReplayGainSettings {
+        enabled: true,
+        ..ReplayGainSettings::default()
+    };
+    for bits in [16, 24] {
+        let (path, source) = temp_wav(bits, "replay-gain");
+        let decoded = decode_file(&path).expect("decode");
+        for (enabled, tag) in [(false, Some(-6.0)), (true, None)] {
+            let switch = ReplayGainSwitch::default();
+            if enabled {
+                switch.set(on);
+            }
+            let mut r = rig(
+                vec![],
+                RigOptions {
+                    local: Some(Arc::new(Tagged(tag))),
+                    replay_gain: Some(switch),
+                    ..RigOptions::default()
+                },
+            );
+            r.send(PlayerCommand::Play(local_track(1, path.clone())));
+            r.wait_event("the end", Duration::from_secs(20), |e| {
+                *e == PlayerEvent::StateChanged(PlayState::Stopped)
+            });
+            let out = r.captured();
+            let got = out.get(..source.len()).expect("the whole file played");
+            let same = got
+                .iter()
+                .zip(&decoded.samples)
+                .all(|(a, b)| a.to_bits() == b.to_bits());
+            assert!(same, "{bits}-bit, setting on: {enabled}");
+            assert_eq!(to_ints(got, bits), source);
+        }
+        std::fs::remove_file(path).expect("cleanup");
+    }
+}

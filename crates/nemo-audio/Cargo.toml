@@ -38,3 +38,4 @@ rubato = { version = "=5.0.1", default-features = false }
 
 [dev-dependencies]
 sha2.workspace = true
+proptest.workspace = true

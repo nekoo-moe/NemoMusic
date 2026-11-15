@@ -131,6 +131,142 @@ fn ten_seconds_of_render_with_gain_allocate_nothing() {
     );
 }
 
+/// Twelve filters per channel (the ten bands plus a low and a high shelf) on a stereo stream
+/// at 48 kHz, 512-frame callbacks for 10 s.
+#[test]
+fn ten_seconds_of_equalizer_filters_allocate_nothing() {
+    use nemo_audio::effects::{Biquad, Coefficients, ten_band};
+    use nemo_core::effects::{EqFilter, FilterKind};
+
+    let mut filters = ten_band([60, -30, 45, 0, -15, 30, -60, 90, -120, 120]);
+    let shelf = |kind, freq_hz, gain_tenth_db| {
+        Some(EqFilter {
+            kind,
+            freq_hz,
+            gain_tenth_db,
+            q_hundredths: 70,
+        })
+    };
+    let [.., eleventh, twelfth] = &mut filters;
+    *eleventh = shelf(FilterKind::LowShelf, 105, 40);
+    *twelfth = shelf(FilterKind::HighShelf, 10_000, -20);
+    let bank = filters
+        .map(|f| {
+            f.map_or(Coefficients::IDENTITY, |f| {
+                Coefficients::for_filter(&f, 48_000)
+            })
+        })
+        .map(Biquad::new);
+    let mut channels = [bank; 2];
+    let block: Vec<f32> = (0..u16::try_from(CALLBACK_SAMPLES).unwrap_or(u16::MAX))
+        .map(|i| (f32::from(i) * 0.37).sin() * 0.5)
+        .collect();
+    let mut out = vec![0.0_f32; CALLBACK_SAMPLES];
+
+    let before = count();
+    for _ in 0..CALLBACKS_10S {
+        out.copy_from_slice(&block);
+        for frame in out.chunks_exact_mut(2) {
+            for (sample, filters) in frame.iter_mut().zip(channels.iter_mut()) {
+                *sample = filters.iter_mut().fold(*sample, |s, b| b.process(s));
+            }
+        }
+    }
+    let after = count();
+
+    assert_eq!(after - before, 0, "the equalizer filters allocated");
+    assert!(out.iter().all(|s| s.is_finite()));
+}
+
+/// A stereo 250 ms delay at 85% feedback, 48 kHz, 512-frame callbacks for 10 s, with a
+/// parameter change and a reset on the way.
+#[test]
+fn ten_seconds_of_delay_allocate_nothing() {
+    use nemo_audio::effects::{Delay, DelayParams};
+    use nemo_core::effects::DelaySettings;
+
+    let settings = DelaySettings {
+        enabled: true,
+        time_ms: 250,
+        feedback_pct: 85,
+        mix_pct: 50,
+    };
+    let params = DelayParams::new(&settings, 48_000);
+    let shorter = DelayParams::new(
+        &DelaySettings {
+            time_ms: 40,
+            ..settings
+        },
+        48_000,
+    );
+    let mut delay = Delay::new(2, 48_000, params);
+    let block = vec![0.25_f32; CALLBACK_SAMPLES];
+    let mut out = vec![0.0_f32; CALLBACK_SAMPLES];
+
+    let before = count();
+    for n in 0..CALLBACKS_10S {
+        out.copy_from_slice(&block);
+        if n == CALLBACKS_10S / 2 {
+            delay.set_params(shorter);
+        }
+        if n == CALLBACKS_10S * 3 / 4 {
+            delay.reset();
+        }
+        delay.process(&mut out);
+    }
+    let after = count();
+
+    assert_eq!(after - before, 0, "the delay allocated");
+    assert!(
+        out.iter()
+            .all(|s| s.is_finite() && s.abs() <= 0.25 / 0.15 + 1e-3)
+    );
+}
+
+/// A stereo reverb at the largest size, 48 kHz, 512-frame callbacks for 10 s, with a
+/// parameter change and a reset on the way.
+#[test]
+fn ten_seconds_of_reverb_allocate_nothing() {
+    use nemo_audio::effects::{Reverb, ReverbParams};
+    use nemo_core::effects::ReverbSettings;
+
+    let settings = ReverbSettings {
+        enabled: true,
+        size_pct: 100,
+        damping_pct: 50,
+        mix_pct: 30,
+    };
+    let params = ReverbParams::new(&settings, 48_000);
+    let smaller = ReverbParams::new(
+        &ReverbSettings {
+            size_pct: 20,
+            ..settings
+        },
+        48_000,
+    );
+    let mut reverb = Reverb::new(2, 48_000, params);
+    let block: Vec<f32> = (0..u16::try_from(CALLBACK_SAMPLES).unwrap_or(u16::MAX))
+        .map(|i| (f32::from(i) * 0.21).sin() * 0.5)
+        .collect();
+    let mut out = vec![0.0_f32; CALLBACK_SAMPLES];
+
+    let before = count();
+    for n in 0..CALLBACKS_10S {
+        out.copy_from_slice(&block);
+        if n == CALLBACKS_10S / 2 {
+            reverb.set_params(smaller);
+        }
+        if n == CALLBACKS_10S * 3 / 4 {
+            reverb.reset();
+        }
+        reverb.process(&mut out);
+    }
+    let after = count();
+
+    assert_eq!(after - before, 0, "the reverb allocated");
+    assert!(out.iter().all(|s| s.is_finite()));
+}
+
 mod player_callback {
     use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -141,9 +277,10 @@ mod player_callback {
     use crate::common::fakes::{FakeOpener, FakeResolver, local_track};
     use crate::common::fixtures::{tone_i16, wav_bytes};
     use nemo_audio::player::{Player, PlayerDeps};
+    use nemo_audio::replay_gain::{ReplayGainSettings, ReplayGainSwitch};
     use nemo_audio::sink::{AudioSink, RenderCallback, SinkError, SinkFactory};
     use nemo_core::audio::{AudioFormat, OutputInfo, OutputMode};
-    use nemo_core::library::{LocalPlayback, LocalTrackLookup, TrackSpan};
+    use nemo_core::library::{LocalPlayback, LocalTrackLookup, ReplayGainValues, TrackSpan};
     use nemo_core::player::PlayerCommand;
     use nemo_core::track::Track;
 
@@ -231,7 +368,7 @@ mod player_callback {
 
     #[test]
     fn the_real_player_callback_allocates_nothing_at_volume_100_and_50() {
-        check_callback_allocates_nothing("long.wav", None);
+        check_callback_allocates_nothing("long.wav", None, ReplayGainSwitch::default());
     }
 
     #[test]
@@ -240,11 +377,44 @@ mod player_callback {
             start: Duration::from_secs(5),
             end: Some(Duration::from_secs(55)),
         };
-        check_callback_allocates_nothing("span.wav", Some(Arc::new(OneSpan(span))));
+        check_callback_allocates_nothing(
+            "span.wav",
+            Some(Arc::new(OneSpan(span))),
+            ReplayGainSwitch::default(),
+        );
+    }
+
+    /// Every local track is tagged with a track gain of -6 dB.
+    struct Tagged;
+
+    impl LocalTrackLookup for Tagged {
+        fn playback(&self, _track: &Track) -> Option<LocalPlayback> {
+            Some(LocalPlayback {
+                gain: ReplayGainValues {
+                    track_gain_db: Some(-6.0),
+                    ..ReplayGainValues::default()
+                },
+                ..LocalPlayback::default()
+            })
+        }
+    }
+
+    #[test]
+    fn the_callback_allocates_nothing_while_the_replay_gain_stage_runs() {
+        let replay_gain = ReplayGainSwitch::default();
+        replay_gain.set(ReplayGainSettings {
+            enabled: true,
+            ..ReplayGainSettings::default()
+        });
+        check_callback_allocates_nothing("gain.wav", Some(Arc::new(Tagged)), replay_gain);
     }
 
     /// Play a 60 s local file, then lower the volume, counting allocations in the callback.
-    fn check_callback_allocates_nothing(name: &str, local: Option<Arc<dyn LocalTrackLookup>>) {
+    fn check_callback_allocates_nothing(
+        name: &str,
+        local: Option<Arc<dyn LocalTrackLookup>>,
+        replay_gain: ReplayGainSwitch,
+    ) {
         let ints = tone_i16(48_000, 2, 60 * 48_000, 440.0);
         let dir = std::env::temp_dir().join(format!("nemo-rt-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("temp dir");
@@ -252,7 +422,7 @@ mod player_callback {
         std::fs::write(&path, wav_bytes(&ints, 16, 48_000, 2)).expect("fixture");
         let callbacks = Arc::new(AtomicU64::new(0));
         let allocations = Arc::new(AtomicU64::new(0));
-        let player = Player::spawn(PlayerDeps {
+        let deps = PlayerDeps {
             resolver: Arc::new(FakeResolver { known: vec![] }),
             request: nemo_core::stream::StreamRequest::default(),
             local,
@@ -265,7 +435,8 @@ mod player_callback {
                 callbacks: Arc::clone(&callbacks),
                 allocations: Arc::clone(&allocations),
             }),
-        });
+        };
+        let player = Player::spawn_with_replay_gain(deps, replay_gain);
         player.send(PlayerCommand::Play(local_track(1, path.clone())));
         let wait = |n: u64| {
             let start = std::time::Instant::now();

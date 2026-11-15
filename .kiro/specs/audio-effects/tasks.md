@@ -33,7 +33,7 @@
   - Wave: 1
   - Checks: round-trip test; an old `settings.json` without the fields gives all-off; out-of-range values are clamped. No network host (criterion 27).
 
-- [ ] 5. Parse and write AutoEq profile files
+- [x] 5. Parse and write AutoEq profile files
   - Crate and files: `nemo-audio`: `src/effects.rs` (module root, new), `src/effects/profile.rs` (new); fixtures in `crates/nemo-audio/tests/fixtures/autoeq/`.
   - Does: `parse_autoeq(name, text)` reads the fixed-band and the parametric text (`Preamp:` and `Filter N: ON PK|LSC|HSC Fc .. Gain .. Q ..` lines) into `EqProfile`; `write_autoeq` writes the same format for user presets. Other filter types or more than 12 filters return `ProfileError` with the line, and nothing is applied (criterion 11). Pure functions, off the real-time path; no network.
   - _Requirements: 10, 11, 12_
@@ -50,7 +50,7 @@
   - Wave: 1
   - Checks: unit tests in a temp folder for each store action, `NameTaken`, the 64 KiB cap and Flat at 0 dB; `cargo test -p nemo-audio --test bit_exact`.
 
-- [ ] 7. Add the biquad filters and the automatic preamp
+- [x] 7. Add the biquad filters and the automatic preamp
   - Crate and files: `nemo-audio`: `src/effects/biquad.rs` (new).
   - Does: RBJ peak, low-shelf and high-shelf coefficients, `f64` state, `f32` samples; the ten-band equalizer is ten peaks at the ISO centres 31 Hz to 16 kHz, Q 1.41. `auto_preamp(settings, rate)` returns the peak boost of the combined response in tenths of a dB. The per-sample `process` is `/// RT-SAFE` (no allocation, lock or logging, code.md).
   - _Requirements: 5, 6_
@@ -59,7 +59,7 @@
   - Checks: gain at each band centre matches the analytic value at 44.1, 48, 96 and 192 kHz; the 31 Hz band stays stable at 192 kHz; `proptest`: a swept sine through any settings with the auto preamp never exceeds 0 dBFS; a counting-allocator case for `process` in `cargo test -p nemo-audio --test rt_no_alloc`; `cargo test -p nemo-audio --test bit_exact`.
   - Steering: `tech.md`: add the row "Effects: own biquad, delay and reverb code in `nemo-audio`, `f32` with `f64` filter state" (no new crate).
 
-- [ ] 8. Add the delay stage
+- [x] 8. Add the delay stage
   - Crate and files: `nemo-audio`: `src/effects/delay.rs` (new).
   - Does: Time, feedback and wet/dry mix; the delay line holds 2 s per channel for up to 8 channels and is sized when the pipeline starts, never in the callback. Feedback is limited to 85% so the echo always decays. Reports `tail_frames` from time and feedback, capped at 10 s.
   - _Requirements: 14, 15_
@@ -67,7 +67,7 @@
   - Wave: 2
   - Checks: an impulse with feedback 85% decays below -60 dBFS inside `tail_frames`; counting-allocator case in `cargo test -p nemo-audio --test rt_no_alloc`; `cargo test -p nemo-audio --test bit_exact`.
 
-- [ ] 9. Add the reverb stage
+- [x] 9. Add the reverb stage
   - Crate and files: `nemo-audio`: `src/effects/reverb.rs` (new).
   - Does: Size, damping and wet/dry mix on fixed comb and all-pass tables at the device rate, allocated when the pipeline starts. Size and damping are bounded so the tail cannot grow; `tail_frames` follows size, capped at 10 s.
   - _Requirements: 14, 15_
@@ -107,7 +107,7 @@
   - Wave: 2
   - Checks: `cargo test -p nemo-audio --test bit_exact` with `SkipFade::Off` (no arithmetic); fade path in `cargo test -p nemo-audio --test rt_no_alloc`; a skip completes within fade + 500 ms (`tests/player_skip.rs`).
 
-- [ ] 14. Build the `TransitionMixer`
+- [x] 14. Build the `TransitionMixer`
   - Crate and files: `nemo-audio`: `src/transition.rs` (new).
   - Does: Feeder-only type with a tail window of L frames, allocated when the song starts. At decoder end it scans the tail for trailing silence and the first 10 s of the next song for leading silence (below -60 dBFS) and picks `Crossfade` (equal-power, length L), `TrimSilence` (drop silences, 300 ms overlap) or `Gapless` (both ends within 50 ms of silence, or the policy says so). It never changes tempo or aligns beats.
   - _Requirements: 16, 19_

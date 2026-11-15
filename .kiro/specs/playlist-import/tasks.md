@@ -29,7 +29,7 @@ Cross-spec ids written `<spec>#?` name the task in that spec that adds the ADR 0
   - Checks: tests for quoted commas, doubled quotes, line breaks in a field, BOM, CRLF, ragged row, empty and binary files, the 5 MiB limit, headers in any order, Soundiiz duration in s, ms and `m:ss`; proptest that parsing never panics on random bytes.
   - Steering: `tech.md` row for `csv` =1.4.0 (Unlicense OR MIT, used as MIT; MSRV 1.73; released 2025-10-17; pure Rust; `nemo-library` only). `structure.md`: `nemo-library` gains the `import` module; no new `nemo-*` edge.
 
-- [ ] 4. Normalize text and score candidates
+- [x] 4. Normalize text and score candidates
   - Crate and files: `nemo-library` (`import/normalize.rs`, `import/score.rs`), dependency `unicode-normalization` 0.1.26 (already locked).
   - Does: NFKC, lower case, bracketed text, "feat." parts and remaster tags removed; score `0.5 x title + 0.3 x artist + 0.2 x duration`; confidence high at 0.85 with duration within 5 s or unknown, medium at 0.65, low at 0.45, none below (starting values, tuned with the owner's samples).
   - _Requirements: 8_

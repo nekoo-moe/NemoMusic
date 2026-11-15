@@ -9,6 +9,7 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
 use nemo_audio::player::{Player, PlayerDeps};
+use nemo_audio::replay_gain::ReplayGainSwitch;
 use nemo_audio::sink::{AudioSink, RenderCallback, SinkError, SinkFactory};
 use nemo_audio::source::MemorySource;
 use nemo_core::BoxFuture;
@@ -234,6 +235,8 @@ pub struct RigOptions {
     pub segments: Option<Arc<FakeSegments>>,
     /// Span and gain of local tracks (CUE tracks).
     pub local: Option<Arc<dyn LocalTrackLookup>>,
+    /// The `ReplayGain` setting the test changes. `None` keeps it off.
+    pub replay_gain: Option<ReplayGainSwitch>,
 }
 
 impl Default for RigOptions {
@@ -248,6 +251,7 @@ impl Default for RigOptions {
             chunk: None,
             segments: None,
             local: None,
+            replay_gain: None,
         }
     }
 }
@@ -274,7 +278,7 @@ pub fn rig(streams: Vec<(String, Vec<u8>)>, options: RigOptions) -> Rig {
             interval: options.interval,
         }),
     };
-    let player = Player::spawn(deps);
+    let player = Player::spawn_with_replay_gain(deps, options.replay_gain.unwrap_or_default());
     let events = player.subscribe();
     Rig {
         player,
