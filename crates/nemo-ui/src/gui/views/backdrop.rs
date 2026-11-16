@@ -86,7 +86,7 @@ pub fn window_field(app: &App) -> Element<'_, Message> {
     .into()
 }
 
-/// A soft top ambient glow from the active cover accent color (Liner Desktop style).
+/// A soft top ambient glow from the active cover accent color.
 fn ambient_glow<'a>(app: &App) -> Element<'a, Message> {
     let primary = app.accent().primary;
     let g = iced::gradient::Linear::new(iced::Radians(DOWN))
