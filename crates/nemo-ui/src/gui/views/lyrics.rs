@@ -5,18 +5,19 @@
 //! active lines cross-fade size and ink while the list glides on the `spatial.default` spring.
 //! Word- and syllable-timed lines colour every piece by its own timing.
 
-use iced::widget::text::{Span, Wrapping};
-use iced::widget::{Space, column, container, mouse_area, rich_text, stack, text};
+use iced::widget::text::Wrapping;
+use iced::widget::{Space, column, container, mouse_area, stack, text};
 use iced::{Alignment, Color, Element, Length, Padding, Pixels, mouse};
 use nemo_core::lyrics::{Granularity, LyricLine, LyricsDoc};
 
 use super::super::app::{App, Message};
 use super::super::assets::{Icon, display_font};
 use super::super::style::{col, gap, icon, label};
+use super::super::syllable_text::{Style as SyllableStyle, SyllableText};
 use super::super::textfit;
 use super::super::widgets::Offset;
 use crate::canvas::coming_alpha;
-use crate::lyric_pieces;
+use crate::lyric_pieces::{self, UNSUNG_ALPHA};
 use crate::lyrics_view::{self, LINE_GAP, LineRole, LineRows};
 use crate::state::{Event, LyricsState};
 use crate::theme::{TextStyle, color, type_scale};
@@ -93,6 +94,16 @@ fn color_base() -> crate::scheme::BaseMode {
     }
 }
 
+/// Ink of a line of word-timed lyrics `dist` lines from the active one: the active line is
+/// `on-surface`, every other line `on-surface-variant` at [`lyrics_view::line_alpha`], always
+/// dimmer than a word of the active line that is still to be sung.
+fn timed_line_ink(dist: i32) -> Color {
+    if dist == 0 {
+        return col(color::on_surface());
+    }
+    col(color::on_surface_variant().with_alpha(lyrics_view::line_alpha(dist)))
+}
+
 fn mix(a: f32, b: f32, t: f32) -> f32 {
     a + (b - a) * t
 }
@@ -117,6 +128,18 @@ pub struct Look {
     pub gap: f32,
     /// Opacity from the soft edge mask of the full-screen lyrics (1 elsewhere).
     pub fade: f32,
+    /// Signed distance from the active line before the change and now (positive: still to
+    /// come, negative: already sung), for the opacity falloff of word-timed lyrics.
+    pub dist: (i32, i32),
+}
+
+/// Distance a role stands for when the caller does not know the real one.
+fn role_dist(role: LineRole) -> i32 {
+    match role {
+        LineRole::Active => 0,
+        LineRole::Neighbor => 1,
+        LineRole::Other => 3,
+    }
 }
 
 impl Look {
@@ -128,6 +151,7 @@ impl Look {
             to: (role, st),
             gap: LINE_GAP,
             fade: 1.0,
+            dist: (role_dist(role), role_dist(role)),
         }
     }
 }
@@ -168,7 +192,14 @@ pub fn lyric_line<'a>(
     let (role, _) = look.to;
     let (size, line_h, height) = metrics(app, line, width, look);
     let wrap = wrap_width(width);
-    let ink = faded(mix_color(line_ink(from_role), line_ink(role), p), look.fade);
+    let doc_timed =
+        matches!(&app.ui.lyrics, LyricsState::Ready(d) if d.granularity >= Granularity::Word);
+    let ink = if doc_timed {
+        mix_color(timed_line_ink(look.dist.0), timed_line_ink(look.dist.1), p)
+    } else {
+        mix_color(line_ink(from_role), line_ink(role), p)
+    };
+    let ink = faded(ink, look.fade);
     let bold = role == LineRole::Active;
     if role != LineRole::Active {
         let body = text_run(line.text.clone(), size, line_h, bold, ink).width(Length::Fixed(wrap));
@@ -234,7 +265,8 @@ fn glow_layers<'a>(
     .collect()
 }
 
-/// The active line as rich text, one span per timed piece (wave-lyrics criterion 8).
+/// The active line, one piece per timed word or syllable: grey ahead, a fill while sung, bright
+/// after (`syllable-motion` spec).
 fn pieces_text<'a>(
     app: &App,
     line: &LyricLine,
@@ -245,20 +277,33 @@ fn pieces_text<'a>(
     let t = i64::try_from(app.ui.position.as_millis())
         .unwrap_or(i64::MAX)
         .saturating_add(app.ui.lyrics_offset_ms);
-    let base = color::on_surface();
-    let coming = coming_alpha(color_base());
-    let spans: Vec<Span<'a, (), iced::Font>> =
-        lyric_pieces::pieces(line, t, coming, app.ui.reduced_motion)
-            .into_iter()
-            .map(|piece| Span::new(piece.text).color(col(base.with_alpha(piece.alpha * fade))))
-            .collect();
-    rich_text(spans)
-        .size(Pixels(size))
-        .line_height(text::LineHeight::Absolute(Pixels(line_h)))
-        .font(display_font(true))
-        .wrapping(Wrapping::WordOrGlyph)
-        .width(Length::Fixed(wrap))
-        .into()
+    SyllableText::new(
+        lyric_pieces::texts(line),
+        lyric_pieces::timings(line),
+        t,
+        SyllableStyle {
+            size,
+            line_h,
+            width: wrap,
+            font: display_font(true),
+            bright: faded(col(color::on_surface()), fade),
+            grey: faded(
+                col(color::on_surface_variant().with_alpha(UNSUNG_ALPHA)),
+                fade,
+            ),
+            glow: faded(col(app.accent().primary), fade),
+            rtl: lyric_pieces::is_rtl(&line.text),
+            reduced: app.ui.reduced_motion,
+        },
+    )
+    .into()
+}
+
+/// Signed distance of line `i` from the active line (`None`: nothing active, so far ahead).
+fn signed_dist(i: usize, active: Option<usize>) -> i32 {
+    active.map_or(3, |a| {
+        i32::try_from(i).unwrap_or(i32::MAX) - i32::try_from(a).unwrap_or(0)
+    })
 }
 
 /// The synced lines as a gliding list, with the `Back to current line` pill while the user
@@ -295,6 +340,7 @@ pub fn synced_list<'a>(
             to: (to, to.style_d(dense)),
             gap: gap_px,
             fade: 1.0,
+            dist: (signed_dist(i, before), signed_dist(i, active)),
         };
         let h = metrics(app, line, width, look).2;
         if !dense {

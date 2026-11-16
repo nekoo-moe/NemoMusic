@@ -26,6 +26,8 @@ mod opt_in;
 mod screen;
 #[path = "snapshots/state.rs"]
 mod state;
+#[path = "snapshots/syllable_motion.rs"]
+mod syllable_motion;
 #[path = "snapshots/theme.rs"]
 mod theme;
 #[path = "snapshots/wave_lyrics.rs"]
@@ -70,6 +72,7 @@ fn scenarios() -> Vec<Shot> {
     backdrop::backdrops(&mut out);
     motion::shots(&mut out);
     out.extend(wave_lyrics::shots());
+    out.extend(syllable_motion::shots());
     out
 }
 

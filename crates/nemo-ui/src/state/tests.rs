@@ -119,6 +119,29 @@ fn lyrics_missing_and_ready() {
 }
 
 #[test]
+fn syllable_lyrics_ask_for_frames_only_while_playing() {
+    let mut s = state();
+    let mut d = doc();
+    d.granularity = Granularity::Syllable;
+    s.apply(Event::LyricsReady {
+        track: mock::track(0).id,
+        lookup: lookup(Some(d)),
+        offset_ms: 0,
+    });
+    assert!(
+        s.needs_frames(),
+        "playing: the fill moves with the position"
+    );
+    let mut paused = playing(0);
+    paused.state = PlayState::Paused;
+    s.apply(Event::Snapshot(paused));
+    for _ in 0..200 {
+        s.apply(Event::Frame { dt_ms: 16.0 });
+    }
+    assert!(!s.needs_frames(), "paused and settled: zero frames");
+}
+
+#[test]
 fn idle_needs_no_frames_and_playing_does() {
     let mut s = state();
     assert!(s.needs_frames(), "playing");

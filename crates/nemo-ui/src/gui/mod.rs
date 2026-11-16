@@ -11,6 +11,7 @@ pub mod assets;
 pub mod fx;
 pub mod headless;
 pub mod style;
+pub mod syllable_text;
 pub mod textfit;
 pub mod views;
 pub mod widgets;
