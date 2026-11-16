@@ -175,8 +175,8 @@ pub const RIGHT_OVERLAY: u32 = 340;
 pub const RIGHT_PUSH_BREAKPOINT: u32 = 1280;
 /// Docked horizontal player bar height.
 pub const CAPSULE_HEIGHT: u32 = 76;
-/// Gap between the bar and the window bottom (docked: 0).
-pub const CAPSULE_MARGIN: u32 = 0;
+/// Gap between the bar and the window bottom.
+pub const CAPSULE_MARGIN: u32 = 4;
 /// Widest capsule.
 pub const CAPSULE_MAX: u32 = 1280;
 /// Narrowest capsule.

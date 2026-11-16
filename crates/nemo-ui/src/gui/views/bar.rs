@@ -98,7 +98,7 @@ pub fn view(app: &App, width: f32) -> Element<'_, Message> {
         .into()
 }
 
-fn center_controls<'a>(app: &'a App, accent: Palette, compact: bool) -> Element<'a, Message> {
+fn center_controls(app: &App, accent: Palette, compact: bool) -> Element<'_, Message> {
     let ink = col(color::on_surface());
     let transport_row = row![
         prev_button(ink, 36.0),
@@ -112,14 +112,11 @@ fn center_controls<'a>(app: &'a App, accent: Palette, compact: bool) -> Element<
         return transport_row.into();
     }
 
-    column![
-        transport_row,
-        seek_row(app, accent),
-    ]
-    .spacing(1.0)
-    .align_x(Alignment::Center)
-    .width(Length::Fill)
-    .into()
+    column![transport_row, seek_row(app, accent),]
+        .spacing(1.0)
+        .align_x(Alignment::Center)
+        .width(Length::Fill)
+        .into()
 }
 
 fn track_info(app: &App, width: f32) -> Element<'_, Message> {

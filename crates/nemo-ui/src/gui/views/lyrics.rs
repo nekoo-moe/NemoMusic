@@ -196,10 +196,12 @@ pub fn lyric_line<'a>(
     let timed = !line.words.is_empty()
         && matches!(&app.ui.lyrics, LyricsState::Ready(d) if d.granularity >= Granularity::Word);
     if timed {
-        return (pieces_text(app, line, (size, line_h), wrap, look.fade), height);
+        return (
+            pieces_text(app, line, (size, line_h), wrap, look.fade),
+            height,
+        );
     }
-    let body = text_run(line.text.clone(), size, line_h, false, ink)
-        .width(Length::Fixed(wrap));
+    let body = text_run(line.text.clone(), size, line_h, false, ink).width(Length::Fixed(wrap));
     (body.into(), height)
 }
 
