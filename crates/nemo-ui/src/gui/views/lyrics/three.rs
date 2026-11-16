@@ -7,7 +7,7 @@ use iced::{Alignment, Element, Length};
 use nemo_core::lyrics::LyricsDoc;
 
 use super::super::super::app::{App, Message};
-use super::{Look, lyric_line, note};
+use super::{Look, lyric_line, note, signed_dist};
 use crate::lyrics_view::{LINE_GAP, LineRole};
 use crate::theme::{TextStyle, type_scale};
 
@@ -60,6 +60,7 @@ pub fn lines<'a>(app: &App, doc: &'a LyricsDoc, width: f32) -> Element<'a, Messa
             to: (to, style(to)),
             gap: LINE_GAP,
             fade: 1.0,
+            dist: (signed_dist(i, before), signed_dist(i, active)),
         };
         c = c.push(lyric_line(app, line, width, look).0);
     }

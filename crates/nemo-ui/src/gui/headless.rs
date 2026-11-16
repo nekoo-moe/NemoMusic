@@ -172,6 +172,8 @@ pub struct Scenario {
     pub size: (u32, u32),
     /// Playback position of the current track in seconds.
     pub position_secs: u64,
+    /// Extra milliseconds on top of `position_secs` (to land inside a sung word).
+    pub position_extra_ms: u64,
     /// Index of the mock track to show (via the queue).
     pub track: usize,
     /// Play (true) or pause (false).
@@ -235,6 +237,9 @@ pub struct Scenario {
     pub shared_output: bool,
     /// Draw the page and the open surfaces this many ms into their enter (mid-transition).
     pub mid_motion_ms: Option<u32>,
+    /// Keep motion on (the shots run with reduced motion so they are still); for the syllable
+    /// fill, which is the thing being shown.
+    pub full_motion: bool,
 }
 
 /// Which state of the sign-in sheet a snapshot shows.
@@ -261,6 +266,7 @@ impl Default for Scenario {
             route: Route::Home,
             size: (1366, 697),
             position_secs: 83,
+            position_extra_ms: 0,
             track: 1,
             playing: false,
             settings: UiSettings {
@@ -295,6 +301,7 @@ impl Default for Scenario {
             lyrics_pick: None,
             shared_output: false,
             mid_motion_ms: None,
+            full_motion: false,
         }
     }
 }
@@ -310,7 +317,7 @@ fn run(app: &mut App, message: Message) {
 #[must_use]
 pub fn build_app(backend: &Backend, scenario: &Scenario) -> App {
     let options = UiOptions {
-        reduced_motion: true,
+        reduced_motion: !scenario.full_motion,
         // Window sizes are small positive numbers.
         #[allow(clippy::cast_precision_loss)]
         window_size: (scenario.size.0 as f32, scenario.size.1 as f32),
@@ -328,8 +335,8 @@ pub fn build_app(backend: &Backend, scenario: &Scenario) -> App {
     });
     backend
         .player
-        .send(PlayerCommand::Seek(std::time::Duration::from_secs(
-            scenario.position_secs,
+        .send(PlayerCommand::Seek(std::time::Duration::from_millis(
+            scenario.position_secs * 1000 + scenario.position_extra_ms,
         )));
     if !scenario.playing {
         backend.player.send(PlayerCommand::Pause);

@@ -44,6 +44,25 @@ pub fn edge_fade(center_y: f32, viewport_h: f32) -> f32 {
     ease(center_y) * ease(viewport_h - center_y)
 }
 
+/// Opacity of `on-surface-variant` for a line of word-timed lyrics `dist` lines from the active
+/// one (positive: still to come, negative: already sung; owner, 2026-11-16, `syllable-motion`).
+/// Lines ahead step down with distance, lines behind fade faster, and every value stays below
+/// the grey of a word still to be sung ([`crate::lyric_pieces::UNSUNG_ALPHA`]), so the active
+/// line always reads first. This is the "blur-like" falloff: iced has no layer blur, so
+/// distance is shown by opacity only.
+#[must_use]
+pub fn line_alpha(dist: i32) -> f32 {
+    match dist {
+        0 => 1.0,
+        1 => 0.30,
+        2 => 0.24,
+        d if d > 2 => 0.18,
+        -1 => 0.20,
+        -2 => 0.12,
+        _ => 0.07,
+    }
+}
+
 /// How a line is drawn relative to the active one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LineRole {
@@ -425,6 +444,17 @@ mod tests {
         assert!(a > 0.0 && a < b && b < 1.0, "{a} {b}");
         assert!((edge_fade(vh - 60.0, vh) - b).abs() < 1e-5, "symmetric");
         assert!(edge_fade(-10.0, vh).abs() < 1e-6);
+    }
+
+    #[test]
+    fn lines_fade_with_distance_and_past_lines_fade_faster() {
+        assert!((line_alpha(0) - 1.0).abs() < f32::EPSILON);
+        for d in 1..6 {
+            assert!(line_alpha(d) >= line_alpha(d + 1), "ahead {d}");
+            assert!(line_alpha(-d) >= line_alpha(-d - 1), "behind {d}");
+            assert!(line_alpha(-d) < line_alpha(d), "past fades faster at {d}");
+            assert!(line_alpha(d) < crate::lyric_pieces::UNSUNG_ALPHA, "{d}");
+        }
     }
 
     #[test]
