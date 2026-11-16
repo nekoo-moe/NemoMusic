@@ -135,8 +135,8 @@ pub fn art<'a>(
     // Slot sizes are small exact numbers.
     #[allow(clippy::cast_precision_loss)]
     let px = size as f32;
-    if let Some(handle) = app.art_handle(artwork, size, art_shape) {
-        return fitted_art(handle, px, art_shape.radius(px), app.scale_pct, 1.0);
+    if let Some((handle, opacity)) = app.art_shown(artwork, size, art_shape) {
+        return fitted_art(handle, px, art_shape.radius(px), app.scale_pct, opacity);
     }
     art_placeholder(px, art_shape.radius(px), true)
 }

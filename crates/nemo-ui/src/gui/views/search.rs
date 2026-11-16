@@ -18,6 +18,8 @@ mod filter;
 mod section;
 mod top;
 
+pub(crate) use filter::{index as filter_index, labels as filter_labels};
+
 /// The Search screen.
 pub fn view(app: &App, w: u32) -> Element<'_, Message> {
     let grid = layout::grid_in(w);

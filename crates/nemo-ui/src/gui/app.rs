@@ -43,6 +43,7 @@ mod frame_tests;
 mod handle;
 mod job;
 mod message;
+mod micro;
 mod model;
 mod option;
 mod query;
@@ -57,6 +58,7 @@ pub use art::{
 };
 pub use job::{art_key, run_job};
 pub use message::{AccountBundle, CoverBuilt, ExploreMsg, Job, Message, RefreshData};
+pub use micro::{ART_FADE_MS, Micro, NAV_ENTRIES, SKELETON_PHASE};
 pub use model::{
     AccountMsg, AccountUi, CompactTab, DetailData, DetailKey, DetailKind, DetailState, HomeFilter,
     HomePhase, HomeState, LibFilter, ListSource, NpTab, SettingsSection,
@@ -114,12 +116,15 @@ pub struct App {
     pub(crate) settings_section: SettingsSection,
     pub(crate) rows_limit: usize,
     pub(crate) spin: f32,
-    /// Phase of the loading shimmer, 0 to 1.
+    /// Where the highlight of a loading skeleton rests ([`SKELETON_PHASE`]): it never moves.
     pub(crate) shimmer: f32,
+    /// Tab and sidebar pills, the like heart, the title fade and picture fades.
+    pub(crate) micro: Micro,
     /// Phase of the equaliser bars on the playing row.
     pub(crate) eq_phase: f32,
-    /// Sliding selection pill of chip rows: x and width springs (0: Home, 1: Library tabs).
-    pub(crate) chip_pills: [(crate::motion::Spring, crate::motion::Spring); 2],
+    /// Sliding selection pill of chip rows: x and width springs (0: Home, 1: Library tabs, 2:
+    /// Search filters).
+    pub(crate) chip_pills: [(crate::motion::Spring, crate::motion::Spring); 3],
     chip_pills_init: bool,
     /// Queue reorder: the two rows that swapped and the offset spring (1 to 0).
     pub(crate) queue_swap: (usize, usize),
@@ -247,9 +252,14 @@ impl App {
             settings_section: SettingsSection::default(),
             rows_limit: ROWS_STEP,
             spin: 0.0,
-            shimmer: 0.0,
+            shimmer: SKELETON_PHASE,
+            micro: Micro::default(),
             eq_phase: 0.0,
             chip_pills: [
+                (
+                    crate::motion::Spring::tuned(0.0, 1400.0, 1.0),
+                    crate::motion::Spring::tuned(0.0, 1400.0, 1.0),
+                ),
                 (
                     crate::motion::Spring::tuned(0.0, 1400.0, 1.0),
                     crate::motion::Spring::tuned(0.0, 1400.0, 1.0),

@@ -2,7 +2,7 @@
 //! lyric line and the tabs Lyrics, Queue and Info. The background takes the cover's colour.
 
 use iced::font::Weight;
-use iced::widget::{Space, button, column, container, row};
+use iced::widget::{Space, button, column, container, row, stack};
 use iced::{Alignment, Color, Element, Length, Padding};
 use nemo_core::catalog::ShelfItem;
 use nemo_core::lyrics::Granularity;
@@ -213,12 +213,14 @@ fn playing(app: &App, width: f32) -> Element<'_, Message> {
         ),
     ];
     let artist_w = inner - 3.0 * 40.0 - gap::SM;
+    // The title and artist fade in when the song changes (400 ms).
+    let fade = app.title_fade();
     let titles = column![
         label(
             fit(&track.title, inner, type_scale::TITLE_LG.size),
             type_scale::TITLE_LG,
             true,
-            ink
+            ink.scale_alpha(fade)
         ),
         row![
             label(
@@ -229,7 +231,7 @@ fn playing(app: &App, width: f32) -> Element<'_, Message> {
                 ),
                 type_scale::BODY_MD,
                 false,
-                dim
+                dim.scale_alpha(fade)
             ),
             Space::new().width(Length::Fill),
             actions,
@@ -356,14 +358,33 @@ fn tabs(
         )
         .padding(0)
         .on_press(Message::NpTab(t));
-        let idle = if on { col(on_fill) } else { Color::TRANSPARENT };
         r = r.push(
-            fx(b.style(button_flat(idle, shape::FULL)))
+            fx(b.style(button_flat(Color::TRANSPARENT, shape::FULL)))
                 .layer(ink)
                 .radius(shape::FULL),
         );
     }
-    container(r.padding(gap::XS))
+    // One pill slides under the tabs (`spatial.fast`). The first layer sizes the stack.
+    let pill = container(Space::new())
+        .width(Length::Fixed(tab_w))
+        .height(Length::Fixed(36.0))
+        .style(move |_| container::Style {
+            background: Some(col(on_fill).into()),
+            border: iced::Border {
+                radius: shape::FULL.into(),
+                ..iced::Border::default()
+            },
+            ..container::Style::default()
+        });
+    let pill_layer = row![
+        Space::new().width(Length::Fixed((app.micro.tab.value * tab_w).max(0.0))),
+        pill
+    ];
+    let track = Space::new()
+        .width(Length::Fixed(tab_w * 3.0))
+        .height(Length::Fixed(36.0));
+    container(stack![track, pill_layer, r])
+        .padding(gap::XS)
         .width(Length::Fixed(width))
         .style(|_| container::Style {
             background: Some(col(color::surface_container_lowest().with_alpha(0.55)).into()),

@@ -177,6 +177,9 @@ impl App {
                     }
                     Err(_) => ArtEntry::Missing,
                 };
+                if matches!(entry, ArtEntry::Ready(_)) {
+                    self.micro.art.start(key.clone(), self.ui.reduced_motion);
+                }
                 self.art
                     .insert(key, entry, |e| matches!(e, ArtEntry::Loading));
                 Vec::new()

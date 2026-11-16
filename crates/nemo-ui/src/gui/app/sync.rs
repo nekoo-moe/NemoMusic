@@ -57,7 +57,7 @@ impl App {
             || self.account_busy()
             || !self.scheme_fade.is_done()
             || !self.bg_fade.is_done()
-            || self.detail_loading()
+            || !self.micro.settled()
             || self
                 .chip_pills
                 .iter()
@@ -109,7 +109,12 @@ impl App {
             .iter()
             .position(|t| *t == self.lib_tab)
             .unwrap_or(0);
-        for (slot, (labels, sel)) in [(home, home_sel), (lib, lib_sel)].into_iter().enumerate() {
+        let search = super::super::views::search::filter_labels();
+        let search_sel = super::super::views::search::filter_index(self.ui.search.filter);
+        for (slot, (labels, sel)) in [(home, home_sel), (lib, lib_sel), (search, search_sel)]
+            .into_iter()
+            .enumerate()
+        {
             let (x, w) = chip_geometry(&labels, sel);
             let (sx, sw) = &mut self.chip_pills[slot];
             sx.target = x;
@@ -132,6 +137,7 @@ impl App {
         } else if !self.ui.queue_open && self.np_tab == NpTab::Queue {
             self.np_tab = NpTab::Lyrics;
         }
+        self.sync_micro();
         let reduced = self.ui.reduced_motion;
         fx::set_reduced_motion(reduced);
         fx::set_focus_color(style::col(self.ui.accent.current().primary));

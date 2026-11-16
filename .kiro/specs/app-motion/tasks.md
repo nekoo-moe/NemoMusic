@@ -16,10 +16,14 @@ Owner pre-approved 2026-11-15.
   shortcut sheets, first-run notice; full-window Now Playing cover grow; capsule rise 16 px;
   overlay pane close; tooltip fade. Checks: tests that each surface enters, leaves and settles;
   snapshots of a mid-enter frame. _Requirements: 2, 3, 9, 10, 11_
-- [ ] 3. Details (`feat/nemo-ui-motion-details`, stacked on 2). Files: `gui/views/{pane.rs,
+- [x] 3. Details (`feat/nemo-ui-motion-details`, stacked on 2). Files: `gui/views/{pane.rs,
   shell/nav.rs,search*,bar*,kit*}`, `gui/app/*`. Does: sliding pills (tabs, nav, search chips),
   150 ms picture fade, still skeleton, title cross-fade, heart morph, menu hold. Checks: tests of
   pill targets, fade timing and that the skeleton asks for no frames once faded in.
+  Done in `gui/app/micro.rs`. Not done: the compact tabs of the classic Now Playing style
+  (`np_classic.rs`) still swap their fill; the skeleton fades in with the page entrance (its
+  block colours live in `detail.rs`, so a skeleton shown on an already settled page appears
+  at once). The title fades in on a track change; the old title does not fade out.
   _Requirements: 4, 5, 6, 7, 8, 9, 10, 11_
 
 Follow-up (not in this spec): the collection page (`gui/views/detail.rs`, its sort control
