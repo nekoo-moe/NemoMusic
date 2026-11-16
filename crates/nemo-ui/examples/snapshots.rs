@@ -16,6 +16,8 @@ mod feature;
 mod font_compare;
 #[path = "snapshots/lyrics_polish.rs"]
 mod lyrics_polish;
+#[path = "snapshots/motion.rs"]
+mod motion;
 #[path = "snapshots/np_classic.rs"]
 mod np_classic;
 #[path = "snapshots/opt_in.rs"]
@@ -66,6 +68,7 @@ fn scenarios() -> Vec<Shot> {
     theme::themes(&mut out);
     feature::features(&mut out);
     backdrop::backdrops(&mut out);
+    motion::shots(&mut out);
     out.extend(wave_lyrics::shots());
     out
 }

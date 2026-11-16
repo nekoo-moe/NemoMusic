@@ -10,7 +10,7 @@ Owner pre-approved 2026-11-15.
   rule, reduce-motion targets reached in the same update, OS reduce-motion read on Linux.
   Checks: presence and spring tests, app frame-idle tests, parser test. Steering: design.md 8.
   _Requirements: 1, 9, 10, 12_
-- [ ] 2. Surfaces (`feat/nemo-ui-motion-surfaces`, stacked on 1). Files: `gui/app/surfaces.rs`,
+- [x] 2. Surfaces (`feat/nemo-ui-motion-surfaces`, stacked on 1). Files: `gui/app/surfaces.rs`,
   `gui/views/{mod.rs,overlays.rs,panels.rs,shell.rs,now_playing*}`, `gui/style.rs`. Does:
   `Presence` for toast, track menu, signal popover, Timing popover, tools panel, create and
   shortcut sheets, first-run notice; full-window Now Playing cover grow; capsule rise 16 px;

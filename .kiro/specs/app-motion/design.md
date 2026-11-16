@@ -127,5 +127,6 @@ No new errors. A missing `gsettings`, a failed process or a slow answer reads as
 ## Steering conflicts
 
 - Owner override, 2026-11-15 (this wave): none needed so far; every motion here is inside
-  `design.md` section 8. Proposed `design.md` edit: name the overlay enter/exit
-  (`motion.base` in, `motion.fast` out) in section 8 so later surfaces follow it.
+  `design.md` section 8. Task 2 adds one line to `design.md` section 8 naming the surface
+  enter/exit (`motion.base` in, `motion.fast` out, rise 8, sheets 16, tooltips 4) so later
+  surfaces follow it (steering edits approved for this wave).

@@ -4,7 +4,7 @@
 //! layer.
 
 use iced::font::Weight;
-use iced::widget::{Space, button, column, container, opaque, row, text_input};
+use iced::widget::{Space, button, column, container, row, text_input};
 use iced::{Alignment, Background, Border, Color, Element, Length, Padding};
 
 use super::super::app::{App, CreateMsg, MINI_SIZE, Message};
@@ -13,7 +13,7 @@ use super::super::fx::fx;
 use super::super::style::{button_flat, col, fit, gap, icon_button, label, label_w, tip};
 use super::bar;
 use super::kit::{text_button, tonal_button, vspace};
-use super::overlays::{card_style, scrim};
+use super::overlays::{card_style, modal};
 use crate::explore::SHORTCUTS;
 use crate::theme::{color, shape, type_scale};
 
@@ -83,19 +83,15 @@ pub fn shortcuts_sheet(app: &App) -> Element<'_, Message> {
         ),
     ]
     .width(Length::Fixed(520.0));
-    iced::widget::stack![
-        scrim(0.5, Some(Message::Shortcuts(false))),
-        container(opaque(
-            container(body)
-                .padding(gap::XL)
-                .style(card_style(shape::xl()))
-        ))
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .center_x(Length::Fill)
-        .center_y(Length::Fill),
-    ]
-    .into()
+    modal(
+        container(body)
+            .padding(gap::XL)
+            .style(card_style(shape::xl())),
+        app.surfaces.shortcuts.value(),
+        0.5,
+        Some(Message::Shortcuts(false)),
+        shape::xl(),
+    )
 }
 
 /// The "Create playlist" sheet: a name field and Create.
@@ -174,19 +170,15 @@ pub fn create_sheet(app: &App) -> Element<'_, Message> {
         .align_y(Alignment::Center),
     ]
     .width(Length::Fixed(420.0));
-    iced::widget::stack![
-        scrim(0.5, Some(Message::Create(CreateMsg::Close))),
-        container(opaque(
-            container(body)
-                .padding(gap::XL)
-                .style(card_style(shape::xl()))
-        ))
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .center_x(Length::Fill)
-        .center_y(Length::Fill),
-    ]
-    .into()
+    modal(
+        container(body)
+            .padding(gap::XL)
+            .style(card_style(shape::xl())),
+        app.surfaces.create.value(),
+        0.5,
+        Some(Message::Create(CreateMsg::Close)),
+        shape::xl(),
+    )
 }
 
 /// The mini player: cover, title, artist, previous, play, next and a way back.

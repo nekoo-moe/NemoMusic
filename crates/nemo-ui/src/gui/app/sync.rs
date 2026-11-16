@@ -63,6 +63,7 @@ impl App {
                 .iter()
                 .any(|(x, w)| !x.is_settled() || !w.is_settled())
             || !self.queue_anim.is_settled()
+            || !self.surfaces.settled()
     }
 
     /// Point every animation at the state it should show. Cheap; runs after every update.
@@ -123,6 +124,7 @@ impl App {
 
     pub(super) fn sync_anim(&mut self) {
         self.sync_chips();
+        self.sync_surfaces();
         // The queue flag and the pane tab stay one fact.
         if self.ui.queue_open && !(self.pane_open && self.np_tab == NpTab::Queue) {
             self.pane_open = true;

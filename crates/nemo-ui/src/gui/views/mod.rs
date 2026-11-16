@@ -76,7 +76,7 @@ pub fn root(app: &App) -> Element<'_, Message> {
                 .into(),
         );
     }
-    if app.ui.signal_open {
+    if app.surfaces.signal.visible() {
         let (top, bottom) = if now_playing {
             (56.0, 0.0)
         } else {
@@ -129,10 +129,10 @@ pub fn root(app: &App) -> Element<'_, Message> {
                 .into(),
         );
     }
-    if let Some(track) = &app.ui.menu {
+    if let Some(track) = app.surfaces.menu_shown() {
         layers.push(overlays::track_menu(app, track));
     }
-    if app.tools_open {
+    if app.surfaces.tools.visible() {
         layers.push(
             container(panels::tools_panel(app))
                 .width(Length::Fill)
@@ -147,16 +147,16 @@ pub fn root(app: &App) -> Element<'_, Message> {
                 .into(),
         );
     }
-    if app.create_open {
+    if app.surfaces.create.visible() {
         layers.push(panels::create_sheet(app));
     }
-    if app.shortcuts_open {
+    if app.surfaces.shortcuts.visible() {
         layers.push(panels::shortcuts_sheet(app));
     }
     if app.account.open {
         layers.push(account::sheet(app));
     }
-    if app.ui.tos_sheet_visible() {
+    if app.surfaces.tos.visible() {
         layers.push(overlays::tos_sheet(app));
     }
     stack(layers).into()
