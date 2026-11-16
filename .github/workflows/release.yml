@@ -66,7 +66,7 @@ jobs:
           NemoMusic v$env:VERSION for Windows x64 and Linux x64 (unsigned, early development).
 
           Windows: unzip and run ``nemo-app.exe``.
-          Linux: untar and run ``./nemo-app``. Needs the GTK 3, WebKitGTK 4.1, libsoup 3, ALSA and
+          Linux: untar and run ``./nemo-app``. Built on Ubuntu 24.04: needs glibc 2.39 or newer. Needs the GTK 3, WebKitGTK 4.1, libsoup 3, ALSA and
           OpenSSL runtime libraries to start, and a Secret Service keyring for sign-in.
           YouTube playback uses [yt-dlp](https://github.com/yt-dlp/yt-dlp): yours when it is
           found, otherwise the app downloads the official release (checked against its SHA-256).
@@ -89,7 +89,11 @@ jobs:
         include:
           - os: windows-latest
             target: windows-x64
-          - os: ubuntu-latest
+          # Pinned, not `ubuntu-latest`: a binary needs the glibc of the machine that built it
+          # or newer. `ubuntu-latest` became 26.04 (glibc 2.43), and that build did not start on
+          # Ubuntu 24.04 or Linux Mint 22 (glibc 2.39). Raise this only when the README's
+          # "Tested on" system moves on.
+          - os: ubuntu-24.04
             target: linux-x64
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -113,6 +117,20 @@ jobs:
       # CMake for libopus ships on the windows-latest image; Linux gets it from apt above.
       - name: Build
         run: cargo build --release --locked -p nemo-app
+
+      # A binary that needs a newer glibc than Ubuntu 24.04 ships does not start there, and the
+      # loader prints its error where a desktop launcher shows nothing. Fail the release instead.
+      - name: Check the glibc the Linux binary needs
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          max=2.39
+          need=$(objdump -T target/release/nemo-app | grep -o 'GLIBC_[0-9.]*' | sed 's/GLIBC_//' | sort -uV | tail -1)
+          echo "nemo-app needs glibc $need (limit $max)"
+          if [ "$(printf '%s\n%s\n' "$max" "$need" | sort -V | tail -1)" != "$max" ]; then
+            echo "::error::nemo-app needs glibc $need, newer than $max (Ubuntu 24.04)"
+            exit 1
+          fi
 
       - name: Package and upload
         shell: pwsh
