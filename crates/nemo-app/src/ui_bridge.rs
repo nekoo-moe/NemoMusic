@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::{Sender, channel};
 use std::sync::{Arc, Mutex};
 
+use nemo_ui::collection_sort::{CollectionSort, MAX_REMEMBERED};
 use nemo_ui::scheme::{AccentIntensity, BaseMode, CornerStyle, ThemeChoice};
 use nemo_ui::{
     AnimatedCoverSettings, GlassTier as UiGlass, NowPlayingStyle, UiOptions, UiSettings,
@@ -49,6 +50,14 @@ pub fn to_ui(s: &Settings) -> UiSettings {
         animated_covers: AnimatedCoverSettings {
             spotify_canvas: s.animated_covers.spotify_canvas,
         },
+        // Unknown labels (an older or newer file) and the default order are skipped.
+        collection_sorts: s
+            .collection_sorts
+            .iter()
+            .filter_map(|(k, v)| Some((k.clone(), CollectionSort::from_label(v)?)))
+            .filter(|(_, v)| *v != CollectionSort::Default)
+            .take(MAX_REMEMBERED)
+            .collect(),
     }
 }
 
@@ -74,6 +83,11 @@ pub fn apply_ui(s: &mut Settings, ui: &UiSettings) {
         .label()
         .clone_into(&mut s.now_playing_style);
     s.animated_covers.spotify_canvas = ui.animated_covers.spotify_canvas;
+    s.collection_sorts = ui
+        .collection_sorts
+        .iter()
+        .map(|(k, v)| (k.clone(), v.label().to_owned()))
+        .collect();
 }
 
 /// Start the saver thread and build the UI options. The callback only sends on a channel, so
@@ -178,6 +192,32 @@ mod tests {
             apply_ui(&mut s, &ui);
             assert_eq!(to_ui(&s), ui);
         }
+    }
+
+    #[test]
+    fn page_sorts_round_trip_and_unknown_labels_are_dropped() {
+        let mut s = Settings::default();
+        let mut ui = to_ui(&s);
+        ui.collection_sorts
+            .insert("playlist:PLa".to_owned(), CollectionSort::Title);
+        ui.collection_sorts
+            .insert("album:MPREb".to_owned(), CollectionSort::Duration);
+        apply_ui(&mut s, &ui);
+        assert_eq!(
+            s.collection_sorts.get("playlist:PLa").map(String::as_str),
+            Some("Title")
+        );
+        assert_eq!(to_ui(&s), ui);
+        // A label from another version, and the default order, give no entry.
+        s.collection_sorts
+            .insert("playlist:old".to_owned(), "Newest first".to_owned());
+        s.collection_sorts
+            .insert("playlist:def".to_owned(), "Default order".to_owned());
+        assert_eq!(to_ui(&s).collection_sorts.len(), 2);
+        // The stored file keeps the field through JSON.
+        let json = serde_json::to_string(&s).expect("serialises");
+        let back: Settings = serde_json::from_str(&json).expect("parses");
+        assert_eq!(back.collection_sorts, s.collection_sorts);
     }
 
     #[test]

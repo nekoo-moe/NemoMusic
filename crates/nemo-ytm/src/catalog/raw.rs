@@ -58,6 +58,12 @@ pub(crate) struct RawAlbumTrack {
 pub(crate) struct RawAlbumPage {
     pub album: RawAlbum,
     pub tracks: Vec<RawAlbumTrack>,
+    /// Picture of the album artist.
+    pub artist_thumbnails: Vec<Thumbnail>,
+    /// `8 songs`, as the header writes it.
+    pub track_count_text: Option<String>,
+    /// `28 minutes`, as the header writes it.
+    pub duration_text: Option<String>,
 }
 
 /// An artist page.

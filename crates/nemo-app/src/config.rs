@@ -88,6 +88,9 @@ pub struct Settings {
     pub effects: StoredEffects,
     /// Crossfade and smart transitions; off when missing (audio-effects).
     pub transition: StoredTransition,
+    /// The order picked on album and playlist pages: page key (`album:<id>`, `playlist:<id>`)
+    /// to the order's label; a page in its default order has no entry (collection-sort-meta).
+    pub collection_sorts: BTreeMap<String, String>,
 }
 
 /// Stored animated-cover switches. A missing field is off.
@@ -133,6 +136,7 @@ impl Default for Settings {
             opt_ins: BTreeMap::new(),
             effects: StoredEffects::default(),
             transition: StoredTransition::default(),
+            collection_sorts: BTreeMap::new(),
         }
     }
 }

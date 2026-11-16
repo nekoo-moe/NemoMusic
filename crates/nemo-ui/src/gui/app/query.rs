@@ -3,8 +3,9 @@
 use super::super::style;
 use super::App;
 use super::art::{ArtEntry, ArtShape, ArtSpec};
-use super::model::{DetailData, DetailState, ListSource};
+use super::model::{DetailData, DetailKey, DetailKind, DetailState, ListSource};
 use super::option::AccountLibrary;
+use crate::collection_sort::{CollectionSort, page_key, sorted};
 use crate::layout;
 use crate::palette::Palette;
 use crate::route::Route;
@@ -20,6 +21,24 @@ const YOUR_PLAYLISTS: &str = "Your playlists";
 const LIKED_SONGS: &str = "Liked songs";
 
 impl App {
+    /// The settings key of an album or playlist page; `None` for an artist page (no Sort).
+    #[must_use]
+    pub fn sort_key(key: &DetailKey) -> Option<String> {
+        match key.kind {
+            DetailKind::Album => Some(page_key(true, &key.id.0)),
+            DetailKind::Playlist => Some(page_key(false, &key.id.0)),
+            DetailKind::Artist => None,
+        }
+    }
+
+    /// The order an album or playlist page shows its songs in (the remembered choice).
+    #[must_use]
+    pub fn collection_sort(&self, key: &DetailKey) -> CollectionSort {
+        Self::sort_key(key)
+            .and_then(|k| self.ui.settings.collection_sorts.get(&k).copied())
+            .unwrap_or_default()
+    }
+
     /// `true` when the parent wired playback speed (otherwise the chips are disabled).
     #[must_use]
     pub fn speed_wired(&self) -> bool {
@@ -186,11 +205,12 @@ impl App {
                         .collect()
                 })
                 .unwrap_or_default(),
+            // Album and playlist songs in the order the page shows them (its Sort control).
             ListSource::Detail(key) => match self.details.get(key) {
                 Some(DetailState::Ready(d)) => match d.as_ref() {
-                    DetailData::Album(a) => a.tracks.clone(),
+                    DetailData::Album(a) => sorted(&a.tracks, self.collection_sort(key)),
                     DetailData::Artist(a) => a.top_songs.clone(),
-                    DetailData::Playlist(p) => p.tracks.clone(),
+                    DetailData::Playlist(p) => sorted(&p.tracks, self.collection_sort(key)),
                 },
                 _ => Vec::new(),
             },

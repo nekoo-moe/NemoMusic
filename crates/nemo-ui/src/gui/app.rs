@@ -127,7 +127,7 @@ pub struct App {
     pub(crate) frame_stats: FrameStats,
     pub(crate) readout: bool,
     pub(crate) music_folders: Vec<String>,
-    on_settings: Option<Arc<dyn Fn(UiSettings) + Send + Sync>>,
+    pub(crate) on_settings: Option<Arc<dyn Fn(UiSettings) + Send + Sync>>,
     on_add_music_folder: Option<Arc<dyn Fn() + Send + Sync>>,
     focus_search: bool,
     last_route: Route,
@@ -186,6 +186,8 @@ pub struct App {
     pub(crate) lyric_sources: Vec<LyricsProviderStatus>,
     /// A page whose songs should play as soon as it has loaded.
     pending_play: Option<DetailKey>,
+    /// The page whose Sort menu is open.
+    pub(crate) sort_menu: Option<DetailKey>,
     /// The pending page plays shuffled.
     pending_shuffle: bool,
     /// Daily sections: the data, the built sections and what they were built from.
@@ -303,6 +305,7 @@ impl App {
             lyric_credit: None,
             lyric_sources: Vec::new(),
             pending_play: None,
+            sort_menu: None,
             pending_shuffle: false,
             daily: DailyData::default(),
             daily_sections: Vec::new(),

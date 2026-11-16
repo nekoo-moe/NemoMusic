@@ -236,6 +236,7 @@ impl Catalog for OfflineCatalog {
             Ok(Some((title, tracks))) => Ok(AlbumDetail {
                 summary: album_summary(id.clone(), title),
                 tracks,
+                meta: nemo_core::catalog::CollectionMeta::default(),
             }),
             Ok(None) => Err(CatalogError::NotFound),
             Err(err) => Err(db(err)),
@@ -257,6 +258,7 @@ impl Catalog for OfflineCatalog {
                 summary: playlist_summary(id.clone(), title),
                 tracks,
                 edit: None,
+                meta: nemo_core::catalog::CollectionMeta::default(),
             }),
             Ok(None) => Err(CatalogError::NotFound),
             Err(err) => Err(db(err)),

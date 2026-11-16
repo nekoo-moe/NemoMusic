@@ -239,6 +239,7 @@ mod tests {
                 Ok(AlbumDetail {
                     summary,
                     tracks: Vec::new(),
+                    meta: nemo_core::catalog::CollectionMeta::default(),
                 })
             })
         }

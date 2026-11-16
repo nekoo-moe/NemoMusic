@@ -24,7 +24,11 @@ use crate::state::Event;
 use crate::theme::{color, type_scale};
 
 pub mod collection;
+mod meta_line;
 mod song_row;
+mod sort_menu;
+#[cfg(test)]
+mod sort_tests;
 
 /// Hero art size.
 const HERO: u32 = 320;
@@ -168,8 +172,12 @@ fn album<'a>(
         kind: "Album",
         artwork: Artwork::Remote(a.summary.thumbnails.clone()),
         title: &a.summary.title,
-        owner: (!a.summary.artists.is_empty()).then(|| format::artists(&a.summary.artists)),
-        year: a.summary.year,
+        owner: a.meta.owner.clone().or_else(|| {
+            (!a.summary.artists.is_empty()).then(|| format::artists(&a.summary.artists))
+        }),
+        year: a.summary.year.or(a.meta.year),
+        privacy: None,
+        meta: &a.meta,
         tracks: &a.tracks,
         numbered: true,
     };
@@ -186,8 +194,14 @@ fn playlist<'a>(
         kind: "Playlist",
         artwork: Artwork::Remote(p.summary.thumbnails.clone()),
         title: &p.summary.title,
-        owner: p.summary.author.clone(),
-        year: None,
+        owner: p.meta.owner.clone().or_else(|| p.summary.author.clone()),
+        year: p.meta.year,
+        // One's own playlist knows its privacy from the edit data even when the header is quiet.
+        privacy: p
+            .meta
+            .privacy
+            .or_else(|| p.edit.as_ref().map(|e| e.privacy)),
+        meta: &p.meta,
         tracks: &p.tracks,
         numbered: false,
     };
