@@ -7,6 +7,7 @@ mod config;
 mod logging;
 mod merged;
 mod opt_in_gate;
+mod os_motion;
 mod paths;
 mod play_hub;
 mod ui_bridge;

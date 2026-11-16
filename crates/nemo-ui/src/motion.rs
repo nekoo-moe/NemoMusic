@@ -12,6 +12,9 @@
 use crate::palette::Palette;
 use crate::theme::motion::ACCENT_CROSSFADE_MS;
 
+mod presence;
+pub use presence::Presence;
+
 /// Evaluate a CSS-style cubic bezier easing `(x1, y1, x2, y2)` at time fraction `x` (0 to 1).
 #[must_use]
 pub fn cubic_bezier(x1: f32, y1: f32, x2: f32, y2: f32, x: f32) -> f32 {
@@ -37,6 +40,12 @@ pub fn cubic_bezier(x1: f32, y1: f32, x2: f32, y2: f32, x: f32) -> f32 {
 #[must_use]
 pub fn emphasized_decelerate(t: f32) -> f32 {
     cubic_bezier(0.05, 0.7, 0.1, 1.0, t)
+}
+
+/// Emphasized-accelerate easing, `cubic-bezier(0.3, 0, 0.8, 0.15)`: for things that leave.
+#[must_use]
+pub fn emphasized_accelerate(t: f32) -> f32 {
+    cubic_bezier(0.3, 0.0, 0.8, 0.15, t)
 }
 
 /// An accent cross-fade between two palettes, lasting [`ACCENT_CROSSFADE_MS`].
@@ -131,6 +140,8 @@ impl Spring {
     const REST: f32 = 0.25;
     /// Same for a spring on a 0 to 1 value.
     const REST_UNIT: f32 = 0.002;
+    /// Frame rate the rest speed is measured against.
+    const FRAMES_PER_S: f32 = 60.0;
 
     /// A px spring at rest at `value` (`spatial.default`).
     #[must_use]
@@ -169,10 +180,12 @@ impl Spring {
         self.snap(self.target);
     }
 
-    /// `true` once at rest on the target.
+    /// `true` once at rest on the target: closer than the rest distance, and too slow to move
+    /// that far in one 60 fps frame (a stricter speed test only burns invisible frames).
     #[must_use]
     pub fn is_settled(&self) -> bool {
-        (self.value - self.target).abs() < self.rest && self.velocity.abs() < self.rest
+        (self.value - self.target).abs() < self.rest
+            && self.velocity.abs() < self.rest * Self::FRAMES_PER_S
     }
 
     /// Advance by `dt_s` seconds (substeps of at most 4 ms keep the integration stable).

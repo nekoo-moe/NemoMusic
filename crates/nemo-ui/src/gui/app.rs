@@ -38,6 +38,8 @@ mod account;
 mod art;
 mod dispatch;
 mod explore;
+#[cfg(test)]
+mod frame_tests;
 mod handle;
 mod job;
 mod message;
