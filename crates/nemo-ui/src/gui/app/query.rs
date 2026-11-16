@@ -91,6 +91,16 @@ impl App {
         size: u32,
         shape: ArtShape,
     ) -> Option<image::Handle> {
+        self.art_shown(artwork, size, shape).map(|(h, _)| h)
+    }
+
+    /// [`App::art_handle`] with the opacity to draw it at: below 1 while it fades in.
+    pub fn art_shown(
+        &self,
+        artwork: &Artwork,
+        size: u32,
+        shape: ArtShape,
+    ) -> Option<(image::Handle, f32)> {
         let spec = ArtSpec {
             artwork: artwork.clone(),
             size,
@@ -99,7 +109,7 @@ impl App {
         };
         let key = spec.key()?;
         match self.art.get(&key) {
-            Some(ArtEntry::Ready(h)) => Some(h.clone()),
+            Some(ArtEntry::Ready(h)) => Some((h.clone(), self.micro.art.opacity(&key))),
             Some(ArtEntry::Loading | ArtEntry::Missing) => None,
             None => {
                 self.wants.borrow_mut().push(spec);

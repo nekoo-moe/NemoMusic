@@ -1,12 +1,12 @@
 //! The left pane: brand, navigation pills and the library list below them.
 
 use iced::font::Weight;
-use iced::widget::{Space, button, column, container, row};
+use iced::widget::{Space, button, column, container, row, stack};
 use iced::{Alignment, Border, Color, Element, Length, Padding};
 
 use super::pane_surface;
 use super::sidebar::{library_chips, library_header, library_list};
-use crate::gui::app::{App, Message};
+use crate::gui::app::{App, Message, NAV_ENTRIES};
 use crate::gui::assets::Icon;
 use crate::gui::fx::fx;
 use crate::gui::style::{button_flat, col, gap, icon, icon_button, label, label_w, tip};
@@ -62,13 +62,8 @@ pub(super) fn left_pane(app: &App, width: f32, _h: u32) -> Element<'_, Message> 
         }
     };
 
-    let mut nav = column![brand, vspace(gap::SM)].spacing(gap::XS);
-    for entry in [
-        NavEntry::Home,
-        NavEntry::Explore,
-        NavEntry::Search,
-        NavEntry::Library,
-    ] {
+    let mut entries = column![].spacing(gap::XS);
+    for entry in NAV_ENTRIES {
         let on = selected == Some(entry);
         let (glyph, text) = match entry {
             NavEntry::Home => (if on { Icon::HomeFill } else { Icon::Home }, "Home"),
@@ -79,8 +74,9 @@ pub(super) fn left_pane(app: &App, width: f32, _h: u32) -> Element<'_, Message> 
                 "Library",
             ),
         };
-        nav = nav.push(nav_pill(app, glyph, text, on, entry.route(), wide));
+        entries = entries.push(nav_pill(app, glyph, text, on, entry.route(), wide));
     }
+    let nav = column![brand, vspace(gap::SM), nav_stack(app, entries.into())].spacing(gap::XS);
 
     let mut c = column![nav].width(Length::Fill);
     if wide {
@@ -120,7 +116,43 @@ pub(super) fn left_pane(app: &App, width: f32, _h: u32) -> Element<'_, Message> 
     .into()
 }
 
-/// A navigation pill: filled with the cover's `secondary-container` when active.
+/// The entries over one selection pill that slides from entry to entry (`spatial.fast`) and
+/// fades when no entry is current. The first layer sizes the stack.
+fn nav_stack<'a>(app: &App, entries: Element<'a, Message>) -> Element<'a, Message> {
+    let fill = col(app.accent().secondary_container).scale_alpha(app.micro.nav_on.value);
+    let pill = container(Space::new())
+        .width(Length::Fill)
+        .height(Length::Fixed(PILL_H))
+        .style(move |_| container::Style {
+            background: Some(fill.into()),
+            border: Border {
+                radius: shape::FULL.into(),
+                ..Border::default()
+            },
+            ..container::Style::default()
+        });
+    let layer = column![
+        Space::new().height(Length::Fixed(nav_pill_y(app.micro.nav.value))),
+        pill
+    ];
+    let count = f32::from(u8::try_from(NAV_ENTRIES.len()).unwrap_or(4));
+    stack![
+        Space::new()
+            .width(Length::Fill)
+            .height(Length::Fixed(count * PILL_H + (count - 1.0) * gap::XS)),
+        layer,
+        entries
+    ]
+    .into()
+}
+
+/// Top of the pill at entry position `at` (entry steps; 1 is the second entry).
+#[must_use]
+fn nav_pill_y(at: f32) -> f32 {
+    at.max(0.0) * (PILL_H + gap::XS)
+}
+
+/// A navigation pill: the cover's `secondary-container` sits under it when active.
 fn nav_pill<'a>(
     app: &App,
     glyph: Icon,
@@ -134,11 +166,6 @@ fn nav_pill<'a>(
         col(accent.on_secondary_container)
     } else {
         col(color::on_surface_variant())
-    };
-    let idle = if on {
-        col(accent.secondary_container)
-    } else {
-        Color::TRANSPARENT
     };
     let inner: Element<'_, Message> = if wide {
         row![
@@ -167,8 +194,24 @@ fn nav_pill<'a>(
         .padding(0)
         .width(Length::Fill)
         .on_press(Message::Ui(Event::Go(target)));
-    let el = fx(b.style(button_flat(idle, shape::FULL)))
+    let el = fx(b.style(button_flat(Color::TRANSPARENT, shape::FULL)))
         .layer(ink)
         .radius(shape::FULL);
     if wide { el.into() } else { tip(el, text) }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_pill_sits_on_the_entry_it_follows() {
+        assert!(nav_pill_y(0.0).abs() < 1e-6);
+        assert!((nav_pill_y(1.0) - (PILL_H + gap::XS)).abs() < 1e-6);
+        assert!((nav_pill_y(3.0) - 3.0 * (PILL_H + gap::XS)).abs() < 1e-6);
+        assert!(
+            nav_pill_y(-0.2).abs() < 1e-6,
+            "a spring tail never goes above the first"
+        );
+    }
 }

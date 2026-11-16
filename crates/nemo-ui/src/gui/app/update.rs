@@ -172,6 +172,7 @@ impl App {
         let mut jobs = Vec::new();
         self.anim.step(dt);
         self.surfaces.advance(dt);
+        self.micro.advance(dt);
         self.scheme_fade.advance(dt);
         self.bg_fade.advance(dt);
         for (sx, sw) in &mut self.chip_pills {
@@ -179,14 +180,13 @@ impl App {
             sw.step(dt.min(50.0) / 1000.0);
         }
         self.queue_anim.step(dt.min(50.0) / 1000.0);
-        if self.ui.is_playing() && !self.ui.reduced_motion {
+        // While a track menu is open nothing but the menu moves (app-motion spec, criterion 11).
+        let held = self.surfaces.menu.visible();
+        if self.ui.is_playing() && !self.ui.reduced_motion && !held {
             self.eq_phase = (self.eq_phase + dt.min(100.0) / 170.0) % (std::f32::consts::TAU * 8.0);
         }
-        if self.detail_loading() && !self.ui.reduced_motion {
-            self.shimmer = (self.shimmer + dt.min(100.0) / 1400.0) % 1.0;
-        }
         color::set_active(self.scheme_fade.current());
-        if (self.ui.is_buffering() || self.account_busy()) && !self.ui.reduced_motion {
+        if (self.ui.is_buffering() || self.account_busy()) && !self.ui.reduced_motion && !held {
             // One calm turn per 1.2 s.
             self.spin = (self.spin + dt.min(100.0) / 1200.0 * std::f32::consts::TAU)
                 % std::f32::consts::TAU;
@@ -428,6 +428,7 @@ impl App {
         self.bg_fade.finish();
         self.anim.finish();
         self.surfaces.finish();
+        self.micro.finish();
     }
 
     /// Run jobs to completion on the calling thread (headless runs and tests).

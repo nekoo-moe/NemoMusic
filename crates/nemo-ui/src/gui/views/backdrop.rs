@@ -30,7 +30,8 @@ pub fn window_inputs(app: &App) -> Inputs {
         reduce_motion: app.ui.reduced_motion,
         reduce_transparency: app.ui.settings.reduce_transparency,
         focused: true,
-        playing: app.ui.is_playing(),
+        // Nothing but a menu moves while a track menu is open.
+        playing: app.ui.is_playing() && !app.surfaces.menu.visible(),
         visible: !matches!(app.ui.route(), Route::NowPlaying),
         software: false,
     }

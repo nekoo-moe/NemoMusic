@@ -189,12 +189,14 @@ fn track_info(app: &App, width: f32) -> Element<'_, Message> {
         return Space::new().into();
     };
     let text_w = width - 48.0 - gap::MD;
+    // The title and artist fade in with a new song.
+    let fade = app.title_fade();
     let texts = column![
         label(
             fit(&track.title, text_w, type_scale::BODY_MD.size),
             type_scale::BODY_MD,
             true,
-            col(color::on_surface())
+            col(color::on_surface()).scale_alpha(fade)
         ),
         label(
             fit(
@@ -204,7 +206,7 @@ fn track_info(app: &App, width: f32) -> Element<'_, Message> {
             ),
             type_scale::BODY_SM,
             false,
-            col(color::on_surface_variant())
+            col(color::on_surface_variant()).scale_alpha(fade)
         ),
     ];
     let b = button(

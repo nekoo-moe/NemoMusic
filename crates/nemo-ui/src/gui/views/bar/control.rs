@@ -1,6 +1,6 @@
 //! Transport controls of the player capsule: shuffle, previous, play, next, repeat and like.
 
-use iced::widget::{button, container, row};
+use iced::widget::{button, container, row, stack};
 use iced::{Alignment, Color, Element, Length};
 
 use crate::anim::play_radius;
@@ -118,31 +118,36 @@ pub fn like_button<'a>(
             "Sign in to like songs",
         );
     }
-    if app.is_liked(track) {
-        tip(
-            icon_button(
-                Icon::HeartFill,
-                glyph_size,
-                target,
-                col(app.accent().primary),
-                Color::TRANSPARENT,
-                message,
-            ),
-            "Remove from liked songs",
-        )
-    } else {
-        tip(
-            icon_button(
-                Icon::Heart,
-                glyph_size,
-                target,
-                col(color::on_surface()),
-                Color::TRANSPARENT,
-                message,
-            ),
-            "Like this song",
-        )
-    }
+    // The outline fades out as the fill fades in (`effects.fast`); the tree is the same in
+    // both states, so a hovered button keeps its state layer through the change.
+    let fill = app.heart_fill(track);
+    let outline = icon_button(
+        Icon::Heart,
+        glyph_size,
+        target,
+        col(color::on_surface()).scale_alpha(1.0 - fill),
+        Color::TRANSPARENT,
+        message,
+    );
+    let filled = container(icon(
+        Icon::HeartFill,
+        glyph_size,
+        col(app.accent().primary).scale_alpha(fill),
+    ))
+    .width(Length::Fixed(target))
+    .height(Length::Fixed(target))
+    .center_x(Length::Fixed(target))
+    .center_y(Length::Fixed(target));
+    tip(
+        stack![outline, filled]
+            .width(Length::Fixed(target))
+            .height(Length::Fixed(target)),
+        if app.is_liked(track) {
+            "Remove from liked songs"
+        } else {
+            "Like this song"
+        },
+    )
 }
 
 fn prev_button<'a>(ink: Color, target: f32) -> Element<'a, Message> {

@@ -5,12 +5,12 @@
 //! picks it. The picked chip takes the cover's `secondary-container`.
 
 use iced::Element;
-use iced::widget::{column, row};
+use iced::widget::column;
 use nemo_core::catalog::SearchKind;
 
 use super::super::super::app::{App, Message};
 use super::super::super::assets::Icon;
-use super::super::kit::{CHIP_GAP, chip, status};
+use super::super::kit::{sliding_chips, status};
 use super::section::{self, Frame};
 use super::{no_results, searching};
 use crate::state::Event;
@@ -29,20 +29,37 @@ pub(super) fn label(kind: Option<SearchKind>) -> &'static str {
     }
 }
 
-/// All, then one chip per [`SearchKind::FILTERS`].
+/// The labels of the chips, All first.
+#[must_use]
+pub(crate) fn labels() -> Vec<&'static str> {
+    std::iter::once(None)
+        .chain(SearchKind::FILTERS.into_iter().map(Some))
+        .map(label)
+        .collect()
+}
+
+/// Position of the chip of `picked` in [`labels`].
+#[must_use]
+pub(crate) fn index(picked: Option<SearchKind>) -> usize {
+    picked.map_or(0, |k| {
+        SearchKind::FILTERS
+            .iter()
+            .position(|f| *f == k)
+            .map_or(0, |i| i + 1)
+    })
+}
+
+/// The kind of the chip at `i` (All is 0).
+fn kind_at(i: usize) -> Option<SearchKind> {
+    i.checked_sub(1)
+        .and_then(|j| SearchKind::FILTERS.get(j).copied())
+}
+
+/// All, then one chip per [`SearchKind::FILTERS`], with a pill that slides to the picked one.
 pub(super) fn chips(app: &App, picked: Option<SearchKind>) -> Element<'_, Message> {
-    let accent = app.accent();
-    let mut r = row![].spacing(CHIP_GAP);
-    let kinds = std::iter::once(None).chain(SearchKind::FILTERS.into_iter().map(Some));
-    for kind in kinds {
-        r = r.push(chip(
-            label(kind),
-            kind == picked,
-            accent,
-            Message::Ui(Event::SearchFilter(kind)),
-        ));
-    }
-    r.into()
+    sliding_chips(app, &labels(), index(picked), 2, |i| {
+        Message::Ui(Event::SearchFilter(kind_at(i)))
+    })
 }
 
 /// The answer of chip `kind`: its section in full, or the state of its search.
@@ -84,5 +101,17 @@ mod tests {
                 "Community playlists"
             ]
         );
+    }
+
+    #[test]
+    fn a_chip_index_round_trips_to_its_kind() {
+        assert_eq!(index(None), 0);
+        assert_eq!(kind_at(0), None);
+        for (i, kind) in SearchKind::FILTERS.into_iter().enumerate() {
+            assert_eq!(index(Some(kind)), i + 1);
+            assert_eq!(kind_at(i + 1), Some(kind));
+        }
+        assert_eq!(kind_at(99), None);
+        assert_eq!(labels().len(), SearchKind::FILTERS.len() + 1);
     }
 }
