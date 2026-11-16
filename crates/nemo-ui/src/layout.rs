@@ -173,10 +173,10 @@ pub const RIGHT_WIDER: u32 = 380;
 pub const RIGHT_OVERLAY: u32 = 340;
 /// Window width from which the right pane pushes the centre pane and is open by default.
 pub const RIGHT_PUSH_BREAKPOINT: u32 = 1280;
-/// Floating capsule height.
-pub const CAPSULE_HEIGHT: u32 = 72;
-/// Gap between the capsule and the window bottom.
-pub const CAPSULE_MARGIN: u32 = 8;
+/// Docked horizontal player bar height.
+pub const CAPSULE_HEIGHT: u32 = 76;
+/// Gap between the bar and the window bottom (docked: 0).
+pub const CAPSULE_MARGIN: u32 = 0;
 /// Widest capsule.
 pub const CAPSULE_MAX: u32 = 1280;
 /// Narrowest capsule.

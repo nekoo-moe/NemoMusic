@@ -12,7 +12,7 @@ use iced::{Background, ContentFit, Element, Length};
 use super::super::app::{App, Message};
 use super::super::style::{DOWN, col, vertical_gradient};
 use crate::canvas::{STOPS, mix_stops};
-use crate::drift::{Inputs, Mode, VIGNETTE_ALPHA};
+use crate::drift::{Inputs, Mode};
 use crate::route::Route;
 use crate::theme::{Rgba, color};
 
@@ -76,9 +76,30 @@ pub fn window_field(app: &App) -> Element<'_, Message> {
         handle: cover.canvas.texture(base),
         opacity: if prev.is_some() { fade } else { 1.0 },
     });
-    stack![Element::from(Field::new(layers, inputs)), vignette()]
+    stack![
+        Element::from(Field::new(layers, inputs)),
+        ambient_glow(app),
+        vignette()
+    ]
+    .width(Length::Fill)
+    .height(Length::Fill)
+    .into()
+}
+
+/// A soft top ambient glow from the active cover accent color (Liner Desktop style).
+fn ambient_glow<'a>(app: &App) -> Element<'a, Message> {
+    let primary = app.accent().primary;
+    let g = iced::gradient::Linear::new(iced::Radians(DOWN))
+        .add_stop(0.0, col(primary.with_alpha(0.18)))
+        .add_stop(0.5, col(primary.with_alpha(0.04)))
+        .add_stop(1.0, iced::Color::TRANSPARENT);
+    container(Space::new())
         .width(Length::Fill)
         .height(Length::Fill)
+        .style(move |_| container::Style {
+            background: Some(Background::Gradient(g.into())),
+            ..container::Style::default()
+        })
         .into()
 }
 
@@ -87,7 +108,8 @@ fn vignette<'a>() -> Element<'a, Message> {
     let base = color::surface_container_lowest();
     let g = iced::gradient::Linear::new(iced::Radians(DOWN))
         .add_stop(0.0, iced::Color::TRANSPARENT)
-        .add_stop(1.0, col(base.with_alpha(VIGNETTE_ALPHA)));
+        .add_stop(0.4, col(base.with_alpha(0.25)))
+        .add_stop(1.0, col(base.with_alpha(0.75)));
     container(Space::new())
         .width(Length::Fill)
         .height(Length::Fill)
@@ -114,6 +136,7 @@ fn gradient_field(app: &App) -> Element<'_, Message> {
                 background: Some(Background::Gradient(diag.into())),
                 ..container::Style::default()
             }),
+        ambient_glow(app),
         vignette()
     ]
     .width(Length::Fill)
