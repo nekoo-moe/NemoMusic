@@ -1,0 +1,87 @@
+{
+  "KpoeTools": "1.7-1-ConvertTTMLtoJSON-DOMParser",
+  "type": "Word",
+  "metadata": {
+    "source": "Apple",
+    "songWriters": ["Test Writer"],
+    "agents": { "v1": { "type": "person", "name": "", "alias": "v1" } },
+    "songParts": [
+      { "name": "Verse", "time": 25865, "duration": 22670, "divIndex": 0 },
+      { "name": "Chorus", "time": 196061, "duration": 3783, "divIndex": 1 }
+    ],
+    "language": "vi",
+    "totalDuration": "5:01.538"
+  },
+  "lyrics": [
+    {
+      "time": 25865,
+      "duration": 3795,
+      "text": "Sáng nay trời trong xanh lắm nhé",
+      "syllabus": [
+        { "time": 25865, "duration": 682, "text": "Sáng " },
+        { "time": 26547, "duration": 334, "text": "nay " },
+        { "time": 26881, "duration": 401, "text": "trời " },
+        { "time": 27282, "duration": 234, "text": "trong " },
+        { "time": 27516, "duration": 386, "text": "xanh " },
+        { "time": 27902, "duration": 341, "text": "lắm " },
+        { "time": 28243, "duration": 1417, "text": "nhé" }
+      ],
+      "element": { "key": "L1", "singer": "v1", "songPartIndex": 0 }
+    },
+    {
+      "time": 29870,
+      "duration": 2573,
+      "text": "Mình đi dạo quanh hồ",
+      "syllabus": [
+        { "time": 29870, "duration": 453, "text": "Mình " },
+        { "time": 30323, "duration": 296, "text": "đi " },
+        { "time": 30619, "duration": 226, "text": "dạo " },
+        { "time": 30845, "duration": 346, "text": "quanh " },
+        { "time": 31191, "duration": 363, "text": "hồ" }
+      ],
+      "element": { "key": "L2", "singer": "v1", "songPartIndex": 0 }
+    },
+    {
+      "time": 196061,
+      "duration": 3783,
+      "text": "Một hai ba bốn năm sáu bảy (tám chín mười một hai)",
+      "syllabus": [
+        { "time": 196061, "duration": 326, "text": "Một " },
+        { "time": 196387, "duration": 162, "text": "hai " },
+        { "time": 196549, "duration": 189, "text": "ba " },
+        { "time": 196738, "duration": 226, "text": "bốn " },
+        { "time": 196964, "duration": 358, "text": "năm " },
+        { "time": 197322, "duration": 312, "text": "sáu " },
+        { "time": 197634, "duration": 590, "text": "bảy " },
+        { "time": 198206, "duration": 285, "text": "(tám ", "isBackground": true },
+        { "time": 198491, "duration": 389, "text": "chín ", "isBackground": true },
+        { "time": 198880, "duration": 281, "text": "mười ", "isBackground": true },
+        { "time": 199161, "duration": 381, "text": "một ", "isBackground": true },
+        { "time": 199542, "duration": 302, "text": "hai)", "isBackground": true }
+      ],
+      "element": { "key": "L60", "singer": "v1", "songPartIndex": 1 }
+    }
+  ],
+  "cached": "Database",
+  "processingTime": {
+    "timeElapsed": 1258,
+    "lastProcessed": 1794757849889,
+    "totalElapsedMs": 1258,
+    "winnerSource": "apple",
+    "sourcesStatus": {
+      "apple": { "status": "OK" },
+      "deezer": { "status": "SKIP" },
+      "lyricsplus": { "status": "SKIP" },
+      "qq": { "status": "SKIP" }
+    },
+    "selectedSongMetadata": {
+      "source": "Apple",
+      "title": "Test Song",
+      "artist": "Test Artist",
+      "album": "Test Album - Single",
+      "duration": 301.538,
+      "songISRC": "XX0000000000",
+      "songPlatformId": "1"
+    }
+  }
+}

@@ -73,6 +73,7 @@ These are the only hosts NemoMusic contacts. Adding a host needs owner approval.
 | `unison.betterlyrics.org` | Community lyrics (Unison), syllable timing, credited in the lyrics view | When lyrics are shown |
 | `api.betterlyrics.org` | Better Lyrics API, syllable timing, cached answers only (no key), credited in the lyrics view | When lyrics are shown (on by default, can be switched off in settings) |
 | `music.163.com`, `api-lyrics.simpmusic.org` | Extra lyrics sources, grey area, line timing | Only if you switch the source on in settings (off by default) |
+| `lyricsplus.prjktla.my.id` | LyricsPlus, an unofficial volunteer relay of Apple Music, Deezer and QQ Music lyrics, syllable timing, credited in the lyrics view. Sends title, artist, album and duration | Only if you switch the source on in settings (off by default) |
 | `sponsor.ajay.app` | SponsorBlock segments (only a 4-character hash prefix is sent) | Only when SponsorBlock is on |
 | `ws.audioscrobbler.com` | Last.fm API: now playing and scrobbles (title, artist, album, play time), over HTTPS only | Only when Last.fm is on |
 | `accounts.google.com`, `*.gstatic.com` | Google sign-in page | Only while you sign in |
@@ -117,7 +118,7 @@ cargo test --workspace
 
 ## Credits
 
-- Lyrics: [Unison](https://unison.betterlyrics.org) and the [Better Lyrics](https://better-lyrics.boidu.dev/) API (syllable timing), [LRCLIB](https://lrclib.net), and your own `.lrc` files; NetEase and SimpMusic only if you switch them on. The best timed result is picked automatically (syllable, then word, then line). The provider name is shown with every lyric.
+- Lyrics: [Unison](https://unison.betterlyrics.org) and the [Better Lyrics](https://better-lyrics.boidu.dev/) API (syllable timing), [LRCLIB](https://lrclib.net), and your own `.lrc` files; NetEase, SimpMusic and [LyricsPlus](https://github.com/ibratabian17/LyricsPlus) (syllable timing; an unofficial relay of Apple Music, Deezer and QQ Music lyrics that can stop without notice) only if you switch them on. The best timed result is picked automatically (syllable, then word, then line). The provider name is shown with every lyric.
 - Skip data: [SponsorBlock](https://sponsor.ajay.app) by Ajay Ramachandran, [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/), fetched live.
 
 ## License

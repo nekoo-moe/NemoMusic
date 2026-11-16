@@ -195,3 +195,25 @@ On/off is stored in `provider_setting` only when the user flips a switch. With n
 
 ### Order
 `lookup` and `lookup_all` rank by level, then score, then chain order (`pick_best`, `sort_candidates`). A local-file hit still ends `lookup` before any network request (privacy rule above); `lookup_all` lists every answer.
+
+## Addendum 2026-11-15: LyricsPlus, more syllable lyrics (syllable-lyrics spec)
+
+Owner request (UI polish wave): find the provider with the most syllable-synced lyrics and add it. The owner approved the new host for this request and set the default rule: grey or unofficial sources off, official open documented APIs on. The full comparison (Apple Music proxies, Musixmatch richsync, NetEase YRC, QQ QRC, KuGou KRC, LyricsPlus, Spotify, LRCLIB `lyricsfile`, AMLL TTML DB) is in `.kiro/specs/syllable-lyrics/design.md`.
+
+| Provider | Host and endpoint | Format and sync | Key | Terms and licence | Decision |
+|---|---|---|---|---|---|
+| LyricsPlus (`YouLy+` backend) | `lyricsplus.prjktla.my.id` `GET /v2/lyrics/get?title=&artist=&album=&duration=&source=apple,lyricsplus,deezer,qq` | JSON lines with timed pieces (`syllabus`), background vocals, singers, transliteration; Apple Music syllable timing, Deezer and QQ word timing; `synthetic` pieces have spread timing | None for clients; the server uses its own upstream accounts | Code Apache-2.0; lyrics "distributed unofficially", no terms for other apps; 20 requests per 10 s per IP | Built, Syllable, **off by default** with a risk note; credit "Lyrics via LyricsPlus, from <upstream>" |
+
+Rules for this provider:
+- A line with any `synthetic` piece keeps only its line timing; a `Line` or `None` label is never upgraded by pieces. No timing is made up (Parsers section above).
+- A 404 whose `sourcesStatus` shows a source that did not answer (`SKIP`, `RTO`, `WAIT`, `CANCEL`) is an error, cached 15 minutes; a 404 where every source answered `BAD` is a miss, cached 7 days.
+- Owner override, 2026-11-15: the 2026-11-11 rule "turn on every provider that can give syllable or word timing" does not apply to grey sources. LyricsPlus is syllable-capable and stays off until the user turns it on.
+- Default chain order now: local, Unison, LRCLIB, Better Lyrics API, LyricsPlus, SimpMusic, NetEase. The pick is still by level, then score, then order.
+- New host for the README egress list: `lyricsplus.prjktla.my.id` (only when switched on). The other public instances are not used.
+- Open for the owner: whether to drop `qq` and `deezer` from the source list, and whether to ask the maintainers before this source may ship or be turned on by default (they state no terms for other apps).
+
+<!-- Sources (addendum 2026-11-15):
+https://github.com/ibratabian17/LyricsPlus and https://github.com/ibratabian17/LyricsPlus/blob/gelato/docs/endpoints.md
+https://github.com/ibratabian17/YouLyPlus (src/background/constants.js, services/kpoeService.js)
+https://github.com/MetrolistGroup/Metrolist/issues/2969
+-->
