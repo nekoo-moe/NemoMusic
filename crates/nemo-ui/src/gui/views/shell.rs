@@ -97,27 +97,18 @@ pub fn view(app: &App, w: u32, h: u32) -> Element<'_, Message> {
         );
     }
     if app.ui.snapshot.current.is_some() || app.anim.capsule.value > 0.01 {
-        // Capsule widths are small, exact in f32.
-        #[allow(clippy::cast_precision_loss)]
-        let cap_w = layout::capsule_width(w) as f32;
         let p = app.anim.capsule.value.clamp(0.0, 1.0);
-        // A small constant, exact in f32.
         #[allow(clippy::cast_precision_loss)]
-        let capsule_margin = layout::CAPSULE_MARGIN as f32;
+        let bar_w = w as f32;
         layers.push(
             container(
-                super::super::fx::Fx::new(bar::view(app, cap_w))
+                super::super::fx::Fx::new(bar::view(app, bar_w))
                     .passive()
                     .entrance(p, crate::anim::CAPSULE_RISE, Color::TRANSPARENT),
             )
             .width(Length::Fill)
             .height(Length::Fill)
             .align_y(Alignment::End)
-            .center_x(Length::Fill)
-            .padding(Padding {
-                bottom: capsule_margin,
-                ..Padding::ZERO
-            })
             .into(),
         );
     }

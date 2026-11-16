@@ -16,6 +16,7 @@ use nemo_core::player::{PlayerCommand, RepeatMode};
 use nemo_core::track::Track;
 
 /// Shuffle, previous, play, next, repeat.
+#[allow(dead_code)]
 pub(super) fn controls(app: &App, accent: Palette, compact: bool) -> Element<'_, Message> {
     let ink = col(color::on_surface());
     let dim = col(color::on_surface_variant());
@@ -150,7 +151,7 @@ pub fn like_button<'a>(
     )
 }
 
-fn prev_button<'a>(ink: Color, target: f32) -> Element<'a, Message> {
+pub(super) fn prev_button<'a>(ink: Color, target: f32) -> Element<'a, Message> {
     tip(
         icon_button(
             Icon::Prev,
@@ -164,7 +165,7 @@ fn prev_button<'a>(ink: Color, target: f32) -> Element<'a, Message> {
     )
 }
 
-fn next_button<'a>(ink: Color, target: f32) -> Element<'a, Message> {
+pub(super) fn next_button<'a>(ink: Color, target: f32) -> Element<'a, Message> {
     tip(
         icon_button(
             Icon::Next,

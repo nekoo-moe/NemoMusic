@@ -1,32 +1,30 @@
-//! The floating player capsule (Tier Low glass, `design.md` sections 6 and 7) and the transport
-//! controls Now Playing shares.
-//!
-//! Tier Low: the cover's colours behind a tint, an edge highlight, a shadow, radius 36. No live
-//! backdrop sampling. If the tint cannot reach 4.5:1 even at 0.90 alpha, the capsule falls back
-//! to an opaque `surface-container-highest`. The play button is a circle that morphs into a
-//! rounded square while a song plays (`anim::play_radius`).
+//! The docked bottom horizontal player bar and transport controls.
 
 use iced::font::Weight;
 use iced::widget::{Space, button, column, container, row, slider, stack};
-use iced::{Alignment, Background, Border, Color, Element, Length, Padding};
+use iced::{Alignment, Border, Color, Element, Length, Padding};
 
 use super::super::app::{App, Message};
 use super::super::assets::Icon;
 use super::super::fx::fx;
 use super::super::style::{
-    animated, col, fit, gap, glass_tint, icon, icon_button, label, label_w, shadow, slider_style,
-    tip,
+    animated, col, fit, gap, icon, icon_button, label, label_w, slider_style, tip,
 };
 use crate::format;
 use crate::palette::Palette;
 use crate::state::Event;
-use crate::theme::{color, glass, shape, type_scale};
+use crate::theme::{color, shape, type_scale};
 use nemo_core::player::PlayerCommand;
 
-/// Capsule height.
-const HEIGHT: f32 = 72.0;
-/// Capsule corner radius: half the height.
-const RADIUS: f32 = HEIGHT / 2.0;
+mod control;
+mod cover;
+
+pub use control::{like_button, play_button, repeat_button, transport};
+use control::{next_button, prev_button};
+pub use cover::cover_art;
+
+/// Docked bar height.
+const HEIGHT: f32 = 76.0;
 
 /// Text for the quality badge, from the real signal path (`AAC 129 kbps · Lossy · Resample`).
 /// `Unknown` when there is none; `Buffering` while the player waits for data.
@@ -38,157 +36,97 @@ pub fn badge_text(app: &App) -> String {
     crate::signal::badge_label(app.ui.snapshot.signal_path.as_ref())
 }
 
-/// The capsule, `width` px wide and 72 px high.
+/// The docked bottom player bar, `width` px wide and 76 px high.
 pub fn view(app: &App, width: f32) -> Element<'_, Message> {
     let accent = app.accent();
     let compact = width < 800.0;
     let roomy = width >= 1240.0;
-    // Fixed parts: controls, track, right group; the progress takes the rest.
-    let controls_w = if compact {
-        3.0 * 48.0
+
+    let track_w = if compact {
+        180.0
+    } else if roomy {
+        300.0
     } else {
-        5.0 * 44.0 + 12.0
+        240.0
     };
-    let track_w = if compact { 168.0 } else { 232.0 };
     let right_w = if roomy {
-        400.0
+        360.0
     } else if compact {
         150.0
     } else {
-        280.0
+        260.0
     };
 
     let content = row![
-        container(controls(app, accent, compact)).width(Length::Fixed(controls_w)),
+        container(track_info(app, track_w))
+            .width(Length::Fixed(track_w))
+            .align_y(Alignment::Center),
         Space::new().width(gap::MD),
-        container(track_info(app, track_w)).width(Length::Fixed(track_w)),
+        container(center_controls(app, accent, compact))
+            .width(Length::Fill)
+            .align_x(Alignment::Center)
+            .align_y(Alignment::Center),
         Space::new().width(gap::MD),
-        container(seek_row(app, accent)).width(Length::Fill),
-        Space::new().width(gap::MD),
-        container(right(app, right_w, roomy, compact)).width(Length::Fixed(right_w)),
+        container(right(app, right_w, roomy, compact))
+            .width(Length::Fixed(right_w))
+            .align_y(Alignment::Center),
     ]
     .align_y(Alignment::Center)
     .padding(Padding::from([0.0, gap::LG]))
-    .height(Length::Fill);
+    .height(Length::Fill)
+    .width(Length::Fill);
 
-    let glass_ok = if app.ui.settings.opaque_chrome() {
-        None
-    } else {
-        app.cover.as_ref().and_then(|c| c.tint_alpha)
-    };
-    let mut layers: Vec<Element<'_, Message>> = vec![
-        // Shadow `0 8 24 #00000052`.
-        container(Space::new())
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .style(move |_| container::Style {
-                shadow: shadow(glass::SHADOW_OFFSET_Y, glass::SHADOW_BLUR, glass::SHADOW),
-                border: Border {
-                    radius: RADIUS.into(),
-                    ..Border::default()
-                },
-                ..container::Style::default()
-            })
-            .into(),
-    ];
-    match (app.cover.as_ref(), glass_ok) {
-        (Some(cover), Some(alpha)) => {
-            // Tier Low: the blurred cover as three colour samples, painted as a gradient (the
-            // tiny-skia renderer cannot clip an image to rounded corners; quads it can).
-            let [l, m, r] = cover.strip.map(col);
-            let grad = iced::gradient::Linear::new(iced::Radians(std::f32::consts::FRAC_PI_2))
-                .add_stop(0.0, l)
-                .add_stop(0.5, m)
-                .add_stop(1.0, r);
-            layers.push(
-                container(Space::new())
-                    .width(Length::Fill)
-                    .height(Length::Fill)
-                    .style(move |_| container::Style {
-                        background: Some(Background::Gradient(grad.into())),
-                        border: Border {
-                            radius: RADIUS.into(),
-                            ..Border::default()
-                        },
-                        ..container::Style::default()
-                    })
-                    .into(),
-            );
-            layers.push(tint_layer(glass_tint(alpha), RADIUS));
-        }
-        // Tonal fallback: opaque, no glass.
-        _ => layers.push(tint_layer(col(color::surface_container_highest()), RADIUS)),
-    }
-    layers.push(content.into());
-    layers.push(edge_layer(RADIUS, glass_ok.is_some()));
-    container(stack(layers))
+    let top_border = container(Space::new())
+        .width(Length::Fill)
+        .height(Length::Fixed(1.0))
+        .style(|_| container::Style {
+            background: Some(col(color::outline_variant()).into()),
+            ..container::Style::default()
+        });
+
+    let bar_body = container(content)
+        .width(Length::Fill)
+        .height(Length::Fixed(HEIGHT))
+        .style(|_| container::Style {
+            background: Some(col(color::surface_container_lowest()).into()),
+            ..container::Style::default()
+        });
+
+    stack![bar_body, top_border]
         .width(Length::Fixed(width))
         .height(Length::Fixed(HEIGHT))
         .into()
 }
 
-fn tint_layer<'a>(tint: Color, radius: f32) -> Element<'a, Message> {
-    container(Space::new())
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .style(move |_| container::Style {
-            background: Some(Background::Color(tint)),
-            border: Border {
-                radius: radius.into(),
-                ..Border::default()
-            },
-            ..container::Style::default()
-        })
-        .into()
-}
+fn center_controls<'a>(app: &'a App, accent: Palette, compact: bool) -> Element<'a, Message> {
+    let ink = col(color::on_surface());
+    let transport_row = row![
+        prev_button(ink, 36.0),
+        play_button(app, accent, 44.0),
+        next_button(ink, 36.0),
+    ]
+    .spacing(gap::SM)
+    .align_y(Alignment::Center);
 
-/// Inner highlight (1 px, 0.22; top edge 0.32) when glass, plain `outline-variant` otherwise.
-fn edge_layer<'a>(radius: f32, glass_on: bool) -> Element<'a, Message> {
-    let edge = if glass_on {
-        glass::EDGE.with_alpha(glass::EDGE_ALPHA)
-    } else {
-        color::outline_variant()
-    };
-    let ring = container(Space::new())
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .style(move |_| container::Style {
-            border: Border {
-                color: col(edge),
-                width: 1.0,
-                radius: radius.into(),
-            },
-            ..container::Style::default()
-        });
-    if !glass_on {
-        return ring.into();
+    if compact {
+        return transport_row.into();
     }
-    let top = row![
-        Space::new().width(radius),
-        container(Space::new())
-            .width(Length::Fill)
-            .height(Length::Fixed(1.0))
-            .style(|_| container::Style {
-                background: Some(col(glass::EDGE.with_alpha(glass::EDGE_ALPHA_TOP)).into()),
-                ..container::Style::default()
-            }),
-        Space::new().width(radius),
-    ];
-    stack![ring, top].into()
+
+    column![
+        transport_row,
+        seek_row(app, accent),
+    ]
+    .spacing(1.0)
+    .align_x(Alignment::Center)
+    .width(Length::Fill)
+    .into()
 }
-
-mod control;
-mod cover;
-
-use control::controls;
-pub use control::{like_button, play_button, repeat_button, transport};
-pub use cover::cover_art;
 
 fn track_info(app: &App, width: f32) -> Element<'_, Message> {
     let Some(track) = &app.ui.snapshot.current else {
         return Space::new().into();
     };
-    let text_w = width - 48.0 - gap::MD;
+    let text_w = (width - 48.0 - gap::MD - 44.0).max(60.0);
     // The title and artist fade in with a new song.
     let fade = app.title_fade();
     let texts = column![
@@ -219,10 +157,17 @@ fn track_info(app: &App, width: f32) -> Element<'_, Message> {
     )
     .padding(0)
     .on_press(Message::OpenNowPlaying);
-    tip(
+    let track_btn = tip(
         animated(b, Color::TRANSPARENT, shape::lg()),
         "Show Now Playing",
-    )
+    );
+    row![
+        track_btn,
+        Space::new().width(gap::XS),
+        like_button(app, track, 20.0, 36.0),
+    ]
+    .align_y(Alignment::Center)
+    .into()
 }
 
 /// `0:42 ---o--- 3:12`. Times use tabular figures and a fixed width, so nothing shifts as they
@@ -343,11 +288,22 @@ fn right(app: &App, width: f32, roomy: bool, compact: bool) -> Element<'_, Messa
     let mut r = row![Space::new().width(Length::Fill)]
         .spacing(gap::XS)
         .align_y(Alignment::Center);
-    if roomy {
-        r = r.push(badge(app, 190.0));
+    if !compact {
+        r = r.push(tip(
+            icon_button(
+                Icon::Shuffle,
+                20.0,
+                36.0,
+                dim,
+                Color::TRANSPARENT,
+                (app.ui.snapshot.queue.len() > 2).then_some(Message::ShuffleQueue),
+            ),
+            "Shuffle what plays next",
+        ));
+        r = r.push(repeat_button(app, 36.0));
     }
-    if !compact && let Some(track) = &app.ui.snapshot.current {
-        r = r.push(like_button(app, track, 22.0, 40.0));
+    if roomy {
+        r = r.push(badge(app, 180.0));
     }
     r = r.push(queue);
     if !compact {
@@ -355,8 +311,8 @@ fn right(app: &App, width: f32, roomy: bool, compact: bool) -> Element<'_, Messa
         r = r.push(tip(
             icon_button(
                 if sleeping { Icon::Timer } else { Icon::Tune },
-                22.0,
-                40.0,
+                20.0,
+                36.0,
                 if sleeping {
                     col(app.accent().primary)
                 } else {
@@ -373,7 +329,7 @@ fn right(app: &App, width: f32, roomy: bool, compact: bool) -> Element<'_, Messa
         ));
     }
     r = r
-        .push(icon(vol_icon, 22.0, dim))
+        .push(icon(vol_icon, 20.0, dim))
         .push(Space::new().width(gap::XS))
         .push(volume);
     let _ = width;

@@ -7,7 +7,7 @@
 
 use iced::widget::text::Wrapping;
 use iced::widget::{Space, column, container, mouse_area, stack, text};
-use iced::{Alignment, Color, Element, Length, Padding, Pixels, mouse};
+use iced::{Alignment, Color, Element, Length, Pixels, mouse};
 use nemo_core::lyrics::{Granularity, LyricLine, LyricsDoc};
 
 use super::super::app::{App, Message};
@@ -16,7 +16,6 @@ use super::super::style::{col, gap, icon, label};
 use super::super::syllable_text::{Style as SyllableStyle, SyllableText};
 use super::super::textfit;
 use super::super::widgets::Offset;
-use crate::canvas::coming_alpha;
 use crate::lyric_pieces::{self, UNSUNG_ALPHA};
 use crate::lyrics_view::{self, LINE_GAP, LineRole, LineRows};
 use crate::state::{Event, LyricsState};
@@ -29,10 +28,8 @@ mod three;
 pub use footer::{credit_text, footer, footer_extra};
 pub use three::lines as three_lines;
 
-/// Room kept at the right of a lyric line for the glow copies, px.
+/// Room kept at the right of a lyric line for padding, px.
 pub const GLOW_INSET: f32 = 4.0;
-/// Offset of the glow copies of the active line, px.
-const GLOW_PX: f32 = 3.0;
 
 /// Width a lyric line wraps at in a column `width` px wide.
 #[must_use]
@@ -74,23 +71,14 @@ pub fn line_rows(doc: &LyricsDoc, width: f32, dense: bool) -> Vec<LineRows> {
         .collect()
 }
 
-/// Ink of a lyric line in a role: `on-surface` when active, the "coming" ink otherwise (it keeps
-/// 4.5:1 on the song canvas in every base mode, see `canvas.rs`).
+/// Ink of a lyric line in a role: pure white (`Color::WHITE`) when active, clean neutral grey
+/// (`on-surface-variant`) for inactive/upcoming lines.
 #[must_use]
 pub fn line_ink(role: LineRole) -> Color {
-    let base = crate::theme::color::on_surface();
     match role {
-        LineRole::Active => col(base),
-        _ => col(base.with_alpha(coming_alpha(color_base()))),
-    }
-}
-
-/// The base mode the active neutrals belong to (light text on dark, or dark on light).
-fn color_base() -> crate::scheme::BaseMode {
-    if color::surface().relative_luminance() > 0.5 {
-        crate::scheme::BaseMode::Light
-    } else {
-        crate::scheme::BaseMode::Dark
+        LineRole::Active => Color::WHITE,
+        LineRole::Neighbor => col(crate::theme::color::on_surface_variant().with_alpha(0.50)),
+        LineRole::Other => col(crate::theme::color::on_surface_variant().with_alpha(0.35)),
     }
 }
 
@@ -200,69 +188,19 @@ pub fn lyric_line<'a>(
         mix_color(line_ink(from_role), line_ink(role), p)
     };
     let ink = faded(ink, look.fade);
-    let bold = role == LineRole::Active;
+    let bold = false;
     if role != LineRole::Active {
         let body = text_run(line.text.clone(), size, line_h, bold, ink).width(Length::Fixed(wrap));
         return (body.into(), height);
     }
     let timed = !line.words.is_empty()
         && matches!(&app.ui.lyrics, LyricsState::Ready(d) if d.granularity >= Granularity::Word);
-    // Piece-timed lines get no glow: it would tint the pieces still to come.
-    let mut layers: Vec<Element<'a, Message>> = if timed {
-        Vec::new()
-    } else {
-        glow_layers(app, &line.text, (size, line_h), wrap, p * look.fade)
-    };
-    let main: Element<'a, Message> = if timed {
-        pieces_text(app, line, (size, line_h), wrap, look.fade)
-    } else {
-        text_run(line.text.clone(), size, line_h, true, ink)
-            .width(Length::Fixed(wrap))
-            .into()
-    };
-    let half = GLOW_PX / 2.0;
-    layers.push(
-        container(main)
-            .padding(Padding {
-                left: half,
-                top: half,
-                ..Padding::ZERO
-            })
-            .into(),
-    );
-    (stack(layers).width(Length::Fill).into(), height)
-}
-
-/// Four faint accent copies behind the active line, fading in with the line change.
-fn glow_layers<'a>(
-    app: &App,
-    text: &str,
-    (size, line_h): (f32, f32),
-    wrap: f32,
-    p: f32,
-) -> Vec<Element<'a, Message>> {
-    if p <= 0.02 {
-        return Vec::new();
+    if timed {
+        return (pieces_text(app, line, (size, line_h), wrap, look.fade), height);
     }
-    let glow = col(app.accent().primary.with_alpha(0.22 * p));
-    [
-        (0.0, 0.0),
-        (GLOW_PX, 0.0),
-        (0.0, GLOW_PX),
-        (GLOW_PX, GLOW_PX),
-    ]
-    .into_iter()
-    .map(|(dx, dy)| {
-        let copy = text_run(text.to_owned(), size, line_h, true, glow).width(Length::Fixed(wrap));
-        container(copy)
-            .padding(Padding {
-                left: dx,
-                top: dy,
-                ..Padding::ZERO
-            })
-            .into()
-    })
-    .collect()
+    let body = text_run(line.text.clone(), size, line_h, false, ink)
+        .width(Length::Fixed(wrap));
+    (body.into(), height)
 }
 
 /// The active line, one piece per timed word or syllable: grey ahead, a fill while sung, bright
