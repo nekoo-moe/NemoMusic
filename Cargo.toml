@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/*"]
 
 [workspace.package]
-version = "0.1.5"
+version = "0.1.6"
 edition = "2024"
 # MSRV policy (code.md): latest stable minus 2 releases. Stable was 1.99.1 on 2026-11-10.
 rust-version = "1.97"
