@@ -1,6 +1,9 @@
 //! User settings the UI shows and changes. Plain data: the app loads and stores them, the UI only
 //! reports changes through the `on_settings` callback of `UiOptions`.
 
+use std::collections::BTreeMap;
+
+use crate::collection_sort::CollectionSort;
 use crate::scheme::{AccentIntensity, BaseMode, CornerStyle, ThemeChoice};
 
 /// How much glass the floating bar draws (`design.md` section 7). The live-blur tiers need the
@@ -90,6 +93,9 @@ pub struct UiSettings {
     pub now_playing_style: NowPlayingStyle,
     /// Animated-cover switches.
     pub animated_covers: AnimatedCoverSettings,
+    /// The order the user picked per album or playlist page, by [`crate::collection_sort`] page
+    /// key (`album:<id>`, `playlist:<id>`). Pages in their default order have no entry.
+    pub collection_sorts: BTreeMap<String, CollectionSort>,
 }
 
 impl Default for UiSettings {
@@ -109,6 +115,7 @@ impl Default for UiSettings {
             corner_style: CornerStyle::Soft,
             now_playing_style: NowPlayingStyle::M3Expressive,
             animated_covers: AnimatedCoverSettings::default(),
+            collection_sorts: BTreeMap::new(),
         }
     }
 }

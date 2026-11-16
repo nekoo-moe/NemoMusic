@@ -1,6 +1,8 @@
 //! Playlist headers, watch playlists, history and podcasts.
 
-use nemo_core::catalog::{BrowseId, EpisodeSummary, HistorySection, PodcastDetail, PodcastSummary};
+use nemo_core::catalog::{
+    BrowseId, CollectionMeta, EpisodeSummary, HistorySection, PodcastDetail, PodcastSummary,
+};
 use nemo_core::track::{Thumbnail, Track};
 use serde_json::Value;
 
@@ -9,7 +11,7 @@ use super::item::{episode_item, song_row};
 use super::json::{find_key, item_thumbnails, joined_text, text_of, thumbnails_of};
 use super::runs::Runs;
 use super::shelf::{parse_root, section_contents};
-use crate::catalog::{RawSong, map_song, parse_year};
+use crate::catalog::{RawSong, map_song};
 
 /// Header of a playlist page.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -18,9 +20,12 @@ pub(crate) struct PlaylistHeader {
     pub author: Option<String>,
     pub year: Option<u16>,
     pub thumbnails: Vec<Thumbnail>,
+    /// Owner picture, privacy, views, track count and length, when the header shows them.
+    pub meta: CollectionMeta,
 }
 
-/// Title, owner and cover of a playlist page (also the editable header of one's own lists).
+/// Title, owner, cover and header facts of a playlist or album page (also the editable header
+/// of one's own lists).
 pub(crate) fn parse_playlist_header(json: &str) -> PlaylistHeader {
     let Some(root) = parse_root(json) else {
         return PlaylistHeader::default();
@@ -30,21 +35,18 @@ pub(crate) fn parse_playlist_header(json: &str) -> PlaylistHeader {
     else {
         return PlaylistHeader::default();
     };
-    let author = header
-        .get("straplineTextOne")
-        .and_then(text_of)
-        .or_else(|| {
-            let sub = Runs::from_value(header.get("subtitle"));
-            sub.artists.first().cloned()
-        });
-    let year = Runs::from_value(header.get("subtitle"))
-        .year_text()
-        .and_then(|t| parse_year(&t));
+    let mut meta = super::header_meta::read(&root, header);
+    let author = meta.owner.clone().or_else(|| {
+        let sub = Runs::from_value(header.get("subtitle"));
+        sub.artists.first().cloned()
+    });
+    meta.owner.clone_from(&author);
     PlaylistHeader {
         title: header.get("title").and_then(text_of),
         author,
-        year,
+        year: meta.year,
         thumbnails: item_thumbnails(header),
+        meta,
     }
 }
 

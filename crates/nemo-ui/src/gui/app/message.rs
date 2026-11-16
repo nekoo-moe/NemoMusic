@@ -113,6 +113,15 @@ pub enum Message {
     },
     /// Play a list shuffled.
     Shuffle(ListSource),
+    /// Open the Sort menu of an album or playlist page, or close it (`None`).
+    SortMenu(Option<DetailKey>),
+    /// Show an album or playlist page in this order, and remember it for the page.
+    SortCollection {
+        /// The page.
+        key: DetailKey,
+        /// The order.
+        sort: crate::collection_sort::CollectionSort,
+    },
     /// Switch the compact Now Playing tab.
     CompactTab(CompactTab),
     /// Draw more rows of a long list.

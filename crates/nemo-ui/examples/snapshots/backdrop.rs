@@ -10,6 +10,40 @@ use super::{SIZES, Shot, named, shot};
 /// Coloured background, daily Home, skeletons.
 #[allow(clippy::too_many_lines)] // a flat list of scenarios
 pub(super) fn backdrops(out: &mut Vec<Shot>) {
+    // Sort and header facts (collection-sort-meta spec): the menu open, a sorted page, an album
+    // with the artist picture, and a playlist whose header gives nothing (all hidden).
+    let mock_playlist = || Route::Playlist(BrowseId("mock-playlist-0".to_owned()));
+    for size in SIZES {
+        out.push(shot(
+            named("playlist-sort-menu", size),
+            Scenario {
+                route: mock_playlist(),
+                size,
+                sort_menu: true,
+                ..Scenario::default()
+            },
+        ));
+    }
+    let mut sorted = Scenario::default().settings;
+    sorted.collection_sorts.insert(
+        "playlist:mock-playlist-0".to_owned(),
+        nemo_ui::collection_sort::CollectionSort::Title,
+    );
+    out.push(shot(
+        named("playlist-sorted-title", (1366, 697)),
+        Scenario {
+            route: mock_playlist(),
+            settings: sorted,
+            ..Scenario::default()
+        },
+    ));
+    out.push(shot(
+        named("playlist-no-meta", (1366, 697)),
+        Scenario {
+            route: Route::Playlist(BrowseId("mock-playlist-1".to_owned())),
+            ..Scenario::default()
+        },
+    ));
     // The collection page stacks below a 1280 px window.
     for size in [(1100, 700), (960, 600)] {
         out.push(shot(

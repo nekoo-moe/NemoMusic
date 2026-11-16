@@ -104,7 +104,11 @@ impl LocalCatalog {
             id.0.strip_prefix(LOCAL_ALBUM_PREFIX)
                 .ok_or(CatalogError::NotFound)?;
         self.with_tracks(|tracks| group_albums(tracks).remove(key))?
-            .map(|(summary, tracks)| AlbumDetail { summary, tracks })
+            .map(|(summary, tracks)| AlbumDetail {
+                summary,
+                tracks,
+                meta: nemo_core::catalog::CollectionMeta::default(),
+            })
             .ok_or(CatalogError::NotFound)
     }
 }

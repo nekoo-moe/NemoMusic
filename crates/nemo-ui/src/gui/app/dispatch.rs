@@ -81,6 +81,7 @@ impl App {
         let mut jobs = Vec::new();
         if *self.ui.route() != self.last_route {
             self.last_route = self.ui.route().clone();
+            self.sort_menu = None;
             self.rows_limit = ROWS_STEP;
             self.anim.restart_page();
             jobs.extend(self.sync_viewport());

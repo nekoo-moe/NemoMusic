@@ -4,16 +4,18 @@
 //! right. Two columns from a 1280 px window when the content is wide enough; stacked otherwise.
 //! In two columns each column scrolls on its own, so the cover and the buttons stay in view.
 
-use std::time::Duration;
-
 use iced::alignment::Horizontal;
 use iced::widget::text::Wrapping;
 use iced::widget::{Space, column, container, row, stack};
 use iced::{Alignment, Background, Element, Length, Padding};
+use nemo_core::catalog::{CollectionMeta, Privacy};
 use nemo_core::track::{Artwork, Track};
 
 use super::super::kit::{PAGE_BOTTOM, art, text_button, vspace};
+use super::meta_line::{count_line, kind_line};
 use super::song_row::{self, Rows};
+use super::sort_menu;
+use crate::collection_sort;
 use crate::gui::app::{App, ArtShape, DetailKey, ListSource, Message};
 use crate::gui::assets::Icon;
 use crate::gui::fx::Fx;
@@ -97,37 +99,14 @@ pub struct Collection<'a> {
     pub owner: Option<String>,
     /// Release year, when known.
     pub year: Option<u16>,
-    /// The songs.
+    /// Who can see the playlist, when known.
+    pub privacy: Option<Privacy>,
+    /// The other header facts (owner picture, views, count, length).
+    pub meta: &'a CollectionMeta,
+    /// The songs, in the page's own order.
     pub tracks: &'a [Track],
-    /// Album page: numbered rows without covers.
+    /// Album page: numbered rows without covers, `songs` in the count line.
     pub numbered: bool,
-}
-
-/// `Album • 2023`, or the kind alone when the year is unknown.
-#[must_use]
-pub fn kind_line(kind: &str, year: Option<u16>) -> String {
-    year.map_or_else(|| kind.to_owned(), |y| format!("{kind} \u{2022} {y}"))
-}
-
-/// `12 songs • 43 min` (or `1 h 5 min`); the time is left out when no song has a length.
-#[must_use]
-pub fn count_line(tracks: &[Track]) -> String {
-    let songs = if tracks.len() == 1 {
-        "1 song".to_owned()
-    } else {
-        format!("{} songs", tracks.len())
-    };
-    let total: Duration = tracks.iter().filter_map(|t| t.duration).sum();
-    if total.is_zero() {
-        return songs;
-    }
-    let mins = total.as_secs().div_ceil(60);
-    let time = if mins >= 60 {
-        format!("{} h {} min", mins / 60, mins % 60)
-    } else {
-        format!("{mins} min")
-    };
-    format!("{songs} \u{2022} {time}")
 }
 
 /// The page.
@@ -268,6 +247,46 @@ fn cover<'a>(app: &'a App, c: &Collection<'_>, px: u32) -> Element<'a, Message> 
         .into()
 }
 
+/// Size of the owner picture beside the owner's name.
+const AVATAR: u32 = 24;
+
+/// The owner's name, with their picture before it when the header gives one.
+fn owner_line<'a>(
+    app: &'a App,
+    c: &Collection<'a>,
+    owner: &str,
+    width: f32,
+) -> Element<'a, Message> {
+    let ink = col(color::on_surface());
+    let avatar = (!c.meta.owner_avatar.is_empty()).then(|| {
+        art(
+            app,
+            &Artwork::Remote(c.meta.owner_avatar.clone()),
+            AVATAR,
+            ArtShape::Circle,
+        )
+    });
+    // The avatar slot is a small exact number.
+    #[allow(clippy::cast_precision_loss)]
+    let name_w = if avatar.is_some() {
+        width - AVATAR as f32 - gap::SM
+    } else {
+        width
+    };
+    let name = label(
+        fit(owner, name_w, type_scale::TITLE_SM.size),
+        type_scale::TITLE_SM,
+        true,
+        ink,
+    );
+    match avatar {
+        Some(a) => row![a, Space::new().width(gap::SM), name]
+            .align_y(Alignment::Center)
+            .into(),
+        None => name.into(),
+    }
+}
+
 /// The centred left column (or the top of the stacked page).
 fn hero<'a>(
     app: &'a App,
@@ -298,23 +317,20 @@ fn hero<'a>(
     .align_x(Alignment::Center)
     .width(Length::Fixed(width));
     if let Some(owner) = &c.owner {
-        info = info.push(vspace(gap::SM)).push(label(
-            fit(owner, width, type_scale::TITLE_SM.size),
-            type_scale::TITLE_SM,
-            true,
-            ink,
-        ));
+        info = info
+            .push(vspace(gap::SM))
+            .push(owner_line(app, c, owner, width));
     }
     info = info
         .push(vspace(gap::SM))
         .push(centred(label(
-            kind_line(c.kind, c.year),
+            kind_line(c.kind, c.privacy, c.year),
             type_scale::BODY_MD,
             false,
             dim,
         )))
         .push(centred(label(
-            count_line(c.tracks),
+            count_line(c.meta, c.tracks, c.numbered),
             type_scale::BODY_MD,
             false,
             dim,
@@ -359,9 +375,12 @@ fn tracks<'a>(
         source: ListSource::Detail(key.clone()),
         numbered: c.numbered,
     };
-    let mut list = column![];
-    for (i, t) in c.tracks.iter().enumerate().take(app.rows_limit) {
-        list = list.push(song_row::view(app, t, i, &rows));
+    // Rows in the order the Sort control shows; row `k` plays as index `k` of the same order
+    // (`App::tracks_of`), so Play and Shuffle follow what the user sees.
+    let order = collection_sort::order(c.tracks, app.collection_sort(key));
+    let mut list = column![sort_menu::view(app, key, c.numbered), vspace(gap::SM)];
+    for (k, &i) in order.iter().enumerate().take(app.rows_limit) {
+        list = list.push(song_row::view(app, &c.tracks[i], k, &rows));
     }
     if c.tracks.len() > app.rows_limit {
         list = list
@@ -451,7 +470,6 @@ pub fn skeleton(app: &App, content_w: u32) -> Element<'_, Message> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mock;
 
     #[test]
     fn two_columns_need_a_wide_window_and_a_wide_content_column() {
@@ -476,22 +494,5 @@ mod tests {
             assert_eq!(left + 32 + list, c);
             assert!(list >= 340, "{list}");
         }
-    }
-
-    #[test]
-    fn meta_lines_show_only_what_the_catalog_has() {
-        let tracks = mock::tracks().into_iter().take(4).collect::<Vec<_>>();
-        assert_eq!(kind_line("Album", Some(2019)), "Album \u{2022} 2019");
-        assert_eq!(kind_line("Playlist", None), "Playlist");
-        let m = count_line(&tracks);
-        assert!(m.starts_with("4 songs \u{2022} "), "{m}");
-        assert!(m.ends_with(" min"), "{m}");
-        assert_eq!(
-            count_line(&tracks[..1]).split(" \u{2022} ").next(),
-            Some("1 song")
-        );
-        let mut silent = tracks[0].clone();
-        silent.duration = None;
-        assert_eq!(count_line(&[silent]), "1 song");
     }
 }

@@ -196,6 +196,9 @@ fn album_page_tracks_inherit_artists_title_and_cover() {
                 duration: Some("x".to_owned()),
             },
         ],
+        artist_thumbnails: vec![thumb("https://img.invalid/artist", 120)],
+        track_count_text: Some("3 songs".to_owned()),
+        duration_text: Some(" 7 minutes ".to_owned()),
     };
     let requested = BrowseId("MPREb_real".to_owned());
     let detail = map_album_page(&page, &requested).expect("valid");
@@ -207,6 +210,12 @@ fn album_page_tracks_inherit_artists_title_and_cover() {
     assert_eq!(detail.tracks[0].duration, Some(Duration::from_secs(120)));
     assert_eq!(detail.tracks[1].duration, None);
     assert!(matches!(detail.tracks[1].artwork, Artwork::Remote(_)));
+    assert_eq!(detail.meta.owner.as_deref(), Some("Band"));
+    assert_eq!(detail.meta.owner_avatar.len(), 1);
+    assert_eq!(detail.meta.year, Some(2001));
+    assert_eq!(detail.meta.track_count, Some(3));
+    assert_eq!(detail.meta.duration_text.as_deref(), Some("7 minutes"));
+    assert_eq!(detail.meta.privacy, None);
 }
 
 #[test]
