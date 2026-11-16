@@ -63,6 +63,7 @@ impl App {
                 .iter()
                 .any(|(x, w)| !x.is_settled() || !w.is_settled())
             || !self.queue_anim.is_settled()
+            || !self.surfaces.settled()
     }
 
     /// Point every animation at the state it should show. Cheap; runs after every update.
@@ -123,6 +124,7 @@ impl App {
 
     pub(super) fn sync_anim(&mut self) {
         self.sync_chips();
+        self.sync_surfaces();
         // The queue flag and the pane tab stay one fact.
         if self.ui.queue_open && !(self.pane_open && self.np_tab == NpTab::Queue) {
             self.pane_open = true;
@@ -133,7 +135,6 @@ impl App {
         let reduced = self.ui.reduced_motion;
         fx::set_reduced_motion(reduced);
         fx::set_focus_color(style::col(self.ui.accent.current().primary));
-        self.anim.set_reduced(reduced);
         let unit = |on: bool| if on { 1.0 } else { 0.0 };
         self.anim.pane.target = unit(self.pane_open);
         self.anim.capsule.target = unit(self.ui.snapshot.current.is_some());
@@ -142,6 +143,9 @@ impl App {
         if !self.account.open {
             self.anim.sheet.snap(0.0);
         }
+        // After the targets: with reduced motion they are reached in this same update, so not
+        // even one frame is asked for.
+        self.anim.set_reduced(reduced);
         // The line drawn as active: none while the intro or gap note waits, so the last line
         // cross-fades back to the rest when a long break starts.
         let line = self.ui.lyric_focus().active;

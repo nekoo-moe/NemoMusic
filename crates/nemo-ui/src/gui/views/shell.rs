@@ -78,7 +78,8 @@ pub fn view(app: &App, w: u32, h: u32) -> Element<'_, Message> {
             .height(Length::Fill)
             .into(),
     ];
-    if !pushes && app.pane_open {
+    // The overlay pane stays drawn while its spring closes, so closing animates too.
+    if !pushes && (app.pane_open || app.anim.pane.value > 0.01) {
         layers.push(
             container(entrance(
                 pane::view(app, right_full, Length::Fixed(right_full)),
@@ -107,7 +108,7 @@ pub fn view(app: &App, w: u32, h: u32) -> Element<'_, Message> {
             container(
                 super::super::fx::Fx::new(bar::view(app, cap_w))
                     .passive()
-                    .entrance(p, 28.0, Color::TRANSPARENT),
+                    .entrance(p, crate::anim::CAPSULE_RISE, Color::TRANSPARENT),
             )
             .width(Length::Fill)
             .height(Length::Fill)

@@ -14,7 +14,7 @@ use crate::gui::style::{
     animated, button_outlined, col, gap, icon, icon_button, label, label_w, scroll,
 };
 use crate::gui::views::kit::{paragraph, text_button, vspace};
-use crate::gui::views::overlays::card_style;
+use crate::gui::views::overlays::{POPUP_RISE, appear, card_style};
 use crate::layout;
 use crate::theme::{color, shape, type_scale};
 
@@ -199,7 +199,7 @@ pub fn tools_panel(app: &App) -> Element<'_, Message> {
         - (layout::CAPSULE_HEIGHT + layout::CAPSULE_MARGIN + layout::PANE_GAP) as f32
         - gap::XS
         - gap::XL;
-    opaque(
+    opaque(appear(
         container(scroll(container(body).padding(Padding {
             right: gap::MD,
             ..Padding::ZERO
@@ -208,7 +208,10 @@ pub fn tools_panel(app: &App) -> Element<'_, Message> {
         .width(Length::Fixed(w))
         .max_height(room.max(240.0))
         .style(card_style(shape::xl())),
-    )
+        app.surfaces.tools.value(),
+        shape::xl(),
+        POPUP_RISE,
+    ))
 }
 
 fn owned_chip<'a>(

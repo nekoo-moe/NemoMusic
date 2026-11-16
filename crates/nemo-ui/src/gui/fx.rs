@@ -50,9 +50,11 @@ pub const PRESS: f32 = 0.06;
 
 mod badge;
 mod state;
+mod tip;
 mod widget;
 
 pub use badge::{Badge, BadgeAnchor};
+pub use tip::TipFade;
 
 /// Wrap `content` in an [`Fx`].
 pub fn fx<'a, M: 'a>(content: impl Into<Element<'a, M>>) -> Fx<'a, M> {

@@ -233,6 +233,8 @@ pub struct Scenario {
     pub lyrics_pick: Option<usize>,
     /// Report the output device as opened in shared mode (through the system mixer).
     pub shared_output: bool,
+    /// Draw the page and the open surfaces this many ms into their enter (mid-transition).
+    pub mid_motion_ms: Option<u32>,
 }
 
 /// Which state of the sign-in sheet a snapshot shows.
@@ -292,6 +294,7 @@ impl Default for Scenario {
             sort_menu: false,
             lyrics_pick: None,
             shared_output: false,
+            mid_motion_ms: None,
         }
     }
 }
@@ -445,5 +448,10 @@ pub fn build_app(backend: &Backend, scenario: &Scenario) -> App {
         app.shimmer = 0.45;
     }
     app.finish_animations();
+    if let Some(ms) = scenario.mid_motion_ms {
+        // A few hundred ms at most, exact in f32.
+        #[allow(clippy::cast_precision_loss)]
+        app.freeze_mid_motion(ms as f32);
+    }
     app
 }

@@ -208,7 +208,7 @@ pub fn timing_button(app: &App) -> Element<'_, Message> {
 /// The Timing popover (opaque `surface-container-high`, `design.md` section 6): `-50 ms`, the
 /// offset, `+50 ms` and `Reset`, with the `[` and `]` keys named. A press outside closes it.
 pub fn timing_layer(app: &App, top: f32) -> Option<Element<'_, Message>> {
-    if !app.ui.timing_open || !synced(app) {
+    if !app.surfaces.timing.visible() || !synced(app) {
         return None;
     }
     let ink = col(color::on_surface());
@@ -261,6 +261,12 @@ pub fn timing_layer(app: &App, top: f32) -> Option<Element<'_, Message>> {
             .height(Length::Fill),
     )
     .on_press(Message::Ui(Event::ToggleLyricsTiming));
+    let card = super::super::overlays::appear(
+        card,
+        app.surfaces.timing.value(),
+        shape::lg(),
+        super::super::overlays::POPUP_RISE,
+    );
     let placed = container(opaque(card))
         .width(Length::Fill)
         .height(Length::Fill)

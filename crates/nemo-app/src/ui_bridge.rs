@@ -114,6 +114,8 @@ pub fn options(settings: Settings, root: PathBuf) -> UiOptions {
         // No folder picker yet: folders are edited in settings.json (see README).
         on_add_music_folder: None,
         maximized: true,
+        // One switch: the OS preference here, OR the user's Settings toggle (the UI joins them).
+        reduced_motion: crate::os_motion::reduce_motion(),
         ..UiOptions::default()
     }
 }

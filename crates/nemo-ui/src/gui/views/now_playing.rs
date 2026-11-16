@@ -8,9 +8,11 @@ use iced::{Alignment, Color, Element, Length, Padding};
 
 use super::super::app::{App, CompactTab, Message};
 use super::super::assets::Icon;
+use super::super::fx::{Fx, entrance};
 use super::super::style::{animated, col, fit, gap, icon_button, label, label_w};
 use super::bar::cover_art;
 use super::lyrics as lyr;
+use crate::anim;
 use crate::format;
 use crate::layout;
 use crate::settings::NowPlayingStyle;
@@ -32,6 +34,11 @@ pub fn lyrics_viewport_height(_w: u32, h: u32) -> f32 {
 /// reads the same `App` state (position, lyrics offset and scroll, `compact_tab`), so a style
 /// change restarts nothing.
 pub fn view(app: &App, w: u32, h: u32) -> Element<'_, Message> {
+    // Opening (or leaving for) this screen is a route change: it fades in like every page.
+    entrance(styled(app, w, h), app.anim.page(), col(color::surface()))
+}
+
+fn styled(app: &App, w: u32, h: u32) -> Element<'_, Message> {
     match app.ui.settings.now_playing_style {
         // Classic draws its own plain `surface`, so it needs no cover backdrop.
         NowPlayingStyle::Classic => super::np_classic::view(app, w, h),
@@ -42,6 +49,14 @@ pub fn view(app: &App, w: u32, h: u32) -> Element<'_, Message> {
         ]
         .into(),
     }
+}
+
+/// The cover grows from 86% to 100% with the page fade: it seems to come out of the capsule.
+fn grow<'a>(app: &App, cover: Element<'a, Message>) -> Element<'a, Message> {
+    Fx::new(cover)
+        .passive()
+        .scale(anim::GROW_FROM + (1.0 - anim::GROW_FROM) * app.anim.page())
+        .into()
 }
 
 /// The Material 3 Expressive look: art and lyrics side by side, or the compact column.
@@ -142,7 +157,10 @@ fn wide(app: &App, w: u32, h: u32) -> Element<'_, Message> {
     let (art, lyrics_w) = (art as f32, lyrics_w as f32);
 
     let left = column![
-        super::pane::breathing(app, cover_art(app, art, shape::xl())),
+        grow(
+            app,
+            super::pane::breathing(app, cover_art(app, art, shape::xl()))
+        ),
         Space::new().height(gap::XL),
         titles(app, art, false),
         Space::new().height(gap::LG),
@@ -205,7 +223,10 @@ fn compact(app: &App, w: u32, h: u32) -> Element<'_, Message> {
         CompactTab::Queue => compact_queue(app, width),
     };
     let body = column![
-        super::pane::breathing(app, cover_art(app, art, shape::xl())),
+        grow(
+            app,
+            super::pane::breathing(app, cover_art(app, art, shape::xl()))
+        ),
         Space::new().height(gap::MD),
         titles(app, width, true),
         Space::new().height(gap::MD),

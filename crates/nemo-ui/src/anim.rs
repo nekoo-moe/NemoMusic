@@ -25,6 +25,11 @@ pub const STAGGER_MAX: usize = 5;
 pub const SLIDE_PX: f32 = 0.0;
 /// How much smaller an entrance starts (it grows from 98% to 100%).
 pub const POP: f32 = 0.02;
+/// Scale an opened cover grows from (the detail header, the full-window Now Playing): the
+/// shared-element feel without a long flight across the window.
+pub const GROW_FROM: f32 = 0.86;
+/// Rise of the capsule when the first track starts, in px (`design.md` section 8: at most 16).
+pub const CAPSULE_RISE: f32 = 16.0;
 /// Length of the cover cross-fade, in ms.
 pub const COVER_FADE_MS: f32 = 400.0;
 /// Length of the live lyric line swap, in ms.

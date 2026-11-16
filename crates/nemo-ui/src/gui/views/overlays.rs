@@ -8,10 +8,12 @@ use nemo_core::track::Track;
 
 use super::super::app::{App, ArtShape, Message};
 use super::super::assets::{Icon, font};
+use super::super::fx::Fx;
 use super::super::style::{
     animated, button_flat, col, fit, gap, icon, icon_button, label, shadow, spinner,
 };
 use super::kit::{art, paragraph, vspace};
+use crate::anim;
 use crate::copy;
 use crate::format;
 use crate::signal;
@@ -29,6 +31,50 @@ pub(super) fn card_style(radius: f32) -> impl Fn(&iced::Theme) -> container::Sty
         shadow: shadow(glass::SHADOW_OFFSET_Y, glass::SHADOW_BLUR, glass::SHADOW),
         ..container::Style::default()
     }
+}
+
+/// Rise of a popover, menu or toast while it enters (`design.md` section 8: at most 16 px).
+pub(super) const POPUP_RISE: f32 = gap::SM;
+/// Rise of a sheet or dialog.
+pub(super) const SHEET_RISE: f32 = gap::LG;
+
+/// A floating card that fades in and rises `rise` px as `p` goes 0 to 1 (its [`Presence`]),
+/// and grows from 98%, like a page. `fill` is the card's own colour: the content fades in from
+/// it. Always wrapped, so the content keeps its widget state (a text field keeps focus) when
+/// the motion ends.
+///
+/// [`Presence`]: crate::motion::Presence
+pub(super) fn appear<'a>(
+    content: impl Into<Element<'a, Message>>,
+    p: f32,
+    radius: f32,
+    rise: f32,
+) -> Element<'a, Message> {
+    Fx::new(content)
+        .passive()
+        .entrance(p, rise, col(color::surface_container_high()))
+        .radius(radius)
+        .pop(anim::POP)
+        .into()
+}
+
+/// A centred card over a scrim of `alpha` (scaled by `p`); a press on the scrim sends `away`.
+pub(super) fn modal<'a>(
+    card: impl Into<Element<'a, Message>>,
+    p: f32,
+    alpha: f32,
+    away: Option<Message>,
+    radius: f32,
+) -> Element<'a, Message> {
+    iced::widget::stack![
+        scrim(alpha * p, away),
+        container(opaque(appear(card, p, radius, SHEET_RISE)))
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .center_x(Length::Fill)
+            .center_y(Length::Fill),
+    ]
+    .into()
 }
 
 pub(super) fn scrim<'a>(alpha: f32, on_press: Option<Message>) -> Element<'a, Message> {
@@ -161,15 +207,13 @@ pub fn track_menu<'a>(app: &'a App, track: &'a Track) -> Element<'a, Message> {
     let card = container(items.padding(Padding::from([gap::SM, gap::SM])))
         .width(Length::Fixed(320.0))
         .style(card_style(shape::lg()));
-    iced::widget::stack![
-        scrim(0.4, Some(Message::Ui(Event::CloseMenu))),
-        container(opaque(card))
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .center_x(Length::Fill)
-            .center_y(Length::Fill),
-    ]
-    .into()
+    modal(
+        card,
+        app.surfaces.menu.value(),
+        0.4,
+        Some(Message::Ui(Event::CloseMenu)),
+        shape::lg(),
+    )
 }
 
 /// The first-run notice (ADR 0001): a calm full-window sheet, an unticked checkbox and Continue.
@@ -278,15 +322,7 @@ pub fn tos_sheet(app: &App) -> Element<'_, Message> {
     let sheet = container(body)
         .padding(gap::XXL)
         .style(card_style(shape::xl()));
-    iced::widget::stack![
-        scrim(0.72, None),
-        container(opaque(sheet))
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .center_x(Length::Fill)
-            .center_y(Length::Fill),
-    ]
-    .into()
+    modal(sheet, app.surfaces.tos.value(), 0.72, None, shape::xl())
 }
 
 /// The signal-path popover: Source, Decode, Process, Output, Result, from the player snapshot.
@@ -325,12 +361,18 @@ pub fn signal_popover(app: &App) -> Element<'_, Message> {
             ));
         }
     }
-    opaque(container(c).padding(gap::LG).style(card_style(shape::lg())))
+    opaque(appear(
+        container(c).padding(gap::LG).style(card_style(shape::lg())),
+        app.surfaces.signal.value(),
+        shape::lg(),
+        POPUP_RISE,
+    ))
 }
 
 /// The notice above the bar: calm, no red. A SponsorBlock skip adds an Undo button.
 pub fn toast(app: &App) -> Option<Element<'_, Message>> {
-    let t = app.ui.toast.as_ref()?;
+    // The live toast, or the last one while it fades out.
+    let t = app.surfaces.toast_shown()?;
     let ink = col(color::on_surface());
     let mut r = row![
         icon(Icon::Info, 16.0, col(color::on_surface_variant())),
@@ -365,9 +407,12 @@ pub fn toast(app: &App) -> Option<Element<'_, Message>> {
         Color::TRANSPARENT,
         Some(Message::Ui(Event::DismissToast)),
     ));
-    Some(opaque(
+    Some(opaque(appear(
         container(r.padding(Padding::from([gap::XS, gap::MD]))).style(card_style(shape::FULL)),
-    ))
+        app.surfaces.toast.value(),
+        shape::FULL,
+        POPUP_RISE,
+    )))
 }
 
 /// A small spinner glyph that turns with the app's frame clock (still when motion is reduced).
