@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use nemo_core::audio::{AudioFormat, ProcessingStage};
 use nemo_core::effects::EffectsSettings;
-use nemo_core::output::{OutputDevice, SavedDevice};
+use nemo_core::output::{DeviceId, OutputDevice, SavedDevice};
 use nemo_core::player::{PlayState, PlayerCommand, PlayerEvent, RepeatMode};
 use nemo_core::track::{Track, VideoId};
 
@@ -64,9 +64,12 @@ impl Core {
                 self.publish();
             }
             PlayerCommand::ListOutputDevices => {
-                if let Ok(devices) = self.deps.sink_factory.list_devices() {
-                    self.output.devices.clone_from(&devices);
-                    self.notify(&PlayerEvent::OutputDevicesChanged(devices));
+                if let Ok(devices) = self.list_devices_internal() {
+                    let changed = self.output.devices != devices;
+                    self.on_devices_changed(&devices);
+                    if !changed {
+                        self.notify(&PlayerEvent::OutputDevicesChanged(devices));
+                    }
                 }
             }
             PlayerCommand::SetOutputDevice(chosen) => self.set_output_device(chosen),
@@ -403,13 +406,46 @@ impl Core {
             .is_some_and(|store| store.open(video).is_some())
     }
 
+    fn list_devices_internal(&self) -> Result<Vec<OutputDevice>, String> {
+        if let Some(ref enumerator) = self.deps.device_enumerator {
+            enumerator.list_devices()
+        } else {
+            self.deps
+                .sink_factory
+                .list_devices()
+                .map_err(|e| e.to_string())
+        }
+    }
+
     /// Update output status fields based on the sink factory's current state.
     pub fn refresh_output_status(&mut self) {
-        if let Ok(devices) = self.deps.sink_factory.list_devices() {
+        if let Ok(devices) = self.list_devices_internal() {
             self.output.devices = devices;
         }
-        self.output.saved_missing = self.deps.sink_factory.is_saved_missing();
-        self.output.active = if self.output.saved_missing || self.output.chosen.is_none() {
+        if let Some(ref chosen) = self.output.chosen {
+            if self.output.devices.is_empty() {
+                self.output.saved_missing = self.deps.sink_factory.is_saved_missing();
+            } else {
+                self.output.saved_missing = !self.output.devices.iter().any(|d| d.id == chosen.id);
+            }
+        } else {
+            self.output.saved_missing = false;
+        }
+        self.output.active = if let Some(ref pipe) = self.pipe {
+            let active_name = &pipe.output_info().device_name;
+            self.output
+                .devices
+                .iter()
+                .find(|d| &d.name == active_name)
+                .cloned()
+                .or_else(|| {
+                    Some(OutputDevice {
+                        id: DeviceId(active_name.clone()),
+                        name: active_name.clone(),
+                        is_default: false,
+                    })
+                })
+        } else if self.output.saved_missing || self.output.chosen.is_none() {
             self.output.devices.iter().find(|d| d.is_default).cloned()
         } else if let Some(ref chosen) = self.output.chosen {
             self.output
@@ -427,6 +463,43 @@ impl Core {
         } else {
             None
         };
+    }
+
+    /// Update output devices and handle defaults or returning devices.
+    pub fn on_devices_changed(&mut self, devices: &[OutputDevice]) {
+        if self.output.devices == devices {
+            return;
+        }
+
+        self.output.devices = devices.to_vec();
+        let new_default = devices.iter().find(|d| d.is_default).map(|d| &d.id);
+
+        self.notify(&PlayerEvent::OutputDevicesChanged(devices.to_vec()));
+
+        // Check if a saved device has returned or gone missing
+        if let Some(ref chosen) = self.output.chosen {
+            let is_present = devices.iter().any(|d| d.id == chosen.id);
+            if self.output.saved_missing && is_present {
+                self.output.saved_missing = false;
+                if self.state == PlayState::Stopped || self.state == PlayState::Paused {
+                    self.set_output_device(Some(chosen.clone()));
+                } else {
+                    self.refresh_output_status();
+                    self.notify(&PlayerEvent::OutputChanged(self.output.clone()));
+                    self.notify(&PlayerEvent::SavedDeviceReturned);
+                }
+            } else if !self.output.saved_missing && !is_present {
+                self.output.saved_missing = true;
+                self.refresh_output_status();
+                self.notify(&PlayerEvent::OutputChanged(self.output.clone()));
+            }
+        }
+
+        // With no device chosen, follow the default device if it changed
+        if self.output.chosen.is_none() && self.output.active.as_ref().map(|d| &d.id) != new_default
+        {
+            self.set_output_device(None);
+        }
     }
 
     /// Set the output device, opening the new sink and migrating playback if active.

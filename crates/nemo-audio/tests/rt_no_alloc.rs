@@ -533,6 +533,8 @@ mod player_callback {
                 callbacks: Arc::clone(&callbacks),
                 allocations: Arc::clone(&allocations),
             }),
+            device_enumerator: None,
+            device_watch_interval: None,
         };
         let player = Player::spawn_with_replay_gain(deps, replay_gain);
         player.send(PlayerCommand::Play(track));

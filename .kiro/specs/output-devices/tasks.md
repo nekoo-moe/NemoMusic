@@ -75,7 +75,7 @@
   - Wave: 2
   - Checks: control tests with fake sinks (`tests/common/fakes.rs`): position and queue kept, a failed open keeps the old device and the saved choice; no sample step above the click threshold across the switch; `cargo test -p nemo-audio --test bit_exact`; `cargo test -p nemo-audio --test rt_no_alloc`. The 500 ms gap is measured in output-devices#22.
 
-- [ ] 10. Watch for device changes
+- [x] 10. Watch for device changes
   - Crate and files: `nemo-audio`: `src/device_watch.rs` (new).
   - Does: A `nemo-devices` thread polls `cpal` once a second and sends `OutputDevicesChanged` on the player's event path. With no device chosen, a new default triggers the switch of output-devices#9; the saved device seen again triggers the return handling of output-devices#11. If the thread fails, updates stop and `ListOutputDevices` still refreshes by hand.
   - _Requirements: 3, 8, 10, 11_

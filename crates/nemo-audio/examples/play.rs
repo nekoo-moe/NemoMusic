@@ -102,6 +102,8 @@ fn run(args: Args) {
         opener: no_network,
         segments: None,
         sink_factory: Arc::new(CpalSinkFactory::new(args.device)),
+        device_enumerator: None,
+        device_watch_interval: None,
     });
     let mut events = player.subscribe();
     player.send(PlayerCommand::SetVolume(args.volume));

@@ -124,6 +124,8 @@ pub fn build(
                 .map(|s| s.id),
             options: settings.output_options.to_core(),
         })),
+        device_enumerator: None,
+        device_watch_interval: None,
     });
     for command in start_commands(settings) {
         player.send(command);
