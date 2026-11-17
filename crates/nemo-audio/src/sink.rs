@@ -172,6 +172,12 @@ pub trait SinkFactory: Send + Sync {
     fn list_devices(&self) -> Result<Vec<OutputDevice>, SinkError> {
         Ok(Vec::new())
     }
+
+    /// `true` when the last open had to fall back to the default device because the chosen
+    /// device was absent. The default is `false`.
+    fn is_saved_missing(&self) -> bool {
+        false
+    }
 }
 
 /// A sink that records what it is given. The caller drives it with [`CaptureSink::pump`].

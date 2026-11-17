@@ -5,13 +5,16 @@ use std::path::PathBuf;
 use std::sync::mpsc::{Sender, channel};
 use std::sync::{Arc, Mutex};
 
+use nemo_core::output::OutputStatus;
+use nemo_core::player::PlayerEvent;
+use nemo_core::services::PlayerControl;
 use nemo_ui::collection_sort::{CollectionSort, MAX_REMEMBERED};
 use nemo_ui::scheme::{AccentIntensity, BaseMode, CornerStyle, ThemeChoice};
 use nemo_ui::{
     AnimatedCoverSettings, GlassTier as UiGlass, NowPlayingStyle, UiOptions, UiSettings,
 };
 
-use crate::config::{GlassTier, Settings};
+use crate::config::{GlassTier, Settings, StoredDevice};
 
 /// Find the menu entry whose label matches; unknown or empty text gives the default.
 fn by_label<T: Copy + Default>(all: &[T], label: fn(T) -> &'static str, stored: &str) -> T {
@@ -90,9 +93,34 @@ pub fn apply_ui(s: &mut Settings, ui: &UiSettings) {
         .collect();
 }
 
-/// Start the saver thread and build the UI options. The callback only sends on a channel, so
-/// it never blocks the UI thread.
-pub fn options(settings: Settings, root: PathBuf) -> UiOptions {
+/// An update to be saved to settings.
+pub enum SettingsMsg {
+    /// Settings updated from the UI.
+    Ui(UiSettings),
+    /// Output status updated from the player.
+    Output(OutputStatus),
+}
+
+/// Update `settings.output_device` from the player's output status.
+///
+/// Returns `true` if `settings.output_device` changed.
+pub fn apply_output_choice(settings: &mut Settings, status: &OutputStatus) -> bool {
+    let new_choice = status.chosen.clone().map(StoredDevice::from);
+    if settings.output_device == new_choice {
+        false
+    } else {
+        settings.output_device = new_choice;
+        true
+    }
+}
+
+/// Start the saver thread, optionally watch the player for output changes, and build the UI options.
+/// The callback only sends on a channel, so it never blocks the UI thread.
+pub fn options(
+    settings: Settings,
+    root: PathBuf,
+    player: Option<&Arc<dyn PlayerControl>>,
+) -> UiOptions {
     let initial = to_ui(&settings);
     let folders = settings
         .music_folders
@@ -100,11 +128,14 @@ pub fn options(settings: Settings, root: PathBuf) -> UiOptions {
         .map(|p| p.display().to_string())
         .collect();
     let tx = spawn_saver(settings, root);
+    if let Some(player) = player {
+        spawn_output_watcher(player, tx.clone());
+    }
     let tx = Mutex::new(tx);
     let on_settings: Arc<dyn Fn(UiSettings) + Send + Sync> = Arc::new(move |ui| {
         if let Ok(tx) = tx.lock() {
             // The saver only stops when the app exits; a failed send then is harmless.
-            let _ = tx.send(ui);
+            let _ = tx.send(SettingsMsg::Ui(ui));
         }
     });
     UiOptions {
@@ -120,18 +151,62 @@ pub fn options(settings: Settings, root: PathBuf) -> UiOptions {
     }
 }
 
-fn spawn_saver(mut settings: Settings, root: PathBuf) -> Sender<UiSettings> {
-    let (tx, rx) = channel::<UiSettings>();
+/// Watch the player's event stream and forward `OutputChanged` to the settings saver.
+pub fn spawn_output_watcher(
+    player: &Arc<dyn PlayerControl>,
+    tx: Sender<SettingsMsg>,
+) -> Option<std::thread::JoinHandle<()>> {
+    let player = Arc::clone(player);
+    let spawned = std::thread::Builder::new()
+        .name("output-watch".into())
+        .spawn(move || {
+            let mut events = player.subscribe();
+            loop {
+                while let Some(event) = events.try_next() {
+                    if let PlayerEvent::OutputChanged(status) = event
+                        && tx.send(SettingsMsg::Output(status)).is_err()
+                    {
+                        return;
+                    }
+                }
+                std::thread::sleep(std::time::Duration::from_millis(100));
+                if Arc::strong_count(&player) <= 1 {
+                    break;
+                }
+            }
+        });
+    if let Err(err) = spawned.as_ref() {
+        tracing::warn!(error = %err, "output choices will not be saved this session");
+    }
+    spawned.ok()
+}
+
+fn spawn_saver(mut settings: Settings, root: PathBuf) -> Sender<SettingsMsg> {
+    let (tx, rx) = channel::<SettingsMsg>();
     let spawned = std::thread::Builder::new()
         .name("settings-save".into())
         .spawn(move || {
-            while let Ok(mut ui) = rx.recv() {
-                // Keep only the newest change when the user drags a slider.
-                while let Ok(newer) = rx.try_recv() {
-                    ui = newer;
+            while let Ok(msg) = rx.recv() {
+                let mut changed = false;
+                match msg {
+                    SettingsMsg::Ui(mut ui) => {
+                        // Keep only the newest change when the user drags a slider.
+                        while let Ok(newer) = rx.try_recv() {
+                            match newer {
+                                SettingsMsg::Ui(u) => ui = u,
+                                SettingsMsg::Output(status) => {
+                                    apply_output_choice(&mut settings, &status);
+                                }
+                            }
+                        }
+                        apply_ui(&mut settings, &ui);
+                        changed = true;
+                    }
+                    SettingsMsg::Output(status) => {
+                        changed |= apply_output_choice(&mut settings, &status);
+                    }
                 }
-                apply_ui(&mut settings, &ui);
-                if let Err(err) = settings.save(&root) {
+                if changed && let Err(err) = settings.save(&root) {
                     tracing::warn!(error = %err, "cannot save settings");
                 }
             }
@@ -236,5 +311,35 @@ mod tests {
             ..Settings::default()
         };
         assert_eq!(to_ui(&s).glass_tier, UiGlass::Low);
+    }
+
+    #[test]
+    fn apply_output_choice_updates_and_ignores_same() {
+        use nemo_core::output::{DeviceId, SavedDevice};
+
+        let mut s = Settings::default();
+        let mut status = OutputStatus::default();
+        assert!(!apply_output_choice(&mut s, &status));
+
+        status.chosen = Some(SavedDevice {
+            id: DeviceId("dev-1".into()),
+            name: "Headphones".into(),
+        });
+        assert!(apply_output_choice(&mut s, &status));
+        assert_eq!(
+            s.output_device,
+            Some(StoredDevice {
+                id: "dev-1".into(),
+                name: "Headphones".into(),
+            })
+        );
+
+        // Same status returns false
+        assert!(!apply_output_choice(&mut s, &status));
+
+        // Clearing back to None
+        status.chosen = None;
+        assert!(apply_output_choice(&mut s, &status));
+        assert_eq!(s.output_device, None);
     }
 }

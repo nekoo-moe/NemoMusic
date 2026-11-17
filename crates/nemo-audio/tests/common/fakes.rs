@@ -11,12 +11,13 @@ use std::time::{Duration, Instant};
 
 use nemo_audio::player::{Player, PlayerDeps};
 use nemo_audio::replay_gain::ReplayGainSwitch;
-use nemo_audio::sink::{AudioSink, RenderCallback, SinkError, SinkFactory};
+use nemo_audio::sink::{AudioSink, OutputSelection, RenderCallback, SinkError, SinkFactory};
 use nemo_audio::source::MemorySource;
 use nemo_core::BoxFuture;
 use nemo_core::audio::{AudioFormat, Codec, Origin, OutputInfo, OutputMode, StreamInfo};
 use nemo_core::downloads::{CachedAudio, DownloadError, OfflineStore};
 use nemo_core::library::LocalTrackLookup;
+use nemo_core::output::{DeviceId, OutputDevice};
 use nemo_core::player::{PlayerCommand, PlayerEvent};
 use nemo_core::secret::Secret;
 use nemo_core::segment::{Segment, SegmentError, SegmentSource};
@@ -252,6 +253,12 @@ impl AudioSink for ThreadSink {
     }
 }
 
+impl Drop for ThreadSink {
+    fn drop(&mut self) {
+        self.stop();
+    }
+}
+
 /// Opens [`ThreadSink`]s that all record into one buffer.
 pub struct ThreadSinkFactory {
     /// The device format, or `None` to follow the source.
@@ -286,6 +293,88 @@ impl SinkFactory for ThreadSinkFactory {
     }
 }
 
+/// Opens [`ThreadSink`]s for chosen devices and tracks selections.
+pub struct SelectableSinkFactory {
+    pub selection: Mutex<OutputSelection>,
+    pub capture: Arc<Mutex<Vec<f32>>>,
+    pub opened: Arc<AtomicUsize>,
+    pub interval: Duration,
+    pub devices: Mutex<Vec<OutputDevice>>,
+    pub fail_id: Mutex<Option<DeviceId>>,
+    pub missing_fallback: AtomicBool,
+}
+
+impl SelectableSinkFactory {
+    pub fn new(
+        devices: Vec<OutputDevice>,
+        capture: Arc<Mutex<Vec<f32>>>,
+        opened: Arc<AtomicUsize>,
+        interval: Duration,
+    ) -> Self {
+        Self {
+            selection: Mutex::new(OutputSelection::default()),
+            capture,
+            opened,
+            interval,
+            devices: Mutex::new(devices),
+            fail_id: Mutex::new(None),
+            missing_fallback: AtomicBool::new(false),
+        }
+    }
+}
+
+impl SinkFactory for SelectableSinkFactory {
+    fn open(&self, source: AudioFormat) -> Result<Box<dyn AudioSink>, SinkError> {
+        let sel = self.selection.lock().unwrap().clone();
+        if let Some(ref fail) = *self.fail_id.lock().unwrap()
+            && sel.device.as_ref() == Some(fail)
+        {
+            return Err(SinkError::Backend("mock device open failed".into()));
+        }
+        self.opened.fetch_add(1, Ordering::SeqCst);
+        let devices = self.devices.lock().unwrap();
+        let device_name = sel
+            .device
+            .as_ref()
+            .and_then(|id| devices.iter().find(|d| &d.id == id).map(|d| d.name.clone()))
+            .unwrap_or_else(|| "Default Test Device".into());
+
+        Ok(Box::new(ThreadSink {
+            info: OutputInfo {
+                device_name,
+                mode: OutputMode::Shared,
+                format: AudioFormat {
+                    bit_depth: None,
+                    ..source
+                },
+            },
+            capture: Arc::clone(&self.capture),
+            interval: self.interval,
+            stop: Arc::new(AtomicBool::new(false)),
+            thread: None,
+        }))
+    }
+
+    fn select(&self, selection: OutputSelection) {
+        if let Some(ref chosen) = selection.device {
+            let devices = self.devices.lock().unwrap();
+            let exists = devices.iter().any(|d| &d.id == chosen);
+            self.missing_fallback.store(!exists, Ordering::SeqCst);
+        } else {
+            self.missing_fallback.store(false, Ordering::SeqCst);
+        }
+        *self.selection.lock().unwrap() = selection;
+    }
+
+    fn list_devices(&self) -> Result<Vec<OutputDevice>, SinkError> {
+        Ok(self.devices.lock().unwrap().clone())
+    }
+
+    fn is_saved_missing(&self) -> bool {
+        self.missing_fallback.load(Ordering::SeqCst)
+    }
+}
+
 /// A player wired to fakes.
 pub struct Rig {
     pub player: Arc<dyn PlayerControl>,
@@ -311,6 +400,9 @@ pub struct RigOptions {
     pub replay_gain: Option<ReplayGainSwitch>,
     /// Saved songs (offline cache).
     pub offline: Option<Arc<dyn OfflineStore>>,
+    pub sink_factory: Option<Arc<dyn SinkFactory>>,
+    pub capture: Option<Arc<Mutex<Vec<f32>>>>,
+    pub opened: Option<Arc<AtomicUsize>>,
 }
 
 impl Default for RigOptions {
@@ -327,15 +419,30 @@ impl Default for RigOptions {
             local: None,
             replay_gain: None,
             offline: None,
+            sink_factory: None,
+            capture: None,
+            opened: None,
         }
     }
 }
 
 /// Start a player. `streams` are served as YouTube tracks by video id.
 pub fn rig(streams: Vec<(String, Vec<u8>)>, options: RigOptions) -> Rig {
-    let capture = Arc::new(Mutex::new(Vec::new()));
-    let opened = Arc::new(AtomicUsize::new(0));
+    let capture = options
+        .capture
+        .unwrap_or_else(|| Arc::new(Mutex::new(Vec::new())));
+    let opened = options
+        .opened
+        .unwrap_or_else(|| Arc::new(AtomicUsize::new(0)));
     let resolver_calls = Arc::new(AtomicUsize::new(0));
+    let sink_factory = options.sink_factory.unwrap_or_else(|| {
+        Arc::new(ThreadSinkFactory {
+            fixed: options.fixed,
+            capture: Arc::clone(&capture),
+            opened: Arc::clone(&opened),
+            interval: options.interval,
+        })
+    });
     let deps = PlayerDeps {
         resolver: Arc::new(CountingResolver {
             inner: FakeResolver {
@@ -351,12 +458,7 @@ pub fn rig(streams: Vec<(String, Vec<u8>)>, options: RigOptions) -> Rig {
             chunk: options.chunk,
         }),
         segments: options.segments.map(|s| -> Arc<dyn SegmentSource> { s }),
-        sink_factory: Arc::new(ThreadSinkFactory {
-            fixed: options.fixed,
-            capture: Arc::clone(&capture),
-            opened: Arc::clone(&opened),
-            interval: options.interval,
-        }),
+        sink_factory,
     };
     let player = Player::spawn_with_replay_gain(deps, options.replay_gain.unwrap_or_default());
     let events = player.subscribe();

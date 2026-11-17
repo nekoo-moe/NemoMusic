@@ -65,7 +65,7 @@ fn main() {
         }
     };
 
-    let options = ui_bridge::options(settings, paths.root.clone());
+    let options = ui_bridge::options(settings, paths.root.clone(), Some(&services.backend.player));
     if let Err(err) = nemo_ui::run(services.backend, options) {
         tracing::error!(error = %err, "the window closed with an error");
     }
