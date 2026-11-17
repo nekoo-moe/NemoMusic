@@ -67,7 +67,7 @@
   - Wave: 2
   - Checks: a test that the returned jobs keep their decoder position; `cargo test -p nemo-audio --test bit_exact`; `cargo test -p nemo-audio --test rt_no_alloc`.
 
-- [ ] 9. Switch device during playback
+- [x] 9. Switch device during playback
   - Crate and files: `nemo-audio`: `src/control.rs`, `src/control_cmd.rs` (`SetOutputDevice`); `nemo-app`: `src/ui_bridge.rs` (saves the choice on `OutputChanged`).
   - Does: Opens and tests the new sink first; on failure the old device keeps playing, `OutputOpenFailed` says why and the saved choice stays. On success control reads the position (played, start, base, minus latency), calls `stop_and_take()`, starts a new pipeline and seeks the carried decoder; queue and `Run` state are untouched. The choice is saved only after a successful open.
   - _Requirements: 4, 5, 6_

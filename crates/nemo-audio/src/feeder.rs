@@ -27,15 +27,15 @@ const FLUSH_TIMEOUT: Duration = Duration::from_millis(500);
 /// A [`TrackSpan`] in source frames, so that one CUE track ends on exactly the frame where the
 /// next one starts.
 #[derive(Clone, Copy)]
-struct FrameSpan {
+pub(crate) struct FrameSpan {
     /// File frame of the span start.
-    start: u64,
+    pub(crate) start: u64,
     /// Frames in the span. `None` plays to the end of the file.
-    len: Option<u64>,
+    pub(crate) len: Option<u64>,
 }
 
 impl FrameSpan {
-    fn new(span: TrackSpan, rate: u32) -> Self {
+    pub(crate) fn new(span: TrackSpan, rate: u32) -> Self {
         let start = to_frames(span.start, rate);
         Self {
             start,
@@ -95,7 +95,7 @@ fn frame_time(frames: u64, rate: u32) -> Duration {
 
 /// The file time of track position `to`: the same time without a span, else counted from the
 /// span start, on an exact frame.
-fn file_time(span: Option<FrameSpan>, to: Duration, rate: u32) -> Duration {
+pub(crate) fn file_time(span: Option<FrameSpan>, to: Duration, rate: u32) -> Duration {
     span.map_or(to, |s| frame_time(s.start + to_frames(to, rate), rate))
 }
 

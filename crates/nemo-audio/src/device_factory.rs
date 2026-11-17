@@ -185,6 +185,10 @@ impl SinkFactory for DeviceSinkFactory {
     fn list_devices(&self) -> Result<Vec<OutputDevice>, SinkError> {
         list_devices()
     }
+
+    fn is_saved_missing(&self) -> bool {
+        self.saved_missing()
+    }
 }
 
 #[cfg(test)]

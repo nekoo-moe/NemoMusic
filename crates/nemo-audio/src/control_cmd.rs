@@ -4,14 +4,18 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
+use nemo_core::audio::{AudioFormat, ProcessingStage};
 use nemo_core::effects::EffectsSettings;
+use nemo_core::output::{OutputDevice, SavedDevice};
 use nemo_core::player::{PlayState, PlayerCommand, PlayerEvent, RepeatMode};
 use nemo_core::track::{Track, VideoId};
 
 use crate::control::{Core, NextSlot, NextState, Run, micros};
-use crate::pipeline::FeedCmd;
+use crate::feeder::{FrameSpan, file_time};
+use crate::pipeline::{FeedCmd, Pipeline, plan_stages};
 use crate::prepare::{PrepareDeps, spawn_prepare};
 use crate::render::gain_for_percent;
+use crate::sink::{AudioSink, OutputSelection};
 
 /// Past this position, Previous restarts the current track instead of going back.
 const RESTART_AFTER: Duration = Duration::from_secs(3);
@@ -61,11 +65,12 @@ impl Core {
             }
             PlayerCommand::ListOutputDevices => {
                 if let Ok(devices) = self.deps.sink_factory.list_devices() {
+                    self.output.devices.clone_from(&devices);
                     self.notify(&PlayerEvent::OutputDevicesChanged(devices));
                 }
             }
-            PlayerCommand::SetOutputDevice(_)
-            | PlayerCommand::SetOutputOptions(_)
+            PlayerCommand::SetOutputDevice(chosen) => self.set_output_device(chosen),
+            PlayerCommand::SetOutputOptions(_)
             | PlayerCommand::RetryOutput
             | PlayerCommand::ResumeOnReturnedDevice => {}
         }
@@ -396,6 +401,152 @@ impl Core {
             .offline
             .as_ref()
             .is_some_and(|store| store.open(video).is_some())
+    }
+
+    /// Update output status fields based on the sink factory's current state.
+    pub fn refresh_output_status(&mut self) {
+        if let Ok(devices) = self.deps.sink_factory.list_devices() {
+            self.output.devices = devices;
+        }
+        self.output.saved_missing = self.deps.sink_factory.is_saved_missing();
+        self.output.active = if self.output.saved_missing || self.output.chosen.is_none() {
+            self.output.devices.iter().find(|d| d.is_default).cloned()
+        } else if let Some(ref chosen) = self.output.chosen {
+            self.output
+                .devices
+                .iter()
+                .find(|d| d.id == chosen.id)
+                .cloned()
+                .or_else(|| {
+                    Some(OutputDevice {
+                        id: chosen.id.clone(),
+                        name: chosen.name.clone(),
+                        is_default: false,
+                    })
+                })
+        } else {
+            None
+        };
+    }
+
+    /// Set the output device, opening the new sink and migrating playback if active.
+    pub fn set_output_device(&mut self, chosen: Option<SavedDevice>) {
+        let old_selection = OutputSelection {
+            device: self.output.chosen.as_ref().map(|d| d.id.clone()),
+            options: self.output.options,
+        };
+        let new_selection = OutputSelection {
+            device: chosen.as_ref().map(|d| d.id.clone()),
+            options: self.output.options,
+        };
+
+        let format = if let Some(pipe) = &self.pipe {
+            pipe.output_info().format
+        } else if let Some(cur) = &self.cur {
+            cur.source
+                .as_ref()
+                .and_then(|s| s.format)
+                .unwrap_or(AudioFormat {
+                    sample_rate: 44100,
+                    channels: 2,
+                    bit_depth: Some(16),
+                })
+        } else {
+            AudioFormat {
+                sample_rate: 44100,
+                channels: 2,
+                bit_depth: Some(16),
+            }
+        };
+
+        self.deps.sink_factory.select(new_selection);
+        let new_sink = match self.deps.sink_factory.open(format) {
+            Ok(sink) => sink,
+            Err(err) => {
+                self.deps.sink_factory.select(old_selection);
+                self.notify(&PlayerEvent::OutputOpenFailed {
+                    reason: err.to_string(),
+                });
+                return;
+            }
+        };
+
+        if let Err(reason) = self.migrate_pipeline(new_sink) {
+            self.notify(&PlayerEvent::OutputOpenFailed { reason });
+            return;
+        }
+
+        self.output.chosen = chosen;
+        self.refresh_output_status();
+        self.notify(&PlayerEvent::OutputChanged(self.output.clone()));
+        self.publish();
+        if let Some(path) = self.signal_path() {
+            self.notify(&PlayerEvent::SignalPathChanged(path));
+        }
+    }
+
+    fn migrate_pipeline(&mut self, new_sink: Box<dyn AudioSink>) -> Result<(), String> {
+        let Some(old_pipe) = self.pipe.take() else {
+            return Ok(());
+        };
+        let pos = self.shared.position();
+        self.underruns_base += old_pipe.shared.underruns.load(Ordering::Relaxed);
+        let mut jobs = old_pipe.stop_and_take();
+
+        let source_format = jobs.first().map(|j| j.decoder.info().format);
+
+        if let Some(first_job) = jobs.first_mut() {
+            first_job.start = pos;
+            let rate = first_job.decoder.info().format.sample_rate;
+            let span = first_job.span.map(|s| FrameSpan::new(s, rate));
+            let from = file_time(span, pos, rate);
+            let _ = first_job.decoder.seek(from);
+        }
+
+        let pipe = Pipeline::start(new_sink, &self.shared.pos.played, &self.gain)
+            .map_err(|e| e.to_string())?;
+
+        self.shared
+            .pos
+            .rate
+            .store(pipe.output_info().format.sample_rate, Ordering::SeqCst);
+        self.shared.pos.start.store(0, Ordering::SeqCst);
+        self.shared.pos.base_us.store(micros(pos), Ordering::SeqCst);
+        self.shared
+            .pos
+            .latency
+            .store(pipe.latency_frames(), Ordering::SeqCst);
+        pipe.send(FeedCmd::SetSkipping(self.skip));
+
+        if self.state == PlayState::Paused {
+            pipe.shared.paused.store(true, Ordering::Relaxed);
+        }
+
+        for job in jobs {
+            pipe.send(FeedCmd::Load(job));
+        }
+
+        if let Some(cur) = &self.cur {
+            for id in self.ignored.get(&cur.entry).into_iter().flatten() {
+                pipe.send(FeedCmd::Ignore {
+                    token: cur.token,
+                    id: id.clone(),
+                });
+            }
+        }
+
+        if let (Some(cur), Some(format)) = (self.cur.as_mut(), source_format) {
+            let replay_stage = cur
+                .stages
+                .iter()
+                .find(|s| matches!(s, ProcessingStage::ReplayGain { .. }))
+                .copied();
+            cur.stages = plan_stages(format, pipe.output_info().format);
+            cur.stages.extend(replay_stage);
+        }
+
+        self.pipe = Some(pipe);
+        Ok(())
     }
 }
 
