@@ -42,7 +42,7 @@
   - Wave: 1
   - Checks: round trip; an old plain-name file loads and upgrades; out-of-range options are clamped.
 
-- [ ] 6. List devices with IDs and report health in the `cpal` sink
+- [x] 6. List devices with IDs and report health in the `cpal` sink
   - Crate and files: `nemo-audio`: `src/cpal_sink.rs`.
   - Does: Lists every output device with its `DeviceId`, name and the default mark, and opens a device by `DeviceId` instead of by name. The `cpal` error callback sets `SinkHealth::Lost` in an atomic that `health()` reads; the data callback is unchanged and stays allocation-free, lock-free and silent (code.md). Device names and IDs are logged at `debug` only.
   - _Requirements: 1, 7, 9, 22, 26_
