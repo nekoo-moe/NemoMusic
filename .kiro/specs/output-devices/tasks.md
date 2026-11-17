@@ -50,7 +50,7 @@
   - Wave: 1
   - Checks: `cargo test -p nemo-audio --test bit_exact`; `cargo test -p nemo-audio --test rt_no_alloc`; an `#[ignore]` test that lists real devices.
 
-- [ ] 7. Open the chosen device through a new `DeviceSinkFactory` (shared mode)
+- [x] 7. Open the chosen device through a new `DeviceSinkFactory` (shared mode)
   - Crate and files: `nemo-audio`: `src/device_factory.rs` (new), `src/lib.rs`; `nemo-app`: `src/backend.rs` (replaces `CpalSinkFactory`).
   - Does: Holds the `OutputSelection` that `select()` sets and opens that device in shared mode, labelled shared and never bit-perfect. No choice means the system default; a saved device that is absent opens the default and sets `saved_missing`. It only opens its own stream, so the system default and other apps' volume and routing stay as they were.
   - _Requirements: 2, 3, 8, 12, 26_

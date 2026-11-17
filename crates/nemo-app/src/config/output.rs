@@ -56,13 +56,6 @@ impl From<SavedDevice> for StoredDevice {
 
 impl StoredDevice {
     /// The device for the player; `None` while a name from an older file has no ID yet.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "`SetOutputDevice` (output-devices task 3) and the device factory (task 7) take it"
-        )
-    )]
     #[must_use]
     pub fn saved(&self) -> Option<SavedDevice> {
         (!self.id.is_empty()).then(|| SavedDevice {
