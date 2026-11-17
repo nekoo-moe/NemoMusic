@@ -17,7 +17,7 @@
   - Wave: 0
   - Checks: `cargo test -p nemo-audio --test bit_exact`; `cargo test -p nemo-audio --test rt_no_alloc` (the callback is unchanged and must stay allocation-free).
 
-- [ ] 3. Add the output commands, events and snapshot field
+- [x] 3. Add the output commands, events and snapshot field
   - Crate and files: `nemo-core`: `src/player.rs`; `nemo-audio`: `src/control_cmd.rs`; exhaustive matches in `nemo-ui` and `nemo-app`. Touches nemo-core/src/player.rs.
   - Does: Adds `PlayerCommand::{ListOutputDevices, SetOutputDevice, SetOutputOptions, RetryOutput, ResumeOnReturnedDevice}`, `PlayerEvent::{OutputDevicesChanged, OutputChanged, OutputOpenFailed, DeviceLost, SavedDeviceReturned, OutputTaken, ExclusiveFellBack}` and `PlayerSnapshot.output` (row 5). `ListOutputDevices` answers from `SinkFactory::list_devices`; the other commands are accepted and do nothing until their tasks land, and no UI sends them before output-devices#20.
   - _Requirements: none (groundwork)_

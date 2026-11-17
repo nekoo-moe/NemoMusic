@@ -11,6 +11,7 @@ use std::time::Duration;
 
 use nemo_core::audio::{AudioFormat, ProcessingStage, SignalPath, StreamInfo};
 use nemo_core::effects::{EffectsStatus, TransitionSettings};
+use nemo_core::output::OutputStatus;
 use nemo_core::player::{PlayState, PlayerEvent, PlayerSnapshot, RepeatMode};
 use nemo_core::segment::Segment;
 use nemo_core::track::Track;
@@ -109,6 +110,8 @@ pub(crate) struct Core {
     pub effects: EffectsStatus,
     /// The song-transition settings last set (audio-effects); not applied yet.
     pub transition: TransitionSettings,
+    /// Output device status and options.
+    pub output: OutputStatus,
 }
 
 impl Core {
@@ -138,6 +141,7 @@ impl Core {
             parked: false,
             effects: EffectsStatus::default(),
             transition: TransitionSettings::default(),
+            output: OutputStatus::default(),
         }
     }
 
@@ -220,6 +224,7 @@ impl Core {
             live: false,
             effects: self.effects,
             transition: self.transition,
+            output: self.output.clone(),
         };
         *self
             .shared

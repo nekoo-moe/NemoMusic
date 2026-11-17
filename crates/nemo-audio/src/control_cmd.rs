@@ -59,6 +59,15 @@ impl Core {
                 self.transition = settings;
                 self.publish();
             }
+            PlayerCommand::ListOutputDevices => {
+                if let Ok(devices) = self.deps.sink_factory.list_devices() {
+                    self.notify(&PlayerEvent::OutputDevicesChanged(devices));
+                }
+            }
+            PlayerCommand::SetOutputDevice(_)
+            | PlayerCommand::SetOutputOptions(_)
+            | PlayerCommand::RetryOutput
+            | PlayerCommand::ResumeOnReturnedDevice => {}
         }
     }
 

@@ -296,3 +296,32 @@ fn effects_and_transition_settings_are_stored_and_reported() {
     wait("the transition", || p.snapshot().transition == transition);
     assert_eq!(p.snapshot().state, PlayState::Stopped, "nothing started");
 }
+
+#[test]
+fn output_commands_are_accepted_and_list_answers() {
+    let resolver = Arc::new(Recorder::default());
+    let p = player(&resolver);
+    let mut events = p.subscribe();
+
+    p.send(PlayerCommand::ListOutputDevices);
+    let mut devices_events: Vec<Vec<nemo_core::output::OutputDevice>> = Vec::new();
+    wait("OutputDevicesChanged", || {
+        devices_events.extend(
+            std::iter::from_fn(|| events.try_next()).filter_map(|e| match e {
+                PlayerEvent::OutputDevicesChanged(d) => Some(d),
+                _ => None,
+            }),
+        );
+        !devices_events.is_empty()
+    });
+    assert_eq!(devices_events.len(), 1);
+
+    // Other output commands are accepted without crashing or starting playback
+    p.send(PlayerCommand::SetOutputDevice(None));
+    p.send(PlayerCommand::SetOutputOptions(
+        nemo_core::output::OutputOptions::default(),
+    ));
+    p.send(PlayerCommand::RetryOutput);
+    p.send(PlayerCommand::ResumeOnReturnedDevice);
+    assert_eq!(p.snapshot().state, PlayState::Stopped);
+}

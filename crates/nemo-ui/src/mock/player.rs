@@ -212,12 +212,14 @@ impl PlayerState {
                 self.emit(PlayerEvent::VolumeChanged(v));
             }
             PlayerCommand::SetSkipSegments(on) => self.snapshot.skip_segments = on,
-            // The mock skips no segment, has no remote device to hand playback to and plays no
-            // stream with several audio tracks.
+            // The mock skips no segment, has no remote device to hand playback to, plays no
+            // stream with several audio tracks and does no output retry or resume.
             PlayerCommand::UndoSkip
             | PlayerCommand::Park
             | PlayerCommand::Unpark { .. }
-            | PlayerCommand::SwitchAudioTrack(_) => {}
+            | PlayerCommand::SwitchAudioTrack(_)
+            | PlayerCommand::RetryOutput
+            | PlayerCommand::ResumeOnReturnedDevice => {}
             // The mock applies no effect to sound; it only reports the settings back.
             PlayerCommand::SetEffects(settings) => {
                 self.snapshot.effects.settings = settings;
@@ -227,6 +229,19 @@ impl PlayerState {
             PlayerCommand::SetRepeat(mode) => {
                 self.snapshot.repeat = mode;
                 self.emit(PlayerEvent::RepeatChanged(mode));
+            }
+            PlayerCommand::ListOutputDevices => {
+                self.emit(PlayerEvent::OutputDevicesChanged(
+                    self.snapshot.output.devices.clone(),
+                ));
+            }
+            PlayerCommand::SetOutputDevice(saved) => {
+                self.snapshot.output.chosen = saved;
+                self.emit(PlayerEvent::OutputChanged(self.snapshot.output.clone()));
+            }
+            PlayerCommand::SetOutputOptions(opts) => {
+                self.snapshot.output.options = opts;
+                self.emit(PlayerEvent::OutputChanged(self.snapshot.output.clone()));
             }
         }
     }
