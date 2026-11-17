@@ -364,12 +364,14 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore = "requires real audio hardware/host"]
     fn test_list_devices_runs() {
         let res = list_devices();
         assert!(res.is_ok(), "list_devices should succeed: {res:?}");
     }
 
     #[test]
+    #[ignore = "requires real audio hardware/host"]
     fn test_list_output_devices_backward_compat() {
         let res = list_output_devices();
         assert!(res.is_ok(), "list_output_devices should succeed: {res:?}");
@@ -378,8 +380,8 @@ mod tests {
     #[test]
     fn test_cpal_sink_factory_defaults() {
         let factory = CpalSinkFactory::default();
-        let devices = factory.list_devices();
-        assert!(devices.is_ok());
+        assert!(factory.device.is_none());
+        assert!(factory.named.is_none());
     }
 
     #[test]

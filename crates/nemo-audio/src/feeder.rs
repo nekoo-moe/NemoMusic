@@ -53,6 +53,8 @@ struct Active {
     chain: Chain,
     /// Source frame index (from the track start) of the next decoded block.
     pos_frames: u64,
+    /// The original track span, if any.
+    track_span: Option<TrackSpan>,
     /// The part of the file that is the track, if not all of it.
     span: Option<FrameSpan>,
     segments: Vec<Segment>,
@@ -122,8 +124,9 @@ impl Feeder {
         }
     }
 
-    /// The thread body. Returns when the pipeline asks it to stop.
-    pub fn run(mut self) {
+    /// The thread body. Returns when the pipeline asks it to stop, carrying out any active and
+    /// queued jobs.
+    pub fn run(mut self) -> Vec<Job> {
         while !self.shared.stop.load(Ordering::SeqCst) {
             self.apply_commands();
             self.interrupted = false;
@@ -134,6 +137,31 @@ impl Feeder {
             }
             self.step();
         }
+        self.take_jobs()
+    }
+
+    fn take_jobs(mut self) -> Vec<Job> {
+        if let Ok(mut q) = self.cmds.lock() {
+            while let Some(cmd) = q.pop_front() {
+                if let FeedCmd::Load(job) = cmd {
+                    self.queue.push_back(job);
+                }
+            }
+        }
+        let mut jobs = Vec::new();
+        if let Some(a) = self.active.take() {
+            let rate = a.decoder.info().format.sample_rate;
+            jobs.push(Job {
+                token: a.token,
+                decoder: a.decoder,
+                start: frame_time(a.pos_frames, rate),
+                span: a.track_span,
+                segments: a.segments,
+                replay_gain: a.replay_gain,
+            });
+        }
+        jobs.extend(self.queue.drain(..));
+        jobs
     }
 
     fn send(&self, event: FeedEvent) {
@@ -261,6 +289,7 @@ impl Feeder {
         self.active = Some(Active {
             token: job.token,
             pos_frames: to_frames(job.start, source.sample_rate),
+            track_span: job.span,
             span,
             decoder: job.decoder,
             chain,
