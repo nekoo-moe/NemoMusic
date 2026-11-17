@@ -4,9 +4,11 @@
 //! shared mode and refuses a device whose rate or channel count differs from the source.
 
 use nemo_core::audio::{AudioFormat, OutputInfo, OutputMode};
-use nemo_core::output::{DeviceId, FallbackReason, OutputDevice, OutputOptions};
+pub use nemo_core::output::{DeviceId, FallbackReason, OutputDevice, OutputOptions};
 
-pub use crate::cpal_sink::{CpalSink, CpalSinkFactory, OutputDeviceInfo, list_output_devices};
+pub use crate::cpal_sink::{
+    CpalSink, CpalSinkFactory, OutputDeviceInfo, list_devices, list_output_devices,
+};
 
 /// The function a sink calls to fetch samples. It runs on the audio thread, so it must be
 /// real-time safe.
