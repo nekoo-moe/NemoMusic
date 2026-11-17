@@ -167,6 +167,7 @@ impl Core {
                     p.send(FeedCmd::SetSegments { token, segments });
                 }
             }
+            Msg::DevicesChanged(devices) => self.on_devices_changed(&devices),
             Msg::Shutdown => {}
         }
     }

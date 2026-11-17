@@ -199,6 +199,8 @@ fn main() {
         opener: Arc::new(TimedOpener(HttpStreamOpener::new(), Arc::clone(&clock))),
         segments: None,
         sink_factory: Arc::new(CpalSinkFactory::new(None)),
+        device_enumerator: None,
+        device_watch_interval: None,
     });
     let mut events = player.subscribe();
     let mut plan: Vec<String> = ids.clone();

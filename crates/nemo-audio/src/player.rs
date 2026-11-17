@@ -15,6 +15,7 @@ use nemo_core::services::{EventReceiver, PlayerControl, StreamOpener};
 use nemo_core::stream::{StreamRequest, StreamResolver};
 
 use crate::control::Core;
+use crate::device_watch::{DeviceEnumerator, DeviceWatcher, SinkFactoryEnumerator, WATCH_INTERVAL};
 use crate::prepare::Prepared;
 use crate::replay_gain::ReplayGainSwitch;
 use crate::sink::SinkFactory;
@@ -40,6 +41,10 @@ pub struct PlayerDeps {
     /// Saved songs (offline cache). Asked on the prepare thread before the resolver; a saved
     /// song plays from its file with no stream lookup. `None` streams every song.
     pub offline: Option<Arc<dyn OfflineStore>>,
+    /// Custom device enumerator for the background watcher. `None` defaults to `sink_factory`.
+    pub device_enumerator: Option<Arc<dyn DeviceEnumerator>>,
+    /// Custom polling interval for the device watcher. `None` defaults to 1 second.
+    pub device_watch_interval: Option<Duration>,
 }
 
 /// Messages to the control thread.
@@ -56,6 +61,8 @@ pub(crate) enum Msg {
     },
     /// A helper thread fetched SponsorBlock segments.
     Segments { token: u64, segments: Vec<Segment> },
+    /// The background device watcher reported a changed device list.
+    DevicesChanged(Vec<nemo_core::output::OutputDevice>),
     /// The last handle was dropped.
     Shutdown,
 }
@@ -146,6 +153,7 @@ struct Handle {
     tx: Sender<Msg>,
     shared: Arc<Shared>,
     thread: Mutex<Option<JoinHandle<()>>>,
+    watcher: Mutex<Option<DeviceWatcher>>,
 }
 
 impl PlayerControl for Handle {
@@ -177,6 +185,11 @@ impl PlayerControl for Handle {
 
 impl Drop for Handle {
     fn drop(&mut self) {
+        if let Ok(mut w) = self.watcher.lock()
+            && let Some(mut watcher) = w.take()
+        {
+            watcher.stop();
+        }
         // The control thread is gone only after shutdown; there is nobody to tell.
         let _ = self.tx.send(Msg::Shutdown);
         if let Ok(mut t) = self.thread.lock()
@@ -216,6 +229,12 @@ impl Player {
         let shared = Arc::new(Shared::new(replay_gain));
         let (tx, rx) = channel();
         let (core_shared, core_tx) = (Arc::clone(&shared), tx.clone());
+        let enumerator = deps
+            .device_enumerator
+            .clone()
+            .unwrap_or_else(|| Arc::new(SinkFactoryEnumerator(Arc::clone(&deps.sink_factory))));
+        let interval = deps.device_watch_interval.unwrap_or(WATCH_INTERVAL);
+        let watcher = DeviceWatcher::spawn_with(enumerator, tx.clone(), interval);
         // The core holds the output sink, which may not be Send, so it is built on its thread.
         let thread = thread::Builder::new()
             .name("nemo-player".into())
@@ -225,6 +244,7 @@ impl Player {
             tx,
             shared,
             thread: Mutex::new(Some(thread)),
+            watcher: Mutex::new(Some(watcher)),
         })
     }
 }

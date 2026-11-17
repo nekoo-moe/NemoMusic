@@ -9,6 +9,7 @@ use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
+use nemo_audio::device_watch::DeviceEnumerator;
 use nemo_audio::player::{Player, PlayerDeps};
 use nemo_audio::replay_gain::ReplayGainSwitch;
 use nemo_audio::sink::{AudioSink, OutputSelection, RenderCallback, SinkError, SinkFactory};
@@ -337,6 +338,12 @@ impl SinkFactory for SelectableSinkFactory {
             .device
             .as_ref()
             .and_then(|id| devices.iter().find(|d| &d.id == id).map(|d| d.name.clone()))
+            .or_else(|| {
+                devices
+                    .iter()
+                    .find(|d| d.is_default)
+                    .map(|d| d.name.clone())
+            })
             .unwrap_or_else(|| "Default Test Device".into());
 
         Ok(Box::new(ThreadSink {
@@ -403,6 +410,8 @@ pub struct RigOptions {
     pub sink_factory: Option<Arc<dyn SinkFactory>>,
     pub capture: Option<Arc<Mutex<Vec<f32>>>>,
     pub opened: Option<Arc<AtomicUsize>>,
+    pub device_enumerator: Option<Arc<dyn DeviceEnumerator>>,
+    pub device_watch_interval: Option<Duration>,
 }
 
 impl Default for RigOptions {
@@ -422,6 +431,8 @@ impl Default for RigOptions {
             sink_factory: None,
             capture: None,
             opened: None,
+            device_enumerator: None,
+            device_watch_interval: None,
         }
     }
 }
@@ -459,6 +470,8 @@ pub fn rig(streams: Vec<(String, Vec<u8>)>, options: RigOptions) -> Rig {
         }),
         segments: options.segments.map(|s| -> Arc<dyn SegmentSource> { s }),
         sink_factory,
+        device_enumerator: options.device_enumerator,
+        device_watch_interval: options.device_watch_interval,
     };
     let player = Player::spawn_with_replay_gain(deps, options.replay_gain.unwrap_or_default());
     let events = player.subscribe();

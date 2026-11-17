@@ -117,6 +117,8 @@ fn start(refuse: &[u32], request: StreamRequest) -> (Arc<dyn PlayerControl>, Arc
             opened: Arc::default(),
             interval: Duration::from_micros(2500),
         }),
+        device_enumerator: None,
+        device_watch_interval: None,
     });
     (player, resolver)
 }

@@ -59,6 +59,8 @@ fn main() {
         opener: Arc::new(HttpStreamOpener::default()),
         segments: None,
         sink_factory: Arc::new(CpalSinkFactory::new(None)),
+        device_enumerator: None,
+        device_watch_interval: None,
     });
 
     player.send(PlayerCommand::Play(track));

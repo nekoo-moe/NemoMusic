@@ -206,13 +206,16 @@ fn switch_device_no_click_step() {
     assert!(captured.len() >= 480 * 10);
 
     // Find the end of device 1 playback (before the silence gap) and the start of device 2 playback.
-    let gap_start = captured
-        .iter()
-        .position(|s| *s == 0.0)
+    // The switch occurred after 480 * 8 samples. The inter-device prefill gap is a block of silence.
+    let search_start = 480 * 8;
+    let gap_offset = captured[search_start..]
+        .windows(100)
+        .position(|w| w.iter().all(|s| *s == 0.0))
         .expect("prefill gap between devices");
+    let gap_start = search_start + gap_offset;
     let resume = captured[gap_start..]
-        .iter()
-        .position(|s| *s != 0.0)
+        .windows(10)
+        .position(|w| w.iter().all(|s| *s != 0.0))
         .map(|p| gap_start + p)
         .expect("device 2 resumes playback");
 
