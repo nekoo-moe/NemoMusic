@@ -8,6 +8,7 @@ use crate::audio::SignalPath;
 use crate::effects::{
     EffectsSettings, EffectsStatus, TransitionKind, TransitionSettings, TransitionSkipReason,
 };
+use crate::output::{FallbackReason, OutputDevice, OutputOptions, OutputStatus, SavedDevice};
 use crate::segment::Segment;
 use crate::track::{Track, TrackId};
 
@@ -107,6 +108,16 @@ pub enum PlayerCommand {
     SetEffects(EffectsSettings),
     /// Use these song-transition settings from the next song change on.
     SetTransition(TransitionSettings),
+    /// Ask for the list of output devices. The player answers with [`PlayerEvent::OutputDevicesChanged`].
+    ListOutputDevices,
+    /// Choose an output device to play on, or `None` for the system default.
+    SetOutputDevice(Option<SavedDevice>),
+    /// Apply these output device options (exclusive mode, idle release, buffer size).
+    SetOutputOptions(OutputOptions),
+    /// Retry opening the output device after a failure or invalidation.
+    RetryOutput,
+    /// Resume playback on the chosen device after it returned.
+    ResumeOnReturnedDevice,
 }
 
 /// Something that happened in the player. Names are past tense.
@@ -151,6 +162,26 @@ pub enum PlayerEvent {
     },
     /// The set transition did not run; the songs joined gaplessly. Not a failure.
     TransitionSkipped(TransitionSkipReason),
+    /// The list of available output devices changed or was refreshed.
+    OutputDevicesChanged(Vec<OutputDevice>),
+    /// The active output device, chosen device, or options changed.
+    OutputChanged(OutputStatus),
+    /// Opening the output device failed.
+    OutputOpenFailed {
+        /// Short description of why opening failed.
+        reason: String,
+    },
+    /// The playing device was disconnected or lost.
+    DeviceLost {
+        /// Name of the lost device.
+        name: String,
+    },
+    /// The saved output device returned and is available again.
+    SavedDeviceReturned,
+    /// The device was taken by another application in exclusive mode.
+    OutputTaken,
+    /// Exclusive mode could not be used and playback fell back to shared mode.
+    ExclusiveFellBack(FallbackReason),
 }
 
 /// The player state at one moment. Cheap to clone; the UI reads it after a [`PlayerEvent`].
@@ -182,6 +213,8 @@ pub struct PlayerSnapshot {
     pub effects: EffectsStatus,
     /// The song-transition settings in use.
     pub transition: TransitionSettings,
+    /// The status of the output device and options.
+    pub output: OutputStatus,
 }
 
 impl Default for PlayerSnapshot {
@@ -200,13 +233,16 @@ impl Default for PlayerSnapshot {
             live: false,
             effects: EffectsStatus::default(),
             transition: TransitionSettings::default(),
+            output: OutputStatus::default(),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{EffectsStatus, PlayState, PlayerSnapshot, RepeatMode, TransitionSettings};
+    use super::{
+        EffectsStatus, OutputStatus, PlayState, PlayerSnapshot, RepeatMode, TransitionSettings,
+    };
 
     #[test]
     fn repeat_cycles_off_all_one_off() {
@@ -228,5 +264,6 @@ mod tests {
         assert!(!s.live);
         assert_eq!(s.effects, EffectsStatus::default());
         assert_eq!(s.transition, TransitionSettings::default());
+        assert_eq!(s.output, OutputStatus::default());
     }
 }
