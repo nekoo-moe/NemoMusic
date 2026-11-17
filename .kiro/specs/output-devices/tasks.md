@@ -59,7 +59,7 @@
   - Checks: `cargo test -p nemo-audio --test bit_exact`; `cargo test -p nemo-audio --test rt_no_alloc`; a test with a capturing `tracing` layer that no device name or ID appears at `info` or above (criterion 26).
   - Steering: `structure.md`, `nemo-audio` ownership line: add the device factory, device switching and the WASAPI exclusive sink.
 
-- [ ] 8. Carry the decoders out of a stopped pipeline
+- [x] 8. Carry the decoders out of a stopped pipeline
   - Crate and files: `nemo-audio`: `src/pipeline.rs` (`Pipeline::stop_and_take`), `src/feeder.rs`.
   - Does: `stop_and_take()` joins the feeder and returns the active and queued `Job`s with their open decoders, so a new pipeline can continue them without a network re-resolve. The ring discipline is unchanged.
   - _Requirements: 4_

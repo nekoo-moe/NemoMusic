@@ -156,7 +156,7 @@ pub struct Pipeline {
     cmds: CmdQueue,
     /// Events from the feeder.
     pub events: Receiver<FeedEvent>,
-    thread: Option<JoinHandle<()>>,
+    thread: Option<JoinHandle<Vec<Job>>>,
 }
 
 impl Pipeline {
@@ -231,6 +231,19 @@ impl Pipeline {
             let _ = handle.join();
         }
         self.sink.stop();
+    }
+
+    /// Stop the feeder and the sink, returning the active and queued jobs with their open decoders.
+    #[must_use]
+    pub fn stop_and_take(mut self) -> Vec<Job> {
+        self.shared.stop.store(true, Ordering::SeqCst);
+        let jobs = if let Some(handle) = self.thread.take() {
+            handle.join().unwrap_or_default()
+        } else {
+            Vec::new()
+        };
+        self.sink.stop();
+        jobs
     }
 }
 
