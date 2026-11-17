@@ -24,6 +24,7 @@ pub mod block_on;
 pub mod chain;
 mod codecs;
 pub mod decoder;
+pub mod device_factory;
 pub mod effects;
 pub mod engine;
 pub mod loudness;

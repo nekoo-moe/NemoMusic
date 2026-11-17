@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use nemo_audio::decoder::supported_stream_codecs;
 use nemo_audio::player::{Player, PlayerDeps};
-use nemo_audio::sink::CpalSinkFactory;
+use nemo_audio::sink::{DeviceSinkFactory, OutputSelection};
 use nemo_core::account::{AccountService, NoAccount, SignOutWipe};
 use nemo_core::ai::{NoAi, NoTranslator};
 use nemo_core::hooks::PlayObserver;
@@ -30,7 +30,7 @@ use nemo_ytm::stream::HttpStreamOpener;
 use nemo_ytm::ytdlp::{YtDlpResolver, locate_yt_dlp, managed};
 use tokio::runtime::Handle;
 
-use crate::config::Settings;
+use crate::config::{Settings, StoredDevice};
 use crate::merged::MergedCatalog;
 use crate::paths::AppPaths;
 
@@ -115,11 +115,15 @@ pub fn build(
         offline: None,
         opener: Arc::new(HttpStreamOpener::default()),
         segments,
-        // The shared-mode factory still opens by name until `DeviceSinkFactory` (output-devices
-        // task 7) opens by ID.
-        sink_factory: Arc::new(CpalSinkFactory::new(
-            settings.output_device.as_ref().map(|d| d.name.clone()),
-        )),
+        // The shared-mode factory opens by ID through `DeviceSinkFactory` (output-devices task 7).
+        sink_factory: Arc::new(DeviceSinkFactory::new(OutputSelection {
+            device: settings
+                .output_device
+                .as_ref()
+                .and_then(StoredDevice::saved)
+                .map(|s| s.id),
+            options: settings.output_options.to_core(),
+        })),
     });
     for command in start_commands(settings) {
         player.send(command);

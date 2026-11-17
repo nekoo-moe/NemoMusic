@@ -9,6 +9,7 @@ pub use nemo_core::output::{DeviceId, FallbackReason, OutputDevice, OutputOption
 pub use crate::cpal_sink::{
     CpalSink, CpalSinkFactory, OutputDeviceInfo, list_devices, list_output_devices,
 };
+pub use crate::device_factory::{DeviceOpener, DeviceSinkFactory};
 
 /// The function a sink calls to fetch samples. It runs on the audio thread, so it must be
 /// real-time safe.

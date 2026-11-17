@@ -41,3 +41,4 @@ ebur128 = { version = "=0.1.11", default-features = false }
 [dev-dependencies]
 sha2.workspace = true
 proptest.workspace = true
+tracing-subscriber = { version = "=0.3.23", default-features = false, features = ["fmt", "std"] }
