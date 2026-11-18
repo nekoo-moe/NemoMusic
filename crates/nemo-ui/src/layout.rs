@@ -3,6 +3,8 @@
 //! Pure functions of the window size: no GUI dependency, so every row of the reference table is
 //! a unit test. Sizes are logical pixels.
 
+pub mod bar;
+
 /// Sidebar width at `W >= SIDEBAR_BREAKPOINT`.
 pub const SIDEBAR_WIDE: u32 = 240;
 /// Sidebar width (icons only) below the breakpoint.
