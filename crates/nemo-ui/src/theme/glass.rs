@@ -30,6 +30,12 @@ pub const SHADOW_OFFSET_Y: f32 = 8.0;
 pub const SHADOW_BLUR: f32 = 24.0;
 /// Shadow color (`#00000052`).
 pub const SHADOW: Rgba = Rgba::from_rgba_hex(0x0000_0052);
+/// Share of the cover tint over the capsule's tonal fill (tier Low).
+pub const BAR_TINT_ALPHA: f32 = 0.18;
+/// Shadow offset y in px of a tonal surface that floats (elevation level 3, `design.md` section 5).
+pub const ELEVATED_OFFSET_Y: f32 = 4.0;
+/// Shadow blur in px of a tonal surface that floats.
+pub const ELEVATED_BLUR: f32 = 16.0;
 /// Glass tint base color.
 pub const TINT_BASE: Rgba = color::SURFACE_CONTAINER;
 /// Glass tint base of the active mode.
