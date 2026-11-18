@@ -183,19 +183,19 @@ fn the_preview_and_the_lyrics_view_find_the_same_line_for_any_position_and_offse
 #[test]
 fn the_offset_moves_the_preview_highlight() {
     let model = timed();
-    assert_eq!(model.preview_line(at(3_000), 0), Some(0));
+    assert_eq!(model.preview_line(at(2_000), 0), Some(0));
     assert_eq!(
-        model.preview_line(at(3_000), 400),
+        model.preview_line(at(2_000), 1_000),
         Some(1),
         "a positive offset shows lines earlier"
     );
-    assert_eq!(model.preview_line(at(3_000), -2_500), None);
+    assert_eq!(model.preview_line(at(3_000), -3_000), None);
     assert_eq!(
-        model.preview_line(at(3_349), 0),
+        model.preview_line(at(2_884), 0),
         Some(0),
-        "line 2 shows 150 ms before its start"
+        "line 2 shows 615 ms before its start (scroll lead and line sync offset)"
     );
-    assert_eq!(model.preview_line(at(3_350), 0), Some(1));
+    assert_eq!(model.preview_line(at(2_885), 0), Some(1));
 }
 
 #[test]
