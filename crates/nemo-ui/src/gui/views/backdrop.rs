@@ -37,14 +37,14 @@ pub fn window_inputs(app: &App) -> Inputs {
     }
 }
 
-/// The field behind the panes. With the Dynamic theme and a cover: the cover's toned canvas,
-/// drifting slowly, the old cover under the new one while they cross-fade; a flat tonal colour
-/// from the same canvas under reduce transparency. Otherwise (a fixed theme, or no cover) the
-/// soft three-colour gradient of `scheme::bg_colors`.
+/// The field behind the panes. With `Match colours to the playing song` on and a cover: the
+/// cover's toned canvas, drifting slowly, the old cover under the new one while they cross-fade;
+/// a flat tonal colour from the same canvas under reduce transparency. Otherwise (the switch is
+/// off, or there is no cover) one flat tonal colour from the theme (song-colour-theme rule
+/// table).
 pub fn window_field(app: &App) -> Element<'_, Message> {
-    let dynamic = app.ui.settings.theme.seed().is_none();
-    let Some(cover) = app.cover.as_ref().filter(|_| dynamic) else {
-        return gradient_field(app);
+    let Some(cover) = song_cover(app) else {
+        return flat_field(app);
     };
     let base = app.ui.settings.base;
     let fade = app.anim.cover();
@@ -120,34 +120,31 @@ fn vignette<'a>() -> Element<'a, Message> {
         .into()
 }
 
-/// The soft diagonal gradient of three dark tonal colours (`scheme::bg_colors`), cross-faded by
-/// `scheme::BgFade`, with the vignette.
-fn gradient_field(app: &App) -> Element<'_, Message> {
-    let [c0, c1, c2] = app.bg_fade.current();
-    let diag = iced::gradient::Linear::new(iced::Radians(2.35))
-        .add_stop(0.0, col(c0))
-        .add_stop(0.55, col(c1))
-        .add_stop(1.0, col(c2));
-    stack![
-        container(Space::new())
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .style(move |_| container::Style {
-                background: Some(Background::Gradient(diag.into())),
-                ..container::Style::default()
-            }),
-        ambient_glow(app),
-        vignette()
-    ]
-    .width(Length::Fill)
-    .height(Length::Fill)
-    .into()
+/// One flat tonal colour: the middle colour of `scheme::bg_colors` for the theme's seed (a cool
+/// grey for Dynamic), cross-faded by `scheme::BgFade`.
+fn flat_field(app: &App) -> Element<'_, Message> {
+    let flat = app.bg_fade.current()[1];
+    container(Space::new())
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .style(move |_| container::Style {
+            background: Some(col(flat).into()),
+            ..container::Style::default()
+        })
+        .into()
+}
+
+/// The cover that colours the window: none while `Match colours to the playing song` is off.
+fn song_cover(app: &App) -> Option<&crate::gui::app::CoverView> {
+    app.cover
+        .as_ref()
+        .filter(|_| app.ui.settings.song_colour_theme)
 }
 
 /// The pane gradient stops now, cross-faded from the previous cover's.
 fn pane_stops(app: &App) -> Option<[Rgba; STOPS]> {
     let base = app.ui.settings.base;
-    let now = app.cover.as_ref()?.canvas.stops(base);
+    let now = song_cover(app)?.canvas.stops(base);
     let fade = app.anim.cover();
     Some(match &app.prev_cover {
         Some(prev) if fade < 0.999 => mix_stops(prev.canvas.stops(base), now, fade),
@@ -180,7 +177,7 @@ pub fn pane_background(app: &App) -> Background {
 /// The full-screen canvas: the toned cover texture, the old one under the new one while they
 /// cross-fade. Plain window background when there is no cover.
 pub fn full_backdrop(app: &App) -> Element<'_, Message> {
-    let Some(c) = &app.cover else {
+    let Some(c) = song_cover(app) else {
         return Space::new().into();
     };
     let base = app.ui.settings.base;

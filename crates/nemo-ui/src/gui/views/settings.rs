@@ -22,6 +22,8 @@ use control::group;
 use info::{about, privacy};
 use playback::{audio_output, library, lyrics, playback};
 
+/// Opacity of the content of a disabled control (`design.md` section 5).
+const DISABLED_ALPHA: f32 = 0.38;
 /// Width of the section list.
 const MENU_W: f32 = 200.0;
 /// Widest right column.
@@ -112,6 +114,34 @@ pub(super) fn switch_with<'a>(
             .on_toggle(msg)
             .size(24.0)
             .style(switch_style(on)),
+    ]
+    .align_y(Alignment::Center)
+    .into()
+}
+
+/// A switch that cannot be used now (greyed out at the disabled opacity of `design.md` section
+/// 5). The state still shows as `On` or `Off` text, and nothing is sent when it is pressed.
+pub(super) fn switch_disabled<'a>(on: bool) -> Element<'a, Message> {
+    let dim = |c: crate::theme::Rgba| col(c.with_alpha(DISABLED_ALPHA));
+    row![
+        label(
+            if on { "On" } else { "Off" },
+            type_scale::BODY_MD,
+            false,
+            dim(color::on_surface_variant()),
+        ),
+        Space::new().width(gap::MD),
+        toggler(on).size(24.0).style(move |_, _| toggler::Style {
+            background: Background::Color(dim(color::on_surface())),
+            background_border_width: 0.0,
+            background_border_color: Color::TRANSPARENT,
+            foreground: Background::Color(dim(color::surface())),
+            foreground_border_width: 0.0,
+            foreground_border_color: Color::TRANSPARENT,
+            text_color: None,
+            border_radius: None,
+            padding_ratio: 0.2,
+        }),
     ]
     .align_y(Alignment::Center)
     .into()

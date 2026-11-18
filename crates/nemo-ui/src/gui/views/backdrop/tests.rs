@@ -100,3 +100,37 @@ fn the_backdrop_is_still_flat_or_moving_as_the_settings_say() {
     app.ui.reduced_motion = false;
     assert_eq!(Mode::of(window_inputs(&app)), Mode::Still, "hidden");
 }
+
+#[test]
+fn the_song_switch_decides_where_the_window_colours_come_from() {
+    use crate::palette::Palette;
+    use crate::settings::SettingChange;
+    let mut app = app_at(Route::Home, 1);
+    app.finish_animations();
+    let tinted = app.scheme_fade.current().container;
+    assert_ne!(
+        tinted,
+        BaseMode::Dark.neutrals().container,
+        "panes take the song tint"
+    );
+    assert!(!app.ui.accent.current().is_fallback);
+    send(
+        &mut app,
+        Message::Ui(Event::Setting(SettingChange::SongColourTheme(false))),
+    );
+    assert_eq!(
+        app.scheme_fade.current().container,
+        BaseMode::Dark.neutrals().container,
+        "off: neutral panes"
+    );
+    assert_eq!(
+        app.ui.accent.current(),
+        Palette::fallback(),
+        "off: Dynamic has no song"
+    );
+    send(
+        &mut app,
+        Message::Ui(Event::Setting(SettingChange::SongColourTheme(true))),
+    );
+    assert_eq!(app.scheme_fade.current().container, tinted, "on again");
+}

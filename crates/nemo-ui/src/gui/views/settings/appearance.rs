@@ -4,7 +4,7 @@ use iced::widget::{Space, button, column, container, row};
 use iced::{Alignment, Element, Length, Padding};
 
 use super::control::{segmented, setting_row, stacked_row};
-use super::switch;
+use super::{switch, switch_disabled};
 use crate::gui::app::{App, Message};
 use crate::gui::assets::Icon;
 use crate::gui::style::{animated, button_outlined, col, fit, gap, icon, label};
@@ -114,6 +114,22 @@ pub(super) fn appearance(app: &App, width: f32) -> Vec<Element<'_, Message>> {
         animated(b, idle, shape::FULL)
     };
     vec![
+        setting_row(
+            width,
+            "Match colours to the playing song",
+            Some("The whole window takes its colours from the cover of the song that plays.".to_owned()),
+            switch(s.song_colour_theme, SettingChange::SongColourTheme),
+        ),
+        setting_row(
+            width,
+            "Gentle heartbeat",
+            Some("A slow, soft pulse in the background while a song plays.".to_owned()),
+            if s.heartbeat_available(app.ui.reduced_motion) {
+                switch(s.song_heartbeat, SettingChange::SongHeartbeat)
+            } else {
+                switch_disabled(s.song_heartbeat)
+            },
+        ),
         stacked_row(
             width,
             "Surface",
@@ -132,7 +148,7 @@ pub(super) fn appearance(app: &App, width: f32) -> Vec<Element<'_, Message>> {
         stacked_row(
             width,
             "Colour theme",
-            Some("Dynamic follows the cover of the song that plays. The others keep one palette.".to_owned()),
+            Some("Dynamic follows the cover of the song that plays. The others keep one palette when the song colours below are off.".to_owned()),
             theme_swatches(app, width),
         ),
         stacked_row(

@@ -28,6 +28,8 @@ mod player_bar;
 mod screen;
 #[path = "snapshots/setup.rs"]
 mod setup;
+#[path = "snapshots/song_colour.rs"]
+mod song_colour;
 #[path = "snapshots/startup.rs"]
 mod startup;
 #[path = "snapshots/state.rs"]
@@ -78,6 +80,7 @@ fn scenarios() -> Vec<Shot> {
     backdrop::backdrops(&mut out);
     motion::shots(&mut out);
     setup::shots(&mut out);
+    song_colour::shots(&mut out);
     out.extend(wave_lyrics::shots());
     out.extend(syllable_motion::shots());
     out

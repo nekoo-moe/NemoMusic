@@ -85,6 +85,10 @@ pub struct Settings {
     pub now_playing_style: String,
     /// Animated-cover switches, all off by default.
     pub animated_covers: AnimatedCovers,
+    /// The window takes its colours from the playing song (on by default; song-colour-theme).
+    pub song_colour_theme: bool,
+    /// A gentle heartbeat of the background (on by default; song-colour-theme).
+    pub song_heartbeat: bool,
     /// The opt-in rows, by `OptInInfo.id`. A missing id means the user never touched the row,
     /// so the feature's default holds (see `opt_in_gate`).
     pub opt_ins: BTreeMap<String, OptInChoice>,
@@ -138,6 +142,8 @@ impl Default for Settings {
             corner_style: String::new(),
             now_playing_style: String::new(),
             animated_covers: AnimatedCovers::default(),
+            song_colour_theme: true,
+            song_heartbeat: true,
             opt_ins: BTreeMap::new(),
             effects: StoredEffects::default(),
             transition: StoredTransition::default(),
@@ -277,6 +283,24 @@ mod tests {
         )
         .expect("write");
         assert_eq!(Settings::load(&root), Settings::default());
+        std::fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[test]
+    fn song_colour_switches_are_on_by_default_and_round_trip() {
+        let root = temp_root("song-colour");
+        // A file written before the switches existed loads with both on.
+        std::fs::write(root.join(CONFIG_FILE), r#"{"volume_percent": 40}"#).expect("write");
+        let old = Settings::load(&root);
+        assert!(old.song_colour_theme && old.song_heartbeat);
+        assert!(Settings::default().song_colour_theme && Settings::default().song_heartbeat);
+        let off = Settings {
+            song_colour_theme: false,
+            song_heartbeat: false,
+            ..Settings::default()
+        };
+        off.save(&root).expect("save");
+        assert_eq!(Settings::load(&root), off);
         std::fs::remove_dir_all(root).expect("cleanup");
     }
 

@@ -273,8 +273,46 @@ fn the_window_follows_the_song_and_a_fixed_theme_keeps_its_seed() {
         bg_colors(field_seed(ThemeChoice::Dynamic, Some(b)), BaseMode::Dark)
     );
     assert_eq!(field_seed(ThemeChoice::Dynamic, None), None);
+    // The song wins over a fixed theme; without a song the theme's own seed shows.
+    assert_eq!(field_seed(ThemeChoice::Ocean, Some(a)), Some(a));
     assert_eq!(
-        field_seed(ThemeChoice::Ocean, Some(a)),
+        field_seed(ThemeChoice::Ocean, None),
         ThemeChoice::Ocean.seed()
     );
+    // With the switch off the cover gives nothing.
+    assert_eq!(song_seed(false, Some(a)), None);
+    assert_eq!(song_seed(true, Some(a)), Some(a));
+}
+
+#[test]
+fn the_song_wins_over_the_theme_and_off_leaves_the_theme_alone() {
+    let song = Seed {
+        hue: 20.0,
+        chroma: 0.12,
+    };
+    let on = |t| accent_palette(t, BaseMode::Dark, AccentIntensity::Standard, Some(song));
+    let off = |t| accent_palette(t, BaseMode::Dark, AccentIntensity::Standard, None);
+    assert_eq!(on(ThemeChoice::Ocean), on(ThemeChoice::Dynamic));
+    assert_ne!(on(ThemeChoice::Ocean), off(ThemeChoice::Ocean));
+    assert_eq!(off(ThemeChoice::Dynamic), Palette::fallback());
+}
+
+#[test]
+fn panes_take_the_song_tint_and_keep_text_contrast_for_every_hue() {
+    for base in BaseMode::ALL {
+        let plain = window_neutrals(base, None);
+        assert_eq!(plain, base.neutrals(), "no song, no tint");
+        for hue in (0..360).step_by(15) {
+            let seed = Seed {
+                hue: f64::from(hue),
+                chroma: crate::palette::MAX_CHROMA,
+            };
+            let n = window_neutrals(base, Some(seed));
+            assert_eq!(n.container, pane_tint(seed, base));
+            for ink in [n.on_surface, n.on_surface_variant] {
+                let r = contrast_ratio(ink, n.container);
+                assert!(r >= 4.5, "{base:?} hue {hue}: {r:.2}");
+            }
+        }
+    }
 }

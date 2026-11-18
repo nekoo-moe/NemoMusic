@@ -1,9 +1,9 @@
 //! Keeping the derived state of [`App`] in step: viewport, theme, background, chips, animation.
 
 use super::super::{fx, style, views};
-use super::App;
 use super::message::Job;
 use super::model::{DetailKey, DetailState, NpTab};
+use super::{App, ThemeKey};
 use crate::explore::{ContentFilter, LibTab};
 use crate::layout;
 use crate::route::Route;
@@ -72,30 +72,43 @@ impl App {
     /// one animated cross-fade.
     pub(super) fn sync_theme(&mut self) {
         let s = &self.ui.settings;
-        let key = (s.theme, s.base, s.accent_intensity, s.corner_style);
+        let song = self.song_seed();
+        let key = ThemeKey {
+            theme: s.theme,
+            base: s.base,
+            intensity: s.accent_intensity,
+            corner: s.corner_style,
+            song,
+        };
         if self.theme_key == Some(key) {
             return;
         }
         let first = self.theme_key.is_none();
         self.theme_key = Some(key);
-        let (theme, base, intensity, corner) = key;
-        shape::set_scale_percent(corner.percent());
+        shape::set_scale_percent(key.corner.percent());
         let reduced = self.ui.reduced_motion || first;
-        self.scheme_fade.retarget(base.neutrals(), reduced);
+        let palette = scheme::accent_palette(key.theme, key.base, key.intensity, song);
+        self.scheme_fade
+            .retarget(scheme::window_neutrals(key.base, song), reduced);
         color::set_active(self.scheme_fade.current());
-        let palette = scheme::accent_palette(theme, base, intensity, self.cover_seed);
         self.ui.accent.retarget(palette, reduced);
     }
 
-    /// Point the background field at the colour it should have now: a fixed theme keeps its own
-    /// seed; Dynamic follows the playing song on every screen (living-backdrop spec: an open
-    /// album or playlist page no longer holds the window colour).
+    /// Point the background field at the colour it should have now: the song's seed while the
+    /// song colours are on, else the theme's own (song-colour-theme rule table). It follows the
+    /// playing song on every screen: an open album or playlist page no longer holds the window
+    /// colour (living-backdrop spec).
     pub(super) fn sync_bg(&mut self) {
         let s = &self.ui.settings;
-        let seed = scheme::field_seed(s.theme, self.cover_seed);
+        let seed = scheme::field_seed(s.theme, self.song_seed());
         let colors = bg_colors(seed, s.base);
         let reduced = self.ui.reduced_motion;
         self.bg_fade.retarget(colors, reduced);
+    }
+
+    /// The seed of the playing cover while `Match colours to the playing song` is on.
+    pub(super) fn song_seed(&self) -> Option<crate::palette::Seed> {
+        scheme::song_seed(self.ui.settings.song_colour_theme, self.cover_seed)
     }
 
     pub(super) fn sync_chips(&mut self) {
