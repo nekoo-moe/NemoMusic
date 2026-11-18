@@ -37,6 +37,7 @@ pub fn to_ui(s: &Settings) -> UiSettings {
         reduce_motion: s.reduce_motion,
         reduce_transparency: s.reduce_transparency,
         tos_acknowledged: s.tos_acknowledged,
+        setup_completed: s.setup_completed,
         theme: by_label(&ThemeChoice::ALL, ThemeChoice::label, &s.theme),
         base: by_label(&BaseMode::ALL, BaseMode::label, &s.base_mode),
         accent_intensity: by_label(
@@ -76,6 +77,7 @@ pub fn apply_ui(s: &mut Settings, ui: &UiSettings) {
     s.reduce_motion = ui.reduce_motion;
     s.reduce_transparency = ui.reduce_transparency;
     s.tos_acknowledged = ui.tos_acknowledged;
+    s.setup_completed = ui.setup_completed;
     ui.theme.label().clone_into(&mut s.theme);
     ui.base.label().clone_into(&mut s.base_mode);
     ui.accent_intensity
@@ -133,6 +135,7 @@ pub fn options(settings: Settings, root: PathBuf) -> (UiOptions, Sender<Settings
         }
     });
     let options = UiOptions {
+        start_setup: initial.needs_setup(),
         settings: initial,
         on_settings: Some(on_settings),
         music_folders: folders,
@@ -288,6 +291,30 @@ mod tests {
         let json = serde_json::to_string(&s).expect("serialises");
         let back: Settings = serde_json::from_str(&json).expect("parses");
         assert_eq!(back.collection_sorts, s.collection_sorts);
+    }
+
+    #[test]
+    fn setup_completed_round_trips_and_only_a_new_user_gets_the_flow() {
+        // First run: nothing accepted, nothing finished.
+        let mut s = Settings::default();
+        assert!(!to_ui(&s).setup_completed && to_ui(&s).needs_setup());
+        // A user who accepted the notice before the flow existed is not sent through it.
+        s.tos_acknowledged = true;
+        assert!(!to_ui(&s).needs_setup());
+        // Finishing the flow is stored and read back.
+        let mut fresh = Settings::default();
+        let ui = UiSettings {
+            setup_completed: true,
+            ..to_ui(&fresh)
+        };
+        apply_ui(&mut fresh, &ui);
+        assert!(fresh.setup_completed && !to_ui(&fresh).needs_setup());
+        // `options` opens the flow for a new user only.
+        let root = std::env::temp_dir();
+        let (opts, _saver) = options(Settings::default(), root.clone());
+        assert!(opts.start_setup);
+        let (opts, _saver) = options(s, root);
+        assert!(!opts.start_setup);
     }
 
     #[test]

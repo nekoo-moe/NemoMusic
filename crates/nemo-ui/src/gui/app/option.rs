@@ -91,6 +91,9 @@ pub struct UiOptions {
     pub start_route: Route,
     /// Settings at start (the app loads them from its config).
     pub settings: UiSettings,
+    /// Open the first-run setup flow at start (the app sets it from
+    /// [`UiSettings::needs_setup`]).
+    pub start_setup: bool,
     /// Called on the UI thread with the new settings after every change on the Settings screen
     /// and when the first-run notice is accepted. Must not block (store the value and return).
     pub on_settings: Option<Arc<dyn Fn(UiSettings) + Send + Sync>>,
@@ -111,6 +114,7 @@ impl std::fmt::Debug for UiOptions {
             .field("show_frame_readout", &self.show_frame_readout)
             .field("start_route", &self.start_route)
             .field("settings", &self.settings)
+            .field("start_setup", &self.start_setup)
             .field("on_settings", &self.on_settings.is_some())
             .field("music_folders", &self.music_folders)
             .field("on_add_music_folder", &self.on_add_music_folder.is_some())
@@ -128,6 +132,7 @@ impl Default for UiOptions {
             show_frame_readout: false,
             start_route: Route::Home,
             settings: UiSettings::default(),
+            start_setup: false,
             on_settings: None,
             music_folders: Vec::new(),
             on_add_music_folder: None,
