@@ -41,6 +41,7 @@ pub mod scheme;
 pub mod search;
 pub mod settings;
 pub mod signal;
+pub mod splash;
 pub mod state;
 pub mod theme;
 
@@ -49,4 +50,4 @@ pub use settings::{AnimatedCoverSettings, GlassTier, NowPlayingStyle, UiSettings
 #[cfg(feature = "gui")]
 pub mod gui;
 #[cfg(feature = "gui")]
-pub use gui::{UiOptions, run};
+pub use gui::{StartFn, StepReporter, UiOptions, run, run_with_startup};

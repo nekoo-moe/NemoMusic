@@ -136,6 +136,12 @@ Owner direction (2026-11-10, evening): the first build looked "raw". Go full Mat
 11. Sign-in, ToS, SponsorBlock, ad-block wording matches this file and coc.md?
 12. 60 fps budget met, and nothing touches the audio thread?
 
+## 16. Splash and setup flow (owner, 2026-11-18; startup-flow)
+- Splash: the first frame is the app mark (note glyph in a `shape.xl` tile, `primary-container`), the wordmark in `headline-md` 600, a 240 x 3 px progress line (`on-surface` at 0.12 rail, `primary` fill) and the running step in `label-sm` (`on-surface-variant`). Neutral baseline of the saved base mode and the idle accent, never a song colour. The line counts real start-up steps; no percentage, no estimate, no spinner.
+- Timing: at least 500 ms on screen, then a fade over `motion.base` (emphasized-accelerate) into the app; reduced motion removes it at once. If the services are not ready after 6 s the step line adds `This is taking longer than usual.` A failed start shows one plain sentence and a tonal `Close` button.
+- Setup flow: a full-window layer on `surface`, content column at most 560 wide, six steps (Welcome, Look, Sources, Playback, Privacy and risk, Done) with step dots, `Back`, `Next` and an always-visible `Skip setup`. Enter is Next, Esc does nothing. Steps slide 16 px and fade within `motion.slow` (400 ms); reduced motion is instant. The notice checkbox is unticked and Continue stays disabled until it is ticked; `Not now` works as in the first-run sheet. SoundCloud reads `Public tracks only. No sign-in needed.`
+- Existing users (notice already accepted) never see the flow; `Run setup again` in Settings opens it without resetting sign-in or data.
+
 <!-- Sources (searched 2026-11-10):
 https://m3.material.io/styles/motion/overview/specs
 https://m3.material.io/styles/motion/overview/how-it-works

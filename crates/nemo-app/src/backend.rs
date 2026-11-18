@@ -1,7 +1,8 @@
 //! Build the real [`Backend`] the UI talks to.
 
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::mpsc::Sender;
+use std::sync::{Arc, Mutex};
 
 use nemo_audio::decoder::supported_stream_codecs;
 use nemo_audio::player::{Player, PlayerDeps};
@@ -19,6 +20,8 @@ use nemo_core::stream::StreamRequest;
 use nemo_library::catalog::LOCAL_ALBUM_PREFIX;
 use nemo_library::{LocalCatalog, LocalLibrary};
 use nemo_lyrics::LyricsHub;
+use nemo_ui::StepReporter;
+use nemo_ui::splash::StartStep;
 use nemo_ytm::account::{AccountCatalog, AccountConfig, GoogleAccount, SessionSlot};
 use nemo_ytm::catalog::YtmCatalog;
 use nemo_ytm::images::ImageCache;
@@ -33,6 +36,8 @@ use tokio::runtime::Handle;
 use crate::config::{Settings, StoredDevice};
 use crate::merged::MergedCatalog;
 use crate::paths::AppPaths;
+use crate::play_hub::{self, PlayHub};
+use crate::ui_bridge::SettingsMsg;
 
 /// Starting a service failed. The message is user-safe.
 #[derive(Debug, thiserror::Error)]
@@ -54,8 +59,47 @@ pub struct Services {
     pub local: LocalCatalog,
 }
 
+/// Everything the start function needs once the window and the splash are up (startup-flow).
+pub struct Startup {
+    /// The app's folders.
+    pub paths: AppPaths,
+    /// The stored settings.
+    pub settings: Settings,
+    /// The network runtime, alive for the whole app.
+    pub handle: Handle,
+    /// The settings saver, so the output watcher can store device changes.
+    pub saver: Sender<SettingsMsg>,
+    /// Where the play hub goes, so `main` can stop it after the window closes.
+    pub hub: Arc<Mutex<Option<PlayHub>>>,
+}
+
+impl Startup {
+    /// Open the services behind the first frame, reporting each real step. The library scan, the
+    /// play hub and the output watcher start here too, so the window never waits for them.
+    ///
+    /// # Errors
+    /// A plain sentence for the splash when a service cannot start.
+    pub fn run(self, report: StepReporter<'_>) -> Result<Backend, String> {
+        let services = build(&self.paths, &self.settings, &self.handle, report)
+            .map_err(|err| format!("NemoMusic could not start. {err}"))?;
+        rescan_in_background(&services.local);
+        match play_hub::spawn(Arc::clone(&services.backend.player), play_observers()) {
+            Ok(hub) => {
+                if let Ok(mut slot) = self.hub.lock() {
+                    *slot = Some(hub);
+                }
+            }
+            Err(err) => {
+                tracing::warn!(error = %err, "cannot start the play hub; play events are off");
+            }
+        }
+        crate::ui_bridge::spawn_output_watcher(&services.backend.player, self.saver);
+        Ok(services.backend)
+    }
+}
+
 /// Wire the services. Must be called inside the tokio runtime that `handle` belongs to stays
-/// alive for the whole app.
+/// alive for the whole app. `report` is told as each step finishes.
 ///
 /// # Errors
 /// Returns a [`StartError`] when the image cache or the lyrics store cannot start.
@@ -63,11 +107,14 @@ pub fn build(
     paths: &AppPaths,
     settings: &Settings,
     handle: &Handle,
+    report: StepReporter<'_>,
 ) -> Result<Services, StartError> {
     let local = LocalCatalog::new(LocalLibrary::new(settings.music_folders.clone()));
     let account_slot: SessionSlot = SessionSlot::default();
     let offline = open_offline(paths);
+    report(StartStep::Library);
     let account = build_account(paths, handle, &account_slot, offline);
+    report(StartStep::CredentialStore);
     // Signed out: the anonymous catalog. Signed in: the account's session, switched live.
     let remote = AccountCatalog::new(Arc::new(YtmCatalog::new(handle.clone())), account_slot);
     let catalog = MergedCatalog::new(
@@ -130,6 +177,7 @@ pub fn build(
     for command in start_commands(settings) {
         player.send(command);
     }
+    report(StartStep::Player);
 
     let lyrics = LyricsHub::new(&paths.lyrics, handle.clone(), Vec::new())
         .map_err(|e| fail("lyrics")(e.to_string()))?;

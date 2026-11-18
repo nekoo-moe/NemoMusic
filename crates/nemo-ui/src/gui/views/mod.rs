@@ -21,6 +21,7 @@ pub mod search;
 pub mod settings;
 pub mod settings_lyrics;
 pub mod shell;
+pub mod splash;
 
 use iced::widget::{container, stack};
 use iced::{Alignment, Element, Length, Padding};

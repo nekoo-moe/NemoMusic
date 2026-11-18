@@ -10,6 +10,7 @@ pub mod app;
 pub mod assets;
 pub mod fx;
 pub mod headless;
+pub mod shell;
 pub mod style;
 pub mod syllable_text;
 pub mod textfit;
@@ -17,8 +18,27 @@ pub mod views;
 pub mod widgets;
 
 pub use app::{AccountLibrary, App, UiHooks, UiOptions};
+pub use shell::{StartFn, StepReporter, run_with_startup};
 
 use nemo_core::services::Backend;
+
+/// Build the app on `backend`, with the task that starts its first jobs and asks the window for
+/// its real size and scale (events keep them current afterwards).
+pub(crate) fn boot_app(backend: Backend, options: &UiOptions) -> (App, iced::Task<app::Message>) {
+    let (app, jobs) = App::new(backend, options);
+    let b = app.backend.clone();
+    let jobs = iced::Task::batch(
+        jobs.into_iter()
+            .map(|j| iced::Task::perform(app::run_job(j, b.clone()), |m| m)),
+    );
+    let size = iced::window::oldest()
+        .and_then(iced::window::size)
+        .map(app::Message::Resized);
+    let scale = iced::window::oldest()
+        .and_then(iced::window::scale_factor)
+        .map(app::Message::Rescaled);
+    (app, iced::Task::batch([jobs, size, scale]))
+}
 
 /// Run the UI on `backend` until the window closes.
 ///
@@ -30,20 +50,8 @@ pub fn run(backend: Backend, options: UiOptions) -> iced::Result {
     let min = crate::theme::layout::MIN_WINDOW;
     iced::application(
         move || {
-            let (app, jobs) = App::new(backend.clone(), &options);
-            let b = app.backend.clone();
-            let jobs = iced::Task::batch(
-                jobs.into_iter()
-                    .map(|j| iced::Task::perform(app::run_job(j, b.clone()), |m| m)),
-            );
-            // Ask for the real window size and scale once; events keep them current afterwards.
-            let size = iced::window::oldest()
-                .and_then(iced::window::size)
-                .map(app::Message::Resized);
-            let scale = iced::window::oldest()
-                .and_then(iced::window::scale_factor)
-                .map(app::Message::Rescaled);
-            (app, iced::Task::batch([jobs, size, scale]))
+            let (app, task) = boot_app(backend.clone(), &options);
+            (app, task)
         },
         App::update,
         App::view,

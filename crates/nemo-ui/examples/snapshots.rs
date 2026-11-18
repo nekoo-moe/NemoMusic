@@ -26,6 +26,8 @@ mod opt_in;
 mod player_bar;
 #[path = "snapshots/screen.rs"]
 mod screen;
+#[path = "snapshots/startup.rs"]
+mod startup;
 #[path = "snapshots/state.rs"]
 mod state;
 #[path = "snapshots/syllable_motion.rs"]
@@ -103,6 +105,10 @@ fn main() {
         std::process::exit(1);
     }
     if let Err(e) = font_compare::render(&only, &out_dir) {
+        eprintln!("{e}");
+        std::process::exit(1);
+    }
+    if let Err(e) = startup::render(&only, &out_dir) {
         eprintln!("{e}");
         std::process::exit(1);
     }
