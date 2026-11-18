@@ -21,6 +21,7 @@ pub(super) fn map_key(event: keyboard::Event) -> Option<Message> {
         keyboard::Key::Named(Named::ArrowUp) => Key::Up,
         keyboard::Key::Named(Named::ArrowDown) => Key::Down,
         keyboard::Key::Named(Named::Escape) => Key::Escape,
+        keyboard::Key::Named(Named::Enter) => Key::Enter,
         keyboard::Key::Named(Named::F3) => Key::F3,
         keyboard::Key::Named(Named::F5) => Key::F5,
         keyboard::Key::Named(Named::Tab) => Key::Tab,

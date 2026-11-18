@@ -26,7 +26,7 @@ NemoMusic opens a window with a calm splash at once, and shows the real start-up
 9. THE SYSTEM SHALL show the steps Welcome, Look, Privacy and risk, Sources, Playback, Done (the notice comes before the sources because signing in needs it), with step dots, Back, Next and a Skip setup button that is always available. Enter SHALL be Next; Esc SHALL change nothing.
 10. WHEN the user changes a Look choice, THE SYSTEM SHALL apply it live.
 11. WHEN the user presses `Sign in with Google` on the Sources step, THE SYSTEM SHALL start the existing sign-in and show the account name when it returns; `Use without an account` SHALL move on. THE SYSTEM SHALL NOT show tokens, cookies or account ids.
-12. THE SYSTEM SHALL show SoundCloud as an On/Off switch for the public catalog with its existing disclosure, and the text `Public tracks only. No sign-in needed.`
+12. THE SYSTEM SHALL show SoundCloud as an On/Off switch for the public catalog and the text `Public tracks only. No sign-in needed.` While the SoundCloud catalog is not part of the app, THE SYSTEM SHALL show the switch Off, unusable, with a sentence that says why.
 13. THE SYSTEM SHALL show the ad blocking and SponsorBlock switches with the wording of `design.md` section 12 and their stored values as `On` or `Off`.
 14. THE SYSTEM SHALL show the notice of the first-run sheet with its checkbox unticked, and SHALL keep Continue disabled until it is ticked. Not now SHALL work as in the first-run sheet.
 15. WHEN a network or sign-in call fails, THE SYSTEM SHALL show a plain sentence and a way forward, and SHALL NOT block Skip setup.

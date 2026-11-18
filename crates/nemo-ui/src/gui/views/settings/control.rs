@@ -12,7 +12,10 @@ use crate::state::Event;
 use crate::theme::{color, shape, type_scale};
 
 /// A group card: rows stacked on `surface-container`, radius `md`.
-pub(super) fn group(rows: Vec<Element<'_, Message>>, width: f32) -> Element<'_, Message> {
+pub(in crate::gui::views) fn group(
+    rows: Vec<Element<'_, Message>>,
+    width: f32,
+) -> Element<'_, Message> {
     tile(
         column(rows)
             .width(Length::Fixed(width))
@@ -22,7 +25,7 @@ pub(super) fn group(rows: Vec<Element<'_, Message>>, width: f32) -> Element<'_, 
 }
 
 /// A row: label and helper on the left, a control on the right; at least 56 px high.
-pub(super) fn setting_row<'a>(
+pub(in crate::gui::views) fn setting_row<'a>(
     width: f32,
     title: &'a str,
     helper: Option<String>,
@@ -61,7 +64,7 @@ pub(super) fn setting_row<'a>(
 }
 
 /// A row whose control needs the full width: text on top, the control under it.
-pub(super) fn stacked_row<'a>(
+pub(in crate::gui::views) fn stacked_row<'a>(
     width: f32,
     title: &'a str,
     helper: Option<String>,
@@ -91,7 +94,7 @@ pub(super) fn stacked_row<'a>(
 }
 
 /// A segmented control: one pill per option, the chosen one filled with the accent container.
-pub(super) fn segmented<'a, T: Copy + PartialEq + 'a>(
+pub(in crate::gui::views) fn segmented<'a, T: Copy + PartialEq + 'a>(
     app: &App,
     options: &[(T, &'static str, Option<Icon>)],
     current: T,

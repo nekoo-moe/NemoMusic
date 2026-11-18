@@ -24,6 +24,8 @@ mod np_classic;
 mod opt_in;
 #[path = "snapshots/screen.rs"]
 mod screen;
+#[path = "snapshots/setup.rs"]
+mod setup;
 #[path = "snapshots/startup.rs"]
 mod startup;
 #[path = "snapshots/state.rs"]
@@ -73,6 +75,7 @@ fn scenarios() -> Vec<Shot> {
     feature::features(&mut out);
     backdrop::backdrops(&mut out);
     motion::shots(&mut out);
+    setup::shots(&mut out);
     out.extend(wave_lyrics::shots());
     out.extend(syllable_motion::shots());
     out

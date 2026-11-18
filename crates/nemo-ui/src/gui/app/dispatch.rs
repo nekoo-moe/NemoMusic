@@ -87,6 +87,7 @@ impl App {
             jobs.extend(self.sync_viewport());
         }
         self.sync_theme();
+        self.sync_setup();
         self.refresh_daily();
         self.sync_bg();
         jobs.extend(self.check_sleep());

@@ -223,6 +223,8 @@ pub fn sign_out_result(report: &nemo_core::account::SignOutReport) -> String {
     )
 }
 
+pub mod setup;
+
 #[cfg(test)]
 mod tests {
     use super::*;

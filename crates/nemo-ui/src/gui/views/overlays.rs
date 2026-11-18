@@ -216,31 +216,10 @@ pub fn track_menu<'a>(app: &'a App, track: &'a Track) -> Element<'a, Message> {
     )
 }
 
-/// The first-run notice (ADR 0001): a calm full-window sheet, an unticked checkbox and Continue.
-pub fn tos_sheet(app: &App) -> Element<'_, Message> {
-    let accent = app.accent();
-    let checked = app.ui.tos_checked;
-    let mut body = column![
-        label(
-            "Before you start",
-            type_scale::HEADLINE_MD,
-            true,
-            col(color::on_surface())
-        ),
-        vspace(gap::LG),
-    ]
-    .width(Length::Fixed(520.0));
-    for p in copy::TOS_NOTICE {
-        body = body
-            .push(paragraph(
-                p,
-                type_scale::BODY_MD,
-                col(color::on_surface()),
-                520.0,
-            ))
-            .push(vspace(gap::MD));
-    }
-    let check = checkbox(checked)
+/// The notice checkbox: never pre-ticked, `Message::Ui(Event::TosCheck)` on toggle. Shared by the
+/// first-run sheet and the setup flow.
+pub fn notice_checkbox<'a>(checked: bool) -> Element<'a, Message> {
+    checkbox(checked)
         .label(copy::TOS_CHECKBOX)
         .on_toggle(|on| Message::Ui(Event::TosCheck(on)))
         .font(font(false))
@@ -267,7 +246,35 @@ pub fn tos_sheet(app: &App) -> Element<'_, Message> {
                 },
                 text_color: Some(col(color::on_surface())),
             }
-        });
+        })
+        .into()
+}
+
+/// The first-run notice (ADR 0001): a calm full-window sheet, an unticked checkbox and Continue.
+pub fn tos_sheet(app: &App) -> Element<'_, Message> {
+    let accent = app.accent();
+    let checked = app.ui.tos_checked;
+    let mut body = column![
+        label(
+            "Before you start",
+            type_scale::HEADLINE_MD,
+            true,
+            col(color::on_surface())
+        ),
+        vspace(gap::LG),
+    ]
+    .width(Length::Fixed(520.0));
+    for p in copy::TOS_NOTICE {
+        body = body
+            .push(paragraph(
+                p,
+                type_scale::BODY_MD,
+                col(color::on_surface()),
+                520.0,
+            ))
+            .push(vspace(gap::MD));
+    }
+    let check = notice_checkbox(checked);
     let cont_ink = if checked {
         col(accent.on_primary)
     } else {

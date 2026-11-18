@@ -7,6 +7,7 @@ use crate::copy;
 use crate::gui::app::Message;
 use crate::gui::style::{col, gap, label};
 use crate::gui::views::kit::{paragraph, text_button};
+use crate::setup::SetupEvent;
 use crate::state::Event;
 use crate::theme::{color, type_scale};
 
@@ -77,6 +78,19 @@ pub(super) fn about(width: f32) -> Vec<Element<'static, Message>> {
             Message::Ui(Event::TosReview),
         ))
         .padding(Padding::from([gap::XS, gap::SM]))
+        .into(),
+        container(
+            column![
+                label("Setup", type_scale::BODY_MD, true, col(color::on_surface())),
+                paragraph(copy::setup::RERUN_HELP, type_scale::BODY_SM, dim, inner),
+                text_button(
+                    "Run setup again",
+                    Message::Ui(Event::Setup(SetupEvent::Open)),
+                ),
+            ]
+            .spacing(gap::XS),
+        )
+        .padding(Padding::from([gap::MD, gap::LG]))
         .into(),
     ]
 }

@@ -63,6 +63,7 @@ impl App {
                 .iter()
                 .any(|(x, w)| !x.is_settled() || !w.is_settled())
             || !self.queue_anim.is_settled()
+            || !self.setup_anim.is_settled()
             || !self.surfaces.settled()
     }
 
