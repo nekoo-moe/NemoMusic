@@ -22,6 +22,8 @@ mod motion;
 mod np_classic;
 #[path = "snapshots/opt_in.rs"]
 mod opt_in;
+#[path = "snapshots/player_bar.rs"]
+mod player_bar;
 #[path = "snapshots/screen.rs"]
 mod screen;
 #[path = "snapshots/state.rs"]
@@ -105,6 +107,10 @@ fn main() {
         std::process::exit(1);
     }
     if let Err(e) = lyrics_polish::render(&only, &out_dir) {
+        eprintln!("{e}");
+        std::process::exit(1);
+    }
+    if let Err(e) = player_bar::render(&only, &out_dir) {
         eprintln!("{e}");
         std::process::exit(1);
     }

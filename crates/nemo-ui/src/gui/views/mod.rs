@@ -51,15 +51,19 @@ pub fn root(app: &App) -> Element<'_, Message> {
             .into(),
     ];
 
-    // Space below the notices, so they sit above the capsule and not under it.
-    let bar_space = if now_playing || app.ui.snapshot.current.is_none() {
-        gap::XL
+    // Space below the notices, so they sit above the capsule and not under it, and the right
+    // edge the popovers opened from the capsule line up with (its inner right end).
+    let capsule_shows = !now_playing && app.ui.snapshot.current.is_some();
+    // Layout numbers are small, exact in f32.
+    #[allow(clippy::cast_precision_loss)]
+    let (bar_space, bar_right) = if capsule_shows {
+        let side = (w.saturating_sub(layout::bar::width(w)) / 2 + layout::bar::PADDING) as f32;
+        (
+            (layout::CAPSULE_HEIGHT + layout::CAPSULE_MARGIN + layout::PANE_GAP) as f32,
+            side,
+        )
     } else {
-        // Capsule 72 + margin 16 + a little air.
-        // Layout numbers are small, exact in f32.
-        #[allow(clippy::cast_precision_loss)]
-        let space = (layout::CAPSULE_HEIGHT + layout::CAPSULE_MARGIN + layout::PANE_GAP) as f32;
-        space
+        (gap::XL, gap::XL)
     };
 
     if let Some(toast) = overlays::toast(app) {
@@ -94,7 +98,7 @@ pub fn root(app: &App) -> Element<'_, Message> {
                 })
                 .padding(Padding {
                     top,
-                    right: gap::XL,
+                    right: bar_right,
                     bottom,
                     left: 0.0,
                 })
@@ -140,7 +144,7 @@ pub fn root(app: &App) -> Element<'_, Message> {
                 .align_x(Alignment::End)
                 .align_y(Alignment::End)
                 .padding(Padding {
-                    right: gap::XL,
+                    right: bar_right,
                     bottom: bar_space + gap::XS,
                     ..Padding::ZERO
                 })

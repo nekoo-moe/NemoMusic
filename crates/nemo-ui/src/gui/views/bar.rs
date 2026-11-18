@@ -1,30 +1,36 @@
-//! The docked bottom horizontal player bar and transport controls.
+//! The floating player capsule (`player-bar-redesign` spec) and the transport controls the other
+//! screens share.
 
 use iced::font::Weight;
-use iced::widget::{Space, button, column, container, row, slider, stack};
-use iced::{Alignment, Border, Color, Element, Length, Padding};
+use iced::widget::{Space, button, container, row, slider, stack};
+use iced::{Alignment, Border, Element, Length, Padding};
 
 use super::super::app::{App, Message};
-use super::super::assets::Icon;
 use super::super::fx::fx;
-use super::super::style::{
-    animated, col, fit, gap, icon, icon_button, label, label_w, slider_style, tip,
-};
+use super::super::style::{col, fit, gap, label, label_w, slider_style};
 use crate::format;
+use crate::layout::bar as zones;
+use crate::layout::{PLAYER_BAR_HEIGHT, PLAYER_BAR_INSET};
 use crate::palette::Palette;
 use crate::state::Event;
 use crate::theme::{color, shape, type_scale};
-use nemo_core::player::PlayerCommand;
 
+mod centre;
 mod control;
 mod cover;
+mod left;
+mod play;
+mod right;
+mod surface;
 
 pub use control::{like_button, play_button, repeat_button, transport};
-use control::{next_button, prev_button};
 pub use cover::cover_art;
 
-/// Docked bar height.
-const HEIGHT: f32 = 76.0;
+/// A layout number in px. Layout numbers are small, exact in f32.
+#[allow(clippy::cast_precision_loss)]
+const fn px(n: u32) -> f32 {
+    n as f32
+}
 
 /// Text for the quality badge, from the real signal path (`AAC 129 kbps · Lossy · Resample`).
 /// `Unknown` when there is none; `Buffering` while the player waits for data.
@@ -36,135 +42,44 @@ pub fn badge_text(app: &App) -> String {
     crate::signal::badge_label(app.ui.snapshot.signal_path.as_ref())
 }
 
-/// The docked bottom player bar, `width` px wide and 76 px high.
+/// The capsule for a window `width` px wide: centred, 88 px high, 12 px above the window
+/// bottom. The element is as wide as the window and holds the capsule, so the shell only has to
+/// put it at the bottom.
+#[must_use]
 pub fn view(app: &App, width: f32) -> Element<'_, Message> {
+    // A window width is a small positive number.
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let bar_w = zones::width(width.max(0.0) as u32);
+    let z = zones::zones(bar_w);
+    let (bar, left_w, centre_w, right_w) = (px(bar_w), px(z.left), px(z.centre), px(z.right));
     let accent = app.accent();
-    let compact = width < 800.0;
-    let roomy = width >= 1240.0;
-
-    let track_w = if compact {
-        180.0
-    } else if roomy {
-        300.0
-    } else {
-        240.0
-    };
-    let right_w = if roomy {
-        360.0
-    } else if compact {
-        150.0
-    } else {
-        260.0
-    };
-
     let content = row![
-        container(track_info(app, track_w))
-            .width(Length::Fixed(track_w))
+        container(left::view(app, left_w))
+            .width(Length::Fixed(left_w))
             .align_y(Alignment::Center),
-        Space::new().width(gap::MD),
-        container(center_controls(app, accent, compact))
-            .width(Length::Fill)
-            .align_x(Alignment::Center)
-            .align_y(Alignment::Center),
-        Space::new().width(gap::MD),
-        container(right(app, right_w, roomy, compact))
+        container(centre::view(app, accent, centre_w))
+            .width(Length::Fixed(centre_w))
+            .align_x(Alignment::Center),
+        container(right::view(app, z.step))
             .width(Length::Fixed(right_w))
             .align_y(Alignment::Center),
     ]
+    .spacing(px(zones::ZONE_GAP))
     .align_y(Alignment::Center)
-    .padding(Padding::from([0.0, gap::LG]))
-    .height(Length::Fill)
-    .width(Length::Fill);
-
-    let top_border = container(Space::new())
+    .padding(Padding::from([0.0, px(zones::PADDING)]))
+    .width(Length::Fixed(bar))
+    .height(Length::Fixed(px(PLAYER_BAR_HEIGHT)));
+    let capsule = stack![surface::body(app, bar), content, surface::glint(app, bar)]
+        .width(Length::Fixed(bar))
+        .height(Length::Fixed(px(PLAYER_BAR_HEIGHT)));
+    container(capsule)
         .width(Length::Fill)
-        .height(Length::Fixed(1.0))
-        .style(|_| container::Style {
-            background: Some(col(color::outline_variant()).into()),
-            ..container::Style::default()
-        });
-
-    let bar_body = container(content)
-        .width(Length::Fill)
-        .height(Length::Fixed(HEIGHT))
-        .style(|_| container::Style {
-            background: Some(col(color::surface_container_lowest()).into()),
-            ..container::Style::default()
-        });
-
-    stack![bar_body, top_border]
-        .width(Length::Fixed(width))
-        .height(Length::Fixed(HEIGHT))
-        .into()
-}
-
-fn center_controls(app: &App, accent: Palette, compact: bool) -> Element<'_, Message> {
-    let ink = col(color::on_surface());
-    let transport_row = row![
-        prev_button(ink, 36.0),
-        play_button(app, accent, 44.0),
-        next_button(ink, 36.0),
-    ]
-    .spacing(gap::SM)
-    .align_y(Alignment::Center);
-
-    if compact {
-        return transport_row.into();
-    }
-
-    column![transport_row, seek_row(app, accent),]
-        .spacing(1.0)
         .align_x(Alignment::Center)
-        .width(Length::Fill)
+        .padding(Padding {
+            bottom: px(PLAYER_BAR_INSET),
+            ..Padding::ZERO
+        })
         .into()
-}
-
-fn track_info(app: &App, width: f32) -> Element<'_, Message> {
-    let Some(track) = &app.ui.snapshot.current else {
-        return Space::new().into();
-    };
-    let text_w = (width - 48.0 - gap::MD - 44.0).max(60.0);
-    // The title and artist fade in with a new song.
-    let fade = app.title_fade();
-    let texts = column![
-        label(
-            fit(&track.title, text_w, type_scale::BODY_MD.size),
-            type_scale::BODY_MD,
-            true,
-            col(color::on_surface()).scale_alpha(fade)
-        ),
-        label(
-            fit(
-                &format::artists(&track.artists),
-                text_w,
-                type_scale::BODY_SM.size
-            ),
-            type_scale::BODY_SM,
-            false,
-            col(color::on_surface_variant()).scale_alpha(fade)
-        ),
-    ];
-    let b = button(
-        row![
-            cover_art(app, 48.0, shape::md()),
-            Space::new().width(gap::MD),
-            texts
-        ]
-        .align_y(Alignment::Center),
-    )
-    .padding(0)
-    .on_press(Message::OpenNowPlaying);
-    let track_btn = tip(
-        animated(b, Color::TRANSPARENT, shape::lg()),
-        "Show Now Playing",
-    );
-    row![
-        track_btn,
-        Space::new().width(gap::XS),
-        like_button(app, track, 20.0, 36.0),
-    ]
-    .align_y(Alignment::Center)
-    .into()
 }
 
 /// `0:42 ---o--- 3:12`. Times use tabular figures and a fixed width, so nothing shifts as they
@@ -246,89 +161,19 @@ pub fn badge(app: &App, max_w: f32) -> Element<'_, Message> {
     .into()
 }
 
-fn right(app: &App, width: f32, roomy: bool, compact: bool) -> Element<'_, Message> {
-    let ink = col(color::on_surface());
-    let dim = col(color::on_surface_variant());
-    let volume_w = if compact { 72.0 } else { 88.0 };
-    let volume = slider(0..=100_u8, app.ui.snapshot.volume_percent, |v| {
-        Message::Ui(Event::Command(PlayerCommand::SetVolume(v)))
-    })
-    .height(16.0)
-    .width(Length::Fixed(volume_w))
-    .style(slider_style(
-        col(color::on_surface()),
-        col(color::on_surface().with_alpha(0.20)),
-        col(color::on_surface()),
-        5.0,
-    ));
-    let queue_on = app.pane_open && app.np_tab == super::super::app::NpTab::Queue;
-    let queue = tip(
-        icon_button(
-            Icon::Queue,
-            22.0,
-            40.0,
-            ink,
-            if queue_on {
-                col(color::on_surface().with_alpha(0.14))
-            } else {
-                Color::TRANSPARENT
-            },
-            Some(Message::Ui(Event::ToggleQueue)),
-        ),
-        "Queue",
-    );
-    let vol_icon = if app.ui.snapshot.volume_percent == 0 {
-        Icon::VolumeOff
-    } else {
-        Icon::Volume
-    };
-    let mut r = row![Space::new().width(Length::Fill)]
-        .spacing(gap::XS)
-        .align_y(Alignment::Center);
-    if !compact {
-        r = r.push(tip(
-            icon_button(
-                Icon::Shuffle,
-                20.0,
-                36.0,
-                dim,
-                Color::TRANSPARENT,
-                (app.ui.snapshot.queue.len() > 2).then_some(Message::ShuffleQueue),
-            ),
-            "Shuffle what plays next",
-        ));
-        r = r.push(repeat_button(app, 36.0));
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::gui::headless::{Scenario, build_app};
+    use crate::mock::mock_backend;
+
+    #[test]
+    fn a_stream_never_says_lossless_and_buffering_says_so() {
+        let mut app = build_app(&mock_backend(), &Scenario::default());
+        let text = badge_text(&app);
+        assert!(!text.to_lowercase().contains("lossless"), "{text}");
+        assert!(text.contains("Lossy") || text == "Unknown", "{text}");
+        app.ui.snapshot.state = nemo_core::player::PlayState::Buffering;
+        assert_eq!(badge_text(&app), "Buffering\u{2026}");
     }
-    if roomy {
-        r = r.push(badge(app, 180.0));
-    }
-    r = r.push(queue);
-    if !compact {
-        let sleeping = app.sleep.is_some();
-        r = r.push(tip(
-            icon_button(
-                if sleeping { Icon::Timer } else { Icon::Tune },
-                20.0,
-                36.0,
-                if sleeping {
-                    col(app.accent().primary)
-                } else {
-                    ink
-                },
-                if app.tools_open {
-                    col(color::on_surface().with_alpha(0.14))
-                } else {
-                    Color::TRANSPARENT
-                },
-                Some(Message::Tools(!app.tools_open)),
-            ),
-            "Sleep timer, speed and more (S)",
-        ));
-    }
-    r = r
-        .push(icon(vol_icon, 20.0, dim))
-        .push(Space::new().width(gap::XS))
-        .push(volume);
-    let _ = width;
-    r.into()
 }

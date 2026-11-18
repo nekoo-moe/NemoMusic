@@ -45,6 +45,7 @@ mod job;
 mod message;
 mod micro;
 mod model;
+mod mute;
 mod option;
 mod query;
 mod refresh;
@@ -112,6 +113,8 @@ pub struct App {
     /// The active lyric line before the last change (the lines cross-fade from it).
     pub(crate) prev_line: Option<usize>,
     pub(crate) seek_drag: Option<f32>,
+    /// Volume before the speaker button muted (0 when it has not).
+    pub(crate) volume_before_mute: u8,
     pub(crate) compact_tab: CompactTab,
     pub(crate) settings_section: SettingsSection,
     pub(crate) rows_limit: usize,
@@ -250,6 +253,7 @@ impl App {
             last_line: None,
             prev_line: None,
             seek_drag: None,
+            volume_before_mute: 0,
             compact_tab: CompactTab::default(),
             settings_section: SettingsSection::default(),
             rows_limit: ROWS_STEP,
