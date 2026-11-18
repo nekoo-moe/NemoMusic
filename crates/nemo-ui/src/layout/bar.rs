@@ -11,21 +11,24 @@ pub const PADDING: u32 = 16;
 /// Gap between two zones.
 pub const ZONE_GAP: u32 = 16;
 /// Capsule width from which the volume slider shows.
-pub const SLIDER_FROM: u32 = 1100;
+pub const SLIDER_FROM: u32 = 1140;
 /// Capsule width from which the extra buttons show; below it they fold into `More`.
-pub const EXTRAS_FROM: u32 = 1020;
+pub const EXTRAS_FROM: u32 = 1056;
 /// Narrowest left zone: cover, a little text and the heart.
 pub const LEFT_MIN: u32 = 220;
 /// Widest left zone.
-pub const LEFT_MAX: u32 = 264;
-/// Narrowest centre zone: the transport row (224) with room for a seek track.
+pub const LEFT_MAX: u32 = 300;
+/// Narrowest centre zone: the transport row (240) with room for a seek track.
 pub const CENTRE_MIN: u32 = 320;
 /// Width of one icon button in the right zone.
 pub const BUTTON: u32 = 36;
 /// Gap between two right zone items.
 pub const ITEM_GAP: u32 = 4;
-/// Widest quality pill (longer text ends in an ellipsis; the popover has the full path).
-pub const PILL_MAX: u32 = 168;
+/// Widest quality pill in the steps that have room (longer text ends in an ellipsis; the
+/// popover has the full path).
+pub const PILL_MAX: u32 = 208;
+/// Widest quality pill when the right zone is folded.
+pub const PILL_MAX_FOLDED: u32 = 168;
 /// Width of the inline volume slider.
 pub const VOLUME_SLIDER: u32 = 80;
 
@@ -77,6 +80,15 @@ pub const fn step(bar_w: u32) -> Step {
     }
 }
 
+/// Widest quality pill at `step`.
+#[must_use]
+pub const fn pill_max(step: Step) -> u32 {
+    match step {
+        Step::Full | Step::NoSlider => PILL_MAX,
+        Step::Folded => PILL_MAX_FOLDED,
+    }
+}
+
 /// Width of the right zone at `step`, from its parts.
 #[must_use]
 pub const fn right_width(step: Step) -> u32 {
@@ -86,7 +98,7 @@ pub const fn right_width(step: Step) -> u32 {
         Step::Full => (PILL_MAX + VOLUME_SLIDER, 5, 6),
         Step::NoSlider => (PILL_MAX, 5, 5),
         // Pill, queue, speaker, more.
-        Step::Folded => (PILL_MAX, 3, 3),
+        Step::Folded => (PILL_MAX_FOLDED, 3, 3),
     };
     items + buttons * BUTTON + gaps * ITEM_GAP
 }
@@ -130,18 +142,18 @@ mod tests {
         // 1280 and wider: everything. 1100: no slider. 960: folded.
         assert_eq!(step(width(1920)), Step::Full);
         assert_eq!(step(width(1280)), Step::Full);
-        assert_eq!(step(width(1124)), Step::Full);
-        assert_eq!(step(width(1123)), Step::NoSlider);
+        assert_eq!(step(width(1164)), Step::Full);
+        assert_eq!(step(width(1163)), Step::NoSlider);
         assert_eq!(step(width(1100)), Step::NoSlider);
-        assert_eq!(step(width(1044)), Step::NoSlider);
-        assert_eq!(step(width(1043)), Step::Folded);
+        assert_eq!(step(width(1080)), Step::NoSlider);
+        assert_eq!(step(width(1079)), Step::Folded);
         assert_eq!(step(width(960)), Step::Folded);
     }
 
     #[test]
     fn right_zone_gets_narrower_with_each_step() {
         let [full, no_slider, folded] = [Step::Full, Step::NoSlider, Step::Folded].map(right_width);
-        assert_eq!((full, no_slider, folded), (452, 368, 288));
+        assert_eq!((full, no_slider, folded), (492, 408, 288));
     }
 
     #[test]
@@ -164,8 +176,8 @@ mod tests {
     fn zones_at_the_target_windows() {
         let at = |w: u32| zones(width(w));
         assert_eq!((at(960).left, at(960).centre), (261, 323));
-        assert_eq!((at(1100).left, at(1100).centre), (264, 380));
-        assert_eq!((at(1280).left, at(1280).right), (264, 452));
+        assert_eq!((at(1100).left, at(1100).centre), (284, 320));
+        assert_eq!((at(1280).left, at(1280).right), (300, 492));
     }
 
     #[test]

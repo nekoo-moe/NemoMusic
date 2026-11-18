@@ -10,11 +10,11 @@ Capsule width is `min(window_w - 24, 1200)`. Inside: 16 px padding, three zones 
 
 | Capsule width | Step | Right zone shows |
 |---|---|---|
-| 1100 and up | Full | pill, lyrics, queue, tools, speaker and slider (80), full-screen |
-| 1020 to 1099 | NoSlider | the same without the slider |
-| below 1020 | Folded | pill, queue, speaker, `More` (opens the tools panel) |
+| 1140 and up | Full | pill, lyrics, queue, tools, speaker and slider (80), full-screen |
+| 1056 to 1139 | NoSlider | the same without the slider |
+| below 1056 | Folded | pill, queue, speaker, `More` (opens the tools panel) |
 
-Left zone width is 30% of the inner width (never under 220). The centre zone takes the rest and is never under 320. At window 960 the capsule is 936 wide (Folded), at 1100 it is 1076 (NoSlider), from 1280 it is 1200 (Full).
+Left zone width is 30% of the inner width, between 220 and 300, and gives way to the centre zone when that would drop under 320. The centre zone takes the rest and is never under 320. At window 960 the capsule is 936 wide (Folded), at 1100 it is 1076 (NoSlider), from 1164 it is 1140 or more (Full). The pill is at most 208 wide (168 when Folded).
 
 Surface: `GlassTier::Low` without reduce transparency draws `surface-container-high`, a left to right gradient of the cover's `strip` colours at 18% over it, a 1 px top highlight (`glass.edge` alpha) and the `glass.shadow`. `Off` or reduce transparency draws `surface-container-high` and a 1 px `outline-variant`. Images cannot be clipped to round corners on the software renderer, so the tint is a gradient, not a texture.
 
