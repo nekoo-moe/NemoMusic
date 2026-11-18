@@ -13,7 +13,7 @@ use crate::state::Event;
 use crate::theme::{color, shape, type_scale};
 
 mod appearance;
-mod control;
+pub(super) mod control;
 mod info;
 mod playback;
 

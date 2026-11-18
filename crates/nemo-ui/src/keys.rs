@@ -16,6 +16,8 @@ pub enum Key {
     Down,
     /// Escape.
     Escape,
+    /// Enter (only the setup flow uses it).
+    Enter,
     /// F3.
     F3,
     /// F5.
@@ -120,7 +122,7 @@ pub fn map(key: Key, mods: Mods, in_text_field: bool) -> Option<KeyAction> {
         Key::Char('q') => Some(KeyAction::ToggleQueue),
         Key::Char('l') => Some(KeyAction::LikeCurrent),
         Key::Char('s') => Some(KeyAction::Tools),
-        Key::Char(_) | Key::Tab => None,
+        Key::Char(_) | Key::Tab | Key::Enter => None,
     }
 }
 

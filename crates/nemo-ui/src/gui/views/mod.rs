@@ -20,6 +20,7 @@ pub mod queue;
 pub mod search;
 pub mod settings;
 pub mod settings_lyrics;
+pub mod setup;
 pub mod shell;
 pub mod splash;
 
@@ -157,6 +158,9 @@ pub fn root(app: &App) -> Element<'_, Message> {
     }
     if app.surfaces.shortcuts.visible() {
         layers.push(panels::shortcuts_sheet(app));
+    }
+    if app.ui.setup.active() {
+        layers.push(setup::view(app));
     }
     if app.account.open {
         layers.push(account::sheet(app));

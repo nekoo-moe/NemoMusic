@@ -283,6 +283,12 @@ pub struct Scenario {
     /// Keep motion on (the shots run with reduced motion so they are still); for the syllable
     /// fill, which is the thing being shown.
     pub full_motion: bool,
+    /// Open the first-run setup flow on this step (startup-flow spec).
+    pub setup: Option<crate::setup::SetupStep>,
+    /// With `setup`: tick the notice checkbox.
+    pub setup_ticked: bool,
+    /// With `setup`: a sign-in failure sentence shown on the Sources step.
+    pub account_error: Option<String>,
 }
 
 /// Which state of the sign-in sheet a snapshot shows.
@@ -345,6 +351,9 @@ impl Default for Scenario {
             shared_output: false,
             mid_motion_ms: None,
             full_motion: false,
+            setup: None,
+            setup_ticked: false,
+            account_error: None,
         }
     }
 }
@@ -353,6 +362,26 @@ impl Default for Scenario {
 fn run(app: &mut App, message: Message) {
     let jobs = app.update_core(message);
     app.settle_blocking(jobs);
+}
+
+/// Open the setup flow on the scenario's step, answering the notice with `Not now` on the way
+/// when it is not accepted, so every later step can be shown.
+fn open_setup(app: &mut App, scenario: &Scenario) {
+    use crate::setup::{SetupEvent, SetupStep};
+    let Some(step) = scenario.setup else { return };
+    run(app, Message::Ui(Event::Setup(SetupEvent::Open)));
+    while app.ui.setup.step() != step {
+        let event = if app.ui.setup.step() == SetupStep::Notice && !app.ui.notice_decided() {
+            SetupEvent::NoticeLater
+        } else {
+            SetupEvent::Next
+        };
+        run(app, Message::Ui(Event::Setup(event)));
+    }
+    if scenario.setup_ticked {
+        run(app, Message::Ui(Event::TosCheck(true)));
+    }
+    app.account.error.clone_from(&scenario.account_error);
 }
 
 /// Build an app on `backend`, load everything synchronously and finish all animations, so the
@@ -444,6 +473,7 @@ pub fn build_app(backend: &Backend, scenario: &Scenario) -> App {
         "Late night drive".clone_into(&mut app.create_name);
     }
     app.mini = scenario.mini;
+    open_setup(&mut app, scenario);
     if let Some(i) = scenario.lyrics_pick {
         run(&mut app, Message::PickLyricsProvider(i));
     }

@@ -4,6 +4,7 @@
 //! No pixels here. The screens (task 3) read [`Setup`] and send [`SetupEvent`]s; the reducer in
 //! [`crate::state`] calls [`UiState::setup_event`].
 
+use crate::settings::UiSettings;
 use crate::state::{Effect, UiState};
 
 /// The steps of the flow, in order. The notice comes before the sources because signing in to
@@ -96,6 +97,10 @@ pub enum SetupEvent {
     NoticeContinue,
     /// `Not now` on the notice step.
     NoticeLater,
+    /// `Use without an account` on the Sources step.
+    UseWithoutAccount,
+    /// `Skip` on the local music card of the Sources step.
+    SkipFolders,
 }
 
 /// Where the flow is.
@@ -104,6 +109,8 @@ pub struct Setup {
     active: bool,
     step: SetupStep,
     forward: bool,
+    without_account: bool,
+    folders_skipped: bool,
 }
 
 impl Default for Setup {
@@ -113,6 +120,8 @@ impl Default for Setup {
             active: false,
             step: SetupStep::Welcome,
             forward: true,
+            without_account: false,
+            folders_skipped: false,
         }
     }
 }
@@ -134,6 +143,18 @@ impl Setup {
     #[must_use]
     pub fn forward(&self) -> bool {
         self.forward
+    }
+
+    /// `true` once the user chose `Use without an account` on the Sources step.
+    #[must_use]
+    pub fn without_account(&self) -> bool {
+        self.without_account
+    }
+
+    /// `true` once the user chose `Skip` on the local music card.
+    #[must_use]
+    pub fn folders_skipped(&self) -> bool {
+        self.folders_skipped
     }
 
     /// Show the flow from the first step.
@@ -206,6 +227,8 @@ impl UiState {
                     self.setup.go_next();
                 }
             }
+            SetupEvent::UseWithoutAccount => self.setup.without_account = true,
+            SetupEvent::SkipFolders => self.setup.folders_skipped = true,
         }
     }
 
@@ -225,176 +248,46 @@ impl UiState {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::route::Route;
-    use crate::settings::UiSettings;
-    use crate::state::Event;
-    use nemo_core::player::PlayerSnapshot;
-
-    fn state(settings: UiSettings) -> UiState {
-        UiState::new(Route::Home, PlayerSnapshot::default(), false).with_settings(settings)
-    }
-
-    fn open() -> UiState {
-        let mut s = state(UiSettings::default());
-        s.apply(Event::Setup(SetupEvent::Open));
-        s
-    }
-
-    fn go_to(s: &mut UiState, step: SetupStep) {
-        while s.setup.step() != step {
-            if s.setup.step() == SetupStep::Notice {
-                s.apply(Event::Setup(SetupEvent::NoticeLater));
-            } else {
-                s.apply(Event::Setup(SetupEvent::Next));
-            }
-        }
-    }
-
-    #[test]
-    fn a_new_user_needs_setup_and_an_existing_user_does_not() {
-        assert!(UiSettings::default().needs_setup());
-        let accepted = UiSettings {
-            tos_acknowledged: true,
-            ..UiSettings::default()
-        };
-        assert!(!accepted.needs_setup(), "the notice was accepted before");
-        let done = UiSettings {
-            setup_completed: true,
-            ..UiSettings::default()
-        };
-        assert!(!done.needs_setup());
-        // Not showing until it is opened: the reducer starts with no flow.
-        assert!(!state(UiSettings::default()).setup.active());
-    }
-
-    #[test]
-    fn next_and_back_walk_the_steps_and_stop_at_the_ends() {
-        let mut s = open();
-        assert_eq!(s.setup.step(), SetupStep::Welcome);
-        s.apply(Event::Setup(SetupEvent::Back));
-        assert_eq!(s.setup.step(), SetupStep::Welcome);
-        s.apply(Event::Setup(SetupEvent::Next));
-        assert_eq!(s.setup.step(), SetupStep::Look);
-        assert!(s.setup.forward());
-        s.apply(Event::Setup(SetupEvent::Back));
-        assert_eq!(s.setup.step(), SetupStep::Welcome);
-        assert!(!s.setup.forward());
-        for step in SetupStep::ALL {
-            assert_eq!(SetupStep::ALL[step.index()], step);
-        }
-        assert_eq!(SetupStep::Done.next(), None);
-        assert_eq!(SetupStep::Welcome.prev(), None);
-    }
-
-    #[test]
-    fn skip_is_always_available_and_stores_completion_once() {
-        for step in SetupStep::ALL {
-            let mut s = open();
-            go_to(&mut s, step);
-            let fx = s.apply(Event::Setup(SetupEvent::Skip));
-            assert!(!s.setup.active(), "skip from {step:?}");
-            assert!(s.settings.setup_completed);
-            assert!(matches!(&fx[..], [Effect::SettingsChanged(x)] if x.setup_completed));
-        }
-        // Running it again and skipping again stores nothing new.
-        let mut s = open();
-        s.apply(Event::Setup(SetupEvent::Skip));
-        s.apply(Event::Setup(SetupEvent::Open));
-        assert!(s.setup.active());
-        assert!(s.apply(Event::Setup(SetupEvent::Skip)).is_empty());
-    }
-
-    #[test]
-    fn skipping_leaves_the_notice_for_the_first_run_sheet() {
-        let mut s = open();
-        assert!(!s.tos_sheet_visible(), "the flow covers the sheet");
-        s.apply(Event::Setup(SetupEvent::Skip));
-        assert!(s.tos_sheet_visible() && !s.youtube_enabled());
-    }
-
-    #[test]
-    fn the_notice_is_unticked_and_next_waits_for_an_answer() {
-        let mut s = open();
-        go_to(&mut s, SetupStep::Notice);
-        assert!(!s.tos_checked, "never pre-ticked");
-        s.apply(Event::Setup(SetupEvent::Next));
-        s.apply(Event::Setup(SetupEvent::Enter));
-        assert_eq!(s.setup.step(), SetupStep::Notice);
-        // Continue without the tick does nothing.
-        assert!(s.apply(Event::Setup(SetupEvent::NoticeContinue)).is_empty());
-        assert_eq!(s.setup.step(), SetupStep::Notice);
-        assert!(!s.settings.tos_acknowledged);
-    }
-
-    #[test]
-    fn ticking_and_continuing_accepts_the_notice_and_moves_on() {
-        let mut s = open();
-        go_to(&mut s, SetupStep::Notice);
-        s.apply(Event::TosCheck(true));
-        let fx = s.apply(Event::Setup(SetupEvent::Enter));
-        assert!(matches!(&fx[..], [Effect::SettingsChanged(x)] if x.tos_acknowledged));
-        assert_eq!(s.setup.step(), SetupStep::Sources);
-        assert!(s.youtube_enabled());
-    }
-
-    #[test]
-    fn not_now_moves_on_without_accepting() {
-        let mut s = open();
-        go_to(&mut s, SetupStep::Notice);
-        s.apply(Event::Setup(SetupEvent::NoticeLater));
-        assert_eq!(s.setup.step(), SetupStep::Sources);
-        assert!(!s.youtube_enabled() && s.tos_dismissed);
-        // Finishing does not bring the sheet back this session, as with `Not now` on the sheet.
-        s.apply(Event::Setup(SetupEvent::Finish));
-        assert!(!s.tos_sheet_visible());
-    }
-
-    #[test]
-    fn enter_is_next_and_on_the_last_step_it_finishes() {
-        let mut s = open();
-        s.apply(Event::Setup(SetupEvent::Enter));
-        assert_eq!(s.setup.step(), SetupStep::Look);
-        go_to(&mut s, SetupStep::Done);
-        let fx = s.apply(Event::Setup(SetupEvent::Enter));
-        assert!(!s.setup.active());
-        assert!(matches!(&fx[..], [Effect::SettingsChanged(x)] if x.setup_completed));
-    }
-
-    #[test]
-    fn running_setup_again_resets_nothing() {
-        let mut settings = UiSettings {
-            tos_acknowledged: true,
-            setup_completed: true,
-            sponsorblock: false,
-            ..UiSettings::default()
-        };
-        settings.volume = 40;
-        let mut s = state(settings.clone());
-        s.apply(Event::Setup(SetupEvent::Open));
-        assert!(s.setup.active() && s.setup.step() == SetupStep::Welcome);
-        assert!(s.apply(Event::Setup(SetupEvent::Next)).is_empty());
-        assert!(s.apply(Event::Setup(SetupEvent::Skip)).is_empty());
-        assert_eq!(s.settings, settings);
-        assert!(s.notice_decided());
-    }
-
-    #[test]
-    fn events_do_nothing_while_the_flow_is_closed() {
-        let mut s = state(UiSettings::default());
-        for ev in [
-            SetupEvent::Next,
-            SetupEvent::Back,
-            SetupEvent::Skip,
-            SetupEvent::Finish,
-            SetupEvent::Enter,
-            SetupEvent::NoticeContinue,
-            SetupEvent::NoticeLater,
-        ] {
-            assert!(s.apply(Event::Setup(ev)).is_empty());
-        }
-        assert!(!s.settings.setup_completed && !s.tos_dismissed);
-    }
+/// What the Done step lists: one line per choice, `(what, how it is set)`. It reads the
+/// settings and the flow's own choices only; the account name comes from the caller and no
+/// token, cookie or id ever reaches it.
+#[must_use]
+pub fn summary(
+    s: &UiSettings,
+    setup: &Setup,
+    account_name: Option<&str>,
+    folders: usize,
+) -> Vec<(&'static str, String)> {
+    let on_off = |on: bool| if on { "On" } else { "Off" }.to_owned();
+    let youtube = match (account_name, s.tos_acknowledged, setup.without_account()) {
+        (Some(name), _, _) => format!("Signed in as {name}"),
+        (None, false, _) => "Waiting for the notice".to_owned(),
+        (None, true, true) => "Without an account".to_owned(),
+        (None, true, false) => "Not signed in".to_owned(),
+    };
+    let local = match folders {
+        0 => "No folder added".to_owned(),
+        1 => "1 folder".to_owned(),
+        n => format!("{n} folders"),
+    };
+    vec![
+        (
+            "Look",
+            format!(
+                "{}, {} accent, {} corners",
+                s.base.label(),
+                s.accent_intensity.label(),
+                s.corner_style.label()
+            ),
+        ),
+        ("Now Playing", s.now_playing_style.label().to_owned()),
+        ("YouTube Music", youtube),
+        ("SoundCloud", "Off".to_owned()),
+        ("Local music", local),
+        ("Ad blocking", on_off(s.block_ads)),
+        ("SponsorBlock", on_off(s.sponsorblock)),
+    ]
 }
+
+#[cfg(test)]
+mod tests;

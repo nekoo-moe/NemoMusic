@@ -49,6 +49,7 @@ mod mute;
 mod option;
 mod query;
 mod refresh;
+mod setup;
 mod subscribe;
 mod surfaces;
 mod sync;
@@ -65,6 +66,7 @@ pub use model::{
     HomePhase, HomeState, LibFilter, ListSource, NpTab, SettingsSection,
 };
 pub use option::{AccountLibrary, CreateMsg, SleepState, UiHooks, UiOptions};
+pub use setup::SLIDE_PX;
 
 /// Widget id of the search box.
 pub const SEARCH_ID: &str = "nemo-search";
@@ -123,6 +125,10 @@ pub struct App {
     pub(crate) shimmer: f32,
     /// Tab and sidebar pills, the like heart, the title fade and picture fades.
     pub(crate) micro: Micro,
+    /// Progress (0 to 1) of the setup flow's step transition.
+    pub(crate) setup_anim: crate::motion::Spring,
+    /// The setup step the transition last started for (`None` while the flow is closed).
+    setup_seen: Option<crate::setup::SetupStep>,
     /// Phase of the equaliser bars on the playing row.
     pub(crate) eq_phase: f32,
     /// Sliding selection pill of chip rows: x and width springs (0: Home, 1: Library tabs, 2:
@@ -261,6 +267,8 @@ impl App {
             spin: 0.0,
             shimmer: SKELETON_PHASE,
             micro: Micro::default(),
+            setup_anim: crate::motion::Spring::tuned(1.0, 700.0, 1.0),
+            setup_seen: None,
             eq_phase: 0.0,
             chip_pills: [
                 (

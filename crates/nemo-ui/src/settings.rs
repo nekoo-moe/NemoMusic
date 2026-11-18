@@ -146,6 +146,8 @@ pub enum SettingChange {
     AccentIntensity(AccentIntensity),
     /// Corner roundness.
     CornerStyle(CornerStyle),
+    /// Look of the Now Playing surfaces.
+    NowPlayingStyle(NowPlayingStyle),
 }
 
 impl UiSettings {
@@ -162,6 +164,7 @@ impl UiSettings {
             SettingChange::Base(v) => self.base = v,
             SettingChange::AccentIntensity(v) => self.accent_intensity = v,
             SettingChange::CornerStyle(v) => self.corner_style = v,
+            SettingChange::NowPlayingStyle(v) => self.now_playing_style = v,
         }
     }
 
@@ -215,6 +218,13 @@ mod tests {
         assert!(!s.animated_covers.spotify_canvas);
         let labels = NowPlayingStyle::ALL.map(NowPlayingStyle::label);
         assert_eq!(labels, ["Classic", "Material 3 Expressive", "Apple Music"]);
+    }
+
+    #[test]
+    fn the_now_playing_style_changes_through_a_setting_change() {
+        let mut s = UiSettings::default();
+        s.apply(SettingChange::NowPlayingStyle(NowPlayingStyle::Classic));
+        assert_eq!(s.now_playing_style, NowPlayingStyle::Classic);
     }
 
     #[test]
