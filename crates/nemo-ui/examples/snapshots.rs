@@ -24,8 +24,16 @@ mod motion;
 mod np_classic;
 #[path = "snapshots/opt_in.rs"]
 mod opt_in;
+#[path = "snapshots/player_bar.rs"]
+mod player_bar;
 #[path = "snapshots/screen.rs"]
 mod screen;
+#[path = "snapshots/setup.rs"]
+mod setup;
+#[path = "snapshots/song_colour.rs"]
+mod song_colour;
+#[path = "snapshots/startup.rs"]
+mod startup;
 #[path = "snapshots/state.rs"]
 mod state;
 #[path = "snapshots/syllable_motion.rs"]
@@ -73,6 +81,8 @@ fn scenarios() -> Vec<Shot> {
     feature::features(&mut out);
     backdrop::backdrops(&mut out);
     motion::shots(&mut out);
+    setup::shots(&mut out);
+    song_colour::shots(&mut out);
     out.extend(wave_lyrics::shots());
     out.extend(syllable_motion::shots());
     out
@@ -98,6 +108,10 @@ fn main() {
             }
         }
     }
+    if only.iter().any(|n| n == "song-frame-cost") {
+        song_colour::frame_cost();
+        return;
+    }
     if let Err(e) = np_classic::render(&only, &out_dir) {
         eprintln!("{e}");
         std::process::exit(1);
@@ -106,11 +120,19 @@ fn main() {
         eprintln!("{e}");
         std::process::exit(1);
     }
+    if let Err(e) = startup::render(&only, &out_dir) {
+        eprintln!("{e}");
+        std::process::exit(1);
+    }
     if let Err(e) = lyrics_polish::render(&only, &out_dir) {
         eprintln!("{e}");
         std::process::exit(1);
     }
     if let Err(e) = lyrics_rebuild::render(&only, &out_dir) {
+        eprintln!("{e}");
+        std::process::exit(1);
+    }
+    if let Err(e) = player_bar::render(&only, &out_dir) {
         eprintln!("{e}");
         std::process::exit(1);
     }

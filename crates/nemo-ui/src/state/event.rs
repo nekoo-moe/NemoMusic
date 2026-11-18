@@ -138,6 +138,8 @@ pub enum Event {
     TosLater,
     /// Show the notice again.
     TosReview,
+    /// A button or key of the first-run setup flow.
+    Setup(crate::setup::SetupEvent),
     /// The search box text changed.
     SearchInput(String),
     /// The debounce timer of this sequence number fired.

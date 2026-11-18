@@ -25,12 +25,14 @@ pub mod explore;
 pub mod explore_feed;
 pub mod format;
 pub mod frame_stats;
+pub mod heartbeat;
 pub mod home;
 pub mod keys;
 pub mod layout;
 pub mod lru;
 pub mod lyric_pieces;
 pub mod lyrics_view;
+pub mod mesh;
 pub mod mock;
 pub mod mock_lyrics;
 pub mod motion;
@@ -40,7 +42,9 @@ pub mod route;
 pub mod scheme;
 pub mod search;
 pub mod settings;
+pub mod setup;
 pub mod signal;
+pub mod splash;
 pub mod state;
 pub mod theme;
 
@@ -49,4 +53,4 @@ pub use settings::{AnimatedCoverSettings, GlassTier, NowPlayingStyle, UiSettings
 #[cfg(feature = "gui")]
 pub mod gui;
 #[cfg(feature = "gui")]
-pub use gui::{UiOptions, run};
+pub use gui::{StartFn, StepReporter, UiOptions, run, run_with_startup};

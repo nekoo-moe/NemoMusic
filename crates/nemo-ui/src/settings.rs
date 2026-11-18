@@ -81,6 +81,8 @@ pub struct UiSettings {
     pub reduce_transparency: bool,
     /// The first-run notice about YouTube's Terms of Service was accepted.
     pub tos_acknowledged: bool,
+    /// The first-run setup flow was finished or skipped (startup-flow spec).
+    pub setup_completed: bool,
     /// Accent source: the cover or a curated seed.
     pub theme: ThemeChoice,
     /// Surface mode: dark, AMOLED black or light.
@@ -93,6 +95,12 @@ pub struct UiSettings {
     pub now_playing_style: NowPlayingStyle,
     /// Animated-cover switches.
     pub animated_covers: AnimatedCoverSettings,
+    /// The whole window takes its colours from the cover of the song that plays (owner,
+    /// 2026-11-18; song-colour-theme spec). On by default.
+    pub song_colour_theme: bool,
+    /// A slow, soft pulse in the background while a song plays. On by default; it needs
+    /// [`Self::song_colour_theme`] and stops under reduced motion.
+    pub song_heartbeat: bool,
     /// The order the user picked per album or playlist page, by [`crate::collection_sort`] page
     /// key (`album:<id>`, `playlist:<id>`). Pages in their default order have no entry.
     pub collection_sorts: BTreeMap<String, CollectionSort>,
@@ -109,12 +117,15 @@ impl Default for UiSettings {
             reduce_motion: false,
             reduce_transparency: false,
             tos_acknowledged: false,
+            setup_completed: false,
             theme: ThemeChoice::Dynamic,
             base: BaseMode::Dark,
             accent_intensity: AccentIntensity::Standard,
             corner_style: CornerStyle::Soft,
             now_playing_style: NowPlayingStyle::M3Expressive,
             animated_covers: AnimatedCoverSettings::default(),
+            song_colour_theme: true,
+            song_heartbeat: true,
             collection_sorts: BTreeMap::new(),
         }
     }
@@ -143,6 +154,12 @@ pub enum SettingChange {
     AccentIntensity(AccentIntensity),
     /// Corner roundness.
     CornerStyle(CornerStyle),
+    /// Look of the Now Playing surfaces.
+    NowPlayingStyle(NowPlayingStyle),
+    /// Match the window colours to the playing song.
+    SongColourTheme(bool),
+    /// Gentle heartbeat of the background.
+    SongHeartbeat(bool),
 }
 
 impl UiSettings {
@@ -159,7 +176,24 @@ impl UiSettings {
             SettingChange::Base(v) => self.base = v,
             SettingChange::AccentIntensity(v) => self.accent_intensity = v,
             SettingChange::CornerStyle(v) => self.corner_style = v,
+            SettingChange::NowPlayingStyle(v) => self.now_playing_style = v,
+            SettingChange::SongColourTheme(v) => self.song_colour_theme = v,
+            SettingChange::SongHeartbeat(v) => self.song_heartbeat = v,
         }
+    }
+
+    /// `true` when the first-run setup flow should open at start. A user who already accepted
+    /// the notice is never sent through it (startup-flow, criterion 8).
+    #[must_use]
+    pub fn needs_setup(&self) -> bool {
+        !self.setup_completed && !self.tos_acknowledged
+    }
+
+    /// `true` when the heartbeat switch can be used: song colours are on and motion is not
+    /// reduced (`reduced_motion` is the effective value, the setting or the OS preference).
+    #[must_use]
+    pub const fn heartbeat_available(&self, reduced_motion: bool) -> bool {
+        self.song_colour_theme && !reduced_motion
     }
 
     /// `true` when the player bar must use the opaque tonal surface instead of glass.
@@ -205,6 +239,25 @@ mod tests {
         assert!(!s.animated_covers.spotify_canvas);
         let labels = NowPlayingStyle::ALL.map(NowPlayingStyle::label);
         assert_eq!(labels, ["Classic", "Material 3 Expressive", "Apple Music"]);
+    }
+
+    #[test]
+    fn the_now_playing_style_changes_through_a_setting_change() {
+        let mut s = UiSettings::default();
+        s.apply(SettingChange::NowPlayingStyle(NowPlayingStyle::Classic));
+        assert_eq!(s.now_playing_style, NowPlayingStyle::Classic);
+    }
+
+    #[test]
+    fn song_colours_and_heartbeat_start_on_and_the_heartbeat_needs_both() {
+        let mut s = UiSettings::default();
+        assert!(s.song_colour_theme && s.song_heartbeat);
+        assert!(s.heartbeat_available(false));
+        assert!(!s.heartbeat_available(true), "reduced motion greys it out");
+        s.apply(SettingChange::SongColourTheme(false));
+        assert!(!s.song_colour_theme && !s.heartbeat_available(false));
+        s.apply(SettingChange::SongHeartbeat(false));
+        assert!(!s.song_heartbeat);
     }
 
     #[test]

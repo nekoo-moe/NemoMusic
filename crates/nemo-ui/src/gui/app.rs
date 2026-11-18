@@ -45,16 +45,19 @@ mod job;
 mod message;
 mod micro;
 mod model;
+mod mute;
 mod option;
 mod query;
 mod refresh;
+mod setup;
 mod subscribe;
 mod surfaces;
 mod sync;
 mod update;
 
 pub use art::{
-    ArtEntry, ArtFit, ArtShape, ArtSpec, CanvasView, CoverView, TILE_RADIUS, art_fit, handle_px,
+    ArtEntry, ArtFit, ArtShape, ArtSpec, CanvasView, CoverView, MeshView, TILE_RADIUS, art_fit,
+    handle_px,
 };
 pub use job::{art_key, run_job};
 pub use message::{AccountBundle, CoverBuilt, ExploreMsg, Job, Message, RefreshData};
@@ -64,6 +67,7 @@ pub use model::{
     HomePhase, HomeState, LibFilter, ListSource, NpTab, SettingsSection,
 };
 pub use option::{AccountLibrary, CreateMsg, SleepState, UiHooks, UiOptions};
+pub use setup::SLIDE_PX;
 
 /// Widget id of the search box.
 pub const SEARCH_ID: &str = "nemo-search";
@@ -76,6 +80,17 @@ pub const GATE_MESSAGE: &str = "YouTube Music is waiting for you to read the not
 
 /// Size of the mini player window.
 pub const MINI_SIZE: (f32, f32) = (420.0, 168.0);
+
+/// What the colours of the window were built from (see `App::sync_theme`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct ThemeKey {
+    theme: ThemeChoice,
+    base: BaseMode,
+    intensity: AccentIntensity,
+    corner: CornerStyle,
+    /// The song's seed while the song colours are on.
+    song: Option<Seed>,
+}
 
 /// The application state.
 pub struct App {
@@ -97,6 +112,8 @@ pub struct App {
     pub(crate) cover: Option<CoverView>,
     /// The cover before the current one, drawn under it while they cross-fade.
     pub(crate) prev_cover: Option<CoverView>,
+    /// Headless snapshots: draw the window backdrop with its drift clock at this many ms.
+    pub(crate) backdrop_preview_ms: Option<f64>,
     pub(crate) anim: Anim,
     /// Enter and exit of the popovers, menus, sheets and the toast.
     pub(crate) surfaces: surfaces::Surfaces,
@@ -112,6 +129,8 @@ pub struct App {
     /// The active lyric line before the last change (the lines cross-fade from it).
     pub(crate) prev_line: Option<usize>,
     pub(crate) seek_drag: Option<f32>,
+    /// Volume before the speaker button muted (0 when it has not).
+    pub(crate) volume_before_mute: u8,
     pub(crate) compact_tab: CompactTab,
     pub(crate) settings_section: SettingsSection,
     pub(crate) rows_limit: usize,
@@ -120,6 +139,10 @@ pub struct App {
     pub(crate) shimmer: f32,
     /// Tab and sidebar pills, the like heart, the title fade and picture fades.
     pub(crate) micro: Micro,
+    /// Progress (0 to 1) of the setup flow's step transition.
+    pub(crate) setup_anim: crate::motion::Spring,
+    /// The setup step the transition last started for (`None` while the flow is closed).
+    setup_seen: Option<crate::setup::SetupStep>,
     /// Phase of the equaliser bars on the playing row.
     pub(crate) eq_phase: f32,
     /// Sliding selection pill of chip rows: x and width springs (0: Home, 1: Library tabs, 2:
@@ -147,8 +170,8 @@ pub struct App {
     pub(crate) page_seeds: HashMap<DetailKey, Seed>,
     /// Seed of the playing cover, for the Dynamic theme.
     cover_seed: Option<Seed>,
-    /// The theme settings the screen shows right now.
-    theme_key: Option<(ThemeChoice, BaseMode, AccentIntensity, CornerStyle)>,
+    /// The theme settings and song seed the screen shows right now.
+    theme_key: Option<ThemeKey>,
     /// Header content chip on Home.
     pub(crate) content_filter: ContentFilter,
     /// Library tab, sort and layout.
@@ -217,7 +240,8 @@ impl App {
             backend.player.snapshot(),
             options.reduced_motion,
         )
-        .with_settings(options.settings.clone());
+        .with_settings(options.settings.clone())
+        .with_setup(options.start_setup);
         let reduced = ui.reduced_motion;
         fx::set_reduced_motion(reduced);
         // Window sizes are small positive numbers.
@@ -240,6 +264,7 @@ impl App {
             art_inflight: 0,
             cover: None,
             prev_cover: None,
+            backdrop_preview_ms: None,
             anim: Anim::new(reduced),
             surfaces: surfaces::Surfaces::default(),
             pane_open,
@@ -252,12 +277,15 @@ impl App {
             last_line: None,
             prev_line: None,
             seek_drag: None,
+            volume_before_mute: 0,
             compact_tab: CompactTab::default(),
             settings_section: SettingsSection::default(),
             rows_limit: ROWS_STEP,
             spin: 0.0,
             shimmer: SKELETON_PHASE,
             micro: Micro::default(),
+            setup_anim: crate::motion::Spring::tuned(1.0, 700.0, 1.0),
+            setup_seen: None,
             eq_phase: 0.0,
             chip_pills: [
                 (

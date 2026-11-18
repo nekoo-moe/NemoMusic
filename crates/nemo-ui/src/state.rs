@@ -83,6 +83,8 @@ pub struct UiState {
     pub tos_checked: bool,
     /// The notice was closed with "Not now" for this session.
     pub tos_dismissed: bool,
+    /// The first-run setup flow (startup-flow spec).
+    pub setup: crate::setup::Setup,
     /// Search box and its answer.
     pub search: SearchState,
     /// Recently played tracks, newest first.
@@ -129,6 +131,7 @@ impl UiState {
             settings: UiSettings::default(),
             tos_checked: false,
             tos_dismissed: false,
+            setup: crate::setup::Setup::default(),
             search: SearchState::default(),
             recent: Vec::new(),
             toast: None,
@@ -157,10 +160,20 @@ impl UiState {
         crate::scheme::accent_palette(s.theme, s.base, s.accent_intensity, None)
     }
 
-    /// `true` while the first-run notice covers the window.
+    /// Open the setup flow when `on` (first run).
+    #[must_use]
+    pub fn with_setup(mut self, on: bool) -> Self {
+        if on {
+            self.setup.open();
+        }
+        self
+    }
+
+    /// `true` while the first-run notice covers the window. The setup flow shows the notice
+    /// itself, so the sheet waits while the flow is open.
     #[must_use]
     pub fn tos_sheet_visible(&self) -> bool {
-        !self.settings.tos_acknowledged && !self.tos_dismissed
+        !self.settings.tos_acknowledged && !self.tos_dismissed && !self.setup.active()
     }
 
     /// `true` once YouTube Music features may be used.
@@ -384,6 +397,7 @@ impl UiState {
             }
             Event::TosLater => self.tos_dismissed = true,
             Event::TosReview => self.tos_dismissed = false,
+            Event::Setup(ev) => self.setup_event(ev, &mut fx),
             Event::SearchInput(text) => {
                 if let Some(seq) = self.search.input(text) {
                     fx.push(Effect::Debounce(seq));

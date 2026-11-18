@@ -183,6 +183,8 @@ pub enum Message {
     AccountLibrary(Arc<AccountLibrary>),
     /// Open or close the tools panel (sleep timer, speed, shortcuts, window modes).
     Tools(bool),
+    /// The speaker button of the player bar: volume to 0, or back to what it was.
+    ToggleMute,
     /// Open or close the shortcut sheet.
     Shortcuts(bool),
     /// The "Create playlist" sheet.

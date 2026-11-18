@@ -79,6 +79,16 @@ pub const ADBLOCK_LABEL: &str = "Don't request or play ads";
 /// Ad blocking helper text (`design.md` section 12).
 pub const ADBLOCK_HELPER: &str = "This can restrict your account and reduces income for artists. It does not unlock Premium quality.";
 
+/// Label of the song colours switch (song-colour-theme spec; Settings and the setup flow).
+pub const SONG_COLOUR_LABEL: &str = "Match colours to the playing song";
+/// Helper text of the song colours switch.
+pub const SONG_COLOUR_HELPER: &str =
+    "The whole window takes its colours from the cover of the song that plays.";
+/// Label of the heartbeat switch.
+pub const HEARTBEAT_LABEL: &str = "Gentle heartbeat";
+/// Helper text of the heartbeat switch.
+pub const HEARTBEAT_HELPER: &str = "A slow, soft pulse in the background while a song plays.";
+
 /// Intro of the Privacy section.
 pub const PRIVACY_INTRO: &str = "NemoMusic runs entirely on your computer. The project runs no server and collects no telemetry. These are the only hosts it contacts:";
 /// The network egress list (README), `(host, why and when)`.
@@ -223,6 +233,8 @@ pub fn sign_out_result(report: &nemo_core::account::SignOutReport) -> String {
     )
 }
 
+pub mod setup;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -292,6 +304,20 @@ mod tests {
             "This can restrict your account and reduces income for artists. It does not unlock Premium quality."
         );
         assert_eq!(SPONSORBLOCK_LABEL, "Skip non-music parts of music videos");
+    }
+
+    #[test]
+    fn the_song_colour_switches_keep_the_wording_of_the_spec() {
+        assert_eq!(SONG_COLOUR_LABEL, "Match colours to the playing song");
+        assert_eq!(
+            SONG_COLOUR_HELPER,
+            "The whole window takes its colours from the cover of the song that plays."
+        );
+        assert_eq!(HEARTBEAT_LABEL, "Gentle heartbeat");
+        assert_eq!(
+            HEARTBEAT_HELPER,
+            "A slow, soft pulse in the background while a song plays."
+        );
     }
 
     #[test]

@@ -2,10 +2,10 @@
 //! layer sits at a given moment, and the capped frame clock. Pure maths, no GUI dependency; the
 //! widget in `gui/views/backdrop/field.rs` only reads these answers.
 //!
-//! The backdrop is the cover's pre-blurred canvas texture drawn twice (the second copy turned
-//! half a circle and fainter), so two soft colour fields move against each other like a mesh
-//! gradient. Each layer moves a few percent on a closed path and breathes slightly in scale over
-//! one long cycle. Frames are capped at [`motion::AMBIENT_FPS`]; nothing moves under reduced
+//! The backdrop is the cover's colour mesh (`crate::mesh`): three or four soft colour fields at
+//! fixed anchors, each moving a few percent on its own closed path and breathing slightly in
+//! scale over one long cycle, so the fields drift against each other like a mesh gradient.
+//! Frames are capped at [`motion::AMBIENT_FPS`]; nothing moves under reduced
 //! motion, under reduce transparency, while the window is not focused, while nothing plays,
 //! while the backdrop is hidden and on the CPU renderer.
 
@@ -13,18 +13,23 @@ use std::time::{Duration, Instant};
 
 use crate::theme::motion;
 
-/// Largest translation of a layer, as a fraction of the window's larger side.
-pub const SHIFT: f32 = 0.03;
-/// Base scale of a layer over the window's larger side. It leaves room for the shift and the
-/// breathe, so no edge of the texture ever shows (tested).
-pub const BASE_SCALE: f32 = 1.12;
-/// Scale breathe around [`BASE_SCALE`] (plus or minus).
+/// Largest translation of a field, as a fraction of the window's larger side.
+pub const SHIFT: f32 = 0.05;
+/// Scale breathe around 1 (plus or minus).
 pub const BREATHE: f32 = 0.02;
-/// Opacity of the second, turned layer over the first.
-pub const BLOB_ALPHA: f32 = 0.5;
 /// Opacity of `surface-container-lowest` at the bottom of the window backdrop (a vignette for
 /// depth; transparent at the top).
-pub const VIGNETTE_ALPHA: f32 = 0.45;
+pub const VIGNETTE_ALPHA: f32 = 0.55;
+/// Opacity of the vignette at 40 % of the window height.
+pub const VIGNETTE_MID_ALPHA: f32 = 0.15;
+/// Where each colour field sits: horizontal and vertical centre as fractions of the window, and
+/// its radius as a fraction of the window's larger side.
+pub const ANCHORS: [(f32, f32, f32); crate::mesh::FIELDS] = [
+    (0.18, 0.22, 0.55),
+    (0.82, 0.18, 0.50),
+    (0.22, 0.82, 0.50),
+    (0.84, 0.80, 0.55),
+];
 /// Longest step one frame may add to the clock: after a stall the drift goes on calmly instead
 /// of jumping.
 pub const MAX_STEP_MS: f64 = 100.0;
@@ -109,8 +114,8 @@ impl Clock {
     }
 }
 
-/// Where one layer sits: offset from the centre (fractions of the window's larger side) and
-/// scale over that side.
+/// Where one field sits: offset from its anchor (fractions of the window's larger side) and
+/// scale around 1.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Pose {
     /// Horizontal offset.
@@ -121,36 +126,41 @@ pub struct Pose {
     pub scale: f32,
 }
 
-/// The pose of `layer` (0 or 1) after `elapsed_ms` of drift. A closed figure-eight path, so
-/// the cycle repeats with no seam; the second layer runs the other way, a third of a cycle on.
+/// The pose of field `layer` (0 to 3) after `elapsed_ms` of drift. A closed figure-eight path,
+/// so the cycle repeats with no seam; neighbouring fields run the other way, a quarter of a
+/// cycle apart.
 #[must_use]
 pub fn pose(elapsed_ms: f64, layer: u8) -> Pose {
     let cycle = f64::from(motion::AMBIENT_CYCLE_MS);
     let turn = (elapsed_ms.rem_euclid(cycle) / cycle) * std::f64::consts::TAU;
-    let (dir, lag) = if layer == 0 {
-        (1.0, 0.0)
-    } else {
-        (-1.0, std::f64::consts::TAU / 3.0)
-    };
+    let dir = if layer.is_multiple_of(2) { 1.0 } else { -1.0 };
+    let lag = std::f64::consts::TAU * f64::from(layer) / 4.0;
     let a = turn * dir + lag;
     // Drift maths in f64, drawn in f32: the values are small fractions.
     #[allow(clippy::cast_possible_truncation)]
     Pose {
         dx: (f64::from(SHIFT) * a.sin()) as f32,
         dy: (f64::from(SHIFT) * 0.7 * (2.0 * a).sin()) as f32,
-        scale: (f64::from(BASE_SCALE) + f64::from(BREATHE) * (a + 1.0).cos()) as f32,
+        scale: (1.0 + f64::from(BREATHE) * (a + 1.0).cos()) as f32,
     }
 }
 
-/// The square a layer is drawn into for a window `(x, y, w, h)`: centred, `pose.scale` times
-/// the larger side, moved by the pose offset. Returns `(x, y, side)`.
+/// The square field `i` is drawn into for a window `(x, y, w, h)`: centred on its anchor moved by
+/// the pose offset, `2 x radius x pose.scale x extra` of the larger side wide. `extra` is 1 at
+/// rest (the bloom and the heartbeat scale it). Returns `(x, y, side)`.
 #[must_use]
-pub fn placed(bounds: (f32, f32, f32, f32), pose: Pose) -> (f32, f32, f32) {
+pub fn blob_rect(
+    bounds: (f32, f32, f32, f32),
+    i: usize,
+    pose: Pose,
+    extra: f32,
+) -> (f32, f32, f32) {
     let (left, top, width, height) = bounds;
+    let (ax, ay, radius) = ANCHORS[i.min(ANCHORS.len() - 1)];
     let long = width.max(height);
-    let side = long * pose.scale;
-    let cx = left + width / 2.0 + pose.dx * long;
-    let cy = top + height / 2.0 + pose.dy * long;
+    let side = 2.0 * radius * long * pose.scale * extra;
+    let cx = left + width * ax + pose.dx * long;
+    let cy = top + height * ay + pose.dy * long;
     (cx - side / 2.0, cy - side / 2.0, side)
 }
 
@@ -249,11 +259,11 @@ mod tests {
     fn the_drift_is_slow_small_and_seamless() {
         let cycle = f64::from(motion::AMBIENT_CYCLE_MS);
         assert!((30_000.0..=60_000.0).contains(&cycle));
-        for layer in [0, 1] {
+        for layer in 0..4 {
             let start = pose(0.0, layer);
             let end = pose(cycle, layer);
             assert!((start.dx - end.dx).abs() < 1e-5 && (start.scale - end.scale).abs() < 1e-5);
-            // One drift frame moves the layer by well under a pixel of a 1920 px window.
+            // One drift frame moves a field by under a pixel of a 1920 px window.
             let step = 1000.0 / f64::from(motion::AMBIENT_FPS);
             for k in 0..200 {
                 let at = f64::from(k) * 211.0;
@@ -261,31 +271,29 @@ mod tests {
                 let moved = (p.dx - q.dx).hypot(p.dy - q.dy) * 1920.0;
                 assert!(moved < 1.0, "{moved} px per frame");
                 assert!(p.dx.abs() <= SHIFT && p.dy.abs() <= SHIFT);
-                assert!((p.scale - BASE_SCALE).abs() <= BREATHE + 1e-6);
+                assert!((p.scale - 1.0).abs() <= BREATHE + 1e-6);
             }
         }
-        assert_ne!(pose(5000.0, 0), pose(5000.0, 1), "the layers move apart");
+        assert_ne!(pose(5000.0, 0), pose(5000.0, 1), "the fields move apart");
     }
 
     #[test]
-    fn a_layer_always_covers_the_whole_window() {
-        for (w, h) in [
-            (960.0, 600.0),
-            (1366.0, 697.0),
-            (1920.0, 1040.0),
-            (420.0, 900.0),
-        ] {
-            for k in 0..480 {
-                for layer in [0, 1] {
-                    let p = pose(f64::from(k) * 100.0, layer);
-                    let (left, top, side) = placed((10.0, 20.0, w, h), p);
-                    assert!(left <= 10.0 && top <= 20.0, "{w}x{h} {p:?}");
-                    assert!(
-                        left + side >= 10.0 + w && top + side >= 20.0 + h,
-                        "{w}x{h} {p:?}"
-                    );
+    fn a_field_stays_near_its_anchor_and_scales_with_extra() {
+        for (w, h) in [(960.0, 600.0), (1366.0, 697.0), (1920.0, 1040.0)] {
+            let long = f32::max(w, h);
+            for (i, &(ax, ay, r)) in ANCHORS.iter().enumerate() {
+                for k in 0..480 {
+                    let p = pose(f64::from(k) * 100.0, u8::try_from(i).unwrap_or(0));
+                    let (x, y, side) = blob_rect((10.0, 20.0, w, h), i, p, 1.0);
+                    let (cx, cy) = (x + side / 2.0, y + side / 2.0);
+                    assert!((cx - (10.0 + w * ax)).abs() <= SHIFT * long + 0.01);
+                    assert!((cy - (20.0 + h * ay)).abs() <= SHIFT * long + 0.01);
+                    assert!((side - 2.0 * r * long * p.scale).abs() < 0.01);
                 }
             }
         }
+        let rest = blob_rect((0.0, 0.0, 1000.0, 600.0), 0, pose(0.0, 0), 1.0);
+        let big = blob_rect((0.0, 0.0, 1000.0, 600.0), 0, pose(0.0, 0), 1.04);
+        assert!((big.2 / rest.2 - 1.04).abs() < 1e-4);
     }
 }

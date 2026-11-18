@@ -7,13 +7,14 @@ use iced::{Alignment, Background, Color, Element, Length, Padding};
 use super::super::app::{App, Message, SettingsSection};
 use super::super::style::{animated, col, gap, label};
 use super::kit::{page, page_title, vspace};
+use crate::copy;
 use crate::layout;
 use crate::settings::SettingChange;
 use crate::state::Event;
 use crate::theme::{color, shape, type_scale};
 
 mod appearance;
-mod control;
+pub(super) mod control;
 mod info;
 mod playback;
 
@@ -22,6 +23,8 @@ use control::group;
 use info::{about, privacy};
 use playback::{audio_output, library, lyrics, playback};
 
+/// Opacity of the content of a disabled control (`design.md` section 5).
+const DISABLED_ALPHA: f32 = 0.38;
 /// Width of the section list.
 const MENU_W: f32 = 200.0;
 /// Widest right column.
@@ -112,6 +115,59 @@ pub(super) fn switch_with<'a>(
             .on_toggle(msg)
             .size(24.0)
             .style(switch_style(on)),
+    ]
+    .align_y(Alignment::Center)
+    .into()
+}
+
+/// The two song-colour switches (song-colour-theme spec): the song colours, and the heartbeat,
+/// greyed out while the colours are off or motion is reduced. Shared by Settings and the setup
+/// flow, with the same copy.
+pub(super) fn song_colour_rows(app: &App, width: f32) -> Vec<Element<'_, Message>> {
+    let s = &app.ui.settings;
+    vec![
+        control::setting_row(
+            width,
+            copy::SONG_COLOUR_LABEL,
+            Some(copy::SONG_COLOUR_HELPER.to_owned()),
+            switch(s.song_colour_theme, SettingChange::SongColourTheme),
+        ),
+        control::setting_row(
+            width,
+            copy::HEARTBEAT_LABEL,
+            Some(copy::HEARTBEAT_HELPER.to_owned()),
+            if s.heartbeat_available(app.ui.reduced_motion) {
+                switch(s.song_heartbeat, SettingChange::SongHeartbeat)
+            } else {
+                switch_disabled(s.song_heartbeat)
+            },
+        ),
+    ]
+}
+
+/// A switch that cannot be used now (greyed out at the disabled opacity of `design.md` section
+/// 5). The state still shows as `On` or `Off` text, and nothing is sent when it is pressed.
+pub(super) fn switch_disabled<'a>(on: bool) -> Element<'a, Message> {
+    let dim = |c: crate::theme::Rgba| col(c.with_alpha(DISABLED_ALPHA));
+    row![
+        label(
+            if on { "On" } else { "Off" },
+            type_scale::BODY_MD,
+            false,
+            dim(color::on_surface_variant()),
+        ),
+        Space::new().width(gap::MD),
+        toggler(on).size(24.0).style(move |_, _| toggler::Style {
+            background: Background::Color(dim(color::on_surface())),
+            background_border_width: 0.0,
+            background_border_color: Color::TRANSPARENT,
+            foreground: Background::Color(dim(color::surface())),
+            foreground_border_width: 0.0,
+            foreground_border_color: Color::TRANSPARENT,
+            text_color: None,
+            border_radius: None,
+            padding_ratio: 0.2,
+        }),
     ]
     .align_y(Alignment::Center)
     .into()

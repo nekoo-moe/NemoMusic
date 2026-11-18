@@ -40,6 +40,8 @@ pub struct CoverData {
     pub backdrop_strip: [Rgba; 3],
     /// The song-coloured canvas for the Now Playing pane and the full-screen Now Playing.
     pub canvas: crate::canvas::Canvas,
+    /// The colour fields of the window backdrop (song-colour-theme spec).
+    pub mesh: crate::mesh::Mesh,
 }
 
 /// Decode `bytes`, derive the palette and the blurred backdrop.
@@ -109,6 +111,7 @@ pub fn analyze(bytes: &[u8]) -> Result<CoverData, PaletteError> {
         backdrop_lightest: lightest,
         backdrop_strip: strip,
         canvas: crate::canvas::build(blurred.as_raw(), BACKDROP_PX),
+        mesh: crate::mesh::build(sample.as_raw()),
     })
 }
 

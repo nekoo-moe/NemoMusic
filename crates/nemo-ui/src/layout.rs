@@ -3,6 +3,8 @@
 //! Pure functions of the window size: no GUI dependency, so every row of the reference table is
 //! a unit test. Sizes are logical pixels.
 
+pub mod bar;
+
 use crate::lyrics_view::metrics::COLUMN_PCT_MIN;
 
 /// Sidebar width at `W >= SIDEBAR_BREAKPOINT`.
@@ -178,14 +180,10 @@ pub const RIGHT_WIDER: u32 = 380;
 pub const RIGHT_OVERLAY: u32 = 340;
 /// Window width from which the right pane pushes the centre pane and is open by default.
 pub const RIGHT_PUSH_BREAKPOINT: u32 = 1280;
-/// Docked horizontal player bar height.
-pub const CAPSULE_HEIGHT: u32 = 76;
-/// Gap between the bar and the window bottom.
-pub const CAPSULE_MARGIN: u32 = 4;
-/// Widest capsule.
-pub const CAPSULE_MAX: u32 = 1280;
-/// Narrowest capsule.
-pub const CAPSULE_MIN: u32 = 560;
+/// Floating player bar height (the capsule).
+pub const CAPSULE_HEIGHT: u32 = PLAYER_BAR_HEIGHT;
+/// Gap between the capsule and the window bottom.
+pub const CAPSULE_MARGIN: u32 = PLAYER_BAR_INSET;
 /// Extra space under the panes while the capsule shows: the panes end above the capsule, so it
 /// never covers a row (the usual [`PANE_GAP`] below the panes comes on top of this).
 pub const PANE_BOTTOM_RESERVE: u32 = CAPSULE_HEIGHT + CAPSULE_MARGIN;
@@ -239,12 +237,6 @@ pub fn center_width(window_w: u32, right_open: f32) -> u32 {
         0
     };
     window_w.saturating_sub(2 * PANE_GAP + PANE_GAP + left_width(window_w) + right)
-}
-
-/// Capsule width.
-#[must_use]
-pub fn capsule_width(window_w: u32) -> u32 {
-    (window_w * 4 / 5).clamp(CAPSULE_MIN, CAPSULE_MAX)
 }
 
 /// Card grid inside a pane of `pane_w` px: padding 24 each side, cards at least 176 wide,
@@ -426,10 +418,9 @@ mod tests {
     }
 
     #[test]
-    fn capsule_and_lyrics_area_have_room() {
-        assert_eq!(capsule_width(1366), 1092);
-        assert_eq!(capsule_width(1920), 1280);
-        assert_eq!(capsule_width(600), 560);
+    fn lyrics_area_has_room_above_the_capsule() {
+        assert_eq!(bar::width(1366), 1200);
+        assert_eq!(PANE_BOTTOM_RESERVE, 100);
         assert!(
             pane_lyrics_height(1366, 697) >= 120.0,
             "{}",

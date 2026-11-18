@@ -1,8 +1,8 @@
-//! The drifting window backdrop as an iced widget. It draws pre-blurred cover textures with a
-//! transform (no blur at draw time, nothing re-blurred per frame) and paces its own redraws: on
-//! each redraw it asks for the next one at the capped drift rate, without a message, so the app's
-//! `update` and `view` do not run for the drift. It stops asking while it may not move, and it
-//! freezes while the window has no focus.
+//! The drifting window backdrop as an iced widget. It draws a flat colour and the cover's
+//! pre-rendered colour fields (`crate::mesh`) with a transform (no blur at draw time, nothing
+//! re-blurred per frame) and paces its own redraws: on each redraw it asks for the next one at
+//! the capped drift rate, without a message, so the app's `update` and `view` do not run for the
+//! drift. It stops asking while it may not move, and it freezes while the window has no focus.
 
 use iced::advanced::image::{self as adv_image, FilterMethod};
 use iced::advanced::layout::{self, Layout, Node};
@@ -11,30 +11,59 @@ use iced::advanced::{Clipboard, Shell, Widget, renderer};
 use iced::widget::image;
 use iced::{Element, Event, Length, Radians, Rectangle, Size, mouse, window};
 
-use crate::drift::{self, BLOB_ALPHA, Clock, Inputs, Mode};
+use crate::drift::{self, Clock, Inputs, Mode};
+use crate::gui::style::col;
+use crate::heartbeat;
+use crate::theme::Rgba;
 
-/// One cover texture and its opacity (1 for the settled cover; the cross-fade for a new one).
+/// The colour fields of one cover and how strongly they show.
 #[derive(Debug, Clone)]
 pub struct Layer {
-    /// The toned, pre-blurred canvas texture.
-    pub handle: image::Handle,
-    /// Opacity, 0 to 1.
+    /// One texture per colour field, in anchor order.
+    pub blobs: Vec<image::Handle>,
+    /// The fields composited into one image: the CPU renderer draws this alone.
+    pub still: image::Handle,
+    /// Opacity, 0 to 1 (1 for the settled cover; the cross-fade for the old and the new one).
     pub opacity: f32,
+    /// Scale of the fields around their anchors (1 at rest).
+    pub scale: f32,
 }
 
-/// The backdrop widget. Each layer is drawn twice: straight, and turned half a circle at
-/// [`BLOB_ALPHA`], so two colour fields drift against each other.
+/// The backdrop widget: a flat colour with the colour fields over it.
 pub struct Field {
+    under: Rgba,
     layers: Vec<Layer>,
     inputs: Inputs,
+    heartbeat: bool,
+    preview: Option<f64>,
 }
 
 impl Field {
-    /// A backdrop of `layers` (bottom first). `inputs` come from the app; the widget fills in
-    /// the window focus and the renderer.
+    /// A backdrop of `layers` (bottom first) over the flat colour `under`. `inputs` come from
+    /// the app; the widget fills in the window focus and the renderer.
     #[must_use]
-    pub fn new(layers: Vec<Layer>, inputs: Inputs) -> Self {
-        Self { layers, inputs }
+    pub fn new(under: Rgba, layers: Vec<Layer>, inputs: Inputs) -> Self {
+        Self {
+            under,
+            layers,
+            inputs,
+            heartbeat: false,
+            preview: None,
+        }
+    }
+
+    /// Pulse the fields while the backdrop moves (the `Gentle heartbeat` switch).
+    #[must_use]
+    pub fn heartbeat(mut self, on: bool) -> Self {
+        self.heartbeat = on;
+        self
+    }
+
+    /// Draw as if the drift clock stood at `ms` and the backdrop moved (headless snapshots).
+    #[must_use]
+    pub fn preview(mut self, ms: Option<f64>) -> Self {
+        self.preview = ms;
+        self
     }
 }
 
@@ -91,7 +120,11 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for Field {
                 state.focused = true;
                 shell.request_redraw();
             }
-            Event::Window(window::Event::Unfocused) => state.focused = false,
+            Event::Window(window::Event::Unfocused) => {
+                state.focused = false;
+                // One more draw, at rest: the pulse must not freeze mid-beat.
+                shell.request_redraw();
+            }
             Event::Window(window::Event::RedrawRequested(now)) => {
                 let moving = Mode::of(Inputs {
                     focused: state.focused,
@@ -120,23 +153,52 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for Field {
         use iced::advanced::Renderer as _;
         let state = tree.state.downcast_ref::<State>();
         let b = layout.bounds();
+        // The CPU renderer (tiny-skia) scales every image on the CPU: it draws one composited
+        // image and never moves.
+        // A preview (headless snapshots) shows the GPU look on the CPU renderer.
+        let software = matches!(renderer, iced::Renderer::Secondary(_)) && self.preview.is_none();
+        let (elapsed, mode) = match self.preview {
+            Some(ms) => (ms, Mode::Moving),
+            None => (
+                state.clock.elapsed_ms,
+                Mode::of(Inputs {
+                    focused: state.focused,
+                    software,
+                    ..self.inputs
+                }),
+            ),
+        };
+        let pulse = if heartbeat::active(mode, self.heartbeat) {
+            heartbeat::beat(elapsed)
+        } else {
+            0.0
+        };
         renderer.with_layer(b, |r| {
-            for l in &self.layers {
-                for copy in [0_u8, 1] {
-                    let p = drift::pose(state.clock.elapsed_ms, copy);
-                    let (x, y, side) = drift::placed((b.x, b.y, b.width, b.height), p);
-                    let (rotation, alpha) = if copy == 0 {
-                        (0.0, 1.0)
-                    } else {
-                        (std::f32::consts::PI, BLOB_ALPHA)
-                    };
+            r.fill_quad(
+                renderer::Quad {
+                    bounds: b,
+                    ..renderer::Quad::default()
+                },
+                col(self.under),
+            );
+            for layer in &self.layers {
+                if software {
+                    draw_still(r, layer, b);
+                    continue;
+                }
+                let extra = layer.scale * (1.0 + heartbeat::SCALE * pulse);
+                for (i, handle) in layer.blobs.iter().enumerate() {
+                    // At most `FIELDS` (4) fields: the index always fits.
+                    let pose = drift::pose(elapsed, u8::try_from(i).unwrap_or(0));
+                    let (x, y, side) =
+                        drift::blob_rect((b.x, b.y, b.width, b.height), i, pose, extra);
                     r.draw_image(
                         adv_image::Image {
-                            handle: l.handle.clone(),
+                            handle: handle.clone(),
                             filter_method: FilterMethod::Linear,
-                            rotation: Radians(rotation),
+                            rotation: Radians(0.0),
                             border_radius: iced::border::Radius::default(),
-                            opacity: l.opacity.clamp(0.0, 1.0) * alpha,
+                            opacity: layer.opacity.clamp(0.0, 1.0),
                             snap: false,
                         },
                         Rectangle::new(iced::Point::new(x, y), Size::new(side, side)),
@@ -144,8 +206,38 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for Field {
                     );
                 }
             }
+            if pulse > 0.0 {
+                r.fill_quad(
+                    renderer::Quad {
+                        bounds: b,
+                        ..renderer::Quad::default()
+                    },
+                    col(heartbeat::LIFT.with_alpha(heartbeat::LIGHT * pulse)),
+                );
+            }
         });
     }
+}
+
+/// The composited still image, scaled by the layer's scale around the window centre.
+fn draw_still(r: &mut iced::Renderer, layer: &Layer, b: Rectangle) {
+    use adv_image::Renderer as _;
+    let (w, h) = (b.width * layer.scale, b.height * layer.scale);
+    r.draw_image(
+        adv_image::Image {
+            handle: layer.still.clone(),
+            filter_method: FilterMethod::Linear,
+            rotation: Radians(0.0),
+            border_radius: iced::border::Radius::default(),
+            opacity: layer.opacity.clamp(0.0, 1.0),
+            snap: false,
+        },
+        Rectangle::new(
+            iced::Point::new(b.x + (b.width - w) / 2.0, b.y + (b.height - h) / 2.0),
+            Size::new(w, h),
+        ),
+        b,
+    );
 }
 
 impl<'a, M: 'a> From<Field> for Element<'a, M> {

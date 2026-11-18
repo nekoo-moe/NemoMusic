@@ -167,6 +167,58 @@ pub struct CoverView {
     pub scrim_alpha: f32,
     /// The song-coloured canvas behind the pane and the full-screen Now Playing.
     pub canvas: CanvasView,
+    /// The colour fields of the window backdrop.
+    pub mesh: MeshView,
+}
+
+/// The colour mesh of one cover, ready to draw: field textures and the flat colour under them,
+/// per base mode.
+#[derive(Debug, Clone)]
+pub struct MeshView {
+    /// Field textures in [`crate::canvas::MODES`] order, in anchor order.
+    pub blobs: [Vec<image::Handle>; 3],
+    /// The flat colour under the fields, per mode.
+    pub under: [crate::theme::Rgba; 3],
+    /// The fields composited into one image per mode (the CPU renderer draws this).
+    pub stills: [image::Handle; 3],
+}
+
+impl MeshView {
+    /// Upload-ready handles of an analysed mesh (raw RGBA, nothing decodes on the UI thread).
+    #[must_use]
+    pub fn new(m: &crate::mesh::Mesh) -> Self {
+        let side = crate::mesh::BLOB_PX;
+        Self {
+            blobs: crate::canvas::MODES.map(|base| {
+                (0..m.n)
+                    .map(|i| image::Handle::from_rgba(side, side, m.texture(base, i).to_vec()))
+                    .collect()
+            }),
+            under: m.base,
+            stills: crate::canvas::MODES.map(|base| {
+                let (w, h) = crate::mesh::STILL_PX;
+                image::Handle::from_rgba(w, h, m.still(base).to_vec())
+            }),
+        }
+    }
+
+    /// The field textures for a base mode.
+    #[must_use]
+    pub fn blobs(&self, base: BaseMode) -> &[image::Handle] {
+        &self.blobs[crate::canvas::mode_index(base)]
+    }
+
+    /// The composited still image for a base mode.
+    #[must_use]
+    pub fn still(&self, base: BaseMode) -> image::Handle {
+        self.stills[crate::canvas::mode_index(base)].clone()
+    }
+
+    /// The flat colour under the fields for a base mode.
+    #[must_use]
+    pub fn under(&self, base: BaseMode) -> crate::theme::Rgba {
+        self.under[crate::canvas::mode_index(base)]
+    }
 }
 
 /// The canvas of one cover, ready to draw: a texture and pane gradient stops per base mode.

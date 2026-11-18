@@ -22,6 +22,10 @@ impl App {
             Message::Ui(ev) => self.dispatch(ev),
             Message::Player(ev) => self.dispatch(Event::Player(ev)),
             Message::Frame(now) => self.on_frame(now),
+            // The setup flow takes the keys: Enter is Next, Esc and the rest do nothing.
+            Message::Key(key, _) if self.ui.setup.active() && !self.account.open => {
+                self.setup_key(key)
+            }
             Message::Key(key, mods) => match keys::map(key, mods, self.ui.text_focused) {
                 // Esc closes the sign-in sheet first.
                 Some(keys::KeyAction::Close) if self.account.open => {
@@ -346,6 +350,7 @@ impl App {
                 self.account_library = Some(lib);
                 Vec::new()
             }
+            Message::ToggleMute => self.toggle_mute(),
             Message::Tools(on) => {
                 self.tools_open = on;
                 self.shortcuts_open = false;

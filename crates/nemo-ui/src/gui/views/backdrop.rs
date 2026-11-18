@@ -9,10 +9,11 @@
 use iced::widget::{Space, container, image, stack};
 use iced::{Background, ContentFit, Element, Length};
 
-use super::super::app::{App, Message};
+use super::super::app::{App, CoverView, Message};
 use super::super::style::{DOWN, col, vertical_gradient};
+use crate::anim::bloom_scale;
 use crate::canvas::{STOPS, mix_stops};
-use crate::drift::{Inputs, Mode};
+use crate::drift::{Inputs, Mode, VIGNETTE_ALPHA, VIGNETTE_MID_ALPHA};
 use crate::route::Route;
 use crate::theme::{Rgba, color};
 
@@ -37,67 +38,70 @@ pub fn window_inputs(app: &App) -> Inputs {
     }
 }
 
-/// The field behind the panes. With the Dynamic theme and a cover: the cover's toned canvas,
-/// drifting slowly, the old cover under the new one while they cross-fade; a flat tonal colour
-/// from the same canvas under reduce transparency. Otherwise (a fixed theme, or no cover) the
-/// soft three-colour gradient of `scheme::bg_colors`.
+/// The field behind the panes. With `Match colours to the playing song` on and a cover: the
+/// cover's colour mesh (three or four soft fields, `crate::mesh`) drifting slowly, the old
+/// fields fading out while the new ones fade in; a flat tonal colour from the cover's canvas
+/// under reduce transparency. Otherwise (the switch is
+/// off, or there is no cover) one flat tonal colour from the theme (song-colour-theme rule
+/// table).
 pub fn window_field(app: &App) -> Element<'_, Message> {
-    let dynamic = app.ui.settings.theme.seed().is_none();
-    let Some(cover) = app.cover.as_ref().filter(|_| dynamic) else {
-        return gradient_field(app);
+    let Some(cover) = song_cover(app) else {
+        return flat_field(app);
     };
-    let base = app.ui.settings.base;
-    let fade = app.anim.cover();
-    let prev = app.prev_cover.as_ref().filter(|_| fade < 0.999);
     let inputs = window_inputs(app);
     if Mode::of(inputs) == Mode::Flat {
-        let mid = STOPS / 2;
-        let now = cover.canvas.stops(base)[mid];
-        let flat = prev.map_or(now, |p| {
-            crate::palette::mix_rgb(p.canvas.stops(base)[mid], now, f64::from(fade))
-        });
-        return container(Space::new())
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .style(move |_| container::Style {
-                background: Some(col(flat).into()),
-                ..container::Style::default()
-            })
-            .into();
+        return flat_cover_field(app, cover);
     }
+    let base = app.ui.settings.base;
+    // The bloom: the new fields fade in and settle from 1.04 to 1.0 over the old ones, which fade
+    // out; the flat colour under them follows.
+    let bloom = app.anim.bloom();
+    let prev = app.prev_cover.as_ref().filter(|_| bloom < 0.999);
+    let under = prev.map_or(cover.mesh.under(base), |p| {
+        crate::palette::mix_rgb(p.mesh.under(base), cover.mesh.under(base), f64::from(bloom))
+    });
     let mut layers = Vec::with_capacity(2);
     if let Some(p) = prev {
         layers.push(Layer {
-            handle: p.canvas.texture(base),
-            opacity: 1.0,
+            blobs: p.mesh.blobs(base).to_vec(),
+            still: p.mesh.still(base),
+            opacity: 1.0 - bloom,
+            scale: 1.0,
         });
     }
     layers.push(Layer {
-        handle: cover.canvas.texture(base),
-        opacity: if prev.is_some() { fade } else { 1.0 },
+        blobs: cover.mesh.blobs(base).to_vec(),
+        still: cover.mesh.still(base),
+        opacity: bloom,
+        scale: bloom_scale(bloom),
     });
-    stack![
-        Element::from(Field::new(layers, inputs)),
-        ambient_glow(app),
-        vignette()
-    ]
-    .width(Length::Fill)
-    .height(Length::Fill)
-    .into()
+    let s = &app.ui.settings;
+    let beat = s.song_heartbeat && s.heartbeat_available(app.ui.reduced_motion);
+    let field = Field::new(under, layers, inputs)
+        .heartbeat(beat)
+        .preview(app.backdrop_preview_ms);
+    stack![Element::from(field), vignette()]
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into()
 }
 
-/// A soft top ambient glow from the active cover accent color.
-fn ambient_glow<'a>(app: &App) -> Element<'a, Message> {
-    let primary = app.accent().primary;
-    let g = iced::gradient::Linear::new(iced::Radians(DOWN))
-        .add_stop(0.0, col(primary.with_alpha(0.18)))
-        .add_stop(0.5, col(primary.with_alpha(0.04)))
-        .add_stop(1.0, iced::Color::TRANSPARENT);
+/// Reduce transparency: one flat tonal colour from the cover's canvas, cross-faded with the
+/// previous cover's.
+fn flat_cover_field<'a>(app: &App, cover: &CoverView) -> Element<'a, Message> {
+    let base = app.ui.settings.base;
+    let fade = app.anim.cover();
+    let prev = app.prev_cover.as_ref().filter(|_| fade < 0.999);
+    let mid = STOPS / 2;
+    let now = cover.canvas.stops(base)[mid];
+    let flat = prev.map_or(now, |p| {
+        crate::palette::mix_rgb(p.canvas.stops(base)[mid], now, f64::from(fade))
+    });
     container(Space::new())
         .width(Length::Fill)
         .height(Length::Fill)
         .style(move |_| container::Style {
-            background: Some(Background::Gradient(g.into())),
+            background: Some(col(flat).into()),
             ..container::Style::default()
         })
         .into()
@@ -108,8 +112,8 @@ fn vignette<'a>() -> Element<'a, Message> {
     let base = color::surface_container_lowest();
     let g = iced::gradient::Linear::new(iced::Radians(DOWN))
         .add_stop(0.0, iced::Color::TRANSPARENT)
-        .add_stop(0.4, col(base.with_alpha(0.25)))
-        .add_stop(1.0, col(base.with_alpha(0.75)));
+        .add_stop(0.4, col(base.with_alpha(VIGNETTE_MID_ALPHA)))
+        .add_stop(1.0, col(base.with_alpha(VIGNETTE_ALPHA)));
     container(Space::new())
         .width(Length::Fill)
         .height(Length::Fill)
@@ -120,34 +124,31 @@ fn vignette<'a>() -> Element<'a, Message> {
         .into()
 }
 
-/// The soft diagonal gradient of three dark tonal colours (`scheme::bg_colors`), cross-faded by
-/// `scheme::BgFade`, with the vignette.
-fn gradient_field(app: &App) -> Element<'_, Message> {
-    let [c0, c1, c2] = app.bg_fade.current();
-    let diag = iced::gradient::Linear::new(iced::Radians(2.35))
-        .add_stop(0.0, col(c0))
-        .add_stop(0.55, col(c1))
-        .add_stop(1.0, col(c2));
-    stack![
-        container(Space::new())
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .style(move |_| container::Style {
-                background: Some(Background::Gradient(diag.into())),
-                ..container::Style::default()
-            }),
-        ambient_glow(app),
-        vignette()
-    ]
-    .width(Length::Fill)
-    .height(Length::Fill)
-    .into()
+/// One flat tonal colour: the middle colour of `scheme::bg_colors` for the theme's seed (a cool
+/// grey for Dynamic), cross-faded by `scheme::BgFade`.
+fn flat_field(app: &App) -> Element<'_, Message> {
+    let flat = app.bg_fade.current()[1];
+    container(Space::new())
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .style(move |_| container::Style {
+            background: Some(col(flat).into()),
+            ..container::Style::default()
+        })
+        .into()
+}
+
+/// The cover that colours the window: none while `Match colours to the playing song` is off.
+fn song_cover(app: &App) -> Option<&CoverView> {
+    app.cover
+        .as_ref()
+        .filter(|_| app.ui.settings.song_colour_theme)
 }
 
 /// The pane gradient stops now, cross-faded from the previous cover's.
 fn pane_stops(app: &App) -> Option<[Rgba; STOPS]> {
     let base = app.ui.settings.base;
-    let now = app.cover.as_ref()?.canvas.stops(base);
+    let now = song_cover(app)?.canvas.stops(base);
     let fade = app.anim.cover();
     Some(match &app.prev_cover {
         Some(prev) if fade < 0.999 => mix_stops(prev.canvas.stops(base), now, fade),
@@ -180,7 +181,7 @@ pub fn pane_background(app: &App) -> Background {
 /// The full-screen canvas: the toned cover texture, the old one under the new one while they
 /// cross-fade. Plain window background when there is no cover.
 pub fn full_backdrop(app: &App) -> Element<'_, Message> {
-    let Some(c) = &app.cover else {
+    let Some(c) = song_cover(app) else {
         return Space::new().into();
     };
     let base = app.ui.settings.base;

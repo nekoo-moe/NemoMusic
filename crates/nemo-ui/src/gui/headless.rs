@@ -4,9 +4,11 @@
 //! Set `ICED_TEST_BACKEND=tiny-skia` before starting the process; `iced_test` reads it when it
 //! creates the renderer (this crate forbids `unsafe`, so it cannot set the variable itself).
 
+pub mod cost;
+
 use std::path::{Path, PathBuf};
 
-use iced::{Pixels, Size};
+use iced::{Pixels, Point, Size};
 use iced_test::Simulator;
 use nemo_core::player::{PlayState, PlayerCommand};
 use nemo_core::services::Backend;
@@ -106,6 +108,27 @@ pub fn render_view_png(
     render_view_png_with(view, size, out, Vec::new())
 }
 
+/// [`render_png`] with the pointer at `at` (logical px). With `pressed` the left button is held
+/// down there first, as when a drag starts. For hover and drag shots.
+///
+/// # Errors
+/// A message when the renderer cannot be created or the file cannot be written.
+pub fn render_png_pointer(
+    app: &App,
+    size: (u32, u32),
+    out: &Path,
+    at: (f32, f32),
+    pressed: bool,
+) -> Result<(), String> {
+    render_with(
+        app.view(),
+        size,
+        out,
+        Vec::new(),
+        Some((Point::new(at.0, at.1), pressed)),
+    )
+}
+
 /// [`render_view_png`] with `extra` font files loaded beside the bundled ones (for font
 /// comparisons; the files are not part of the app).
 ///
@@ -116,6 +139,16 @@ pub fn render_view_png_with(
     size: (u32, u32),
     out: &Path,
     extra: Vec<std::borrow::Cow<'static, [u8]>>,
+) -> Result<(), String> {
+    render_with(view, size, out, extra, None)
+}
+
+fn render_with(
+    view: iced::Element<'_, Message>,
+    size: (u32, u32),
+    out: &Path,
+    extra: Vec<std::borrow::Cow<'static, [u8]>>,
+    pointer: Option<(Point, bool)>,
 ) -> Result<(), String> {
     let mut fonts: Vec<std::borrow::Cow<'static, [u8]>> =
         assets::ALL_FONTS.iter().map(|f| (*f).into()).collect();
@@ -131,6 +164,18 @@ pub fn render_view_png_with(
     #[allow(clippy::cast_precision_loss)]
     let logical = Size::new(size.0 as f32, size.1 as f32);
     let mut sim = Simulator::with_size(settings, logical, view);
+    if let Some((at, pressed)) = pointer {
+        sim.point_at(at);
+        let mut events = vec![iced::Event::Mouse(iced::mouse::Event::CursorMoved {
+            position: at,
+        })];
+        if pressed {
+            events.push(iced::Event::Mouse(iced::mouse::Event::ButtonPressed(
+                iced::mouse::Button::Left,
+            )));
+        }
+        let _ = sim.simulate(events);
+    }
     let snapshot = sim.snapshot(&style::theme()).map_err(|e| e.to_string())?;
 
     // `matches_image` writes `<stem>-<renderer>.png` when the file does not exist yet.
@@ -242,6 +287,17 @@ pub struct Scenario {
     pub full_motion: bool,
     /// Show the lyrics as still loading, this many ms into the shimmer of the loading line.
     pub loading_lyrics_ms: Option<u32>,
+    /// Open the first-run setup flow on this step (startup-flow spec).
+    pub setup: Option<crate::setup::SetupStep>,
+    /// With `setup`: tick the notice checkbox.
+    pub setup_ticked: bool,
+    /// With `setup`: a sign-in failure sentence shown on the Sources step.
+    pub account_error: Option<String>,
+    /// Switch to this mock track after the app settled and draw this many ms into the bloom of
+    /// the window backdrop (needs `full_motion`).
+    pub bloom: Option<(usize, u32)>,
+    /// Draw the window backdrop with its drift clock at this many ms (a point of the heartbeat).
+    pub backdrop_ms: Option<f64>,
 }
 
 /// Which state of the sign-in sheet a snapshot shows.
@@ -305,6 +361,11 @@ impl Default for Scenario {
             mid_motion_ms: None,
             full_motion: false,
             loading_lyrics_ms: None,
+            setup: None,
+            setup_ticked: false,
+            account_error: None,
+            bloom: None,
+            backdrop_ms: None,
         }
     }
 }
@@ -313,6 +374,26 @@ impl Default for Scenario {
 fn run(app: &mut App, message: Message) {
     let jobs = app.update_core(message);
     app.settle_blocking(jobs);
+}
+
+/// Open the setup flow on the scenario's step, answering the notice with `Not now` on the way
+/// when it is not accepted, so every later step can be shown.
+fn open_setup(app: &mut App, scenario: &Scenario) {
+    use crate::setup::{SetupEvent, SetupStep};
+    let Some(step) = scenario.setup else { return };
+    run(app, Message::Ui(Event::Setup(SetupEvent::Open)));
+    while app.ui.setup.step() != step {
+        let event = if app.ui.setup.step() == SetupStep::Notice && !app.ui.notice_decided() {
+            SetupEvent::NoticeLater
+        } else {
+            SetupEvent::Next
+        };
+        run(app, Message::Ui(Event::Setup(event)));
+    }
+    if scenario.setup_ticked {
+        run(app, Message::Ui(Event::TosCheck(true)));
+    }
+    app.account.error.clone_from(&scenario.account_error);
 }
 
 /// Build an app on `backend`, load everything synchronously and finish all animations, so the
@@ -404,6 +485,7 @@ pub fn build_app(backend: &Backend, scenario: &Scenario) -> App {
         "Late night drive".clone_into(&mut app.create_name);
     }
     app.mini = scenario.mini;
+    open_setup(&mut app, scenario);
     if let Some(i) = scenario.lyrics_pick {
         run(&mut app, Message::PickLyricsProvider(i));
     }
@@ -458,6 +540,23 @@ pub fn build_app(backend: &Backend, scenario: &Scenario) -> App {
         app.shimmer = 0.45;
     }
     app.finish_animations();
+    if let Some((next, ms)) = scenario.bloom {
+        run(
+            &mut app,
+            Message::Ui(Event::Command(PlayerCommand::Play(crate::mock::track(
+                next,
+            )))),
+        );
+        // Step the animations the way frames would, at most 100 ms at a time.
+        let mut left = ms;
+        while left > 0 {
+            // A few hundred ms at most, exact in f32.
+            #[allow(clippy::cast_precision_loss)]
+            app.anim.step(left.min(100) as f32);
+            left = left.saturating_sub(100);
+        }
+    }
+    app.backdrop_preview_ms = scenario.backdrop_ms;
     if let Some(ms) = scenario.mid_motion_ms {
         // A few hundred ms at most, exact in f32.
         #[allow(clippy::cast_precision_loss)]

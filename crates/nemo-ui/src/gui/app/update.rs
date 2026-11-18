@@ -1,7 +1,7 @@
 //! Update, view and subscription of [`App`], and the smaller message steps behind them.
 
 use super::super::views;
-use super::art::{CanvasView, CoverView};
+use super::art::{CanvasView, CoverView, MeshView};
 use super::job::{link_of, run_job};
 use super::message::{CoverBuilt, Job, Message};
 use super::model::AccountMsg;
@@ -180,6 +180,7 @@ impl App {
             sw.step(dt.min(50.0) / 1000.0);
         }
         self.queue_anim.step(dt.min(50.0) / 1000.0);
+        self.setup_anim.step(dt.min(50.0) / 1000.0);
         // While a track menu is open nothing but the menu moves (app-motion spec, criterion 11).
         let held = self.surfaces.menu.visible();
         if self.ui.is_playing() && !self.ui.reduced_motion && !held {
@@ -289,6 +290,7 @@ impl App {
                     tint_alpha: cover::glass_tint_alpha(b.data.backdrop_lightest),
                     scrim_alpha: cover::backdrop_scrim_alpha(b.data.backdrop_lightest),
                     canvas: CanvasView::new(&b.data.canvas),
+                    mesh: MeshView::new(&b.data.mesh),
                 });
                 self.cover_seed = Some(b.data.seed);
                 let palette = self.themed_palette();
@@ -309,7 +311,7 @@ impl App {
     /// The accent palette for the current theme settings and cover.
     pub(super) fn themed_palette(&self) -> Palette {
         let s = &self.ui.settings;
-        scheme::accent_palette(s.theme, s.base, s.accent_intensity, self.cover_seed)
+        scheme::accent_palette(s.theme, s.base, s.accent_intensity, self.song_seed())
     }
 
     pub(super) fn jobs_to_task(&self, jobs: Vec<Job>) -> Task<Message> {

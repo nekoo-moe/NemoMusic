@@ -25,7 +25,7 @@ pub fn set_focus_color(c: Color) {
     FOCUS_RGBA.store(u32::from_be_bytes(c.into_rgba8()), Ordering::Relaxed);
 }
 
-fn focus_color() -> Color {
+pub(crate) fn focus_color() -> Color {
     let [red, green, blue, alpha] = FOCUS_RGBA.load(Ordering::Relaxed).to_be_bytes();
     Color::from_rgba8(red, green, blue, f32::from(alpha) / 255.0)
 }

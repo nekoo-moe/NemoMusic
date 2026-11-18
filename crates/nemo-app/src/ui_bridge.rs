@@ -37,6 +37,7 @@ pub fn to_ui(s: &Settings) -> UiSettings {
         reduce_motion: s.reduce_motion,
         reduce_transparency: s.reduce_transparency,
         tos_acknowledged: s.tos_acknowledged,
+        setup_completed: s.setup_completed,
         theme: by_label(&ThemeChoice::ALL, ThemeChoice::label, &s.theme),
         base: by_label(&BaseMode::ALL, BaseMode::label, &s.base_mode),
         accent_intensity: by_label(
@@ -53,6 +54,8 @@ pub fn to_ui(s: &Settings) -> UiSettings {
         animated_covers: AnimatedCoverSettings {
             spotify_canvas: s.animated_covers.spotify_canvas,
         },
+        song_colour_theme: s.song_colour_theme,
+        song_heartbeat: s.song_heartbeat,
         // Unknown labels (an older or newer file) and the default order are skipped.
         collection_sorts: s
             .collection_sorts
@@ -76,6 +79,7 @@ pub fn apply_ui(s: &mut Settings, ui: &UiSettings) {
     s.reduce_motion = ui.reduce_motion;
     s.reduce_transparency = ui.reduce_transparency;
     s.tos_acknowledged = ui.tos_acknowledged;
+    s.setup_completed = ui.setup_completed;
     ui.theme.label().clone_into(&mut s.theme);
     ui.base.label().clone_into(&mut s.base_mode);
     ui.accent_intensity
@@ -86,6 +90,8 @@ pub fn apply_ui(s: &mut Settings, ui: &UiSettings) {
         .label()
         .clone_into(&mut s.now_playing_style);
     s.animated_covers.spotify_canvas = ui.animated_covers.spotify_canvas;
+    s.song_colour_theme = ui.song_colour_theme;
+    s.song_heartbeat = ui.song_heartbeat;
     s.collection_sorts = ui
         .collection_sorts
         .iter()
@@ -114,31 +120,26 @@ pub fn apply_output_choice(settings: &mut Settings, status: &OutputStatus) -> bo
     }
 }
 
-/// Start the saver thread, optionally watch the player for output changes, and build the UI options.
-/// The callback only sends on a channel, so it never blocks the UI thread.
-pub fn options(
-    settings: Settings,
-    root: PathBuf,
-    player: Option<&Arc<dyn PlayerControl>>,
-) -> UiOptions {
+/// Start the saver thread and build the UI options. The callback only sends on a channel, so it
+/// never blocks the UI thread. The returned sender also feeds the output watcher, which starts
+/// with the player (see `backend::Startup`).
+pub fn options(settings: Settings, root: PathBuf) -> (UiOptions, Sender<SettingsMsg>) {
     let initial = to_ui(&settings);
     let folders = settings
         .music_folders
         .iter()
         .map(|p| p.display().to_string())
         .collect();
-    let tx = spawn_saver(settings, root);
-    if let Some(player) = player {
-        spawn_output_watcher(player, tx.clone());
-    }
-    let tx = Mutex::new(tx);
+    let saver = spawn_saver(settings, root);
+    let tx = Mutex::new(saver.clone());
     let on_settings: Arc<dyn Fn(UiSettings) + Send + Sync> = Arc::new(move |ui| {
         if let Ok(tx) = tx.lock() {
             // The saver only stops when the app exits; a failed send then is harmless.
             let _ = tx.send(SettingsMsg::Ui(ui));
         }
     });
-    UiOptions {
+    let options = UiOptions {
+        start_setup: initial.needs_setup(),
         settings: initial,
         on_settings: Some(on_settings),
         music_folders: folders,
@@ -148,7 +149,8 @@ pub fn options(
         // One switch: the OS preference here, OR the user's Settings toggle (the UI joins them).
         reduced_motion: crate::os_motion::reduce_motion(),
         ..UiOptions::default()
-    }
+    };
+    (options, saver)
 }
 
 /// Watch the player's event stream and forward `OutputChanged` to the settings saver.
@@ -270,6 +272,18 @@ mod tests {
     }
 
     #[test]
+    fn song_colour_switches_round_trip_through_the_bridge() {
+        let mut stored = Settings::default();
+        let mut ui = to_ui(&stored);
+        assert!(ui.song_colour_theme && ui.song_heartbeat);
+        ui.song_colour_theme = false;
+        ui.song_heartbeat = false;
+        apply_ui(&mut stored, &ui);
+        assert!(!stored.song_colour_theme && !stored.song_heartbeat);
+        assert_eq!(to_ui(&stored), ui);
+    }
+
+    #[test]
     fn page_sorts_round_trip_and_unknown_labels_are_dropped() {
         let mut s = Settings::default();
         let mut ui = to_ui(&s);
@@ -293,6 +307,30 @@ mod tests {
         let json = serde_json::to_string(&s).expect("serialises");
         let back: Settings = serde_json::from_str(&json).expect("parses");
         assert_eq!(back.collection_sorts, s.collection_sorts);
+    }
+
+    #[test]
+    fn setup_completed_round_trips_and_only_a_new_user_gets_the_flow() {
+        // First run: nothing accepted, nothing finished.
+        let mut s = Settings::default();
+        assert!(!to_ui(&s).setup_completed && to_ui(&s).needs_setup());
+        // A user who accepted the notice before the flow existed is not sent through it.
+        s.tos_acknowledged = true;
+        assert!(!to_ui(&s).needs_setup());
+        // Finishing the flow is stored and read back.
+        let mut fresh = Settings::default();
+        let ui = UiSettings {
+            setup_completed: true,
+            ..to_ui(&fresh)
+        };
+        apply_ui(&mut fresh, &ui);
+        assert!(fresh.setup_completed && !to_ui(&fresh).needs_setup());
+        // `options` opens the flow for a new user only.
+        let root = std::env::temp_dir();
+        let (opts, _saver) = options(Settings::default(), root.clone());
+        assert!(opts.start_setup);
+        let (opts, _saver) = options(s, root);
+        assert!(!opts.start_setup);
     }
 
     #[test]

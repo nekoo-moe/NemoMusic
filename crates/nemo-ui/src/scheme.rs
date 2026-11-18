@@ -3,7 +3,7 @@
 //! applies it. Every palette keeps text contrast at 4.5:1 or better on its surfaces (tests below).
 
 use crate::palette::{MAX_CHROMA, Oklch, Palette, Seed, build_palette_on, mix_rgb, oklch_to_rgb};
-use crate::theme::Rgba;
+use crate::theme::{Neutrals, Rgba};
 
 mod choice;
 mod fade;
@@ -13,22 +13,26 @@ mod tests;
 pub use choice::{AccentIntensity, BaseMode, CornerStyle, ThemeChoice};
 pub use fade::{BgFade, SchemeFade};
 
-/// The accent palette for a choice. `cover` is the seed of the playing cover (used by
-/// [`ThemeChoice::Dynamic`] only); without one the fallback palette shows.
+/// The seed the song gives the window: the playing cover's seed while `Match colours to the
+/// playing song` is on (song-colour-theme spec), else none.
+#[must_use]
+pub fn song_seed(song_colour_theme: bool, cover: Option<Seed>) -> Option<Seed> {
+    cover.filter(|_| song_colour_theme)
+}
+
+/// The accent palette for a choice. `song` is [`song_seed`]: when there is one it wins over the
+/// theme (rule table in the song-colour-theme design); without it the theme's own seed shows,
+/// and [`ThemeChoice::Dynamic`] has the fallback palette.
 #[must_use]
 pub fn accent_palette(
     choice: ThemeChoice,
     base: BaseMode,
     intensity: AccentIntensity,
-    cover: Option<Seed>,
+    song: Option<Seed>,
 ) -> Palette {
     let n = base.neutrals();
-    let seed = match choice.seed() {
-        Some(s) => s,
-        None => match cover {
-            Some(s) => s,
-            None => return Palette::fallback_on(&n),
-        },
+    let Some(seed) = song.or(choice.seed()) else {
+        return Palette::fallback_on(&n);
     };
     let scaled = Seed {
         hue: seed.hue,
@@ -62,11 +66,49 @@ pub fn blend(a: Rgba, b: Rgba, t: f64) -> Rgba {
     mix_rgb(a, b, t)
 }
 
-/// The seed of the window background: a fixed theme's own seed, else the playing cover's. The
-/// page being viewed plays no part (living-backdrop spec), so the window follows every song.
+/// The seed of the window background: the song's ([`song_seed`]) when there is one, else the
+/// theme's own. The page being viewed plays no part (living-backdrop spec), so the window follows
+/// every song.
 #[must_use]
-pub fn field_seed(choice: ThemeChoice, cover: Option<Seed>) -> Option<Seed> {
-    choice.seed().or(cover)
+pub fn field_seed(choice: ThemeChoice, song: Option<Seed>) -> Option<Seed> {
+    song.or(choice.seed())
+}
+
+/// Tone (Oklab lightness x 100) of the pane tint: dark 8, AMOLED 4, light 94 (`design.md`
+/// section 2, song-colour-theme).
+const fn pane_tone(base: BaseMode) -> f64 {
+    match base {
+        BaseMode::Dark => 8.0,
+        BaseMode::Amoled => 4.0,
+        BaseMode::Light => 94.0,
+    }
+}
+
+/// Most chroma of the pane tint: enough to read as the song's colour, low enough that the tint
+/// stays a surface (the text contrast tests run at this value).
+const PANE_TINT_CHROMA: f64 = 0.05;
+
+/// The colour of the panes for a song seed: its hue at the pane tone of `base`, with half the
+/// seed's chroma (at most [`PANE_TINT_CHROMA`]). A grey cover gives a neutral grey tint.
+#[must_use]
+pub fn pane_tint(seed: Seed, base: BaseMode) -> Rgba {
+    oklch_to_rgb(Oklch {
+        l: pane_tone(base) / 100.0,
+        c: (seed.chroma * 0.5).min(PANE_TINT_CHROMA),
+        h: seed.hue,
+    })
+}
+
+/// The neutrals of the window. With a song seed the panes take [`pane_tint`] in place of the
+/// neutral `surface-container`; without one they are the base mode's own neutrals. Text contrast
+/// over the tinted pane is tested.
+#[must_use]
+pub fn window_neutrals(base: BaseMode, song: Option<Seed>) -> Neutrals {
+    let mut n = base.neutrals();
+    if let Some(seed) = song {
+        n.container = pane_tint(seed, base);
+    }
+    n
 }
 
 /// Opacity of the page glow at its top (collection-page-ytm spec).

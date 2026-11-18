@@ -4,7 +4,7 @@ use iced::widget::{Space, button, column, container, row};
 use iced::{Alignment, Element, Length, Padding};
 
 use super::control::{segmented, setting_row, stacked_row};
-use super::switch;
+use super::{song_colour_rows, switch};
 use crate::gui::app::{App, Message};
 use crate::gui::assets::Icon;
 use crate::gui::style::{animated, button_outlined, col, fit, gap, icon, label};
@@ -113,7 +113,8 @@ pub(super) fn appearance(app: &App, width: f32) -> Vec<Element<'_, Message>> {
         .on_press(Message::Ui(Event::Setting(SettingChange::GlassTier(tier))));
         animated(b, idle, shape::FULL)
     };
-    vec![
+    let mut rows = song_colour_rows(app, width);
+    rows.extend([
         stacked_row(
             width,
             "Surface",
@@ -132,7 +133,7 @@ pub(super) fn appearance(app: &App, width: f32) -> Vec<Element<'_, Message>> {
         stacked_row(
             width,
             "Colour theme",
-            Some("Dynamic follows the cover of the song that plays. The others keep one palette.".to_owned()),
+            Some("Dynamic follows the cover of the song that plays. The others keep one palette when the song colours below are off.".to_owned()),
             theme_swatches(app, width),
         ),
         stacked_row(
@@ -183,5 +184,6 @@ pub(super) fn appearance(app: &App, width: f32) -> Vec<Element<'_, Message>> {
             Some("The player bar becomes an opaque surface with a thin border.".to_owned()),
             switch(s.reduce_transparency, SettingChange::ReduceTransparency),
         ),
-    ]
+    ]);
+    rows
 }

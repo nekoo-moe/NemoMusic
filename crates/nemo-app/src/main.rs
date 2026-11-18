@@ -12,6 +12,8 @@ mod paths;
 mod play_hub;
 mod ui_bridge;
 
+use std::sync::{Arc, Mutex};
+
 use paths::AppPaths;
 
 fn main() {
@@ -49,28 +51,24 @@ fn main() {
         Ok(rt) => rt,
         Err(err) => fatal(&format!("cannot start the network runtime: {err}")),
     };
-    let services = match backend::build(&paths, &settings, runtime.handle()) {
-        Ok(s) => s,
-        Err(err) => fatal(&err.to_string()),
+    // The window and the splash open at once; the services open on their own thread behind the
+    // first frame (startup-flow spec).
+    let (options, saver) = ui_bridge::options(settings.clone(), paths.root.clone());
+    let hub = Arc::new(Mutex::new(None));
+    let startup = backend::Startup {
+        paths,
+        settings,
+        handle: runtime.handle().clone(),
+        saver,
+        hub: Arc::clone(&hub),
     };
-    backend::rescan_in_background(&services.local);
-    let hub = match play_hub::spawn(
-        std::sync::Arc::clone(&services.backend.player),
-        backend::play_observers(),
-    ) {
-        Ok(hub) => Some(hub),
-        Err(err) => {
-            tracing::warn!(error = %err, "cannot start the play hub; play events are off");
-            None
-        }
-    };
-
-    let options = ui_bridge::options(settings, paths.root.clone(), Some(&services.backend.player));
-    if let Err(err) = nemo_ui::run(services.backend, options) {
+    if let Err(err) =
+        nemo_ui::run_with_startup(Box::new(move |report| startup.run(report)), options)
+    {
         tracing::error!(error = %err, "the window closed with an error");
     }
     // End the last play, so observers see its TrackEnded.
-    if let Some(hub) = hub {
+    if let Some(hub) = hub.lock().ok().and_then(|mut slot| slot.take()) {
         hub.stop();
     }
     tracing::info!("stopped");
