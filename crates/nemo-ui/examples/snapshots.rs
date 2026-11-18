@@ -106,6 +106,10 @@ fn main() {
             }
         }
     }
+    if only.iter().any(|n| n == "song-frame-cost") {
+        song_colour::frame_cost();
+        return;
+    }
     if let Err(e) = np_classic::render(&only, &out_dir) {
         eprintln!("{e}");
         std::process::exit(1);

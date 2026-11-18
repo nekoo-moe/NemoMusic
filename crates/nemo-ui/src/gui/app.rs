@@ -112,6 +112,8 @@ pub struct App {
     pub(crate) cover: Option<CoverView>,
     /// The cover before the current one, drawn under it while they cross-fade.
     pub(crate) prev_cover: Option<CoverView>,
+    /// Headless snapshots: draw the window backdrop with its drift clock at this many ms.
+    pub(crate) backdrop_preview_ms: Option<f64>,
     pub(crate) anim: Anim,
     /// Enter and exit of the popovers, menus, sheets and the toast.
     pub(crate) surfaces: surfaces::Surfaces,
@@ -260,6 +262,7 @@ impl App {
             art_inflight: 0,
             cover: None,
             prev_cover: None,
+            backdrop_preview_ms: None,
             anim: Anim::new(reduced),
             surfaces: surfaces::Surfaces::default(),
             pane_open,

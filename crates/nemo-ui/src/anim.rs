@@ -32,6 +32,19 @@ pub const GROW_FROM: f32 = 0.86;
 pub const CAPSULE_RISE: f32 = 16.0;
 /// Length of the cover cross-fade, in ms.
 pub const COVER_FADE_MS: f32 = 400.0;
+/// Length of the bloom of the window backdrop on a song change, in ms (owner override of the
+/// 400 ms cap, song-colour-theme spec).
+// 600 is exact in f32.
+#[allow(clippy::cast_precision_loss)]
+pub const BLOOM_MS: f32 = crate::theme::motion::BLOOM_MS as f32;
+/// Scale the new colour fields bloom in from (they settle to 1.0).
+pub const BLOOM_FROM: f32 = 1.04;
+
+/// Scale of the new colour fields at bloom progress `p` (0 to 1): 1.04 settling to 1.0.
+#[must_use]
+pub fn bloom_scale(p: f32) -> f32 {
+    BLOOM_FROM + (1.0 - BLOOM_FROM) * p.clamp(0.0, 1.0)
+}
 /// Length of the live lyric line swap, in ms.
 pub const LINE_MS: f32 = 240.0;
 
@@ -55,6 +68,7 @@ pub fn play_radius(size: f32, morph: f32) -> f32 {
 pub struct Anim {
     page_ms: f32,
     cover_ms: f32,
+    bloom_ms: f32,
     line_ms: f32,
     /// Play button shape: 0 circle (paused), 1 rounded square (playing).
     pub play: Spring,
@@ -75,6 +89,7 @@ impl Anim {
         Self {
             page_ms: ENTRANCE_MS * 4.0,
             cover_ms: COVER_FADE_MS,
+            bloom_ms: BLOOM_MS,
             line_ms: LINE_MS,
             play: unit(EXPRESSIVE_PLAY),
             pane: unit(SPATIAL_DEFAULT),
@@ -100,6 +115,7 @@ impl Anim {
     /// A new cover arrived: cross-fade from the old one.
     pub fn restart_cover(&mut self) {
         self.cover_ms = if self.reduced { COVER_FADE_MS } else { 0.0 };
+        self.bloom_ms = if self.reduced { BLOOM_MS } else { 0.0 };
     }
 
     /// The live lyric line changed.
@@ -128,6 +144,12 @@ impl Anim {
         emphasized_decelerate((self.cover_ms / COVER_FADE_MS).clamp(0.0, 1.0))
     }
 
+    /// Bloom progress of the window backdrop: 0 shows the old colour fields, 1 the new ones.
+    #[must_use]
+    pub fn bloom(&self) -> f32 {
+        emphasized_decelerate((self.bloom_ms / BLOOM_MS).clamp(0.0, 1.0))
+    }
+
     /// Live lyric line swap progress.
     #[must_use]
     pub fn line(&self) -> f32 {
@@ -143,6 +165,7 @@ impl Anim {
         let dt = dt_ms.clamp(0.0, 100.0);
         self.page_ms += dt;
         self.cover_ms = (self.cover_ms + dt).min(COVER_FADE_MS);
+        self.bloom_ms = (self.bloom_ms + dt).min(BLOOM_MS);
         self.line_ms = (self.line_ms + dt).min(LINE_MS);
         for s in [
             &mut self.play,
@@ -158,6 +181,7 @@ impl Anim {
     pub fn finish(&mut self) {
         self.page_ms = ENTRANCE_MS * 4.0;
         self.cover_ms = COVER_FADE_MS;
+        self.bloom_ms = BLOOM_MS;
         self.line_ms = LINE_MS;
         for s in [
             &mut self.play,
@@ -174,6 +198,7 @@ impl Anim {
     pub fn active(&self) -> bool {
         self.page_ms < ENTRANCE_MS + STAGGER_MS * 8.0 + 1.0
             || self.cover_ms < COVER_FADE_MS
+            || self.bloom_ms < BLOOM_MS
             || self.line_ms < LINE_MS
             || [&self.play, &self.pane, &self.capsule, &self.sheet]
                 .iter()
@@ -238,6 +263,39 @@ mod tests {
         a.step(16.0);
         assert!((a.pane.value - 1.0).abs() < 1e-6 && !a.active());
         assert!((a.cover() - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn the_bloom_runs_600_ms_decelerating_and_the_fields_settle_from_1_04() {
+        let mut a = Anim::new(false);
+        assert!((a.bloom() - 1.0).abs() < 1e-6 && !a.active());
+        a.restart_cover();
+        assert!(a.active() && a.bloom() < 0.01);
+        assert!((bloom_scale(a.bloom()) - 1.04).abs() < 1e-3);
+        // Still running after the 400 ms accent cross-fade, done by 600 ms.
+        run(&mut a, 416.0);
+        assert!((a.cover() - 1.0).abs() < 1e-6 && a.bloom() < 0.999 && a.active());
+        let early = {
+            let mut b = Anim::new(false);
+            b.restart_cover();
+            run(&mut b, 112.0);
+            b.bloom()
+        };
+        assert!(
+            early > 0.3,
+            "emphasized-decelerate starts fast, got {early}"
+        );
+        run(&mut a, 200.0);
+        assert!((a.bloom() - 1.0).abs() < 1e-6 && !a.active());
+        assert!((bloom_scale(1.0) - 1.0).abs() < 1e-6);
+        assert!(bloom_scale(0.5) < bloom_scale(0.1));
+    }
+
+    #[test]
+    fn reduced_motion_swaps_the_colours_at_once() {
+        let mut a = Anim::new(true);
+        a.restart_cover();
+        assert!((a.bloom() - 1.0).abs() < 1e-6 && !a.active());
     }
 
     #[test]

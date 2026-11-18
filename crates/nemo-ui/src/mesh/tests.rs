@@ -136,6 +136,35 @@ fn textures_are_square_soft_and_empty_when_unused() {
     assert!(m.texture(BaseMode::Dark, FIELDS - 1).is_empty());
 }
 
+#[test]
+fn the_still_texture_is_opaque_and_shows_the_fields_over_the_flat_colour() {
+    let m = build(&solid([255, 20, 140]));
+    for base in MODES {
+        let still = m.still(base);
+        let (w, h) = (STILL_PX.0 as usize, STILL_PX.1 as usize);
+        assert_eq!(still.len(), w * h * 4);
+        assert!(still.as_chunks::<4>().0.iter().all(|p| p[3] == 255));
+        // The corner far from every field centre is near the flat colour; a field centre is
+        // near that field's colour.
+        let at = |x: usize, y: usize| &still[(y * w + x) * 4..(y * w + x) * 4 + 3];
+        let (ax, ay, _) = crate::drift::ANCHORS[0];
+        let centre = at(
+            (f64::from(ax) * w as f64) as usize,
+            (f64::from(ay) * h as f64) as usize,
+        );
+        let field = m.used(base)[0];
+        let near = |p: &[u8], c: Rgba| {
+            (i32::from(p[0]) - i32::from(c.r)).abs()
+                + (i32::from(p[1]) - i32::from(c.g)).abs()
+                + (i32::from(p[2]) - i32::from(c.b)).abs()
+        };
+        assert!(
+            near(centre, field) < near(centre, m.under(base)),
+            "{base:?}"
+        );
+    }
+}
+
 /// Every pane tint the song can give: any hue at the largest seed chroma.
 fn tints(base: BaseMode) -> Vec<Rgba> {
     (0..360)
@@ -157,6 +186,20 @@ fn drawn(m: &Mesh, base: BaseMode) -> Vec<Rgba> {
     let used = m.used(base);
     let mut out = used.to_vec();
     out.push(m.under(base));
+    // Every seventh pixel of the still texture of the CPU renderer.
+    out.extend(
+        m.still(base)
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .step_by(7)
+            .map(|p| Rgba {
+                r: p[0],
+                g: p[1],
+                b: p[2],
+                a: 255,
+            }),
+    );
     for (i, a) in used.iter().enumerate() {
         for b in &used[i + 1..] {
             out.push(mix_rgb(*a, *b, 0.5));

@@ -10,12 +10,14 @@
 //! panes, and over the bare field for the two main inks (tests, heartbeat peak included).
 
 #![allow(
+    clippy::many_single_char_names,
     clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
     clippy::cast_sign_loss
-)] // colour maths on small bounded values
+)] // colour maths on small bounded values: short names are the standard notation
 
 use crate::canvas::{MODES, mode_index};
+use crate::drift;
 use crate::palette::{GREY_CHROMA, Oklch, oklch_to_rgb, rgb_to_oklch};
 use crate::scheme::BaseMode;
 use crate::theme::Rgba;
@@ -29,6 +31,8 @@ pub const FIELDS: usize = 4;
 pub const MIN_FIELDS: usize = 3;
 /// Edge length of one field texture, px. The GPU scales it up, which only softens it more.
 pub const BLOB_PX: u32 = 64;
+/// Size of the still texture of the CPU renderer, px: 16:10, the default window shape.
+pub const STILL_PX: (u32, u32) = (64, 40);
 /// Opacity of a field at its centre.
 pub const BLOB_PEAK: f32 = 0.9;
 /// Fewest degrees between the hues of two fields taken from the cover.
@@ -66,6 +70,10 @@ pub struct Mesh {
     /// Field textures, per mode and field: [`BLOB_PX`] square RGBA8, straight alpha. Empty from
     /// field `n` on.
     pub textures: [[Vec<u8>; FIELDS]; 3],
+    /// The fields composited over the flat colour at their resting poses, per mode: one
+    /// [`STILL_PX`] RGBA8 image. The CPU renderer draws this instead of the fields (one
+    /// full-window image instead of four large ones).
+    pub stills: [Vec<u8>; 3],
 }
 
 impl Mesh {
@@ -79,6 +87,12 @@ impl Mesh {
     #[must_use]
     pub fn texture(&self, base: BaseMode, i: usize) -> &[u8] {
         &self.textures[mode_index(base)][i]
+    }
+
+    /// The still texture for `base`.
+    #[must_use]
+    pub fn still(&self, base: BaseMode) -> &[u8] {
+        &self.stills[mode_index(base)]
     }
 
     /// The colours in use for `base`.
@@ -282,6 +296,46 @@ fn blob(color: Rgba) -> Vec<u8> {
     out
 }
 
+/// The fields composited over `under` at their resting poses (`drift::pose` at 0), drawn the way
+/// the window draws them: each over the one before, opacity [`BLOB_PEAK`] times the falloff.
+fn still(colors: &[Rgba], under: Rgba) -> Vec<u8> {
+    let (w, h) = (STILL_PX.0 as usize, STILL_PX.1 as usize);
+    let aspect = f64::from(STILL_PX.1) / f64::from(STILL_PX.0);
+    let poses: Vec<drift::Pose> = (0..colors.len())
+        .map(|i| drift::pose(0.0, u8::try_from(i).unwrap_or(0)))
+        .collect();
+    let mut out = Vec::with_capacity(w * h * 4);
+    for y in 0..h {
+        for x in 0..w {
+            // Window space in units of its larger side (the width here).
+            let (u, v) = (
+                (x as f64 + 0.5) / w as f64,
+                (y as f64 + 0.5) / h as f64 * aspect,
+            );
+            let mut px = [under.r, under.g, under.b].map(f64::from);
+            for (i, c) in colors.iter().enumerate() {
+                let (ax, ay, r) = drift::ANCHORS[i];
+                let p = poses[i];
+                let (cx, cy) = (
+                    f64::from(ax + p.dx),
+                    f64::from(ay) * aspect + f64::from(p.dy),
+                );
+                let rad = f64::from(r * p.scale);
+                let d2 = ((u - cx).powi(2) + (v - cy).powi(2)) / (rad * rad);
+                if d2 < 1.0 {
+                    let a = f64::from(BLOB_PEAK) * (1.0 - d2) * (1.0 - d2);
+                    for (k, ch) in [c.r, c.g, c.b].into_iter().enumerate() {
+                        px[k] = px[k] * (1.0 - a) + f64::from(ch) * a;
+                    }
+                }
+            }
+            out.extend(px.map(|v| v.round() as u8));
+            out.push(255);
+        }
+    }
+    out
+}
+
 /// Build the mesh from an RGBA8 sample of the cover. Runs on a worker thread.
 #[must_use]
 pub fn build(rgba: &[u8]) -> Mesh {
@@ -300,10 +354,17 @@ pub fn build(rgba: &[u8]) -> Mesh {
             textures[m][i] = blob(colors[m][i]);
         }
     }
+    let n = found.len().clamp(MIN_FIELDS, FIELDS);
+    let base = MODES.map(|b| under(first, b));
+    let stills = MODES.map(|b| {
+        let m = mode_index(b);
+        still(&colors[m][..n], base[m])
+    });
     Mesh {
-        n: found.len().clamp(MIN_FIELDS, FIELDS),
-        base: MODES.map(|b| under(first, b)),
+        n,
+        base,
         colors,
         textures,
+        stills,
     }
 }
