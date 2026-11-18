@@ -206,3 +206,24 @@ fn unsynced_documents_and_lines_without_start_never_light() {
         Some(0)
     );
 }
+
+#[test]
+fn a_line_without_word_timing_fades_its_ink_in_over_330_ms() {
+    let w = LineWindow {
+        start_ms: 10_000,
+        end_ms: 12_000,
+    };
+    let at = |a: i64| Clocks {
+        audio_ms: a,
+        scroll_ms: a + SCROLL_LEAD_MS,
+    };
+    assert!(w.ink_progress(&at(9_500)).abs() < 1e-6);
+    // 166 ms in, the scale and alpha of the line are done but the ink is only part way.
+    assert!((w.lit_progress(&at(9_666)) - 1.0).abs() < 1e-3);
+    let part = w.ink_progress(&at(9_666));
+    assert!(part > 0.2 && part < 0.9, "{part}");
+    assert!((w.ink_progress(&at(9_830)) - 1.0).abs() < 1e-3);
+    // It falls as fast as the line dims.
+    assert!((w.ink_progress(&at(11_999)) - 1.0).abs() < 1e-6);
+    assert!(w.ink_progress(&at(12_166)).abs() < 1e-3);
+}

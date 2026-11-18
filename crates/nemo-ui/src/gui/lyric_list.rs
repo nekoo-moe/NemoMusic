@@ -16,13 +16,14 @@ use nemo_core::lyrics::LyricsDoc;
 
 use crate::lyrics_view::clock::{Clocks, Timeline};
 use crate::lyrics_view::layout::visible;
-use crate::lyrics_view::metrics::{Metrics, look};
+use crate::lyrics_view::metrics::{INACTIVE_ALPHA, Metrics, look};
 use crate::lyrics_view::note::GapNote;
 use crate::lyrics_view::scroll::Cascade;
 use crate::lyrics_view::{self, layout as geometry};
 
 mod paint;
 mod shape;
+mod words;
 
 use shape::Line;
 
@@ -154,10 +155,9 @@ impl LyricList<'_> {
         if fade <= 0.01 {
             return;
         }
-        let lit = self
-            .timeline
-            .window(idx)
-            .map_or(0.0, |w| w.lit_progress(&self.clocks));
+        let window = self.timeline.window(idx);
+        let lit = window.map_or(0.0, |w| w.lit_progress(&self.clocks));
+        let ink_p = window.map_or(0.0, |w| w.ink_progress(&self.clocks));
         let lk = look(lit, self.reduced);
         let pos = Point::new(bounds.x, bounds.y + top + met.gap);
         let origin = Point::new(
@@ -165,23 +165,7 @@ impl LyricList<'_> {
             pos.y + text_h / 2.0,
         );
         let draw = |r: &mut iced::Renderer| {
-            if line.timings.is_empty() {
-                let ink = paint::with_alpha(self.ink, lk.alpha * fade);
-                paint::plain(r, line, pos, ink, bounds);
-            } else {
-                let grey =
-                    paint::with_alpha(self.ink, crate::lyrics_view::metrics::INACTIVE_ALPHA * fade);
-                let bright = paint::with_alpha(self.ink, lit * fade);
-                paint::timed(
-                    r,
-                    line,
-                    pos,
-                    (grey, bright),
-                    self.clocks.audio_ms,
-                    self.reduced,
-                    bounds,
-                );
-            }
+            self.ink_line(r, line, (pos, bounds), (lit, ink_p, fade));
         };
         if (lk.scale - 1.0).abs() < 1e-3 {
             draw(r);
@@ -191,6 +175,51 @@ impl LyricList<'_> {
             * Transformation::scale(lk.scale)
             * Transformation::translate(-origin.x, -origin.y);
         r.with_transformation(xf, draw);
+    }
+}
+
+impl LyricList<'_> {
+    /// Paint a line at `pos` inside `clip`. `lit` is how lit the line is (scale and bright ink of
+    /// word-timed lines), `ink` how bright the ink of a line without word timing is (it fades in
+    /// over 0.33 s), `fade` the soft edge mask.
+    fn ink_line(
+        &self,
+        r: &mut iced::Renderer,
+        line: &Line,
+        (pos, clip): (Point, Rectangle),
+        (lit, ink, fade): (f32, f32, f32),
+    ) {
+        if line.words.is_empty() || lit <= 0.0 {
+            // Without word timing the whole line takes the ink; an unlit timed line is all grey.
+            let alpha = if line.words.is_empty() {
+                look(ink, self.reduced).alpha
+            } else {
+                INACTIVE_ALPHA
+            };
+            paint::plain(
+                r,
+                line,
+                pos,
+                paint::with_alpha(self.ink, alpha * fade),
+                clip,
+            );
+            return;
+        }
+        words::timed(
+            r,
+            &words::Paint {
+                line,
+                pos,
+                clip,
+                ink: self.ink,
+                bright: lit * fade,
+                grey: INACTIVE_ALPHA * fade,
+                t_ms: self.clocks.audio_ms,
+                reduced: self.reduced,
+                size: self.metrics.size,
+                line_h: self.metrics.line_h,
+            },
+        );
     }
 }
 

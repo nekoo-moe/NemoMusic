@@ -24,6 +24,8 @@ pub const SCROLL_LEAD_MS: i64 = 500;
 pub const PREPARE_MS: i64 = 2000;
 /// Length of a line's light-up and dim-down, ms.
 pub const LIT_FADE_MS: f32 = 166.0;
+/// The ink of a line without word timing fades in over this long, ms.
+pub const LINE_INK_FADE_MS: f32 = 330.0;
 /// A line lasts at least this long on the audio clock, ms.
 const MIN_LIT_MS: i64 = 300;
 /// A line without any end time is lit this long, ms.
@@ -107,9 +109,22 @@ impl LineWindow {
     #[must_use]
     pub fn lit_progress(&self, c: &Clocks) -> f32 {
         let open = self.start_ms.saturating_sub(SCROLL_LEAD_MS);
-        let rise = ease(frac(c.audio_ms.saturating_sub(open)));
-        let fall = 1.0 - ease(frac(c.audio_ms.saturating_sub(self.end_ms)));
-        rise.min(fall)
+        let rise = ease(frac(c.audio_ms.saturating_sub(open), LIT_FADE_MS));
+        rise.min(self.fall(c))
+    }
+
+    /// How bright the ink of a line without word timing is, 0 to 1: it rises over
+    /// [`LINE_INK_FADE_MS`] (the whole line fades in) and falls over [`LIT_FADE_MS`].
+    #[must_use]
+    pub fn ink_progress(&self, c: &Clocks) -> f32 {
+        let open = self.start_ms.saturating_sub(SCROLL_LEAD_MS);
+        let rise = ease(frac(c.audio_ms.saturating_sub(open), LINE_INK_FADE_MS));
+        rise.min(self.fall(c))
+    }
+
+    /// 1 until the line has finished, then falling to 0 over [`LIT_FADE_MS`].
+    fn fall(&self, c: &Clocks) -> f32 {
+        1.0 - ease(frac(c.audio_ms.saturating_sub(self.end_ms), LIT_FADE_MS))
     }
 
     /// The line still draws a change (lit, or dimming down): frames are needed.
@@ -120,12 +135,12 @@ impl LineWindow {
     }
 }
 
-/// `delta_ms` as a share of [`LIT_FADE_MS`], 0 to 1.
-fn frac(delta_ms: i64) -> f32 {
+/// `delta_ms` as a share of `span_ms`, 0 to 1.
+fn frac(delta_ms: i64, span_ms: f32) -> f32 {
     // A few hundred ms: exact in f32.
     #[allow(clippy::cast_precision_loss)]
     let d = delta_ms.clamp(0, 1000) as f32;
-    (d / LIT_FADE_MS).clamp(0.0, 1.0)
+    (d / span_ms).clamp(0.0, 1.0)
 }
 
 /// The windows of every line of one document, built once when the lyrics arrive.

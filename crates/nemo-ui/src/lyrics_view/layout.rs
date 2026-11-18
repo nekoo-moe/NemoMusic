@@ -47,10 +47,15 @@ pub fn top_of(tops: &[f32], note: Option<&GapNote>, m: &Metrics, i: usize) -> f3
 }
 
 /// The scroll offset (px from the top of the list) that puts the top of the focused line's text
-/// (or of the waiting note) at [`ANCHOR`] of the viewport. A line too tall for the room under the
-/// anchor moves up until its last row shows, and the offset never goes below 0.
+/// (or of the waiting note) at [`ANCHOR`] of the viewport. With nothing focused yet the first
+/// line takes the anchor. The offset goes below 0 for the first lines, so they sit at the anchor
+/// too instead of under the fade at the top. A line too tall for the room under the anchor moves
+/// up until its last row shows.
 #[must_use]
 pub fn scroll_target(tops: &[f32], m: &Metrics, focus: &Focus, viewport_h: f32) -> f32 {
+    if tops.len() < 2 {
+        return 0.0;
+    }
     let (top, own) = match (focus.active, focus.note) {
         (None, Some(n)) => (top_raw(tops, n.before), m.line_h),
         (Some(a), note) => {
@@ -60,12 +65,15 @@ pub fn scroll_target(tops: &[f32], m: &Metrics, focus: &Focus, viewport_h: f32) 
                 (slot - 2.0 * m.gap).max(m.line_h),
             )
         }
-        (None, None) => return 0.0,
+        (None, None) => {
+            let slot = tops.get(1).copied().unwrap_or(0.0) - top_raw(tops, 0);
+            (top_raw(tops, 0), (slot - 2.0 * m.gap).max(m.line_h))
+        }
     };
     let text_top = top + m.gap;
     let anchored = text_top - ANCHOR * viewport_h;
     let fits = text_top + own - viewport_h;
-    anchored.max(fits).min(text_top).max(0.0)
+    anchored.max(fits).min(text_top)
 }
 
 fn top_raw(tops: &[f32], i: usize) -> f32 {

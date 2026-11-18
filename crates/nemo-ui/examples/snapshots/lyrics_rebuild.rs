@@ -5,7 +5,7 @@
 use std::path::Path;
 use std::time::Duration;
 
-use nemo_core::lyrics::{Granularity, LyricLine, LyricsDoc, ProviderId};
+use nemo_core::lyrics::{Granularity, LyricLine, LyricWord, LyricsDoc, ProviderId};
 use nemo_core::services::LyricsLookup;
 use nemo_ui::gui::app::NpTab;
 use nemo_ui::gui::headless::{Scenario, build_app, render_png};
@@ -49,8 +49,71 @@ fn song() -> LyricsDoc {
     }
 }
 
-/// `(name, window, pane open, [(position ms, frames of 16 ms after it)])`.
-type Spec = (&'static str, (u32, u32), bool, &'static [(u64, u32)]);
+/// A line of timed pieces `(text, start ms, end ms)`.
+fn timed(pieces: &[(&str, u64, u64)]) -> LyricLine {
+    let text: String = pieces.iter().map(|p| p.0).collect();
+    LyricLine {
+        start_ms: pieces.first().map(|p| p.1),
+        end_ms: pieces.last().map(|p| p.2),
+        text,
+        words: pieces
+            .iter()
+            .map(|(t, s, e)| LyricWord {
+                start_ms: *s,
+                end_ms: Some(*e),
+                text: (*t).to_owned(),
+            })
+            .collect(),
+    }
+}
+
+/// A syllable-timed song: one line with a held word (2.1 s), a Vietnamese line that starts while
+/// the first is still being sung, and a plain one.
+fn sung() -> LyricsDoc {
+    let v = |text: &'static str, i: u64| (text, 6_200 + 450 * i, 6_200 + 450 * (i + 1));
+    LyricsDoc {
+        lines: vec![
+            timed(&[
+                ("and ", 2_000, 2_300),
+                ("the ", 2_300, 2_600),
+                ("world ", 2_600, 3_100),
+                ("keeps ", 3_100, 3_500),
+                ("turning ", 3_500, 5_600),
+                ("slowly", 5_600, 6_400),
+            ]),
+            timed(&[
+                v("v\u{e0} ", 0),
+                v("t\u{e2}m ", 1),
+                v("h\u{1ed3}n ", 2),
+                v("t\u{f4}i ", 3),
+                v("l\u{e0} ", 4),
+                v("m\u{1ed9}t ", 5),
+                v("b\u{1ea3}n ", 6),
+                v("nh\u{1ea1}c", 7),
+            ]),
+            LyricLine {
+                start_ms: Some(11_000),
+                end_ms: Some(14_000),
+                text: "a line with no word timing".to_owned(),
+                words: Vec::new(),
+            },
+        ],
+        granularity: Granularity::Syllable,
+        provider: ProviderId::new("Mock Lyrics"),
+        matched: None,
+        instrumental: false,
+    }
+}
+
+/// Which document a shot shows.
+#[derive(Clone, Copy)]
+enum Doc {
+    Plain,
+    Sung,
+}
+
+/// `(name, window, pane open, document, [(position ms, frames of 16 ms after it)])`.
+type Spec = (&'static str, (u32, u32), bool, Doc, &'static [(u64, u32)]);
 
 /// A seek to 17.5 s (line 4 is active), then play on (steps under a second, so no seek) to the
 /// change to line 5 and 30 frames (0.48 s) into its cascade.
@@ -65,33 +128,75 @@ const MID_CASCADE: &[(u64, u32)] = &[
 /// Settled on line 5.
 const SETTLED: &[(u64, u32)] = &[(21_000, 3), (23_000, 100)];
 
+/// Mid-sweep of "world" (audio 2.85 s; the audio clock is the position plus 150 ms).
+const SWEEP: &[(u64, u32)] = &[(2_700, 3)];
+/// The held word "turning", 0.8 s in: its letters wave and swell.
+const HELD: &[(u64, u32)] = &[(4_150, 3)];
+/// "slowly" is still being sung while the next line has started: two lines are lit.
+const TWO_LIT: &[(u64, u32)] = &[(5_850, 3)];
+/// Mid-word in the Vietnamese line.
+const VIETNAMESE: &[(u64, u32)] = &[(7_700, 3)];
+
 fn specs() -> Vec<Spec> {
+    let full = (1366, 697);
     vec![
         (
             "lyrics-cascade-mid-full-1366x697",
-            (1366, 697),
+            full,
             false,
+            Doc::Plain,
             MID_CASCADE,
         ),
-        ("lyrics-settled-full-1366x697", (1366, 697), false, SETTLED),
+        (
+            "lyrics-settled-full-1366x697",
+            full,
+            false,
+            Doc::Plain,
+            SETTLED,
+        ),
         (
             "lyrics-settled-full-1920x1040",
             (1920, 1040),
             false,
+            Doc::Plain,
             SETTLED,
         ),
         (
             "lyrics-cascade-mid-pane-1366x697",
-            (1366, 697),
+            full,
             true,
+            Doc::Plain,
             MID_CASCADE,
+        ),
+        ("lyrics-words-sweep-1366x697", full, false, Doc::Sung, SWEEP),
+        ("lyrics-words-held-1366x697", full, false, Doc::Sung, HELD),
+        (
+            "lyrics-words-two-lit-1366x697",
+            full,
+            false,
+            Doc::Sung,
+            TWO_LIT,
+        ),
+        (
+            "lyrics-words-vietnamese-1366x697",
+            full,
+            false,
+            Doc::Sung,
+            VIETNAMESE,
+        ),
+        (
+            "lyrics-words-held-pane-1366x697",
+            full,
+            true,
+            Doc::Sung,
+            HELD,
         ),
     ]
 }
 
 /// Render the shots named in `only` (all when empty) into `out_dir`.
 pub(super) fn render(only: &[String], out_dir: &Path) -> Result<(), String> {
-    for (name, size, pane, steps) in specs() {
+    for (name, size, pane, which, steps) in specs() {
         if !only.is_empty() && !only.iter().any(|n| n == name) {
             continue;
         }
@@ -118,7 +223,10 @@ pub(super) fn render(only: &[String], out_dir: &Path) -> Result<(), String> {
         app.dispatch(Event::LyricsReady {
             track,
             lookup: LyricsLookup {
-                doc: Some(song()),
+                doc: Some(match which {
+                    Doc::Plain => song(),
+                    Doc::Sung => sung(),
+                }),
                 tried: Vec::new(),
             },
             offset_ms: 0,

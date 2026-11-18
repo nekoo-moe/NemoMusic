@@ -39,9 +39,16 @@ fn the_active_line_text_sits_at_35_percent() {
     let text_top = t[20] + m.gap;
     assert!((text_top - off - 0.35 * vh).abs() < 1e-3, "{off}");
     assert!(scroll_target(&t, &m, &focus(Some(21)), vh) > off);
-    // The first lines are above the anchor already: no negative scroll.
-    assert!(scroll_target(&t, &m, &focus(Some(0)), vh).abs() < 1e-6);
-    assert!(scroll_target(&t, &m, &focus(None), vh).abs() < 1e-6);
+    // The first line takes the anchor too (the list scrolls to a negative offset), and so does
+    // the first line while nothing is active yet.
+    let first = scroll_target(&t, &m, &focus(Some(0)), vh);
+    assert!((t[0] + m.gap - first - 0.35 * vh).abs() < 1e-3, "{first}");
+    assert!(first < 0.0);
+    assert!((scroll_target(&t, &m, &focus(None), vh) - first).abs() < 1e-6);
+    assert!(
+        scroll_target(&[0.0], &m, &focus(None), vh).abs() < 1e-3,
+        "no lines"
+    );
 }
 
 #[test]

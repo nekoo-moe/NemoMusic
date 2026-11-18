@@ -307,7 +307,7 @@ impl UiState {
             }
             Event::LyricsScrolled(px) => {
                 self.follow_pause_ms = FOLLOW_PAUSE_MS;
-                let v = (self.lyric_scroll.target + px).max(0.0);
+                let v = (self.lyric_scroll.target + px).max(self.scroll_floor());
                 self.lyric_scroll.snap(v);
             }
             Event::LyricsFollow => {

@@ -2,11 +2,12 @@
 
 use std::time::Duration;
 
+use nemo_core::lyrics::Granularity;
 use nemo_core::player::{PlayState, PlayerCommand, PlayerEvent, PlayerSnapshot};
 
 use crate::home;
 use crate::keys::KeyAction;
-use crate::lyrics_view::layout;
+use crate::lyrics_view::{self, layout};
 use crate::route::Route;
 use crate::settings::SettingChange;
 
@@ -229,19 +230,38 @@ impl UiState {
     pub(super) fn retarget_scroll(&mut self) {
         self.last_active = self.active_lyric();
         let focus = self.lyric_focus();
-        // The intro or gap note takes the anchor while it waits (lyrics-polish).
-        let to = layout::scroll_target(
-            &self.lyric_tops,
-            &self.lyric_metrics,
-            &focus,
-            self.lyric_viewport_h,
-        );
+        // The intro or gap note takes the anchor while it waits (lyrics-polish). Unsynced lyrics
+        // are a plain scrolling text: the list stays at the top.
+        let synced =
+            matches!(&self.lyrics, LyricsState::Ready(d) if d.granularity != Granularity::Unsynced);
+        let to = if synced {
+            layout::scroll_target(
+                &self.lyric_tops,
+                &self.lyric_metrics,
+                &focus,
+                self.lyric_viewport_h,
+            )
+        } else {
+            0.0
+        };
         let line = focus.active.or(focus.note.map(|n| n.before)).unwrap_or(0);
         if self.seeked || self.reduced_motion {
             self.lyric_scroll.snap(to);
         } else {
             self.lyric_scroll.retarget(to, line);
         }
+    }
+
+    /// The lowest scroll offset: the first line at the anchor (below 0, as the first lines have
+    /// room above them), or 0 when there is no such room.
+    pub(super) fn scroll_floor(&self) -> f32 {
+        layout::scroll_target(
+            &self.lyric_tops,
+            &self.lyric_metrics,
+            &lyrics_view::note::Focus::default(),
+            self.lyric_viewport_h,
+        )
+        .min(0.0)
     }
 
     /// Recompute the slot tops from the rows (one row for a line not measured yet) and metrics.
