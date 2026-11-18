@@ -400,7 +400,7 @@ fn tabs(
 /// Lyrics in the dense sizes with the spring glide and the provider footer.
 fn lyrics_tab(app: &App, width: f32, viewport_h: f32) -> Element<'_, Message> {
     column![
-        container(lyrics::body(app, width, true))
+        container(lyrics::body(app, width))
             .width(Length::Fill)
             .height(Length::Fixed(
                 viewport_h + 6.0 - lyrics::footer_extra(app, width)

@@ -288,7 +288,16 @@ fn the_lyric_scroll_follows_the_active_line_and_pauses_on_manual_scroll() {
     let active = s.active_lyric().expect("active");
     assert!(active > 5);
     assert!(s.lyric_scroll.is_settled());
-    let target = lyrics_view::scroll_target(Some(active), s.lyric_viewport_h);
+    let focus = lyrics_view::note::Focus {
+        active: Some(active),
+        note: None,
+    };
+    let target = lyrics_view::layout::scroll_target(
+        &s.lyric_tops,
+        &s.lyric_metrics,
+        &focus,
+        s.lyric_viewport_h,
+    );
     assert!((s.lyric_scroll.value - target).abs() < 0.5);
 
     s.apply(Event::LyricsScrolled(120.0));
@@ -307,7 +316,12 @@ fn the_lyric_scroll_follows_the_active_line_and_pauses_on_manual_scroll() {
     for _ in 0..120 {
         s.apply(Event::Frame { dt_ms: 16.0 });
     }
-    let target = lyrics_view::scroll_target(s.active_lyric(), s.lyric_viewport_h);
+    let target = lyrics_view::layout::scroll_target(
+        &s.lyric_tops,
+        &s.lyric_metrics,
+        &s.lyric_focus(),
+        s.lyric_viewport_h,
+    );
     assert!(
         (s.lyric_scroll.value - target).abs() < 0.5,
         "glided back to the current line"

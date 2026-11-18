@@ -7,7 +7,7 @@ use nemo_core::services::PlayerControl;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 pub(super) fn map_key(event: keyboard::Event) -> Option<Message> {
     use keyboard::key::Named;
@@ -83,6 +83,28 @@ pub(super) fn timer_ticks() -> impl iced::futures::Stream<Item = Message> {
                 loop {
                     thread::sleep(Duration::from_secs(1));
                     if tx.try_send(Message::TimerTick).is_err() && tx.is_closed() {
+                        return;
+                    }
+                }
+            });
+        },
+    )
+}
+
+/// The shortest time between two frames: 60 per second at most, whatever the refresh rate of the
+/// display (a 144 Hz screen would redraw the lyrics 144 times a second otherwise).
+const FRAME_PERIOD: Duration = Duration::from_micros(16_667);
+
+/// One `Frame` per [`FRAME_PERIOD`] while it is subscribed (a plain thread, like the other
+/// timers). A frame the window is too busy to take is dropped, never queued.
+pub(super) fn frame_ticks() -> impl iced::futures::Stream<Item = Message> {
+    stream::channel(
+        2,
+        async move |mut tx: iced::futures::channel::mpsc::Sender<Message>| {
+            thread::spawn(move || {
+                loop {
+                    thread::sleep(FRAME_PERIOD);
+                    if tx.try_send(Message::Frame(Instant::now())).is_err() && tx.is_closed() {
                         return;
                     }
                 }

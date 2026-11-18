@@ -41,6 +41,8 @@ pub enum Message {
     Resized(Size),
     /// The window scale factor is known or changed (moved to another screen, OS scale setting).
     Rescaled(f32),
+    /// The window gained or lost focus: while it has none, no frame is requested.
+    Focus(bool),
     /// Player event from the subscription.
     Player(PlayerEvent),
     /// The catalog's home feed answered.

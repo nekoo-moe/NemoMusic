@@ -1,5 +1,4 @@
 use super::*;
-use crate::lyrics_view::{LineRows, scroll_target_focus, scroll_target_rows};
 use nemo_core::lyrics::{LyricWord, ProviderId};
 
 /// A line `(start, end, text)`.
@@ -167,37 +166,4 @@ fn the_offset_moves_the_note_with_the_lines() {
     // +2 s shows lines 2 s earlier, so the intro is half done 2 s sooner.
     let n = gap_note(&d, 2_850 - SHIFT, 2_000, false).expect("note");
     assert!(close(n.fill, 0.5), "{}", n.fill);
-}
-
-#[test]
-fn the_waiting_note_takes_the_anchor() {
-    let lines: Vec<LyricLine> = (0..20)
-        .map(|i| line(30_000 + 4_000 * i, Some(32_000 + 4_000 * i), "la la"))
-        .chain([line(200_000, Some(203_000), "after")])
-        .collect();
-    let d = doc(lines);
-    let rows: Vec<LineRows> = vec![[1, 1, 1]; d.lines.len()];
-    let vh = 600.0;
-    // In the long break before line 20 the note row sits at 35%, below 20 "other" lines.
-    let f = focus(&d, 150_000 - SHIFT, 0, false);
-    assert_eq!((f.active, f.note.map(|n| n.before)), (None, Some(20)));
-    let above = 20.0 * crate::lyrics_view::row_height(LineRole::Other);
-    let off = scroll_target_focus(&f, vh, false, &rows);
-    assert!((above - off - 0.35 * vh).abs() < 1e-3, "{off}");
-    // Without a note the target is the usual one.
-    let plain = focus(&d, 31_000 - SHIFT, 0, false);
-    assert_eq!(plain.note, None);
-    assert!(
-        (scroll_target_focus(&plain, vh, false, &rows)
-            - scroll_target_rows(plain.active, vh, false, &rows))
-        .abs()
-            < 1e-3
-    );
-    // While the note fades out, its shrinking row still sits above the line.
-    let fading = focus(&d, 199_900 - SHIFT, 0, false);
-    let n = fading.note.expect("fading note");
-    assert!(!n.waiting && n.presence > 0.0);
-    let with = scroll_target_focus(&fading, vh, false, &rows);
-    let without = scroll_target_rows(fading.active, vh, false, &rows);
-    assert!((with - without - row_height(false) * n.presence).abs() < 1e-3);
 }

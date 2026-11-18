@@ -15,14 +15,16 @@ pub const GAP_EM: f32 = 0.6;
 pub const FULL_SIZE: (f32, f32) = (40.0, 48.0);
 /// Smallest and largest size of the right pane, px.
 pub const PANE_SIZE: (f32, f32) = (22.0, 26.0);
+/// Size of the three-line lyrics (compact layout, Classic style), px.
+pub const COMPACT_SIZE: f32 = 16.0;
 /// Window width per px of full-screen size: 1280 wide gives 40 px, 1536 and more give 48 px.
 const WINDOW_PER_PX: f32 = 32.0;
 /// Pane width per px of pane size: 316 wide gives 22 px, 364 and more give 26 px.
 const PANE_PER_PX: f32 = 14.0;
-/// The full-screen lyric column takes this share of the window width, at least.
-pub const COLUMN_SHARE_MIN: f32 = 0.58;
-/// The full-screen lyric column takes this share of the window width, at most.
-pub const COLUMN_SHARE_MAX: f32 = 0.66;
+/// The full-screen lyric column takes at least this many percent of the window width.
+pub const COLUMN_PCT_MIN: u32 = 58;
+/// The full-screen lyric column takes at most this many percent of the window width.
+pub const COLUMN_PCT_MAX: u32 = 66;
 
 /// Size and spacing of one lyric line.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -64,6 +66,13 @@ impl Metrics {
         )
     }
 
+    /// The three-line lyrics of the compact layout and the Classic style: 16 px, under the pane
+    /// size so three lines and the footer fit under the controls.
+    #[must_use]
+    pub fn compact() -> Self {
+        Self::from_size(COMPACT_SIZE)
+    }
+
     /// Height of a line that wraps onto `rows` rows, with the gap above and below, px.
     #[must_use]
     pub fn slot_height(&self, rows: u8) -> f32 {
@@ -78,13 +87,13 @@ impl Metrics {
 }
 
 /// Width of the full-screen lyric column: all of `avail` px (what the window leaves next to the
-/// art), held between [`COLUMN_SHARE_MIN`] and [`COLUMN_SHARE_MAX`] of `window_w`. A result above
-/// `avail` tells the caller to shrink the art.
+/// art), held between [`COLUMN_PCT_MIN`] and [`COLUMN_PCT_MAX`] percent of `window_w`. A result
+/// above `avail` tells the caller to shrink the art.
 #[must_use]
-pub fn column_width(window_w: f32, avail: f32) -> f32 {
+pub fn column_width(window_w: u32, avail: u32) -> u32 {
     avail
-        .min(COLUMN_SHARE_MAX * window_w)
-        .max(COLUMN_SHARE_MIN * window_w)
+        .min(window_w * COLUMN_PCT_MAX / 100)
+        .max(window_w * COLUMN_PCT_MIN / 100)
 }
 
 /// Alpha and scale of one line.
@@ -150,18 +159,10 @@ mod tests {
 
     #[test]
     fn the_column_fills_what_is_left_between_58_and_66_percent() {
-        assert!(
-            (column_width(1000.0, 700.0) - 660.0).abs() < 1e-3,
-            "capped at 66%"
-        );
-        assert!(
-            (column_width(1000.0, 620.0) - 620.0).abs() < 1e-3,
-            "all that is left"
-        );
-        assert!(
-            (column_width(1000.0, 500.0) - 580.0).abs() < 1e-3,
-            "at least 58%"
-        );
+        assert_eq!(column_width(1000, 700), 660, "capped at 66%");
+        assert_eq!(column_width(1000, 620), 620, "all that is left");
+        assert_eq!(column_width(1000, 500), 580, "at least 58%");
+        assert_eq!(column_width(1366, 837), 837);
     }
 
     #[test]

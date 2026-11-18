@@ -160,6 +160,8 @@ pub struct App {
     focus_search: bool,
     last_route: Route,
     last_frame: Option<Instant>,
+    /// The window has the focus; without it no frames are requested.
+    pub(crate) focused: bool,
     /// Animated surface colours (the theme switch).
     pub(crate) scheme_fade: SchemeFade,
     /// The coloured background field behind the panes, and its cross-fade.
@@ -310,6 +312,7 @@ impl App {
             focus_search: false,
             last_route: options.start_route.clone(),
             last_frame: None,
+            focused: true,
             scheme_fade: SchemeFade::settled(options.settings.base.neutrals()),
             bg_fade: BgFade::settled(bg_colors(
                 options.settings.theme.seed(),

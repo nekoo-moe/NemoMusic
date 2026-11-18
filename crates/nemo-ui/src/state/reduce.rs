@@ -2,11 +2,12 @@
 
 use std::time::Duration;
 
+use nemo_core::lyrics::Granularity;
 use nemo_core::player::{PlayState, PlayerCommand, PlayerEvent, PlayerSnapshot};
 
 use crate::home;
 use crate::keys::KeyAction;
-use crate::lyrics_view;
+use crate::lyrics_view::{self, enter, layout};
 use crate::route::Route;
 use crate::settings::SettingChange;
 
@@ -218,21 +219,66 @@ impl UiState {
         } else {
             self.retarget_scroll();
         }
-        if self.reduced_motion {
-            self.lyric_scroll.snap(self.lyric_scroll.target);
+        self.lyric_scroll.step(dt_ms / 1000.0);
+        self.lyric_enter_ms = (self.lyric_enter_ms + dt_ms).min(enter::ENTER_MS);
+        self.lyric_loading_ms = if matches!(self.lyrics, LyricsState::Loading) {
+            (self.lyric_loading_ms + dt_ms) % enter::SHIMMER_MS
         } else {
-            self.lyric_scroll.step(dt_ms / 1000.0);
+            0.0
+        };
+        // A jump of the position is seen once, by the retarget of this frame.
+        self.seeked = false;
+    }
+
+    /// Point the scroll at the line in focus. The list is laid out at the new place at once and
+    /// each line glides there on its own clock (the cascade); a seek, reduced motion and a change
+    /// of the pause of manual scrolling jump instead.
+    pub(super) fn retarget_scroll(&mut self) {
+        self.last_active = self.active_lyric();
+        let focus = self.lyric_focus();
+        // The intro or gap note takes the anchor while it waits (lyrics-polish). Unsynced lyrics
+        // are a plain scrolling text: the list stays at the top.
+        let synced =
+            matches!(&self.lyrics, LyricsState::Ready(d) if d.granularity != Granularity::Unsynced);
+        let to = if synced {
+            layout::scroll_target(
+                &self.lyric_tops,
+                &self.lyric_metrics,
+                &focus,
+                self.lyric_viewport_h,
+            )
+        } else {
+            0.0
+        };
+        let line = focus.active.or(focus.note.map(|n| n.before)).unwrap_or(0);
+        if self.seeked || self.reduced_motion {
+            self.lyric_scroll.snap(to);
+        } else {
+            self.lyric_scroll.retarget(to, line);
         }
     }
 
-    pub(super) fn retarget_scroll(&mut self) {
-        self.last_active = self.active_lyric();
-        // The intro or gap note takes the anchor while it waits (lyrics-polish).
-        self.lyric_scroll.target = lyrics_view::scroll_target_focus(
-            &self.lyric_focus(),
+    /// The lowest scroll offset: the first line at the anchor (below 0, as the first lines have
+    /// room above them), or 0 when there is no such room.
+    pub(super) fn scroll_floor(&self) -> f32 {
+        layout::scroll_target(
+            &self.lyric_tops,
+            &self.lyric_metrics,
+            &lyrics_view::note::Focus::default(),
             self.lyric_viewport_h,
-            self.lyric_dense,
-            &self.lyric_rows,
-        );
+        )
+        .min(0.0)
+    }
+
+    /// Recompute the slot tops from the rows (one row for a line not measured yet) and metrics.
+    pub(super) fn rebuild_tops(&mut self) {
+        let lines = match &self.lyrics {
+            LyricsState::Ready(doc) => doc.lines.len(),
+            _ => 0,
+        };
+        let rows: Vec<layout::Rows> = (0..lines)
+            .map(|i| self.lyric_rows.get(i).copied().unwrap_or(1))
+            .collect();
+        self.lyric_tops = layout::tops(&rows, &self.lyric_metrics);
     }
 }

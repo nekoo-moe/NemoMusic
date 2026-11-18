@@ -171,7 +171,11 @@ fn wide(app: &App, w: u32, h: u32) -> Element<'_, Message> {
     .width(Length::Fixed(art));
 
     let right = lyrics_panel(app, lyrics_w, lyrics_viewport_height(w, h));
-    let body = row![left, Space::new().width(gap::HUGE), right].align_y(Alignment::Center);
+    // The art keeps the left, the lyrics the right 58 to 66% of the window: the room that is
+    // left over sits between them, never at the window edges.
+    let body = row![left, Space::new().width(Length::Fill), right]
+        .width(Length::Fill)
+        .align_y(Alignment::Center);
     let page = column![
         header(app, 56.0, true),
         container(body)
@@ -320,7 +324,7 @@ fn compact_queue(app: &App, width: f32) -> Element<'_, Message> {
 /// The lyrics column of the wide layout.
 fn lyrics_panel(app: &App, width: f32, viewport_h: f32) -> Element<'_, Message> {
     column![
-        container(lyr::body(app, width, false))
+        container(lyr::body(app, width))
             .width(Length::Fill)
             .height(Length::Fixed(viewport_h - lyr::footer_extra(app, width)))
             .clip(true),

@@ -6,7 +6,7 @@ use super::job::{link_of, run_job};
 use super::message::{CoverBuilt, Job, Message};
 use super::model::AccountMsg;
 use super::option::CreateMsg;
-use super::subscribe::{PlayerKey, map_key, player_events, timer_ticks};
+use super::subscribe::{PlayerKey, frame_ticks, map_key, player_events, timer_ticks};
 use super::{App, MINI_SIZE, SEARCH_ID};
 use crate::cover::{self, Baked};
 use crate::daily;
@@ -408,6 +408,8 @@ impl App {
                 iced::Event::Window(window::Event::Rescaled(factor)) => {
                     Some(Message::Rescaled(factor))
                 }
+                iced::Event::Window(window::Event::Focused) => Some(Message::Focus(true)),
+                iced::Event::Window(window::Event::Unfocused) => Some(Message::Focus(false)),
                 _ => None,
             }),
             Subscription::run_with(PlayerKey(Arc::clone(&self.backend.player)), player_events),
@@ -416,7 +418,7 @@ impl App {
             subs.push(Subscription::run(timer_ticks));
         }
         if self.needs_frames() || self.readout {
-            subs.push(window::frames().map(Message::Frame));
+            subs.push(Subscription::run(frame_ticks));
         }
         Subscription::batch(subs)
     }

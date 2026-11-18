@@ -6,6 +6,7 @@ use super::model::{DetailKey, DetailState, NpTab};
 use super::{App, ThemeKey};
 use crate::explore::{ContentFilter, LibTab};
 use crate::layout;
+use crate::lyrics_view::metrics::Metrics;
 use crate::route::Route;
 use crate::scheme::{self, bg_colors};
 use crate::state::{Event, LyricsState};
@@ -22,13 +23,20 @@ impl App {
             layout::pane_lyrics_height(w, h)
         };
         let width = self.lyrics_width();
-        // The credit line and wrapped footer rows take room under the lyrics.
+        // Wrapped footer rows take room under the lyrics.
         let v = (v - views::lyrics::footer_extra(self, width)).max(60.0);
+        // Window sizes are small numbers, exact in f32.
+        #[allow(clippy::cast_precision_loss)]
+        let metrics = if full {
+            Metrics::full(w as f32)
+        } else {
+            Metrics::pane(layout::right_width(w) as f32)
+        };
         let rows = match &self.ui.lyrics {
-            LyricsState::Ready(doc) => views::lyrics::line_rows(doc, width, !full),
+            LyricsState::Ready(doc) => views::lyrics::line_rows(doc, width, metrics.size),
             _ => Vec::new(),
         };
-        let mut jobs = self.dispatch(Event::LyricsDense(!full));
+        let mut jobs = self.dispatch(Event::LyricsMetrics(metrics));
         jobs.extend(self.dispatch(Event::LyricsViewport(v)));
         jobs.extend(self.dispatch(Event::LyricsRows(rows)));
         jobs
@@ -52,19 +60,21 @@ impl App {
     /// `true` while anything animates; the window subscribes to frames only then.
     #[must_use]
     pub fn needs_frames(&self) -> bool {
-        self.ui.needs_frames()
-            || self.anim.active()
-            || self.account_busy()
-            || !self.scheme_fade.is_done()
-            || !self.bg_fade.is_done()
-            || !self.micro.settled()
-            || self
-                .chip_pills
-                .iter()
-                .any(|(x, w)| !x.is_settled() || !w.is_settled())
-            || !self.queue_anim.is_settled()
-            || !self.setup_anim.is_settled()
-            || !self.surfaces.settled()
+        // An unfocused window draws nothing: the music plays on, the screen waits.
+        self.focused
+            && (self.ui.needs_frames()
+                || self.anim.active()
+                || self.account_busy()
+                || !self.scheme_fade.is_done()
+                || !self.bg_fade.is_done()
+                || !self.micro.settled()
+                || self
+                    .chip_pills
+                    .iter()
+                    .any(|(x, w)| !x.is_settled() || !w.is_settled())
+                || !self.queue_anim.is_settled()
+                || !self.setup_anim.is_settled()
+                || !self.surfaces.settled())
     }
 
     /// Point every animation at the state it should show. Cheap; runs after every update.

@@ -7,13 +7,24 @@ use std::time::Duration;
 use nemo_core::player::{PlayState, PlayerCommand, PlayerSnapshot};
 use nemo_core::track::Track;
 
-use crate::lyrics_view::{self, FOLLOW_PAUSE_MS};
-use crate::motion::{Crossfade, Spring};
+use crate::lyrics_view::clock::Timeline;
+use crate::lyrics_view::metrics::Metrics;
+use crate::lyrics_view::scroll::Cascade;
+use crate::lyrics_view::{self, FOLLOW_PAUSE_MS, enter, layout};
+use crate::motion::Crossfade;
 use crate::palette::Palette;
 use crate::route::{Nav, Route};
 use crate::search::{SearchState, Submit};
 use crate::settings::UiSettings;
+use nemo_core::lyrics::Granularity;
 
+/// A change of the playback position larger than this is a seek: the lyrics jump, no cascade.
+const SEEK_JUMP: Duration = Duration::from_secs(1);
+
+#[cfg(test)]
+mod calm_tests;
+#[cfg(test)]
+mod cascade_tests;
 mod event;
 mod reduce;
 #[cfg(test)]
@@ -43,15 +54,25 @@ pub struct UiState {
     /// Lyrics offset of the current track in ms.
     pub lyrics_offset_ms: i64,
     /// Lyrics scroll position (px), animated by a spring.
-    pub lyric_scroll: Spring,
+    pub lyric_scroll: Cascade,
     /// Remaining time of the manual-scroll pause, ms (0 = following).
     pub follow_pause_ms: f32,
     /// Lyrics viewport height, px.
     pub lyric_viewport_h: f32,
-    /// Lyrics are drawn dense (right pane sizes) instead of roomy (full window sizes).
-    pub lyric_dense: bool,
+    /// Type size and spacing of the lyrics where they are shown (full window or right pane).
+    pub lyric_metrics: Metrics,
     /// Wrapped row counts of the lyric lines, so scroll anchoring uses the real heights.
-    pub lyric_rows: Vec<lyrics_view::LineRows>,
+    pub lyric_rows: Vec<layout::Rows>,
+    /// Top of every lyric slot (see [`layout::tops`]), kept in step with the rows and metrics.
+    pub lyric_tops: Vec<f32>,
+    /// Counts the documents shown; the list widget re-shapes its lines when it changes.
+    pub lyrics_rev: u64,
+    /// When each line of the current document starts and stops.
+    pub lyric_timeline: Timeline,
+    /// Time since the lyrics arrived, ms: the list slides in over [`enter::ENTER_MS`].
+    pub lyric_enter_ms: f32,
+    /// Time spent loading the lyrics, ms: it drives the shimmer of the loading line.
+    pub lyric_loading_ms: f32,
     /// Text field focused.
     pub text_focused: bool,
     /// Honour reduced motion (the OS option or the setting).
@@ -77,6 +98,8 @@ pub struct UiState {
     /// Lyrics Timing popover (offset tools) of the full-screen lyrics open.
     pub timing_open: bool,
     motion_option: bool,
+    /// The position jumped since the last frame (a seek): the scroll jumps too.
+    seeked: bool,
     last_active: Option<usize>,
 }
 
@@ -93,11 +116,16 @@ impl UiState {
             accent: Crossfade::settled(Palette::fallback()),
             lyrics: LyricsState::Idle,
             lyrics_offset_ms: 0,
-            lyric_scroll: Spring::new(0.0),
+            lyric_scroll: Cascade::new(0.0),
             follow_pause_ms: 0.0,
             lyric_viewport_h: 480.0,
-            lyric_dense: false,
+            lyric_metrics: Metrics::full(1366.0),
             lyric_rows: Vec::new(),
+            lyric_tops: vec![0.0],
+            lyrics_rev: 0,
+            lyric_timeline: Timeline::default(),
+            lyric_enter_ms: enter::ENTER_MS,
+            lyric_loading_ms: 0.0,
             text_focused: false,
             reduced_motion,
             settings: UiSettings::default(),
@@ -112,6 +140,7 @@ impl UiState {
             timing_open: false,
             motion_option: reduced_motion,
             last_active: None,
+            seeked: false,
         }
     }
 
@@ -202,10 +231,44 @@ impl UiState {
         }
     }
 
+    /// The audio and scroll clocks of the current lyrics at the playback position (the track
+    /// offset included); `None` without lyrics.
+    #[must_use]
+    pub fn lyric_clocks(&self) -> Option<lyrics_view::clock::Clocks> {
+        let LyricsState::Ready(doc) = &self.lyrics else {
+            return None;
+        };
+        let pos = i64::try_from(self.position.as_millis()).unwrap_or(i64::MAX);
+        Some(lyrics_view::clock::Clocks::new(
+            doc.granularity,
+            pos,
+            self.lyrics_offset_ms,
+        ))
+    }
+
     /// `true` while following the current line (no manual-scroll pause).
     #[must_use]
     pub fn lyrics_following(&self) -> bool {
         self.follow_pause_ms <= 0.0
+    }
+
+    /// `true` while the lyrics move: the loading shimmer, the list sliding in, the scroll
+    /// cascade, and (only while a song plays) a line that is lit or dimming and the intro or gap
+    /// note filling. Paused with nothing lit, it is `false`: the lyrics ask for no frame.
+    #[must_use]
+    pub fn lyrics_frames(&self) -> bool {
+        match &self.lyrics {
+            // The shimmer moves only while a song plays; paused, the line stands still.
+            LyricsState::Loading => !self.reduced_motion && self.is_playing(),
+            LyricsState::Ready(doc) if doc.granularity != Granularity::Unsynced => {
+                let playing = self.is_playing()
+                    && self.lyric_clocks().is_some_and(|c| {
+                        self.lyric_timeline.busy(&c) || self.lyric_focus().note.is_some()
+                    });
+                playing || !self.lyric_scroll.is_settled() || self.lyric_enter_ms < enter::ENTER_MS
+            }
+            _ => false,
+        }
     }
 
     /// Whether the GUI must subscribe to frames. Idle (paused, nothing animating) is `false`, so
@@ -214,7 +277,7 @@ impl UiState {
     pub fn needs_frames(&self) -> bool {
         self.is_playing()
             || !self.accent.is_done()
-            || !self.lyric_scroll.is_settled()
+            || self.lyrics_frames()
             || self.follow_pause_ms > 0.0
             || self.toast.is_some()
     }
@@ -230,7 +293,13 @@ impl UiState {
                 fx.push(Effect::RefreshSnapshot);
             }
             Event::Snapshot(s) => self.snapshot(s, &mut fx),
-            Event::Position(p) => self.position = p,
+            Event::Position(p) => {
+                // A seek is a jump of more than a second; playback moves a frame at a time.
+                if p.abs_diff(self.position) > SEEK_JUMP {
+                    self.seeked = true;
+                }
+                self.position = p;
+            }
             Event::Frame { dt_ms } => self.frame(dt_ms),
             Event::Go(route) => self.go(route, &mut fx),
             Event::Back => {
@@ -257,7 +326,19 @@ impl UiState {
                     };
                     self.lyrics_offset_ms = offset_ms;
                     self.last_active = None;
+                    self.lyrics_rev += 1;
+                    // A found document slides in (reduced motion: it is just there).
+                    self.lyric_enter_ms = if self.reduced_motion {
+                        enter::ENTER_MS
+                    } else {
+                        0.0
+                    };
+                    self.lyric_timeline = match &self.lyrics {
+                        LyricsState::Ready(doc) => Timeline::new(doc),
+                        _ => Timeline::default(),
+                    };
                     self.lyric_rows.clear();
+                    self.rebuild_tops();
                     self.lyric_scroll.snap(0.0);
                     self.retarget_scroll();
                     self.lyric_scroll.snap(self.lyric_scroll.target);
@@ -273,7 +354,7 @@ impl UiState {
             }
             Event::LyricsScrolled(px) => {
                 self.follow_pause_ms = FOLLOW_PAUSE_MS;
-                let v = (self.lyric_scroll.target + px).max(0.0);
+                let v = (self.lyric_scroll.target + px).max(self.scroll_floor());
                 self.lyric_scroll.snap(v);
             }
             Event::LyricsFollow => {
@@ -283,12 +364,15 @@ impl UiState {
             Event::LyricsViewport(h) => {
                 if (self.lyric_viewport_h - h).abs() > 0.5 {
                     self.lyric_viewport_h = h;
+                    // A resize is not a line change: no cascade.
                     self.retarget_scroll();
+                    self.lyric_scroll.snap(self.lyric_scroll.target);
                 }
             }
-            Event::LyricsDense(dense) => {
-                if self.lyric_dense != dense {
-                    self.lyric_dense = dense;
+            Event::LyricsMetrics(m) => {
+                if self.lyric_metrics != m {
+                    self.lyric_metrics = m;
+                    self.rebuild_tops();
                     self.retarget_scroll();
                     self.lyric_scroll.snap(self.lyric_scroll.target);
                 }
@@ -296,6 +380,7 @@ impl UiState {
             Event::LyricsRows(rows) => {
                 if self.lyric_rows != rows {
                     self.lyric_rows = rows;
+                    self.rebuild_tops();
                     self.retarget_scroll();
                     self.lyric_scroll.snap(self.lyric_scroll.target);
                 }

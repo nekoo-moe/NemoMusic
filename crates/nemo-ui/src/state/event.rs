@@ -120,10 +120,10 @@ pub enum Event {
     LyricsFollow,
     /// Lyrics viewport height in px.
     LyricsViewport(f32),
-    /// The lyrics are shown dense (right pane) or roomy (full window).
-    LyricsDense(bool),
+    /// Type size and spacing of the lyrics where they are shown now (full window or pane).
+    LyricsMetrics(lyrics_view::metrics::Metrics),
     /// Wrapped row counts of every lyric line at the current column width (one entry per line).
-    LyricsRows(Vec<lyrics_view::LineRows>),
+    LyricsRows(Vec<lyrics_view::layout::Rows>),
     /// A text field gained or lost focus.
     TextFocus(bool),
     /// Reset the lyrics offset to zero.
