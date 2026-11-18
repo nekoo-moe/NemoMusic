@@ -40,6 +40,37 @@ pub(super) fn shots(out: &mut Vec<Shot>) {
             },
         ));
     }
+    // The mesh for three songs (red, violet, and a third) in the three surface modes, and the
+    // smallest window.
+    for (song, track) in [("a", 1_usize), ("b", 9), ("c", 4)] {
+        for (stem, base) in [
+            ("dark", BaseMode::Dark),
+            ("light", BaseMode::Light),
+            ("amoled", BaseMode::Amoled),
+        ] {
+            out.push(shot(
+                named(&format!("song-mesh-{song}-{stem}"), SIZE),
+                Scenario {
+                    route: Route::Home,
+                    size: SIZE,
+                    track,
+                    settings: settings(base, true),
+                    ..Scenario::default()
+                },
+            ));
+        }
+    }
+    let small = (960, 600);
+    out.push(shot(
+        named("song-mesh-b-dark", small),
+        Scenario {
+            route: Route::Home,
+            size: small,
+            track: 9,
+            settings: settings(BaseMode::Dark, true),
+            ..Scenario::default()
+        },
+    ));
     for (stem, base, on) in [
         ("on-dark", BaseMode::Dark, true),
         ("off-dark", BaseMode::Dark, false),

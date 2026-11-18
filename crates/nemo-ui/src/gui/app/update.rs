@@ -1,7 +1,7 @@
 //! Update, view and subscription of [`App`], and the smaller message steps behind them.
 
 use super::super::views;
-use super::art::{CanvasView, CoverView};
+use super::art::{CanvasView, CoverView, MeshView};
 use super::job::{link_of, run_job};
 use super::message::{CoverBuilt, Job, Message};
 use super::model::AccountMsg;
@@ -290,6 +290,7 @@ impl App {
                     tint_alpha: cover::glass_tint_alpha(b.data.backdrop_lightest),
                     scrim_alpha: cover::backdrop_scrim_alpha(b.data.backdrop_lightest),
                     canvas: CanvasView::new(&b.data.canvas),
+                    mesh: MeshView::new(&b.data.mesh),
                 });
                 self.cover_seed = Some(b.data.seed);
                 let palette = self.themed_palette();
