@@ -71,6 +71,7 @@ pub(super) fn shots(out: &mut Vec<Shot>) {
     }
     let small = (960, 600);
     motion_shots(out, small);
+    setup_shots(out);
     // What the CPU renderer draws: the fields composited into one still image.
     out.push(shot(
         named("song-cpu-b-dark", small),
@@ -105,6 +106,23 @@ pub(super) fn shots(out: &mut Vec<Shot>) {
                 track: 1,
                 settings: settings(base, on),
                 ..shown()
+            },
+        ));
+    }
+}
+
+/// The Look step of the setup flow with both song-colour switches usable (motion on), at the
+/// minimum window. (`setup-look-*` shows them with reduced motion, the heartbeat greyed out.)
+fn setup_shots(out: &mut Vec<Shot>) {
+    for (stem, base) in [("dark", BaseMode::Dark), ("light", BaseMode::Light)] {
+        out.push(shot(
+            named(&format!("song-setup-look-{stem}"), (960, 600)),
+            Scenario {
+                size: (960, 600),
+                settings: settings(base, true),
+                setup: Some(nemo_ui::setup::SetupStep::Look),
+                full_motion: true,
+                ..Scenario::default()
             },
         ));
     }

@@ -4,7 +4,7 @@ use iced::widget::{Space, button, column, container, row};
 use iced::{Alignment, Element, Length, Padding};
 
 use super::control::{segmented, setting_row, stacked_row};
-use super::{switch, switch_disabled};
+use super::{song_colour_rows, switch};
 use crate::gui::app::{App, Message};
 use crate::gui::assets::Icon;
 use crate::gui::style::{animated, button_outlined, col, fit, gap, icon, label};
@@ -113,23 +113,8 @@ pub(super) fn appearance(app: &App, width: f32) -> Vec<Element<'_, Message>> {
         .on_press(Message::Ui(Event::Setting(SettingChange::GlassTier(tier))));
         animated(b, idle, shape::FULL)
     };
-    vec![
-        setting_row(
-            width,
-            "Match colours to the playing song",
-            Some("The whole window takes its colours from the cover of the song that plays.".to_owned()),
-            switch(s.song_colour_theme, SettingChange::SongColourTheme),
-        ),
-        setting_row(
-            width,
-            "Gentle heartbeat",
-            Some("A slow, soft pulse in the background while a song plays.".to_owned()),
-            if s.heartbeat_available(app.ui.reduced_motion) {
-                switch(s.song_heartbeat, SettingChange::SongHeartbeat)
-            } else {
-                switch_disabled(s.song_heartbeat)
-            },
-        ),
+    let mut rows = song_colour_rows(app, width);
+    rows.extend([
         stacked_row(
             width,
             "Surface",
@@ -199,5 +184,6 @@ pub(super) fn appearance(app: &App, width: f32) -> Vec<Element<'_, Message>> {
             Some("The player bar becomes an opaque surface with a thin border.".to_owned()),
             switch(s.reduce_transparency, SettingChange::ReduceTransparency),
         ),
-    ]
+    ]);
+    rows
 }
