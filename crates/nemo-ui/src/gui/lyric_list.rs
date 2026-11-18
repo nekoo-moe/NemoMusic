@@ -18,6 +18,7 @@ use crate::lyrics_view::clock::{Clocks, Timeline};
 use crate::lyrics_view::layout::visible;
 use crate::lyrics_view::metrics::{Metrics, look};
 use crate::lyrics_view::note::GapNote;
+use crate::lyrics_view::scroll::Cascade;
 use crate::lyrics_view::{self, layout as geometry};
 
 mod paint;
@@ -55,6 +56,8 @@ pub struct LyricList<'a> {
     pub reduced: bool,
     /// Fade lines toward the top and bottom edge.
     pub fade_edges: bool,
+    /// The glides of the lines (the scroll cascade), when the list scrolls.
+    pub cascade: Option<&'a Cascade>,
 }
 
 /// What the shaped lines were made for.
@@ -73,6 +76,11 @@ struct State {
 }
 
 impl LyricList<'_> {
+    /// How far a line can be from its place in the layout now, px.
+    fn reach(&self) -> f32 {
+        self.cascade.map_or(0.0, Cascade::reach)
+    }
+
     fn count(&self) -> usize {
         self.tops.len().saturating_sub(1)
     }
@@ -98,7 +106,7 @@ impl LyricList<'_> {
             st.lines = std::iter::repeat_with(|| None).take(key.count).collect();
             st.key = Some(key);
         }
-        let margin = self.metrics.slot_height(1);
+        let margin = self.metrics.slot_height(1) + self.reach();
         let range = visible(
             &self.tops,
             self.note.as_ref(),
@@ -231,7 +239,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for LyricList<'_> {
             &self.metrics,
             self.scroll,
             bounds.height,
-            0.0,
+            self.reach(),
         );
         renderer.with_layer(bounds, |r| {
             for j in range {
@@ -239,7 +247,8 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for LyricList<'_> {
                     continue;
                 };
                 let top = geometry::top_of(&self.tops, self.note.as_ref(), &self.metrics, j)
-                    - self.scroll;
+                    - self.scroll
+                    + self.cascade.map_or(0.0, |c| c.offset(self.first + j));
                 self.draw_line(r, line, j, bounds, top);
             }
         });

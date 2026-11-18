@@ -95,6 +95,7 @@ pub fn synced_list<'a>(app: &'a App, doc: &'a LyricsDoc, width: f32) -> Element<
         font: display_font(true),
         reduced: app.ui.reduced_motion,
         fade_edges: true,
+        cascade: Some(&app.ui.lyric_scroll),
     };
     let list = mouse_area(Element::from(list)).on_scroll(|delta| {
         let px = match delta {
@@ -106,7 +107,9 @@ pub fn synced_list<'a>(app: &'a App, doc: &'a LyricsDoc, width: f32) -> Element<
     let mut layers: Vec<Element<'a, Message>> = vec![list.into()];
     if let Some(n) = note {
         let (el, _) = note::row(n, &m, m.gap);
-        let top = (app.ui.lyric_tops.get(n.before).copied().unwrap_or(0.0) - scroll).max(0.0);
+        let top = (app.ui.lyric_tops.get(n.before).copied().unwrap_or(0.0) - scroll
+            + app.ui.lyric_scroll.offset(n.before))
+        .max(0.0);
         layers.push(
             container(el)
                 .padding(Padding {

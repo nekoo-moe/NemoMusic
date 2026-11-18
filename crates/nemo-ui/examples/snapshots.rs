@@ -16,6 +16,8 @@ mod feature;
 mod font_compare;
 #[path = "snapshots/lyrics_polish.rs"]
 mod lyrics_polish;
+#[path = "snapshots/lyrics_rebuild.rs"]
+mod lyrics_rebuild;
 #[path = "snapshots/motion.rs"]
 mod motion;
 #[path = "snapshots/np_classic.rs"]
@@ -105,6 +107,10 @@ fn main() {
         std::process::exit(1);
     }
     if let Err(e) = lyrics_polish::render(&only, &out_dir) {
+        eprintln!("{e}");
+        std::process::exit(1);
+    }
+    if let Err(e) = lyrics_rebuild::render(&only, &out_dir) {
         eprintln!("{e}");
         std::process::exit(1);
     }

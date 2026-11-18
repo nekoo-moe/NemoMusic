@@ -67,6 +67,7 @@ pub fn lines<'a>(app: &'a App, doc: &'a LyricsDoc, width: f32) -> Element<'a, Me
             font: display_font(true),
             reduced: app.ui.reduced_motion,
             fade_edges: false,
+            cascade: None,
         };
         c = c.push(
             container(Element::from(list))

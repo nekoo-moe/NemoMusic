@@ -11,6 +11,7 @@ pub mod clock;
 pub mod layout;
 pub mod metrics;
 pub mod note;
+pub mod scroll;
 
 /// The active line sits at this fraction of the viewport height.
 pub const ANCHOR: f32 = 0.35;

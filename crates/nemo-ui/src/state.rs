@@ -9,13 +9,19 @@ use nemo_core::track::Track;
 
 use crate::lyrics_view::clock::Timeline;
 use crate::lyrics_view::metrics::Metrics;
+use crate::lyrics_view::scroll::Cascade;
 use crate::lyrics_view::{self, FOLLOW_PAUSE_MS, layout};
-use crate::motion::{Crossfade, Spring};
+use crate::motion::Crossfade;
 use crate::palette::Palette;
 use crate::route::{Nav, Route};
 use crate::search::{SearchState, Submit};
 use crate::settings::UiSettings;
 
+/// A change of the playback position larger than this is a seek: the lyrics jump, no cascade.
+const SEEK_JUMP: Duration = Duration::from_secs(1);
+
+#[cfg(test)]
+mod cascade_tests;
 mod event;
 mod reduce;
 #[cfg(test)]
@@ -45,7 +51,7 @@ pub struct UiState {
     /// Lyrics offset of the current track in ms.
     pub lyrics_offset_ms: i64,
     /// Lyrics scroll position (px), animated by a spring.
-    pub lyric_scroll: Spring,
+    pub lyric_scroll: Cascade,
     /// Remaining time of the manual-scroll pause, ms (0 = following).
     pub follow_pause_ms: f32,
     /// Lyrics viewport height, px.
@@ -83,6 +89,8 @@ pub struct UiState {
     /// Lyrics Timing popover (offset tools) of the full-screen lyrics open.
     pub timing_open: bool,
     motion_option: bool,
+    /// The position jumped since the last frame (a seek): the scroll jumps too.
+    seeked: bool,
     last_active: Option<usize>,
 }
 
@@ -99,7 +107,7 @@ impl UiState {
             accent: Crossfade::settled(Palette::fallback()),
             lyrics: LyricsState::Idle,
             lyrics_offset_ms: 0,
-            lyric_scroll: Spring::new(0.0),
+            lyric_scroll: Cascade::new(0.0),
             follow_pause_ms: 0.0,
             lyric_viewport_h: 480.0,
             lyric_metrics: Metrics::full(1366.0),
@@ -120,6 +128,7 @@ impl UiState {
             timing_open: false,
             motion_option: reduced_motion,
             last_active: None,
+            seeked: false,
         }
     }
 
@@ -243,7 +252,13 @@ impl UiState {
                 fx.push(Effect::RefreshSnapshot);
             }
             Event::Snapshot(s) => self.snapshot(s, &mut fx),
-            Event::Position(p) => self.position = p,
+            Event::Position(p) => {
+                // A seek is a jump of more than a second; playback moves a frame at a time.
+                if p.abs_diff(self.position) > SEEK_JUMP {
+                    self.seeked = true;
+                }
+                self.position = p;
+            }
             Event::Frame { dt_ms } => self.frame(dt_ms),
             Event::Go(route) => self.go(route, &mut fx),
             Event::Back => {
@@ -302,7 +317,9 @@ impl UiState {
             Event::LyricsViewport(h) => {
                 if (self.lyric_viewport_h - h).abs() > 0.5 {
                     self.lyric_viewport_h = h;
+                    // A resize is not a line change: no cascade.
                     self.retarget_scroll();
+                    self.lyric_scroll.snap(self.lyric_scroll.target);
                 }
             }
             Event::LyricsMetrics(m) => {

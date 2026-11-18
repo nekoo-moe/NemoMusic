@@ -218,22 +218,30 @@ impl UiState {
         } else {
             self.retarget_scroll();
         }
-        if self.reduced_motion {
-            self.lyric_scroll.snap(self.lyric_scroll.target);
-        } else {
-            self.lyric_scroll.step(dt_ms / 1000.0);
-        }
+        self.lyric_scroll.step(dt_ms / 1000.0);
+        // A jump of the position is seen once, by the retarget of this frame.
+        self.seeked = false;
     }
 
+    /// Point the scroll at the line in focus. The list is laid out at the new place at once and
+    /// each line glides there on its own clock (the cascade); a seek, reduced motion and a change
+    /// of the pause of manual scrolling jump instead.
     pub(super) fn retarget_scroll(&mut self) {
         self.last_active = self.active_lyric();
+        let focus = self.lyric_focus();
         // The intro or gap note takes the anchor while it waits (lyrics-polish).
-        self.lyric_scroll.target = layout::scroll_target(
+        let to = layout::scroll_target(
             &self.lyric_tops,
             &self.lyric_metrics,
-            &self.lyric_focus(),
+            &focus,
             self.lyric_viewport_h,
         );
+        let line = focus.active.or(focus.note.map(|n| n.before)).unwrap_or(0);
+        if self.seeked || self.reduced_motion {
+            self.lyric_scroll.snap(to);
+        } else {
+            self.lyric_scroll.retarget(to, line);
+        }
     }
 
     /// Recompute the slot tops from the rows (one row for a line not measured yet) and metrics.
