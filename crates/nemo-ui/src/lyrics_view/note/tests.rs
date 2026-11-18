@@ -31,9 +31,13 @@ fn song() -> LyricsDoc {
     ])
 }
 
-/// The note at `pos` ms, motion on.
+/// Positions below were written for a 150 ms lead; the scroll clock now leads the position by
+/// 615 ms for line-synced lyrics (500 ms scroll lead + 115 ms sync offset).
+const SHIFT: i64 = 465;
+
+/// The note at `pos` ms (written for the old 150 ms lead), motion on.
 fn at(d: &LyricsDoc, pos: i64) -> Option<GapNote> {
-    gap_note(d, pos, 0, false)
+    gap_note(d, pos - SHIFT, 0, false)
 }
 
 fn close(a: f32, b: f32) -> bool {
@@ -52,7 +56,7 @@ fn the_intro_note_fills_up_to_the_first_line() {
     assert!(close(half.fill, 0.5), "{}", half.fill);
     let late = at(&d, 9_849).expect("note");
     assert!(late.waiting && late.fill < 1.0 && late.fill > 0.999);
-    assert_eq!(focus(&d, 4_850, 0, false).active, None);
+    assert_eq!(focus(&d, 4_850 - SHIFT, 0, false).active, None);
 }
 
 #[test]
@@ -63,7 +67,7 @@ fn the_note_is_full_at_the_exact_line_start_then_fades_with_motion_fast() {
     assert!(close(start.fill, 1.0), "full at the line start");
     assert!(close(start.presence, 1.0));
     // The line is active in the same frame.
-    assert_eq!(focus(&d, 9_850, 0, false).active, Some(0));
+    assert_eq!(focus(&d, 9_850 - SHIFT, 0, false).active, Some(0));
     let mid = at(&d, 9_900).expect("fading");
     assert!(close(mid.presence, 0.5) && close(mid.fill, 1.0));
     assert_eq!(at(&d, 9_950), None, "gone after motion.fast");
@@ -72,11 +76,11 @@ fn the_note_is_full_at_the_exact_line_start_then_fades_with_motion_fast() {
 #[test]
 fn reduced_motion_keeps_the_fill_and_drops_the_fades() {
     let d = song();
-    let n = gap_note(&d, 4_850, 0, true).expect("note");
+    let n = gap_note(&d, 4_850 - SHIFT, 0, true).expect("note");
     assert!(close(n.fill, 0.5) && close(n.presence, 1.0));
-    assert_eq!(gap_note(&d, 9_850, 0, true), None, "no fade-out");
+    assert_eq!(gap_note(&d, 9_850 - SHIFT, 0, true), None, "no fade-out");
     // In a gap, no fade-in either.
-    let g = gap_note(&d, 15_851, 0, true).expect("note");
+    let g = gap_note(&d, 15_851 - SHIFT, 0, true).expect("note");
     assert!(close(g.presence, 1.0));
 }
 
@@ -90,10 +94,10 @@ fn a_long_gap_gets_the_note_from_the_end_of_the_line() {
     assert!(close(n.presence, 0.5), "fades in with motion.fast");
     let half = at(&d, 19_350).expect("note");
     assert!(close(half.fill, 0.5), "{}", half.fill);
-    assert_eq!(focus(&d, 19_350, 0, false).active, None);
+    assert_eq!(focus(&d, 19_350 - SHIFT, 0, false).active, None);
     let full = at(&d, 22_850).expect("note");
     assert!(close(full.fill, 1.0) && !full.waiting);
-    assert_eq!(focus(&d, 22_850, 0, false).active, Some(2));
+    assert_eq!(focus(&d, 22_850 - SHIFT, 0, false).active, Some(2));
 }
 
 #[test]
@@ -161,7 +165,7 @@ fn unsynced_instrumental_and_short_intros_get_no_note() {
 fn the_offset_moves_the_note_with_the_lines() {
     let d = song();
     // +2 s shows lines 2 s earlier, so the intro is half done 2 s sooner.
-    let n = gap_note(&d, 2_850, 2_000, false).expect("note");
+    let n = gap_note(&d, 2_850 - SHIFT, 2_000, false).expect("note");
     assert!(close(n.fill, 0.5), "{}", n.fill);
 }
 
@@ -175,13 +179,13 @@ fn the_waiting_note_takes_the_anchor() {
     let rows: Vec<LineRows> = vec![[1, 1, 1]; d.lines.len()];
     let vh = 600.0;
     // In the long break before line 20 the note row sits at 35%, below 20 "other" lines.
-    let f = focus(&d, 150_000, 0, false);
+    let f = focus(&d, 150_000 - SHIFT, 0, false);
     assert_eq!((f.active, f.note.map(|n| n.before)), (None, Some(20)));
     let above = 20.0 * crate::lyrics_view::row_height(LineRole::Other);
     let off = scroll_target_focus(&f, vh, false, &rows);
     assert!((above - off - 0.35 * vh).abs() < 1e-3, "{off}");
     // Without a note the target is the usual one.
-    let plain = focus(&d, 31_000, 0, false);
+    let plain = focus(&d, 31_000 - SHIFT, 0, false);
     assert_eq!(plain.note, None);
     assert!(
         (scroll_target_focus(&plain, vh, false, &rows)
@@ -190,7 +194,7 @@ fn the_waiting_note_takes_the_anchor() {
             < 1e-3
     );
     // While the note fades out, its shrinking row still sits above the line.
-    let fading = focus(&d, 199_900, 0, false);
+    let fading = focus(&d, 199_900 - SHIFT, 0, false);
     let n = fading.note.expect("fading note");
     assert!(!n.waiting && n.presence > 0.0);
     let with = scroll_target_focus(&fading, vh, false, &rows);

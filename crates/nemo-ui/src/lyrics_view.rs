@@ -8,10 +8,10 @@ use nemo_core::lyrics::{Granularity, LyricsDoc};
 use crate::theme::TextStyle;
 use crate::theme::type_scale::{BODY_MD, HEADLINE_LG, HEADLINE_SM, TITLE_MD, TITLE_SM};
 
+pub mod clock;
+pub mod metrics;
 pub mod note;
 
-/// A line changes when `position >= start - 150 ms`.
-pub const LEAD_MS: i64 = 150;
 /// The active line sits at this fraction of the viewport height.
 pub const ANCHOR: f32 = 0.35;
 /// Manual scrolling pauses auto-follow for this long.
@@ -167,9 +167,7 @@ pub fn active_line(doc: &LyricsDoc, position_ms: i64, offset_ms: i64) -> Option<
     if doc.granularity == Granularity::Unsynced {
         return None;
     }
-    let t = position_ms
-        .saturating_add(offset_ms)
-        .saturating_add(LEAD_MS);
+    let t = clock::Clocks::new(doc.granularity, position_ms, offset_ms).scroll_ms;
     doc.lines
         .iter()
         .enumerate()
@@ -333,29 +331,33 @@ mod tests {
     }
 
     #[test]
-    fn line_changes_150_ms_early() {
+    fn line_changes_615_ms_early() {
+        // Scroll clock: position + 115 ms line sync offset + 500 ms scroll lead.
         let d = doc(&[Some(1000), Some(5000), Some(9000)], Granularity::Line);
         assert_eq!(active_line(&d, 0, 0), None);
-        assert_eq!(active_line(&d, 849, 0), None);
-        assert_eq!(active_line(&d, 850, 0), Some(0));
-        assert_eq!(active_line(&d, 4849, 0), Some(0));
-        assert_eq!(active_line(&d, 4850, 0), Some(1));
+        assert_eq!(active_line(&d, 384, 0), None);
+        assert_eq!(active_line(&d, 385, 0), Some(0));
+        assert_eq!(active_line(&d, 4384, 0), Some(0));
+        assert_eq!(active_line(&d, 4385, 0), Some(1));
         assert_eq!(active_line(&d, 99_000, 0), Some(2));
+        let w = doc(&[Some(1000)], Granularity::Word);
+        assert_eq!(active_line(&w, 349, 0), None, "word sync offset is 150 ms");
+        assert_eq!(active_line(&w, 350, 0), Some(0));
     }
 
     #[test]
     fn offset_shifts_the_active_line() {
         let d = doc(&[Some(1000), Some(5000)], Granularity::Line);
         assert_eq!(active_line(&d, 3000, 2000), Some(1));
-        assert_eq!(active_line(&d, 3000, -2500), None);
+        assert_eq!(active_line(&d, 3000, -3000), None);
         assert_eq!(active_line(&d, i64::MAX, i64::MAX), Some(1));
     }
 
     #[test]
     fn active_line_at_reads_the_position_in_whole_milliseconds() {
         let d = doc(&[Some(1000), Some(5000)], Granularity::Line);
-        assert_eq!(active_line_at(&d, Duration::from_micros(849_999), 0), None);
-        assert_eq!(active_line_at(&d, Duration::from_millis(850), 0), Some(0));
+        assert_eq!(active_line_at(&d, Duration::from_micros(384_999), 0), None);
+        assert_eq!(active_line_at(&d, Duration::from_millis(385), 0), Some(0));
         assert_eq!(
             active_line_at(&d, Duration::from_millis(3000), 2000),
             Some(1)

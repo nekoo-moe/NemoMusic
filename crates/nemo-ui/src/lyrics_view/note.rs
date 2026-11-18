@@ -3,14 +3,15 @@
 //! appear and fills up with the playback position. It is full at the moment that line starts,
 //! then fades out with `motion.fast` while the line becomes active as usual.
 //!
-//! "The line starts" means the moment it becomes the active line: `start - 150 ms` on the
-//! offset-corrected clock ([`super::LEAD_MS`], `design.md` section 10). Every time below is on
-//! that clock, so the note is full in the same frame the line lights up. Pure: no timer, the
+//! "The line starts" means the moment it becomes the active line, on the scroll clock
+//! ([`super::clock::Clocks`]: position, offset, sync offset and a 0.5 s lead). Every time below is
+//! on that clock, so the note is full in the same frame the line lights up. Pure: no timer, the
 //! numbers come from the position updates only.
 
 use nemo_core::lyrics::{Granularity, LyricLine, LyricsDoc};
 
-use super::{LEAD_MS, LineRole, row_height_d};
+use super::clock::Clocks;
+use super::{LineRole, row_height_d};
 use crate::theme::motion::FAST_MS;
 
 /// A break between two sung lines gets the note when it lasts at least this long, ms. Shorter
@@ -114,9 +115,7 @@ pub fn gap_note(
     if doc.granularity == Granularity::Unsynced || doc.instrumental {
         return None;
     }
-    let u = position_ms
-        .saturating_add(offset_ms)
-        .saturating_add(LEAD_MS);
+    let u = Clocks::new(doc.granularity, position_ms, offset_ms).scroll_ms;
     let fade = if reduced { 0 } else { i64::from(FAST_MS) };
     // The next sung line: not started yet, or started less than `motion.fast` ago.
     let n = doc
