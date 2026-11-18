@@ -56,7 +56,8 @@ mod sync;
 mod update;
 
 pub use art::{
-    ArtEntry, ArtFit, ArtShape, ArtSpec, CanvasView, CoverView, TILE_RADIUS, art_fit, handle_px,
+    ArtEntry, ArtFit, ArtShape, ArtSpec, CanvasView, CoverView, MeshView, TILE_RADIUS, art_fit,
+    handle_px,
 };
 pub use job::{art_key, run_job};
 pub use message::{AccountBundle, CoverBuilt, ExploreMsg, Job, Message, RefreshData};

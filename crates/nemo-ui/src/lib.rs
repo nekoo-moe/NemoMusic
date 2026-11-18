@@ -31,6 +31,7 @@ pub mod layout;
 pub mod lru;
 pub mod lyric_pieces;
 pub mod lyrics_view;
+pub mod mesh;
 pub mod mock;
 pub mod mock_lyrics;
 pub mod motion;

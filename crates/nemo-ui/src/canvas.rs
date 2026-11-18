@@ -3,7 +3,8 @@
 //! every pixel keeps its hue, gets a little more chroma and has its lightness squeezed into a
 //! band per base mode, so the canvas is clearly the cover's colour while every text ink keeps
 //! 4.5:1 on any pixel of it (tests below). A grey cover has no chroma to boost and stays grey.
-//! No live blur (tier Low): the window backdrop moves this texture, it never re-blurs it.
+//! No live blur (tier Low): nothing re-blurs this texture. The window backdrop is drawn from
+//! the colour mesh (`crate::mesh`); this canvas serves the Now Playing pane and full screen.
 
 use crate::palette::{Oklch, mix_rgb, oklch_to_rgb, rgb_to_oklch};
 use crate::scheme::BaseMode;
@@ -251,47 +252,6 @@ mod tests {
                     for (ink, fg) in text_inks(&n, base) {
                         let ratio = contrast_ratio(fg.over(bg), bg);
                         assert!(ratio >= 4.5, "{name} {base:?} {ink}: {ratio:.2}");
-                    }
-                }
-            }
-        }
-    }
-
-    /// The window backdrop (living-backdrop spec): two copies of the texture over each other (the
-    /// second at `BLOB_ALPHA`, anywhere over the first while they drift), the vignette, then a
-    /// pane at `PANE_ALPHA`. Every ink keeps 4.5:1 on the pane and in the gaps.
-    #[test]
-    fn every_ink_reaches_4_5_over_the_drifting_window_backdrop() {
-        use crate::drift::{BLOB_ALPHA, VIGNETTE_ALPHA};
-        use crate::scheme::PANE_ALPHA;
-        for (name, rgba) in covers() {
-            let c = build(&rgba, 24);
-            for base in MODES {
-                let n = base.neutrals();
-                let px: Vec<Rgba> = c
-                    .texture(base)
-                    .as_chunks::<4>()
-                    .0
-                    .iter()
-                    .map(|p| Rgba {
-                        r: p[0],
-                        g: p[1],
-                        b: p[2],
-                        a: 255,
-                    })
-                    .collect();
-                for (i, under) in px.iter().enumerate() {
-                    let over = px[(i * 7 + 13) % px.len()];
-                    let mixed = over.with_alpha(BLOB_ALPHA).over(*under);
-                    for v in [0.0, VIGNETTE_ALPHA] {
-                        let field = n.lowest.with_alpha(v).over(mixed);
-                        let pane = n.container.with_alpha(PANE_ALPHA).over(field);
-                        for (ink, fg) in text_inks(&n, base) {
-                            for (where_, bg) in [("pane", pane), ("gap", field)] {
-                                let ratio = contrast_ratio(fg.over(bg), bg);
-                                assert!(ratio >= 4.5, "{name} {base:?} {ink} {where_}: {ratio:.2}");
-                            }
-                        }
                     }
                 }
             }

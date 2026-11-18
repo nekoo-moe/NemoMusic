@@ -12,7 +12,7 @@ use iced::{Background, ContentFit, Element, Length};
 use super::super::app::{App, Message};
 use super::super::style::{DOWN, col, vertical_gradient};
 use crate::canvas::{STOPS, mix_stops};
-use crate::drift::{Inputs, Mode};
+use crate::drift::{Inputs, Mode, VIGNETTE_ALPHA, VIGNETTE_MID_ALPHA};
 use crate::route::Route;
 use crate::theme::{Rgba, color};
 
@@ -38,8 +38,9 @@ pub fn window_inputs(app: &App) -> Inputs {
 }
 
 /// The field behind the panes. With `Match colours to the playing song` on and a cover: the
-/// cover's toned canvas, drifting slowly, the old cover under the new one while they cross-fade;
-/// a flat tonal colour from the same canvas under reduce transparency. Otherwise (the switch is
+/// cover's colour mesh (three or four soft fields, `crate::mesh`) drifting slowly, the old
+/// fields fading out while the new ones fade in; a flat tonal colour from the cover's canvas
+/// under reduce transparency. Otherwise (the switch is
 /// off, or there is no cover) one flat tonal colour from the theme (song-colour-theme rule
 /// table).
 pub fn window_field(app: &App) -> Element<'_, Message> {
@@ -65,41 +66,26 @@ pub fn window_field(app: &App) -> Element<'_, Message> {
             })
             .into();
     }
+    // The old fields fade out while the new ones fade in; the flat colour under them follows.
+    let under = prev.map_or(cover.mesh.under(base), |p| {
+        crate::palette::mix_rgb(p.mesh.under(base), cover.mesh.under(base), f64::from(fade))
+    });
     let mut layers = Vec::with_capacity(2);
     if let Some(p) = prev {
         layers.push(Layer {
-            handle: p.canvas.texture(base),
-            opacity: 1.0,
+            blobs: p.mesh.blobs(base).to_vec(),
+            opacity: 1.0 - fade,
+            scale: 1.0,
         });
     }
     layers.push(Layer {
-        handle: cover.canvas.texture(base),
+        blobs: cover.mesh.blobs(base).to_vec(),
         opacity: if prev.is_some() { fade } else { 1.0 },
+        scale: 1.0,
     });
-    stack![
-        Element::from(Field::new(layers, inputs)),
-        ambient_glow(app),
-        vignette()
-    ]
-    .width(Length::Fill)
-    .height(Length::Fill)
-    .into()
-}
-
-/// A soft top ambient glow from the active cover accent color.
-fn ambient_glow<'a>(app: &App) -> Element<'a, Message> {
-    let primary = app.accent().primary;
-    let g = iced::gradient::Linear::new(iced::Radians(DOWN))
-        .add_stop(0.0, col(primary.with_alpha(0.18)))
-        .add_stop(0.5, col(primary.with_alpha(0.04)))
-        .add_stop(1.0, iced::Color::TRANSPARENT);
-    container(Space::new())
+    stack![Element::from(Field::new(under, layers, inputs)), vignette()]
         .width(Length::Fill)
         .height(Length::Fill)
-        .style(move |_| container::Style {
-            background: Some(Background::Gradient(g.into())),
-            ..container::Style::default()
-        })
         .into()
 }
 
@@ -108,8 +94,8 @@ fn vignette<'a>() -> Element<'a, Message> {
     let base = color::surface_container_lowest();
     let g = iced::gradient::Linear::new(iced::Radians(DOWN))
         .add_stop(0.0, iced::Color::TRANSPARENT)
-        .add_stop(0.4, col(base.with_alpha(0.25)))
-        .add_stop(1.0, col(base.with_alpha(0.75)));
+        .add_stop(0.4, col(base.with_alpha(VIGNETTE_MID_ALPHA)))
+        .add_stop(1.0, col(base.with_alpha(VIGNETTE_ALPHA)));
     container(Space::new())
         .width(Length::Fill)
         .height(Length::Fill)
