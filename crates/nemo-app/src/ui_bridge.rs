@@ -114,31 +114,25 @@ pub fn apply_output_choice(settings: &mut Settings, status: &OutputStatus) -> bo
     }
 }
 
-/// Start the saver thread, optionally watch the player for output changes, and build the UI options.
-/// The callback only sends on a channel, so it never blocks the UI thread.
-pub fn options(
-    settings: Settings,
-    root: PathBuf,
-    player: Option<&Arc<dyn PlayerControl>>,
-) -> UiOptions {
+/// Start the saver thread and build the UI options. The callback only sends on a channel, so it
+/// never blocks the UI thread. The returned sender also feeds the output watcher, which starts
+/// with the player (see `backend::Startup`).
+pub fn options(settings: Settings, root: PathBuf) -> (UiOptions, Sender<SettingsMsg>) {
     let initial = to_ui(&settings);
     let folders = settings
         .music_folders
         .iter()
         .map(|p| p.display().to_string())
         .collect();
-    let tx = spawn_saver(settings, root);
-    if let Some(player) = player {
-        spawn_output_watcher(player, tx.clone());
-    }
-    let tx = Mutex::new(tx);
+    let saver = spawn_saver(settings, root);
+    let tx = Mutex::new(saver.clone());
     let on_settings: Arc<dyn Fn(UiSettings) + Send + Sync> = Arc::new(move |ui| {
         if let Ok(tx) = tx.lock() {
             // The saver only stops when the app exits; a failed send then is harmless.
             let _ = tx.send(SettingsMsg::Ui(ui));
         }
     });
-    UiOptions {
+    let options = UiOptions {
         settings: initial,
         on_settings: Some(on_settings),
         music_folders: folders,
@@ -148,7 +142,8 @@ pub fn options(
         // One switch: the OS preference here, OR the user's Settings toggle (the UI joins them).
         reduced_motion: crate::os_motion::reduce_motion(),
         ..UiOptions::default()
-    }
+    };
+    (options, saver)
 }
 
 /// Watch the player's event stream and forward `OutputChanged` to the settings saver.
