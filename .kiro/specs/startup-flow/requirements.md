@@ -23,7 +23,7 @@ NemoMusic opens a window with a calm splash at once, and shows the real start-up
 6. IF a service cannot start, THEN THE SYSTEM SHALL keep the splash, show a plain sentence and a Close button.
 7. THE SYSTEM SHALL keep audio, `--signin` and every other command-line path unchanged, and the window title and taskbar behaviour as they are.
 8. WHEN the app starts and `setup_completed` is false and `tos_acknowledged` is false, THE SYSTEM SHALL show the setup flow full-window. WHEN `tos_acknowledged` is true and `setup_completed` is missing from the stored settings, THE SYSTEM SHALL treat the setup as completed and show no flow.
-9. THE SYSTEM SHALL show the steps Welcome, Look, Sources, Playback, Privacy and risk, Done, with step dots, Back, Next and a Skip setup button that is always available. Enter SHALL be Next; Esc SHALL change nothing.
+9. THE SYSTEM SHALL show the steps Welcome, Look, Privacy and risk, Sources, Playback, Done (the notice comes before the sources because signing in needs it), with step dots, Back, Next and a Skip setup button that is always available. Enter SHALL be Next; Esc SHALL change nothing.
 10. WHEN the user changes a Look choice, THE SYSTEM SHALL apply it live.
 11. WHEN the user presses `Sign in with Google` on the Sources step, THE SYSTEM SHALL start the existing sign-in and show the account name when it returns; `Use without an account` SHALL move on. THE SYSTEM SHALL NOT show tokens, cookies or account ids.
 12. THE SYSTEM SHALL show SoundCloud as an On/Off switch for the public catalog with its existing disclosure, and the text `Public tracks only. No sign-in needed.`

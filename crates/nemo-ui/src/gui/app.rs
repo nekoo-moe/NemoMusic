@@ -218,7 +218,8 @@ impl App {
             backend.player.snapshot(),
             options.reduced_motion,
         )
-        .with_settings(options.settings.clone());
+        .with_settings(options.settings.clone())
+        .with_setup(options.start_setup);
         let reduced = ui.reduced_motion;
         fx::set_reduced_motion(reduced);
         // Window sizes are small positive numbers.

@@ -40,6 +40,7 @@ pub mod route;
 pub mod scheme;
 pub mod search;
 pub mod settings;
+pub mod setup;
 pub mod signal;
 pub mod splash;
 pub mod state;

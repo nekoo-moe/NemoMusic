@@ -81,6 +81,8 @@ pub struct UiSettings {
     pub reduce_transparency: bool,
     /// The first-run notice about YouTube's Terms of Service was accepted.
     pub tos_acknowledged: bool,
+    /// The first-run setup flow was finished or skipped (startup-flow spec).
+    pub setup_completed: bool,
     /// Accent source: the cover or a curated seed.
     pub theme: ThemeChoice,
     /// Surface mode: dark, AMOLED black or light.
@@ -109,6 +111,7 @@ impl Default for UiSettings {
             reduce_motion: false,
             reduce_transparency: false,
             tos_acknowledged: false,
+            setup_completed: false,
             theme: ThemeChoice::Dynamic,
             base: BaseMode::Dark,
             accent_intensity: AccentIntensity::Standard,
@@ -160,6 +163,13 @@ impl UiSettings {
             SettingChange::AccentIntensity(v) => self.accent_intensity = v,
             SettingChange::CornerStyle(v) => self.corner_style = v,
         }
+    }
+
+    /// `true` when the first-run setup flow should open at start. A user who already accepted
+    /// the notice is never sent through it (startup-flow, criterion 8).
+    #[must_use]
+    pub fn needs_setup(&self) -> bool {
+        !self.setup_completed && !self.tos_acknowledged
     }
 
     /// `true` when the player bar must use the opaque tonal surface instead of glass.
