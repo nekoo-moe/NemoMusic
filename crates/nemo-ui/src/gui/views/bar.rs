@@ -21,6 +21,7 @@ mod cover;
 mod left;
 mod play;
 mod right;
+mod seek;
 mod surface;
 
 pub use control::{like_button, play_button, repeat_button, transport};

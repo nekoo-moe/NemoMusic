@@ -5,7 +5,7 @@ use iced::{Alignment, Color, Element, Length};
 use nemo_core::player::{PlayerCommand, RepeatMode};
 
 use super::control::{next_button, prev_button};
-use super::{play, seek_row};
+use super::{play, seek};
 use crate::gui::app::{App, Message};
 use crate::gui::assets::Icon;
 use crate::gui::style::{col, gap, icon_button, tip};
@@ -32,7 +32,7 @@ pub(super) fn view(app: &App, accent: Palette, width: f32) -> Element<'_, Messag
     ]
     .spacing(gap::SM)
     .align_y(Alignment::Center);
-    column![transport, seek_row(app, accent)]
+    column![transport, seek::row(app, accent)]
         .spacing(gap::XS)
         .align_x(Alignment::Center)
         .width(Length::Fixed(width))

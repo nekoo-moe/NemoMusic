@@ -40,7 +40,7 @@ pub enum Step { Full, NoSlider, Folded }
 pub struct Zones { pub step: Step, pub left: u32, pub centre: u32, pub right: u32 }
 pub fn zones(bar_w: u32) -> Zones;
 // bar/seek.rs
-pub fn seek_bar<'a>(frac: f32, accent: Color, label_at: impl Fn(f32) -> String + 'a) -> Element<'a, Message>;
+pub struct SeekBar<'a, M>; // SeekBar::new(frac, Colors, label_at, on_drag, on_release)
 // gui/app/message.rs
 Message::ToggleMute
 ```
@@ -62,5 +62,5 @@ No new failure modes. A track without a duration shows `-:--` and a slider at ze
 
 - The pre-blurred cover texture would look softer than a gradient, but cannot be clipped to the rounded corners on the software renderer. Gradient chosen; a texture can follow when clipping works.
 - Folding into the tools panel reuses an existing popover instead of building a new menu. The panel is wider than a small menu but already holds full-screen, mini player and shortcuts. A dedicated menu would need a new surface and animation; not worth it for this task.
-- A custom seek widget costs about 250 lines. The stock `slider` cannot animate track height or show a drag tooltip.
+- A custom seek widget costs about 450 lines with its tests. The stock `slider` cannot animate track height or show a drag tooltip.
 - Real window, real GPU, Windows rendering and 150% scale are not verified here.

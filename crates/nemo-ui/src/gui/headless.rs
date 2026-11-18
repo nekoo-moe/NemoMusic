@@ -6,7 +6,7 @@
 
 use std::path::{Path, PathBuf};
 
-use iced::{Pixels, Size};
+use iced::{Pixels, Point, Size};
 use iced_test::Simulator;
 use nemo_core::player::{PlayState, PlayerCommand};
 use nemo_core::services::Backend;
@@ -106,6 +106,27 @@ pub fn render_view_png(
     render_view_png_with(view, size, out, Vec::new())
 }
 
+/// [`render_png`] with the pointer at `at` (logical px). With `pressed` the left button is held
+/// down there first, as when a drag starts. For hover and drag shots.
+///
+/// # Errors
+/// A message when the renderer cannot be created or the file cannot be written.
+pub fn render_png_pointer(
+    app: &App,
+    size: (u32, u32),
+    out: &Path,
+    at: (f32, f32),
+    pressed: bool,
+) -> Result<(), String> {
+    render_with(
+        app.view(),
+        size,
+        out,
+        Vec::new(),
+        Some((Point::new(at.0, at.1), pressed)),
+    )
+}
+
 /// [`render_view_png`] with `extra` font files loaded beside the bundled ones (for font
 /// comparisons; the files are not part of the app).
 ///
@@ -116,6 +137,16 @@ pub fn render_view_png_with(
     size: (u32, u32),
     out: &Path,
     extra: Vec<std::borrow::Cow<'static, [u8]>>,
+) -> Result<(), String> {
+    render_with(view, size, out, extra, None)
+}
+
+fn render_with(
+    view: iced::Element<'_, Message>,
+    size: (u32, u32),
+    out: &Path,
+    extra: Vec<std::borrow::Cow<'static, [u8]>>,
+    pointer: Option<(Point, bool)>,
 ) -> Result<(), String> {
     let mut fonts: Vec<std::borrow::Cow<'static, [u8]>> =
         assets::ALL_FONTS.iter().map(|f| (*f).into()).collect();
@@ -131,6 +162,18 @@ pub fn render_view_png_with(
     #[allow(clippy::cast_precision_loss)]
     let logical = Size::new(size.0 as f32, size.1 as f32);
     let mut sim = Simulator::with_size(settings, logical, view);
+    if let Some((at, pressed)) = pointer {
+        sim.point_at(at);
+        let mut events = vec![iced::Event::Mouse(iced::mouse::Event::CursorMoved {
+            position: at,
+        })];
+        if pressed {
+            events.push(iced::Event::Mouse(iced::mouse::Event::ButtonPressed(
+                iced::mouse::Button::Left,
+            )));
+        }
+        let _ = sim.simulate(events);
+    }
     let snapshot = sim.snapshot(&style::theme()).map_err(|e| e.to_string())?;
 
     // `matches_image` writes `<stem>-<renderer>.png` when the file does not exist yet.
