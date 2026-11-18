@@ -6,6 +6,7 @@ use super::message::Job;
 use super::model::{DetailKey, DetailState, NpTab};
 use crate::explore::{ContentFilter, LibTab};
 use crate::layout;
+use crate::lyrics_view::metrics::Metrics;
 use crate::route::Route;
 use crate::scheme::{self, bg_colors};
 use crate::state::{Event, LyricsState};
@@ -22,13 +23,20 @@ impl App {
             layout::pane_lyrics_height(w, h)
         };
         let width = self.lyrics_width();
-        // The credit line and wrapped footer rows take room under the lyrics.
+        // Wrapped footer rows take room under the lyrics.
         let v = (v - views::lyrics::footer_extra(self, width)).max(60.0);
+        // Window sizes are small numbers, exact in f32.
+        #[allow(clippy::cast_precision_loss)]
+        let metrics = if full {
+            Metrics::full(w as f32)
+        } else {
+            Metrics::pane(layout::right_width(w) as f32)
+        };
         let rows = match &self.ui.lyrics {
-            LyricsState::Ready(doc) => views::lyrics::line_rows(doc, width, !full),
+            LyricsState::Ready(doc) => views::lyrics::line_rows(doc, width, metrics.size),
             _ => Vec::new(),
         };
-        let mut jobs = self.dispatch(Event::LyricsDense(!full));
+        let mut jobs = self.dispatch(Event::LyricsMetrics(metrics));
         jobs.extend(self.dispatch(Event::LyricsViewport(v)));
         jobs.extend(self.dispatch(Event::LyricsRows(rows)));
         jobs

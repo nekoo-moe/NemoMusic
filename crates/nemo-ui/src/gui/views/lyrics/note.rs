@@ -11,7 +11,7 @@ use iced::widget::{container, svg};
 use iced::{Element, Length, Padding};
 
 use super::super::super::app::Message;
-use crate::lyrics_view::LineRole;
+use crate::lyrics_view::metrics::{INACTIVE_ALPHA, Metrics};
 use crate::lyrics_view::note::GapNote;
 use crate::theme::{Rgba, color};
 
@@ -39,34 +39,23 @@ pub fn note_svg(fill: f32, ink: Rgba, filled: f32, dim: f32) -> String {
     NOTE_SVG.replacen("<path ", &defs, 1)
 }
 
-/// The note row and its height in px: one active-line row times the note's presence, so it
-/// folds away while it fades out. `size` is the glyph box, `line_h` the row it sits in and
-/// `gap` the line gap under it.
-pub fn row<'a>(n: GapNote, size: f32, line_h: f32, gap: f32) -> (Element<'a, Message>, f32) {
-    let height = (line_h + gap) * n.presence;
+/// The note row and its height in px: one line row, with `pad` px above and below it, times the
+/// note's presence, so it folds away while it fades out. The glyph is as tall as the text.
+pub fn row<'a>(n: GapNote, m: &Metrics, pad: f32) -> (Element<'a, Message>, f32) {
+    let height = (m.line_h + 2.0 * pad) * n.presence;
     let ink = color::on_surface();
     let base = ink.alpha();
-    let dim = super::line_ink(LineRole::Other).a;
-    let source = note_svg(n.fill, ink, base * n.presence, dim * n.presence);
+    let source = note_svg(n.fill, ink, base * n.presence, INACTIVE_ALPHA * n.presence);
     let glyph = svg(svg::Handle::from_memory(source.into_bytes()))
-        .width(Length::Fixed(size))
-        .height(Length::Fixed(size));
+        .width(Length::Fixed(m.size))
+        .height(Length::Fixed(m.size));
     let el = container(glyph)
         .padding(Padding {
-            top: ((line_h - size) / 2.0).max(0.0),
+            top: pad + ((m.line_h - m.size) / 2.0).max(0.0),
             ..Padding::ZERO
         })
         .width(Length::Fill)
         .height(Length::Fixed(height))
         .clip(true);
     (el.into(), height)
-}
-
-/// [`row`] in the sizes of the active line of `style`.
-pub fn row_for<'a>(
-    n: GapNote,
-    st: crate::theme::TextStyle,
-    gap: f32,
-) -> (Element<'a, Message>, f32) {
-    row(n, f32::from(st.size), f32::from(st.line), gap)
 }

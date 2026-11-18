@@ -1,14 +1,14 @@
-//! Lyrics view logic (`design.md` section 10). Pure: which line is active, how tall each line is,
-//! where the scroll offset must be, and the footer text.
+//! Lyrics view logic (`design.md` section 10, `lyrics-rebuild` spec). Pure: which line is active,
+//! where the lines sit and where the scroll offset must be, and the footer text. The two clocks
+//! are in [`clock`], type sizes and the lit look in [`metrics`], line slots and the scroll
+//! anchor in [`layout`].
 
 use std::time::Duration;
 
-use nemo_core::lyrics::{Granularity, LyricsDoc};
-
-use crate::theme::TextStyle;
-use crate::theme::type_scale::{BODY_MD, HEADLINE_LG, HEADLINE_SM, TITLE_MD, TITLE_SM};
+use nemo_core::lyrics::{Granularity, LyricsCredit, LyricsDoc};
 
 pub mod clock;
+pub mod layout;
 pub mod metrics;
 pub mod note;
 
@@ -16,24 +16,13 @@ pub mod note;
 pub const ANCHOR: f32 = 0.35;
 /// Manual scrolling pauses auto-follow for this long.
 pub const FOLLOW_PAUSE_MS: f32 = 4000.0;
-/// Space between lines in px in the dense right pane (and the three-line lists).
-pub const LINE_GAP: f32 = 8.0;
-/// Space between lines in px in the full-screen lyrics: more air, so fewer lines show
-/// (lyrics-polish, owner override 2026-11-15).
-pub const LINE_GAP_ROOMY: f32 = 24.0;
-/// Share of the viewport height at the top and at the bottom over which the full-screen lines
-/// fade out (the soft edge mask).
+/// Share of the viewport height at the top and at the bottom over which the lines fade out
+/// (the soft edge mask).
 pub const EDGE_FADE: f32 = 0.2;
 
-/// Space between lines for the dense or roomy lyrics.
-#[must_use]
-pub const fn line_gap(dense: bool) -> f32 {
-    if dense { LINE_GAP } else { LINE_GAP_ROOMY }
-}
-
-/// Opacity a full-screen line gets from the soft edge mask: 1 in the middle of the viewport,
-/// easing to 0 at the top and bottom edges over [`EDGE_FADE`] of its height. `center_y` is
-/// the line's centre, px from the top of the viewport.
+/// Opacity a line gets from the soft edge mask: 1 in the middle of the viewport, easing to 0 at
+/// the top and bottom edges over [`EDGE_FADE`] of its height. `center_y` is the line's centre,
+/// px from the top of the viewport.
 #[must_use]
 pub fn edge_fade(center_y: f32, viewport_h: f32) -> f32 {
     let zone = (EDGE_FADE * viewport_h).max(1.0);
@@ -42,99 +31,6 @@ pub fn edge_fade(center_y: f32, viewport_h: f32) -> f32 {
         t * t * (3.0 - 2.0 * t)
     };
     ease(center_y) * ease(viewport_h - center_y)
-}
-
-/// Opacity of `on-surface-variant` for a line of word-timed lyrics `dist` lines from the active
-/// one (positive: still to come, negative: already sung; owner, 2026-11-16, `syllable-motion`).
-/// Lines ahead step down with distance, lines behind fade faster, and every value stays below
-/// the grey of a word still to be sung ([`crate::lyric_pieces::UNSUNG_ALPHA`]), so the active
-/// line always reads first. This is the "blur-like" falloff: iced has no layer blur, so
-/// distance is shown by opacity only.
-#[must_use]
-pub fn line_alpha(dist: i32) -> f32 {
-    match dist {
-        0 => 1.0,
-        1 => 0.30,
-        2 => 0.24,
-        d if d > 2 => 0.18,
-        -1 => 0.20,
-        -2 => 0.12,
-        _ => 0.07,
-    }
-}
-
-/// How a line is drawn relative to the active one.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LineRole {
-    /// The line being sung.
-    Active,
-    /// The line right before or after it.
-    Neighbor,
-    /// Any other line.
-    Other,
-}
-
-impl LineRole {
-    /// Role of line `index` when `active` is the active line (`None`: nothing is active).
-    #[must_use]
-    pub fn of(index: usize, active: Option<usize>) -> Self {
-        match active {
-            Some(a) if a == index => Self::Active,
-            Some(a) if a.abs_diff(index) == 1 => Self::Neighbor,
-            _ => Self::Other,
-        }
-    }
-
-    /// Type style of the full-screen lyrics: `headline-lg` 32/40, `headline-sm` 24/32,
-    /// `title-md` 20/28 (lyrics-polish, owner override 2026-11-15; every line height is at
-    /// least 1.25 times the size, so stacked Vietnamese marks are not clipped).
-    #[must_use]
-    pub fn style(self) -> TextStyle {
-        match self {
-            Self::Active => HEADLINE_LG,
-            Self::Neighbor => HEADLINE_SM,
-            Self::Other => TITLE_MD,
-        }
-    }
-
-    /// Type style for the dense lyrics of the right pane: 20/28, 16/24, 14/20.
-    #[must_use]
-    pub fn style_d(self, dense: bool) -> TextStyle {
-        if !dense {
-            return self.style();
-        }
-        match self {
-            Self::Active => TITLE_MD,
-            Self::Neighbor => TITLE_SM,
-            Self::Other => BODY_MD,
-        }
-    }
-
-    /// Weight: 600 for the active line, 400 otherwise (two weights per view).
-    #[must_use]
-    pub fn semibold(self) -> bool {
-        self == Self::Active
-    }
-
-    /// Index of this role in a [`LineRows`] entry.
-    #[must_use]
-    pub const fn slot(self) -> usize {
-        match self {
-            Self::Active => 0,
-            Self::Neighbor => 1,
-            Self::Other => 2,
-        }
-    }
-}
-
-/// Wrapped row counts of one lyric line in each role's type size: `[active, neighbor, other]`
-/// (index with [`LineRole::slot`]). Measured by the GUI with the real font advances.
-pub type LineRows = [u8; 3];
-
-/// Height in px of a line of `role` that wraps onto `rows` rows.
-#[must_use]
-pub fn wrapped_height(role: LineRole, dense: bool, rows: u8) -> f32 {
-    f32::from(role.style_d(dense).line) * f32::from(rows.max(1)) + line_gap(dense)
 }
 
 /// Text for the sync level in the footer (wave-lyrics criterion 9).
@@ -160,8 +56,9 @@ pub const fn level_tag(g: Granularity) -> &'static str {
 }
 
 /// Index of the active line for a playback position, or `None` before the first line, for
-/// unsynced lyrics and for empty documents. `offset_ms` is added to the position (a positive
-/// offset shows lines earlier).
+/// unsynced lyrics and for empty documents. A line is active once it has started on the scroll
+/// clock ([`clock::Clocks`]): position plus `offset_ms` (a positive offset shows lines earlier),
+/// the sync offset of the lyrics level and the 0.5 s scroll lead.
 #[must_use]
 pub fn active_line(doc: &LyricsDoc, position_ms: i64, offset_ms: i64) -> Option<usize> {
     if doc.granularity == Granularity::Unsynced {
@@ -188,111 +85,6 @@ pub fn active_line_at(doc: &LyricsDoc, position: Duration, offset_ms: i64) -> Op
     active_line(doc, position_ms, offset_ms)
 }
 
-/// Height in px of a one-line row of the given role.
-#[must_use]
-pub fn row_height(role: LineRole) -> f32 {
-    row_height_d(role, false)
-}
-
-/// [`row_height`] for the dense (right pane) or roomy (full window) lyrics.
-#[must_use]
-pub fn row_height_d(role: LineRole, dense: bool) -> f32 {
-    f32::from(role.style_d(dense).line) + line_gap(dense)
-}
-
-/// The scroll offset (px from the top of the list) that puts the top of line `active` at
-/// [`ANCHOR`] of the viewport. `line_count` lines, one text row each.
-#[must_use]
-pub fn scroll_target(active: Option<usize>, viewport_h: f32) -> f32 {
-    scroll_target_d(active, viewport_h, false)
-}
-
-/// [`scroll_target`] for the dense (right pane) or roomy (full window) lyrics.
-#[must_use]
-pub fn scroll_target_d(active: Option<usize>, viewport_h: f32, dense: bool) -> f32 {
-    scroll_target_rows(active, viewport_h, dense, &[])
-}
-
-/// [`scroll_target_d`] with the wrapped row counts of every line (`rows[i]` for line `i`; a
-/// missing entry counts as one row), so a long line that wraps keeps the anchor right.
-#[must_use]
-pub fn scroll_target_rows(
-    active: Option<usize>,
-    viewport_h: f32,
-    dense: bool,
-    rows: &[LineRows],
-) -> f32 {
-    let Some(a) = active else {
-        return 0.0;
-    };
-    let heights: Vec<f32> = (0..=a)
-        .map(|i| line_height_in(i, Some(a), dense, rows))
-        .collect();
-    anchored(&heights, viewport_h, dense)
-}
-
-/// Height in px of line `i` when `active` is the active line, from its wrapped row counts.
-fn line_height_in(i: usize, active: Option<usize>, dense: bool, rows: &[LineRows]) -> f32 {
-    let role = LineRole::of(i, active);
-    wrapped_height(role, dense, rows.get(i).map_or(1, |r| r[role.slot()]))
-}
-
-/// The scroll offset that anchors the last of `heights` (the rows of the list from the top
-/// down to the anchored one) at [`ANCHOR`] of the viewport.
-fn anchored(heights: &[f32], viewport_h: f32, dense: bool) -> f32 {
-    let Some((&own, rest)) = heights.split_last() else {
-        return 0.0;
-    };
-    let above: f32 = rest.iter().sum();
-    // The anchor puts the line's top at 35%; a line that wraps onto more rows than fit below
-    // the anchor moves up so its last row stays in view (its top never leaves the view).
-    let fit = (above + own - viewport_h).max(0.0);
-    let raw = (above - ANCHOR * viewport_h).max(fit).min(above).max(0.0);
-    if !dense {
-        return raw;
-    }
-    // The small pane rests on a row edge, so no half-cut line shows at its top; when the
-    // active line needs more room, the next edge down is used instead.
-    let mut edge = 0.0;
-    let mut acc = 0.0;
-    for h in heights {
-        if acc > raw {
-            break;
-        }
-        edge = acc;
-        acc += h;
-    }
-    if edge + 0.5 < fit {
-        edge = acc.min(above);
-    }
-    edge
-}
-
-/// [`scroll_target_rows`] for a [`note::Focus`]: while the intro or gap note waits, the note
-/// row is anchored where the active line would be; while it fades out, its shrinking row still
-/// counts above the line it waited for.
-#[must_use]
-pub fn scroll_target_focus(
-    focus: &note::Focus,
-    viewport_h: f32,
-    dense: bool,
-    rows: &[LineRows],
-) -> f32 {
-    let Some(n) = focus.note else {
-        return scroll_target_rows(focus.active, viewport_h, dense, rows);
-    };
-    let line = |i: usize| line_height_in(i, focus.active, dense, rows);
-    let mut heights: Vec<f32> = (0..n.before).map(line).collect();
-    heights.push(note::row_height(dense) * n.presence);
-    match focus.active {
-        // Waiting: the note is the anchored row.
-        None => {}
-        Some(a) if a < n.before => heights.truncate(a + 1),
-        Some(a) => heights.extend((n.before..=a).map(line)),
-    }
-    anchored(&heights, viewport_h, dense)
-}
-
 /// Footer text: `Lyrics: <provider> . <level>` (design.md section 10, wave-lyrics criterion 9).
 /// Never hidden.
 #[must_use]
@@ -307,177 +99,39 @@ pub fn footer(doc: Option<&LyricsDoc>) -> String {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use nemo_core::lyrics::{LyricLine, ProviderId};
-
-    fn doc(starts: &[Option<u64>], granularity: Granularity) -> LyricsDoc {
-        LyricsDoc {
-            lines: starts
-                .iter()
-                .map(|s| LyricLine {
-                    start_ms: *s,
-                    end_ms: None,
-                    text: "la la test line".into(),
-                    words: Vec::new(),
-                })
-                .collect(),
-            granularity,
-            provider: ProviderId::new("Mock"),
-            matched: None,
-            instrumental: false,
+/// The one footer line: [`footer`] with the credit a source asks for merged into it, so the
+/// provider is named once. The credit label is left out when it already names the provider;
+/// the submitter (`by ...`) and the link host follow.
+#[must_use]
+pub fn footer_line(doc: Option<&LyricsDoc>, credit: Option<&LyricsCredit>) -> String {
+    let mut line = footer(doc);
+    let Some(c) = credit else {
+        return line;
+    };
+    let provider = doc.map_or("", |d| d.provider.as_str()).to_lowercase();
+    let names_provider = !provider.is_empty() && c.label.to_lowercase().contains(&provider);
+    let mut parts = Vec::new();
+    if !names_provider && !c.label.trim().is_empty() {
+        parts.push(c.label.clone());
+    }
+    if let Some(by) = &c.by {
+        parts.push(format!("by {by}"));
+    }
+    if let Some(url) = &c.url {
+        let host = url
+            .trim_start_matches("https://")
+            .trim_start_matches("http://")
+            .trim_end_matches('/');
+        if !host.is_empty() {
+            parts.push(host.to_owned());
         }
     }
-
-    #[test]
-    fn line_changes_615_ms_early() {
-        // Scroll clock: position + 115 ms line sync offset + 500 ms scroll lead.
-        let d = doc(&[Some(1000), Some(5000), Some(9000)], Granularity::Line);
-        assert_eq!(active_line(&d, 0, 0), None);
-        assert_eq!(active_line(&d, 384, 0), None);
-        assert_eq!(active_line(&d, 385, 0), Some(0));
-        assert_eq!(active_line(&d, 4384, 0), Some(0));
-        assert_eq!(active_line(&d, 4385, 0), Some(1));
-        assert_eq!(active_line(&d, 99_000, 0), Some(2));
-        let w = doc(&[Some(1000)], Granularity::Word);
-        assert_eq!(active_line(&w, 349, 0), None, "word sync offset is 150 ms");
-        assert_eq!(active_line(&w, 350, 0), Some(0));
+    for p in parts {
+        line.push_str(" \u{b7} ");
+        line.push_str(&p);
     }
-
-    #[test]
-    fn offset_shifts_the_active_line() {
-        let d = doc(&[Some(1000), Some(5000)], Granularity::Line);
-        assert_eq!(active_line(&d, 3000, 2000), Some(1));
-        assert_eq!(active_line(&d, 3000, -3000), None);
-        assert_eq!(active_line(&d, i64::MAX, i64::MAX), Some(1));
-    }
-
-    #[test]
-    fn active_line_at_reads_the_position_in_whole_milliseconds() {
-        let d = doc(&[Some(1000), Some(5000)], Granularity::Line);
-        assert_eq!(active_line_at(&d, Duration::from_micros(384_999), 0), None);
-        assert_eq!(active_line_at(&d, Duration::from_millis(385), 0), Some(0));
-        assert_eq!(
-            active_line_at(&d, Duration::from_millis(3000), 2000),
-            Some(1)
-        );
-        assert_eq!(active_line_at(&d, Duration::MAX, 0), Some(1));
-    }
-
-    #[test]
-    fn unsynced_and_empty_have_no_active_line() {
-        assert_eq!(
-            active_line(&doc(&[None, None], Granularity::Unsynced), 5000, 0),
-            None
-        );
-        assert_eq!(active_line(&doc(&[], Granularity::Line), 5000, 0), None);
-    }
-
-    #[test]
-    fn roles_and_styles() {
-        assert_eq!(LineRole::of(3, Some(3)), LineRole::Active);
-        assert_eq!(LineRole::of(2, Some(3)), LineRole::Neighbor);
-        assert_eq!(LineRole::of(4, Some(3)), LineRole::Neighbor);
-        assert_eq!(LineRole::of(0, Some(3)), LineRole::Other);
-        assert_eq!(LineRole::of(0, None), LineRole::Other);
-        assert_eq!(LineRole::Active.style().size, 32);
-        assert_eq!(LineRole::Neighbor.style().size, 24);
-        assert_eq!(LineRole::Other.style().size, 20);
-        for role in [LineRole::Active, LineRole::Neighbor, LineRole::Other] {
-            for dense in [false, true] {
-                let st = role.style_d(dense);
-                assert!(
-                    f32::from(st.line) >= 1.25 * f32::from(st.size),
-                    "{role:?} {dense}"
-                );
-            }
-        }
-        assert!(LineRole::Active.semibold() && !LineRole::Other.semibold());
-    }
-
-    #[test]
-    fn scroll_target_anchors_at_35_percent() {
-        assert!(scroll_target(None, 600.0).abs() < f32::EPSILON);
-        // The first lines are above the anchor already: no negative scroll.
-        assert!(scroll_target(Some(2), 600.0).abs() < f32::EPSILON);
-        let off = scroll_target(Some(20), 600.0);
-        let above: f32 = (0..20).map(|i| row_height(LineRole::of(i, Some(20)))).sum();
-        assert!((above - off - 0.35 * 600.0).abs() < 1e-3);
-        assert!(scroll_target(Some(21), 600.0) > off);
-    }
-
-    #[test]
-    fn wrapped_lines_move_the_anchor_by_their_real_height() {
-        let one = scroll_target(Some(20), 600.0);
-        let mut rows = vec![[1_u8, 1, 1]; 30];
-        rows[5] = [3, 2, 2];
-        let wrapped = scroll_target_rows(Some(20), 600.0, false, &rows);
-        let extra = f32::from(LineRole::Other.style().line);
-        assert!((wrapped - one - extra).abs() < 1e-3, "{wrapped} vs {one}");
-        // Rows of the active line itself do not move its top.
-        rows[20] = [4, 4, 4];
-        assert!((scroll_target_rows(Some(20), 600.0, false, &rows) - wrapped).abs() < 1e-3);
-        // A line too tall for the room under the anchor moves up until its last row shows.
-        let mut tall = vec![[1_u8, 1, 1]; 4];
-        tall[2] = [3, 3, 3];
-        let vh = 140.0;
-        let off = scroll_target_rows(Some(2), vh, true, &tall);
-        let above: f32 = (0..2)
-            .map(|i| wrapped_height(LineRole::of(i, Some(2)), true, 1))
-            .sum();
-        let bottom = above + wrapped_height(LineRole::Active, true, 3);
-        assert!(bottom - off <= vh + 1e-3, "{off}: bottom {bottom}");
-        assert!(off <= above + 1e-3);
-    }
-
-    #[test]
-    fn the_edge_mask_fades_lines_toward_the_top_and_bottom() {
-        let vh = 500.0;
-        assert!(edge_fade(0.0, vh).abs() < 1e-6);
-        assert!(edge_fade(vh, vh).abs() < 1e-6);
-        assert!(
-            (edge_fade(0.35 * vh, vh) - 1.0).abs() < 1e-6,
-            "the anchor is clear"
-        );
-        assert!((edge_fade(0.5 * vh, vh) - 1.0).abs() < 1e-6);
-        let a = edge_fade(20.0, vh);
-        let b = edge_fade(60.0, vh);
-        assert!(a > 0.0 && a < b && b < 1.0, "{a} {b}");
-        assert!((edge_fade(vh - 60.0, vh) - b).abs() < 1e-5, "symmetric");
-        assert!(edge_fade(-10.0, vh).abs() < 1e-6);
-    }
-
-    #[test]
-    fn lines_fade_with_distance_and_past_lines_fade_faster() {
-        assert!((line_alpha(0) - 1.0).abs() < f32::EPSILON);
-        for d in 1..6 {
-            assert!(line_alpha(d) >= line_alpha(d + 1), "ahead {d}");
-            assert!(line_alpha(-d) >= line_alpha(-d - 1), "behind {d}");
-            assert!(line_alpha(-d) < line_alpha(d), "past fades faster at {d}");
-            assert!(line_alpha(d) < crate::lyric_pieces::UNSUNG_ALPHA, "{d}");
-        }
-    }
-
-    #[test]
-    fn full_screen_lines_get_more_air() {
-        assert!(row_height_d(LineRole::Other, false) > row_height_d(LineRole::Other, true) + 16.0);
-        assert!((line_gap(false) - 24.0).abs() < f32::EPSILON);
-        assert!((line_gap(true) - LINE_GAP).abs() < f32::EPSILON);
-    }
-
-    #[test]
-    fn footer_shows_provider_and_sync_state() {
-        let synced = doc(&[Some(0)], Granularity::Line);
-        assert_eq!(footer(Some(&synced)), "Lyrics: Mock \u{b7} Synced");
-        let plain = doc(&[None], Granularity::Unsynced);
-        assert_eq!(footer(Some(&plain)), "Lyrics: Mock \u{b7} Not synced");
-        assert_eq!(footer(None), "Lyrics: Unknown");
-        let mut unnamed = synced;
-        unnamed.provider = ProviderId::new("");
-        assert_eq!(footer(Some(&unnamed)), "Lyrics: Unknown \u{b7} Synced");
-        let syl = doc(&[Some(0)], Granularity::Syllable);
-        assert_eq!(footer(Some(&syl)), "Lyrics: Mock \u{b7} Syllable synced");
-        assert_eq!(level_text(Granularity::Word), "Word synced");
-    }
+    line
 }
+
+#[cfg(test)]
+mod tests;

@@ -6,7 +6,7 @@ use nemo_core::player::{PlayState, PlayerCommand, PlayerEvent, PlayerSnapshot};
 
 use crate::home;
 use crate::keys::KeyAction;
-use crate::lyrics_view;
+use crate::lyrics_view::layout;
 use crate::route::Route;
 use crate::settings::SettingChange;
 
@@ -228,11 +228,23 @@ impl UiState {
     pub(super) fn retarget_scroll(&mut self) {
         self.last_active = self.active_lyric();
         // The intro or gap note takes the anchor while it waits (lyrics-polish).
-        self.lyric_scroll.target = lyrics_view::scroll_target_focus(
+        self.lyric_scroll.target = layout::scroll_target(
+            &self.lyric_tops,
+            &self.lyric_metrics,
             &self.lyric_focus(),
             self.lyric_viewport_h,
-            self.lyric_dense,
-            &self.lyric_rows,
         );
+    }
+
+    /// Recompute the slot tops from the rows (one row for a line not measured yet) and metrics.
+    pub(super) fn rebuild_tops(&mut self) {
+        let lines = match &self.lyrics {
+            LyricsState::Ready(doc) => doc.lines.len(),
+            _ => 0,
+        };
+        let rows: Vec<layout::Rows> = (0..lines)
+            .map(|i| self.lyric_rows.get(i).copied().unwrap_or(1))
+            .collect();
+        self.lyric_tops = layout::tops(&rows, &self.lyric_metrics);
     }
 }

@@ -11,7 +11,6 @@
 use nemo_core::lyrics::{Granularity, LyricLine, LyricsDoc};
 
 use super::clock::Clocks;
-use super::{LineRole, row_height_d};
 use crate::theme::motion::FAST_MS;
 
 /// A break between two sung lines gets the note when it lasts at least this long, ms. Shorter
@@ -45,13 +44,6 @@ pub struct Focus {
     pub active: Option<usize>,
     /// The intro or gap note, while it waits or fades out.
     pub note: Option<GapNote>,
-}
-
-/// Height in px of the note row at full presence: one active-line row, so the line the note
-/// waits for takes its place when it starts.
-#[must_use]
-pub fn row_height(dense: bool) -> f32 {
-    row_height_d(LineRole::Active, dense)
 }
 
 fn ms(v: u64) -> i64 {

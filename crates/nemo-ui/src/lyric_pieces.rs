@@ -409,7 +409,7 @@ mod tests {
     }
 
     #[test]
-    fn unsung_grey_is_dimmer_than_sung_but_above_inactive_lines() {
+    fn unsung_grey_is_dimmer_than_sung() {
         use crate::theme::{Neutrals, contrast_ratio};
         for n in [Neutrals::DARK, Neutrals::AMOLED] {
             let grey = n
@@ -422,11 +422,8 @@ mod tests {
             assert!(c >= 2.0, "unsung grey {c:.2}:1");
             let sung = contrast_ratio(n.on_surface.over(n.surface), n.surface);
             assert!(sung >= 4.5 && sung > c, "sung {sung:.2}:1");
-            let next = n
-                .on_surface_variant
-                .with_alpha(crate::lyrics_view::line_alpha(1))
-                .over(n.surface);
-            assert!(contrast_ratio(next, n.surface) < c, "next line is dimmer");
+            // An unlit line and an unsung word share one alpha (one token, owner 2026-11-18).
+            assert!((UNSUNG_ALPHA - crate::lyrics_view::metrics::INACTIVE_ALPHA).abs() < 1e-6);
         }
     }
 

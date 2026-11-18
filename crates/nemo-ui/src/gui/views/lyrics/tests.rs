@@ -1,28 +1,4 @@
 use super::*;
-use nemo_core::lyrics::LyricsCredit;
-
-#[test]
-fn credit_names_the_submitter_and_the_link_host() {
-    let c = LyricsCredit {
-        label: "Lyrics via Better Lyrics".to_owned(),
-        url: Some("https://better-lyrics.boidu.dev/".to_owned()),
-        by: None,
-        by_url: None,
-        note: None,
-    };
-    assert_eq!(
-        credit_text(&c),
-        "Lyrics via Better Lyrics \u{b7} better-lyrics.boidu.dev"
-    );
-    let u = LyricsCredit {
-        label: "Lyrics from Unison".to_owned(),
-        url: None,
-        by: Some("mira_k".to_owned()),
-        by_url: None,
-        note: None,
-    };
-    assert_eq!(credit_text(&u), "Lyrics from Unison \u{b7} by mira_k");
-}
 
 #[test]
 fn long_lines_wrap_instead_of_being_cut() {
@@ -42,4 +18,26 @@ fn the_note_svg_fills_from_the_bottom_in_bounded_steps() {
     assert_eq!(note::note_svg(0.5001, ink, 1.0, 0.4), half);
     assert!(note::note_svg(2.0, ink, 1.0, 0.4).contains("offset=\"1.0000\""));
     assert!(note::note_svg(-1.0, ink, 1.0, 0.4).contains("offset=\"0.0000\""));
+}
+
+#[test]
+fn line_rows_has_one_entry_per_line_and_wraps_long_ones() {
+    use nemo_core::lyrics::{LyricLine, ProviderId};
+    let line = |t: &str| LyricLine {
+        start_ms: Some(0),
+        end_ms: None,
+        text: t.to_owned(),
+        words: Vec::new(),
+    };
+    let doc = LyricsDoc {
+        lines: vec![line("short"), line(&"a long line of words ".repeat(8))],
+        granularity: Granularity::Line,
+        provider: ProviderId::new("Mock"),
+        matched: None,
+        instrumental: false,
+    };
+    let rows = line_rows(&doc, 400.0, 44.0);
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0], 1);
+    assert!(rows[1] >= 3, "{rows:?}");
 }

@@ -7,7 +7,9 @@ use std::time::Duration;
 use nemo_core::player::{PlayState, PlayerCommand, PlayerSnapshot};
 use nemo_core::track::Track;
 
-use crate::lyrics_view::{self, FOLLOW_PAUSE_MS};
+use crate::lyrics_view::clock::Timeline;
+use crate::lyrics_view::metrics::Metrics;
+use crate::lyrics_view::{self, FOLLOW_PAUSE_MS, layout};
 use crate::motion::{Crossfade, Spring};
 use crate::palette::Palette;
 use crate::route::{Nav, Route};
@@ -48,10 +50,16 @@ pub struct UiState {
     pub follow_pause_ms: f32,
     /// Lyrics viewport height, px.
     pub lyric_viewport_h: f32,
-    /// Lyrics are drawn dense (right pane sizes) instead of roomy (full window sizes).
-    pub lyric_dense: bool,
+    /// Type size and spacing of the lyrics where they are shown (full window or right pane).
+    pub lyric_metrics: Metrics,
     /// Wrapped row counts of the lyric lines, so scroll anchoring uses the real heights.
-    pub lyric_rows: Vec<lyrics_view::LineRows>,
+    pub lyric_rows: Vec<layout::Rows>,
+    /// Top of every lyric slot (see [`layout::tops`]), kept in step with the rows and metrics.
+    pub lyric_tops: Vec<f32>,
+    /// Counts the documents shown; the list widget re-shapes its lines when it changes.
+    pub lyrics_rev: u64,
+    /// When each line of the current document starts and stops.
+    pub lyric_timeline: Timeline,
     /// Text field focused.
     pub text_focused: bool,
     /// Honour reduced motion (the OS option or the setting).
@@ -94,8 +102,11 @@ impl UiState {
             lyric_scroll: Spring::new(0.0),
             follow_pause_ms: 0.0,
             lyric_viewport_h: 480.0,
-            lyric_dense: false,
+            lyric_metrics: Metrics::full(1366.0),
             lyric_rows: Vec::new(),
+            lyric_tops: vec![0.0],
+            lyrics_rev: 0,
+            lyric_timeline: Timeline::default(),
             text_focused: false,
             reduced_motion,
             settings: UiSettings::default(),
@@ -189,6 +200,21 @@ impl UiState {
         }
     }
 
+    /// The audio and scroll clocks of the current lyrics at the playback position (the track
+    /// offset included); `None` without lyrics.
+    #[must_use]
+    pub fn lyric_clocks(&self) -> Option<lyrics_view::clock::Clocks> {
+        let LyricsState::Ready(doc) = &self.lyrics else {
+            return None;
+        };
+        let pos = i64::try_from(self.position.as_millis()).unwrap_or(i64::MAX);
+        Some(lyrics_view::clock::Clocks::new(
+            doc.granularity,
+            pos,
+            self.lyrics_offset_ms,
+        ))
+    }
+
     /// `true` while following the current line (no manual-scroll pause).
     #[must_use]
     pub fn lyrics_following(&self) -> bool {
@@ -244,7 +270,13 @@ impl UiState {
                     };
                     self.lyrics_offset_ms = offset_ms;
                     self.last_active = None;
+                    self.lyrics_rev += 1;
+                    self.lyric_timeline = match &self.lyrics {
+                        LyricsState::Ready(doc) => Timeline::new(doc),
+                        _ => Timeline::default(),
+                    };
                     self.lyric_rows.clear();
+                    self.rebuild_tops();
                     self.lyric_scroll.snap(0.0);
                     self.retarget_scroll();
                     self.lyric_scroll.snap(self.lyric_scroll.target);
@@ -273,9 +305,10 @@ impl UiState {
                     self.retarget_scroll();
                 }
             }
-            Event::LyricsDense(dense) => {
-                if self.lyric_dense != dense {
-                    self.lyric_dense = dense;
+            Event::LyricsMetrics(m) => {
+                if self.lyric_metrics != m {
+                    self.lyric_metrics = m;
+                    self.rebuild_tops();
                     self.retarget_scroll();
                     self.lyric_scroll.snap(self.lyric_scroll.target);
                 }
@@ -283,6 +316,7 @@ impl UiState {
             Event::LyricsRows(rows) => {
                 if self.lyric_rows != rows {
                     self.lyric_rows = rows;
+                    self.rebuild_tops();
                     self.retarget_scroll();
                     self.lyric_scroll.snap(self.lyric_scroll.target);
                 }

@@ -3,6 +3,8 @@
 //! Pure functions of the window size: no GUI dependency, so every row of the reference table is
 //! a unit test. Sizes are logical pixels.
 
+use crate::lyrics_view::metrics::COLUMN_PCT_MIN;
+
 /// Sidebar width at `W >= SIDEBAR_BREAKPOINT`.
 pub const SIDEBAR_WIDE: u32 = 240;
 /// Sidebar width (icons only) below the breakpoint.
@@ -51,8 +53,6 @@ pub const NOW_PLAYING_ART_MIN: u32 = 320;
 pub const COMPACT_ART_MAX: u32 = 280;
 /// Narrowest compact art.
 pub const COMPACT_ART_MIN: u32 = 160;
-/// Widest lyrics column.
-pub const LYRICS_MAX_WIDTH: u32 = 640;
 /// Gap between the art column and the lyrics column in Now Playing.
 pub const NOW_PLAYING_GAP: u32 = 64;
 /// Now Playing header height.
@@ -137,18 +137,23 @@ pub fn now_playing_art(window_w: u32, window_h: u32) -> u32 {
             .saturating_sub(360)
             .clamp(COMPACT_ART_MIN, COMPACT_ART_MAX)
     } else {
-        window_h
+        let by_height = window_h
             .saturating_sub(280)
-            .clamp(NOW_PLAYING_ART_MIN, NOW_PLAYING_ART_MAX)
+            .clamp(NOW_PLAYING_ART_MIN, NOW_PLAYING_ART_MAX);
+        // The lyric column keeps at least its share of the width; the art gives way (not below
+        // the minimum).
+        let room = (window_w * (100 - COLUMN_PCT_MIN) / 100)
+            .saturating_sub(2 * CONTENT_PADDING + NOW_PLAYING_GAP);
+        by_height.min(room.max(NOW_PLAYING_ART_MIN))
     }
 }
 
-/// Width of the lyrics column next to the art in the wide Now Playing layout.
+/// Width of the lyrics column next to the art in the wide Now Playing layout: what the window
+/// leaves, held between 58 and 66% of its width (`lyrics-rebuild`).
 #[must_use]
 pub fn lyrics_column_width(window_w: u32, art: u32) -> u32 {
-    window_w
-        .saturating_sub(2 * CONTENT_PADDING + art + NOW_PLAYING_GAP)
-        .min(LYRICS_MAX_WIDTH)
+    let avail = window_w.saturating_sub(2 * CONTENT_PADDING + art + NOW_PLAYING_GAP);
+    crate::lyrics_view::metrics::column_width(window_w, avail)
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -359,20 +364,40 @@ mod tests {
 
     #[test]
     fn now_playing_art_sizes() {
-        assert_eq!(now_playing_art(1280, 800), 480);
+        assert_eq!(
+            now_playing_art(1280, 800),
+            425,
+            "the lyric column keeps 58%"
+        );
+        assert_eq!(now_playing_art(1920, 1040), 480);
         assert_eq!(now_playing_art(1280, 700), 420);
         assert_eq!(now_playing_art(960, 600), 240);
         assert_eq!(now_playing_art(1366, 697), 417);
         assert_eq!(now_playing_art(1280, 620), 340);
         assert_eq!(now_playing_art(1000, 800), 280);
-        assert_eq!(now_playing_art(1280, 1200), 480);
+        assert_eq!(now_playing_art(1280, 1200), 425);
     }
 
     #[test]
-    fn lyrics_column_is_capped_at_640() {
-        assert_eq!(lyrics_column_width(1280, 480), 640);
-        assert_eq!(lyrics_column_width(2000, 480), 640);
-        assert!(lyrics_column_width(1100, 420) < 640);
+    fn lyrics_column_is_58_to_66_percent_of_the_window() {
+        for (w, h) in [
+            (1100, 700),
+            (1280, 800),
+            (1366, 697),
+            (1920, 1040),
+            (2560, 1400),
+        ] {
+            let art = now_playing_art(w, h);
+            let col = lyrics_column_width(w, art);
+            assert!(
+                col * 100 >= w * 58 - 100 && col * 100 <= w * 66,
+                "{w}x{h}: {col}"
+            );
+            assert!(
+                2 * CONTENT_PADDING + art + NOW_PLAYING_GAP + col <= w,
+                "{w}x{h} fits"
+            );
+        }
     }
 
     #[test]
