@@ -5,7 +5,7 @@ use iced::{Alignment, Element, Length};
 
 use super::super::kit::{paragraph, vspace};
 use super::super::settings::control::{group, segmented, setting_row, stacked_row};
-use super::super::settings::switch_with;
+use super::super::settings::{song_colour_rows, switch_with};
 use crate::copy::{self, setup as text};
 use crate::gui::app::{App, Message};
 use crate::gui::assets::Icon;
@@ -78,11 +78,13 @@ pub(super) fn welcome(app: &App, width: f32) -> Element<'_, Message> {
     c.into()
 }
 
-/// Look: the surface, accent strength, corners, Now Playing style and reduced motion. Every
-/// pick goes through `Event::Setting`, so it applies at once.
+/// Look: the song colours and heartbeat, the surface, accent strength, corners, Now Playing style
+/// and reduced motion. Every pick goes through `Event::Setting`, so it applies at once.
 pub(super) fn look(app: &App, width: f32) -> Element<'_, Message> {
     let s = &app.ui.settings;
-    let rows = vec![
+    // The song colours come first: they are the look that changes with every song.
+    let mut rows = song_colour_rows(app, width);
+    rows.extend([
         stacked_row(
             width,
             "Surface",
@@ -150,7 +152,7 @@ pub(super) fn look(app: &App, width: f32) -> Element<'_, Message> {
                 Message::Ui(Event::Setting(SettingChange::ReduceMotion(on)))
             }),
         ),
-    ];
+    ]);
     column![
         heading(text::LOOK_TITLE, Some(text::LOOK_HELP), width),
         vspace(gap::LG),

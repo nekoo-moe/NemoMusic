@@ -7,6 +7,7 @@ use iced::{Alignment, Background, Color, Element, Length, Padding};
 use super::super::app::{App, Message, SettingsSection};
 use super::super::style::{animated, col, gap, label};
 use super::kit::{page, page_title, vspace};
+use crate::copy;
 use crate::layout;
 use crate::settings::SettingChange;
 use crate::state::Event;
@@ -117,6 +118,31 @@ pub(super) fn switch_with<'a>(
     ]
     .align_y(Alignment::Center)
     .into()
+}
+
+/// The two song-colour switches (song-colour-theme spec): the song colours, and the heartbeat,
+/// greyed out while the colours are off or motion is reduced. Shared by Settings and the setup
+/// flow, with the same copy.
+pub(super) fn song_colour_rows(app: &App, width: f32) -> Vec<Element<'_, Message>> {
+    let s = &app.ui.settings;
+    vec![
+        control::setting_row(
+            width,
+            copy::SONG_COLOUR_LABEL,
+            Some(copy::SONG_COLOUR_HELPER.to_owned()),
+            switch(s.song_colour_theme, SettingChange::SongColourTheme),
+        ),
+        control::setting_row(
+            width,
+            copy::HEARTBEAT_LABEL,
+            Some(copy::HEARTBEAT_HELPER.to_owned()),
+            if s.heartbeat_available(app.ui.reduced_motion) {
+                switch(s.song_heartbeat, SettingChange::SongHeartbeat)
+            } else {
+                switch_disabled(s.song_heartbeat)
+            },
+        ),
+    ]
 }
 
 /// A switch that cannot be used now (greyed out at the disabled opacity of `design.md` section
