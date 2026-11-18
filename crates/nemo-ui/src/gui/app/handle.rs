@@ -340,6 +340,7 @@ impl App {
                 self.account_library = Some(lib);
                 Vec::new()
             }
+            Message::ToggleMute => self.toggle_mute(),
             Message::Tools(on) => {
                 self.tools_open = on;
                 self.shortcuts_open = false;
