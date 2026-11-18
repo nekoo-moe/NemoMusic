@@ -310,7 +310,7 @@ impl App {
     /// The accent palette for the current theme settings and cover.
     pub(super) fn themed_palette(&self) -> Palette {
         let s = &self.ui.settings;
-        scheme::accent_palette(s.theme, s.base, s.accent_intensity, self.cover_seed)
+        scheme::accent_palette(s.theme, s.base, s.accent_intensity, self.song_seed())
     }
 
     pub(super) fn jobs_to_task(&self, jobs: Vec<Job>) -> Task<Message> {

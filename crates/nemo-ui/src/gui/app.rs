@@ -80,6 +80,17 @@ pub const GATE_MESSAGE: &str = "YouTube Music is waiting for you to read the not
 /// Size of the mini player window.
 pub const MINI_SIZE: (f32, f32) = (420.0, 168.0);
 
+/// What the colours of the window were built from (see `App::sync_theme`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct ThemeKey {
+    theme: ThemeChoice,
+    base: BaseMode,
+    intensity: AccentIntensity,
+    corner: CornerStyle,
+    /// The song's seed while the song colours are on.
+    song: Option<Seed>,
+}
+
 /// The application state.
 pub struct App {
     pub(crate) backend: Backend,
@@ -154,8 +165,8 @@ pub struct App {
     pub(crate) page_seeds: HashMap<DetailKey, Seed>,
     /// Seed of the playing cover, for the Dynamic theme.
     cover_seed: Option<Seed>,
-    /// The theme settings the screen shows right now.
-    theme_key: Option<(ThemeChoice, BaseMode, AccentIntensity, CornerStyle)>,
+    /// The theme settings and song seed the screen shows right now.
+    theme_key: Option<ThemeKey>,
     /// Header content chip on Home.
     pub(crate) content_filter: ContentFilter,
     /// Library tab, sort and layout.

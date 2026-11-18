@@ -54,6 +54,8 @@ pub fn to_ui(s: &Settings) -> UiSettings {
         animated_covers: AnimatedCoverSettings {
             spotify_canvas: s.animated_covers.spotify_canvas,
         },
+        song_colour_theme: s.song_colour_theme,
+        song_heartbeat: s.song_heartbeat,
         // Unknown labels (an older or newer file) and the default order are skipped.
         collection_sorts: s
             .collection_sorts
@@ -88,6 +90,8 @@ pub fn apply_ui(s: &mut Settings, ui: &UiSettings) {
         .label()
         .clone_into(&mut s.now_playing_style);
     s.animated_covers.spotify_canvas = ui.animated_covers.spotify_canvas;
+    s.song_colour_theme = ui.song_colour_theme;
+    s.song_heartbeat = ui.song_heartbeat;
     s.collection_sorts = ui
         .collection_sorts
         .iter()
@@ -265,6 +269,18 @@ mod tests {
             apply_ui(&mut s, &ui);
             assert_eq!(to_ui(&s), ui);
         }
+    }
+
+    #[test]
+    fn song_colour_switches_round_trip_through_the_bridge() {
+        let mut stored = Settings::default();
+        let mut ui = to_ui(&stored);
+        assert!(ui.song_colour_theme && ui.song_heartbeat);
+        ui.song_colour_theme = false;
+        ui.song_heartbeat = false;
+        apply_ui(&mut stored, &ui);
+        assert!(!stored.song_colour_theme && !stored.song_heartbeat);
+        assert_eq!(to_ui(&stored), ui);
     }
 
     #[test]
