@@ -4,6 +4,8 @@
 //! Set `ICED_TEST_BACKEND=tiny-skia` before starting the process; `iced_test` reads it when it
 //! creates the renderer (this crate forbids `unsafe`, so it cannot set the variable itself).
 
+pub mod cost;
+
 use std::path::{Path, PathBuf};
 
 use iced::{Pixels, Point, Size};
@@ -289,6 +291,11 @@ pub struct Scenario {
     pub setup_ticked: bool,
     /// With `setup`: a sign-in failure sentence shown on the Sources step.
     pub account_error: Option<String>,
+    /// Switch to this mock track after the app settled and draw this many ms into the bloom of
+    /// the window backdrop (needs `full_motion`).
+    pub bloom: Option<(usize, u32)>,
+    /// Draw the window backdrop with its drift clock at this many ms (a point of the heartbeat).
+    pub backdrop_ms: Option<f64>,
 }
 
 /// Which state of the sign-in sheet a snapshot shows.
@@ -354,6 +361,8 @@ impl Default for Scenario {
             setup: None,
             setup_ticked: false,
             account_error: None,
+            bloom: None,
+            backdrop_ms: None,
         }
     }
 }
@@ -528,6 +537,23 @@ pub fn build_app(backend: &Backend, scenario: &Scenario) -> App {
         app.shimmer = 0.45;
     }
     app.finish_animations();
+    if let Some((next, ms)) = scenario.bloom {
+        run(
+            &mut app,
+            Message::Ui(Event::Command(PlayerCommand::Play(crate::mock::track(
+                next,
+            )))),
+        );
+        // Step the animations the way frames would, at most 100 ms at a time.
+        let mut left = ms;
+        while left > 0 {
+            // A few hundred ms at most, exact in f32.
+            #[allow(clippy::cast_precision_loss)]
+            app.anim.step(left.min(100) as f32);
+            left = left.saturating_sub(100);
+        }
+    }
+    app.backdrop_preview_ms = scenario.backdrop_ms;
     if let Some(ms) = scenario.mid_motion_ms {
         // A few hundred ms at most, exact in f32.
         #[allow(clippy::cast_precision_loss)]

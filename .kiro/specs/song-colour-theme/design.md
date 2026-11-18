@@ -14,6 +14,9 @@ Reduce transparency: the song field becomes one flat tonal colour from the cover
 ### Mesh (task 2)
 The cover worker picks three to four dominant colours (hue buckets of 30 degrees, centres at least 40 degrees apart, weighted by count and chroma; a grey cover gives greys; a one-hue cover gives lightness and slight hue variants). Each colour becomes one soft radial blob texture per base mode (64 px, gaussian alpha), toned to a lightness band that keeps 4.5:1 for every ink over the panes and the gaps, with chroma up to 0.16 (accent roles stay at 0.14). The window draws a flat base, the blobs at fixed anchors drifting on the living-backdrop path, and the vignette.
 
+### CPU renderer (task 3)
+tiny-skia scales every image on the CPU, so on that renderer the window draws the fields as one composited still image (`mesh::Mesh::stills`, built on the worker) and never moves. Measured headless at 1366 x 697, 2x, fastest of 12 frames: see the PR.
+
 ### Heartbeat and bloom (task 3)
 `drift::beat(ms)` is a double pulse over `HEART_CYCLE_MS` 1600 (two raised-cosine bumps at 0 and 0.28 of the cycle, the second at 0.7 height). The pulse scales the blobs by up to 2.5 % and adds up to 5 % white over the field; the widget advances its heart clock beside the drift clock and shares its redraw requests (24 fps). `Anim::bloom` runs 600 ms with `emphasized-decelerate`: new blobs fade in and settle from 1.04 to 1.0 while the old ones fade out; reduced motion swaps at once.
 

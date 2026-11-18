@@ -179,6 +179,8 @@ pub struct MeshView {
     pub blobs: [Vec<image::Handle>; 3],
     /// The flat colour under the fields, per mode.
     pub under: [crate::theme::Rgba; 3],
+    /// The fields composited into one image per mode (the CPU renderer draws this).
+    pub stills: [image::Handle; 3],
 }
 
 impl MeshView {
@@ -193,6 +195,10 @@ impl MeshView {
                     .collect()
             }),
             under: m.base,
+            stills: crate::canvas::MODES.map(|base| {
+                let (w, h) = crate::mesh::STILL_PX;
+                image::Handle::from_rgba(w, h, m.still(base).to_vec())
+            }),
         }
     }
 
@@ -200,6 +206,12 @@ impl MeshView {
     #[must_use]
     pub fn blobs(&self, base: BaseMode) -> &[image::Handle] {
         &self.blobs[crate::canvas::mode_index(base)]
+    }
+
+    /// The composited still image for a base mode.
+    #[must_use]
+    pub fn still(&self, base: BaseMode) -> image::Handle {
+        self.stills[crate::canvas::mode_index(base)].clone()
     }
 
     /// The flat colour under the fields for a base mode.

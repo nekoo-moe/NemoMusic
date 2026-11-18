@@ -9,8 +9,9 @@
 use iced::widget::{Space, container, image, stack};
 use iced::{Background, ContentFit, Element, Length};
 
-use super::super::app::{App, Message};
+use super::super::app::{App, CoverView, Message};
 use super::super::style::{DOWN, col, vertical_gradient};
+use crate::anim::bloom_scale;
 use crate::canvas::{STOPS, mix_stops};
 use crate::drift::{Inputs, Mode, VIGNETTE_ALPHA, VIGNETTE_MID_ALPHA};
 use crate::route::Route;
@@ -47,45 +48,62 @@ pub fn window_field(app: &App) -> Element<'_, Message> {
     let Some(cover) = song_cover(app) else {
         return flat_field(app);
     };
-    let base = app.ui.settings.base;
-    let fade = app.anim.cover();
-    let prev = app.prev_cover.as_ref().filter(|_| fade < 0.999);
     let inputs = window_inputs(app);
     if Mode::of(inputs) == Mode::Flat {
-        let mid = STOPS / 2;
-        let now = cover.canvas.stops(base)[mid];
-        let flat = prev.map_or(now, |p| {
-            crate::palette::mix_rgb(p.canvas.stops(base)[mid], now, f64::from(fade))
-        });
-        return container(Space::new())
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .style(move |_| container::Style {
-                background: Some(col(flat).into()),
-                ..container::Style::default()
-            })
-            .into();
+        return flat_cover_field(app, cover);
     }
-    // The old fields fade out while the new ones fade in; the flat colour under them follows.
+    let base = app.ui.settings.base;
+    // The bloom: the new fields fade in and settle from 1.04 to 1.0 over the old ones, which fade
+    // out; the flat colour under them follows.
+    let bloom = app.anim.bloom();
+    let prev = app.prev_cover.as_ref().filter(|_| bloom < 0.999);
     let under = prev.map_or(cover.mesh.under(base), |p| {
-        crate::palette::mix_rgb(p.mesh.under(base), cover.mesh.under(base), f64::from(fade))
+        crate::palette::mix_rgb(p.mesh.under(base), cover.mesh.under(base), f64::from(bloom))
     });
     let mut layers = Vec::with_capacity(2);
     if let Some(p) = prev {
         layers.push(Layer {
             blobs: p.mesh.blobs(base).to_vec(),
-            opacity: 1.0 - fade,
+            still: p.mesh.still(base),
+            opacity: 1.0 - bloom,
             scale: 1.0,
         });
     }
     layers.push(Layer {
         blobs: cover.mesh.blobs(base).to_vec(),
-        opacity: if prev.is_some() { fade } else { 1.0 },
-        scale: 1.0,
+        still: cover.mesh.still(base),
+        opacity: bloom,
+        scale: bloom_scale(bloom),
     });
-    stack![Element::from(Field::new(under, layers, inputs)), vignette()]
+    let s = &app.ui.settings;
+    let beat = s.song_heartbeat && s.heartbeat_available(app.ui.reduced_motion);
+    let field = Field::new(under, layers, inputs)
+        .heartbeat(beat)
+        .preview(app.backdrop_preview_ms);
+    stack![Element::from(field), vignette()]
         .width(Length::Fill)
         .height(Length::Fill)
+        .into()
+}
+
+/// Reduce transparency: one flat tonal colour from the cover's canvas, cross-faded with the
+/// previous cover's.
+fn flat_cover_field<'a>(app: &App, cover: &CoverView) -> Element<'a, Message> {
+    let base = app.ui.settings.base;
+    let fade = app.anim.cover();
+    let prev = app.prev_cover.as_ref().filter(|_| fade < 0.999);
+    let mid = STOPS / 2;
+    let now = cover.canvas.stops(base)[mid];
+    let flat = prev.map_or(now, |p| {
+        crate::palette::mix_rgb(p.canvas.stops(base)[mid], now, f64::from(fade))
+    });
+    container(Space::new())
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .style(move |_| container::Style {
+            background: Some(col(flat).into()),
+            ..container::Style::default()
+        })
         .into()
 }
 
@@ -121,7 +139,7 @@ fn flat_field(app: &App) -> Element<'_, Message> {
 }
 
 /// The cover that colours the window: none while `Match colours to the playing song` is off.
-fn song_cover(app: &App) -> Option<&crate::gui::app::CoverView> {
+fn song_cover(app: &App) -> Option<&CoverView> {
     app.cover
         .as_ref()
         .filter(|_| app.ui.settings.song_colour_theme)
