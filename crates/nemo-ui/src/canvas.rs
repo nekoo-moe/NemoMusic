@@ -20,6 +20,10 @@ pub const MODES: [BaseMode; 3] = [BaseMode::Dark, BaseMode::Amoled, BaseMode::Li
 pub const COMING_ALPHA_DARK: f32 = 0.55;
 /// The same on light surfaces: dark ink at 0.55 does not reach 4.5:1 there, 0.72 does.
 pub const COMING_ALPHA_LIGHT: f32 = 0.72;
+/// How far below the plain `surface` the grey unsung lyric word may fall over the full-screen
+/// backdrop (contrast ratio points; tested).
+#[cfg(test)]
+const GREY_MARGIN: f64 = 0.15;
 /// Opacity of `on-surface` for pieces already sung.
 pub const SUNG_ALPHA: f32 = 0.9;
 
@@ -75,13 +79,29 @@ pub const fn coming_alpha(base: BaseMode) -> f32 {
     }
 }
 
+/// Highest lightness of the full-screen backdrop texture (song-colour-theme, owner 2026-11-18):
+/// lyrics are drawn straight over it, and over the lightest pixels of the dark band the grey
+/// unsung word fell just under 2:1. Only the textures use it, not the pane stops.
+const fn full_hi(base: BaseMode) -> f64 {
+    match base {
+        BaseMode::Dark => 0.23,
+        BaseMode::Amoled => 0.25,
+        BaseMode::Light => 0.96,
+    }
+}
+
 /// One cover pixel moved into the canvas band of `base`.
 #[must_use]
 pub fn retone(c: Rgba, base: BaseMode) -> Rgba {
+    retone_to(c, base, band(base).hi)
+}
+
+/// [`retone`] with the top of the lightness band at `hi`.
+fn retone_to(c: Rgba, base: BaseMode, hi: f64) -> Rgba {
     let b = band(base);
     let o = rgb_to_oklch(c);
     oklch_to_rgb(Oklch {
-        l: b.lo + (b.hi - b.lo) * o.l.clamp(0.0, 1.0),
+        l: b.lo + (hi - b.lo) * o.l.clamp(0.0, 1.0),
         c: (o.c * b.boost).min(b.chroma_max),
         h: o.h,
     })
@@ -130,7 +150,7 @@ pub fn build(rgba: &[u8], px: u32) -> Canvas {
     let textures = MODES.map(|base| {
         let mut out = Vec::with_capacity(pixels.len() * 4);
         for p in &pixels {
-            let t = retone(*p, base);
+            let t = retone_to(*p, base, full_hi(base));
             out.extend_from_slice(&[t.r, t.g, t.b, 255]);
         }
         out
@@ -254,6 +274,53 @@ mod tests {
                         assert!(ratio >= 4.5, "{name} {base:?} {ink}: {ratio:.2}");
                     }
                 }
+            }
+        }
+    }
+
+    /// The full-screen Now Playing draws lyrics straight over `full_backdrop` (these textures),
+    /// with no pane (song-colour-theme, owner 2026-11-18). Over every texture pixel:
+    /// `on-surface` (also the sung word) and `on-surface-variant` reach 4.5:1, and the grey
+    /// unsung word (`on-surface-variant` at `UNSUNG_ALPHA`, an owner exception below 3:1) keeps
+    /// what the plain `surface` gives it, within [`GREY_MARGIN`] and at least 2.0 where the surface gives that (the
+    /// lyrics agent's own floor).
+    #[test]
+    fn the_lyric_inks_hold_on_the_full_screen_backdrop() {
+        use crate::lyric_pieces::UNSUNG_ALPHA;
+        for (name, rgba) in covers() {
+            let c = build(&rgba, 24);
+            for base in MODES {
+                let n = base.neutrals();
+                let pixels: Vec<Rgba> = c
+                    .texture(base)
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
+                    .map(|p| Rgba {
+                        r: p[0],
+                        g: p[1],
+                        b: p[2],
+                        a: 255,
+                    })
+                    .collect();
+                let grey = n.on_surface_variant.with_alpha(UNSUNG_ALPHA);
+                let floor =
+                    (contrast_ratio(grey.over(n.surface), n.surface) - GREY_MARGIN).min(2.0);
+                let (mut worst_grey, mut worst_main) = (f64::MAX, f64::MAX);
+                for bg in pixels {
+                    for ink in [n.on_surface, n.on_surface_variant] {
+                        worst_main = worst_main.min(contrast_ratio(ink.over(bg), bg));
+                    }
+                    worst_grey = worst_grey.min(contrast_ratio(grey.over(bg), bg));
+                }
+                eprintln!(
+                    "{name} {base:?}: main {worst_main:.2}, grey {worst_grey:.2}, floor {floor:.2}"
+                );
+                assert!(worst_main >= 4.5, "{name} {base:?} main {worst_main:.2}");
+                assert!(
+                    worst_grey >= floor,
+                    "{name} {base:?} grey {worst_grey:.2} < {floor:.2}"
+                );
             }
         }
     }
