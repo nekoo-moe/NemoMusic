@@ -5,7 +5,8 @@
 use std::path::Path;
 
 use nemo_ui::UiSettings;
-use nemo_ui::gui::headless::{Scenario, build_app, render_png};
+use nemo_ui::gui::headless::{Scenario, build_app, render_png, render_png_pointer};
+use nemo_ui::layout::bar::{PADDING, ZONE_GAP, width, zones};
 use nemo_ui::mock::mock_backend;
 use nemo_ui::scheme::BaseMode;
 
@@ -14,11 +15,13 @@ const STRIP: u32 = 124;
 /// `iced_test` draws at this scale.
 const SCALE: u32 = 2;
 
-/// One shot: name, window size, scenario, and whether to keep only the bottom strip.
+/// One shot: name, window size, scenario, whether to keep only the bottom strip, and where the
+/// pointer is: a fraction of the seek track, and whether the button is held.
 struct Shot {
     name: &'static str,
     scenario: Scenario,
     strip: bool,
+    pointer: Option<(f32, bool)>,
 }
 
 fn scenario(size: (u32, u32), track: usize) -> Scenario {
@@ -40,6 +43,32 @@ fn with_base(mut s: Scenario, base: BaseMode) -> Scenario {
     s
 }
 
+/// A strip shot: the bottom of the window only.
+fn strip(name: &'static str, scenario: Scenario) -> Shot {
+    Shot {
+        name,
+        scenario,
+        strip: true,
+        pointer: None,
+    }
+}
+
+/// A strip shot with the pointer on the seek track.
+fn pointed(name: &'static str, scenario: Scenario, frac: f32, pressed: bool) -> Shot {
+    Shot {
+        pointer: Some((frac, pressed)),
+        ..strip(name, scenario)
+    }
+}
+
+/// A whole-window shot.
+fn window(name: &'static str, scenario: Scenario) -> Shot {
+    Shot {
+        strip: false,
+        ..strip(name, scenario)
+    }
+}
+
 fn shots() -> Vec<Shot> {
     let wide = (1280, 800);
     let mut paused = scenario(wide, 0);
@@ -51,71 +80,30 @@ fn shots() -> Vec<Shot> {
     let mut repeat_one = scenario(wide, 0);
     repeat_one.repeat = nemo_core::player::RepeatMode::One;
     vec![
-        Shot {
-            name: "player-bar-playing-1280",
-            scenario: scenario(wide, 0),
-            strip: true,
-        },
-        Shot {
-            name: "player-bar-paused-1280",
-            scenario: paused,
-            strip: true,
-        },
-        Shot {
-            name: "player-bar-buffering-1280",
-            scenario: buffering,
-            strip: true,
-        },
-        Shot {
-            name: "player-bar-repeat-one-1280",
-            scenario: repeat_one,
-            strip: true,
-        },
-        Shot {
-            name: "player-bar-1100",
-            scenario: scenario((1100, 700), 0),
-            strip: true,
-        },
-        Shot {
-            name: "player-bar-960",
-            scenario: scenario((960, 600), 0),
-            strip: true,
-        },
-        Shot {
-            name: "player-bar-amoled-1280",
-            scenario: with_base(scenario(wide, 0), BaseMode::Amoled),
-            strip: true,
-        },
-        Shot {
-            name: "player-bar-light-1280",
-            scenario: with_base(scenario(wide, 0), BaseMode::Light),
-            strip: true,
-        },
-        Shot {
-            name: "player-bar-glass-off-1280",
-            scenario: off,
-            strip: true,
-        },
-        Shot {
-            name: "player-bar-cover-b-1280",
-            scenario: scenario(wide, 1),
-            strip: true,
-        },
-        Shot {
-            name: "player-bar-cover-c-light-1280",
-            scenario: with_base(scenario(wide, 2), BaseMode::Light),
-            strip: true,
-        },
-        Shot {
-            name: "player-bar-window-1280x800",
-            scenario: scenario(wide, 0),
-            strip: false,
-        },
-        Shot {
-            name: "player-bar-window-960x600",
-            scenario: scenario((960, 600), 0),
-            strip: false,
-        },
+        strip("player-bar-playing-1280", scenario(wide, 0)),
+        strip("player-bar-paused-1280", paused),
+        strip("player-bar-buffering-1280", buffering),
+        strip("player-bar-repeat-one-1280", repeat_one),
+        strip("player-bar-1100", scenario((1100, 700), 0)),
+        strip("player-bar-960", scenario((960, 600), 0)),
+        strip(
+            "player-bar-amoled-1280",
+            with_base(scenario(wide, 0), BaseMode::Amoled),
+        ),
+        strip(
+            "player-bar-light-1280",
+            with_base(scenario(wide, 0), BaseMode::Light),
+        ),
+        strip("player-bar-glass-off-1280", off),
+        strip("player-bar-cover-b-1280", scenario(wide, 1)),
+        strip(
+            "player-bar-cover-c-light-1280",
+            with_base(scenario(wide, 2), BaseMode::Light),
+        ),
+        pointed("player-bar-seek-hover-1280", scenario(wide, 0), 0.35, false),
+        pointed("player-bar-seek-drag-1280", scenario(wide, 0), 0.553, true),
+        window("player-bar-window-1280x800", scenario(wide, 0)),
+        window("player-bar-window-960x600", scenario((960, 600), 0)),
     ]
 }
 
@@ -128,13 +116,39 @@ pub(super) fn render(only: &[String], out_dir: &Path) -> Result<(), String> {
         let backend = mock_backend();
         let app = build_app(&backend, &s.scenario);
         let path = out_dir.join(format!("{}.png", s.name));
-        render_png(&app, s.scenario.size, &path).map_err(|e| format!("{}: {e}", s.name))?;
+        match s.pointer {
+            Some((frac, pressed)) => {
+                let at = seek_point(s.scenario.size, frac);
+                render_png_pointer(&app, s.scenario.size, &path, at, pressed)
+            }
+            None => render_png(&app, s.scenario.size, &path),
+        }
+        .map_err(|e| format!("{}: {e}", s.name))?;
         if s.strip {
             crop_bottom(&path, STRIP * SCALE).map_err(|e| format!("{}: {e}", s.name))?;
         }
         println!("wrote {}", path.display());
     }
     Ok(())
+}
+
+/// Where the pointer is for `frac` of the seek track: logical px in a window of `size`.
+fn seek_point(size: (u32, u32), frac: f32) -> (f32, f32) {
+    // Layout numbers are small, exact in f32.
+    #[allow(clippy::cast_precision_loss)]
+    let px = |n: u32| n as f32;
+    let bar = width(size.0);
+    let z = zones(bar);
+    let centre_x = px((size.0 - bar) / 2 + PADDING + z.left + ZONE_GAP);
+    // 40 px time label and an 8 px gap on each side, then the thumb radius.
+    let start = centre_x + 48.0 + 7.0;
+    let end = centre_x + px(z.centre) - 48.0 - 7.0;
+    // Window bottom, the 12 px margin, the 88 px capsule (6 px of air above the 76 px column),
+    // and the seek row at the bottom of the column.
+    (
+        start + frac * (end - start),
+        px(size.1) - 12.0 - 88.0 + 6.0 + 56.0 + 4.0 + 8.0,
+    )
 }
 
 /// Keep only the bottom `rows` pixel rows of the PNG at `path`.
