@@ -60,18 +60,20 @@ impl App {
     /// `true` while anything animates; the window subscribes to frames only then.
     #[must_use]
     pub fn needs_frames(&self) -> bool {
-        self.ui.needs_frames()
-            || self.anim.active()
-            || self.account_busy()
-            || !self.scheme_fade.is_done()
-            || !self.bg_fade.is_done()
-            || !self.micro.settled()
-            || self
-                .chip_pills
-                .iter()
-                .any(|(x, w)| !x.is_settled() || !w.is_settled())
-            || !self.queue_anim.is_settled()
-            || !self.surfaces.settled()
+        // An unfocused window draws nothing: the music plays on, the screen waits.
+        self.focused
+            && (self.ui.needs_frames()
+                || self.anim.active()
+                || self.account_busy()
+                || !self.scheme_fade.is_done()
+                || !self.bg_fade.is_done()
+                || !self.micro.settled()
+                || self
+                    .chip_pills
+                    .iter()
+                    .any(|(x, w)| !x.is_settled() || !w.is_settled())
+                || !self.queue_anim.is_settled()
+                || !self.surfaces.settled())
     }
 
     /// Point every animation at the state it should show. Cheap; runs after every update.

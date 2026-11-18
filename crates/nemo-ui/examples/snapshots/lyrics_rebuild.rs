@@ -11,6 +11,7 @@ use nemo_ui::gui::app::NpTab;
 use nemo_ui::gui::headless::{Scenario, build_app, render_png};
 use nemo_ui::mock::mock_backend;
 use nemo_ui::route::Route;
+use nemo_ui::scheme::BaseMode;
 use nemo_ui::settings::UiSettings;
 use nemo_ui::state::Event;
 
@@ -108,8 +109,16 @@ fn sung() -> LyricsDoc {
 /// Which document a shot shows.
 #[derive(Clone, Copy)]
 enum Doc {
+    /// Line-timed lines.
     Plain,
+    /// Syllable-timed lines.
     Sung,
+    /// Syllable-timed lines with reduced motion.
+    SungReduced,
+    /// Syllable-timed lines on the light base.
+    SungLight,
+    /// No lyrics yet: the loading line.
+    Loading,
 }
 
 /// `(name, window, pane open, document, [(position ms, frames of 16 ms after it)])`.
@@ -191,6 +200,41 @@ fn specs() -> Vec<Spec> {
             Doc::Sung,
             HELD,
         ),
+        (
+            "lyrics-words-held-1920x1040",
+            (1920, 1040),
+            false,
+            Doc::Sung,
+            HELD,
+        ),
+        (
+            "lyrics-words-reduced-1366x697",
+            full,
+            false,
+            Doc::SungReduced,
+            SWEEP,
+        ),
+        (
+            "lyrics-words-light-1366x697",
+            full,
+            false,
+            Doc::SungLight,
+            HELD,
+        ),
+        (
+            "lyrics-loading-full-1366x697",
+            full,
+            false,
+            Doc::Loading,
+            &[],
+        ),
+        (
+            "lyrics-loading-pane-1366x697",
+            full,
+            true,
+            Doc::Loading,
+            &[],
+        ),
     ]
 }
 
@@ -206,9 +250,15 @@ pub(super) fn render(only: &[String], out_dir: &Path) -> Result<(), String> {
             size,
             np_tab: NpTab::Lyrics,
             pane_open: Some(pane),
-            full_motion: true,
+            full_motion: !matches!(which, Doc::SungReduced),
+            loading_lyrics_ms: matches!(which, Doc::Loading).then_some(1_200),
             settings: UiSettings {
                 tos_acknowledged: true,
+                base: if matches!(which, Doc::SungLight) {
+                    BaseMode::Light
+                } else {
+                    BaseMode::Dark
+                },
                 ..UiSettings::default()
             },
             ..Scenario::default()
@@ -220,17 +270,23 @@ pub(super) fn render(only: &[String], out_dir: &Path) -> Result<(), String> {
             .current
             .ok_or_else(|| format!("{name}: nothing playing"))?
             .id;
-        app.dispatch(Event::LyricsReady {
-            track,
-            lookup: LyricsLookup {
-                doc: Some(match which {
-                    Doc::Plain => song(),
-                    Doc::Sung => sung(),
-                }),
-                tried: Vec::new(),
-            },
-            offset_ms: 0,
-        });
+        if !matches!(which, Doc::Loading) {
+            app.dispatch(Event::LyricsReady {
+                track,
+                lookup: LyricsLookup {
+                    doc: Some(match which {
+                        Doc::Plain => song(),
+                        _ => sung(),
+                    }),
+                    tried: Vec::new(),
+                },
+                offset_ms: 0,
+            });
+        }
+        // The list slides in over 0.6 s when the lyrics arrive; the shots show it in place.
+        for _ in 0..45 {
+            app.dispatch(Event::Frame { dt_ms: 16.0 });
+        }
         for (at_ms, frames) in steps {
             app.dispatch(Event::Position(Duration::from_millis(*at_ms)));
             // The song plays on while the frames pass.

@@ -11,6 +11,7 @@ pub mod assets;
 pub mod fx;
 pub mod headless;
 pub mod lyric_list;
+pub mod shimmer;
 pub mod style;
 pub mod textfit;
 pub mod views;

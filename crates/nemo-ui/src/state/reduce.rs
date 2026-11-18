@@ -7,7 +7,7 @@ use nemo_core::player::{PlayState, PlayerCommand, PlayerEvent, PlayerSnapshot};
 
 use crate::home;
 use crate::keys::KeyAction;
-use crate::lyrics_view::{self, layout};
+use crate::lyrics_view::{self, enter, layout};
 use crate::route::Route;
 use crate::settings::SettingChange;
 
@@ -220,6 +220,12 @@ impl UiState {
             self.retarget_scroll();
         }
         self.lyric_scroll.step(dt_ms / 1000.0);
+        self.lyric_enter_ms = (self.lyric_enter_ms + dt_ms).min(enter::ENTER_MS);
+        self.lyric_loading_ms = if matches!(self.lyrics, LyricsState::Loading) {
+            (self.lyric_loading_ms + dt_ms) % enter::SHIMMER_MS
+        } else {
+            0.0
+        };
         // A jump of the position is seen once, by the retarget of this frame.
         self.seeked = false;
     }

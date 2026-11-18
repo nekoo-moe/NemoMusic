@@ -14,8 +14,10 @@ use nemo_core::lyrics::{Granularity, LyricsDoc};
 use super::super::app::{App, Message};
 use super::super::assets::{Icon, display_font};
 use super::super::lyric_list::LyricList;
+use super::super::shimmer::Shimmer;
 use super::super::style::{col, gap, icon, label};
 use super::super::textfit;
+use crate::lyrics_view::enter;
 use crate::lyrics_view::layout::Rows;
 use crate::lyrics_view::metrics::Metrics;
 use crate::state::{Event, LyricsState};
@@ -96,6 +98,7 @@ pub fn synced_list<'a>(app: &'a App, doc: &'a LyricsDoc, width: f32) -> Element<
         reduced: app.ui.reduced_motion,
         fade_edges: true,
         cascade: Some(&app.ui.lyric_scroll),
+        enter: enter::enter_progress(app.ui.lyric_enter_ms),
     };
     let list = mouse_area(Element::from(list)).on_scroll(|delta| {
         let px = match delta {
@@ -204,6 +207,29 @@ pub fn status_text(title: &str, detail: Option<String>) -> Element<'_, Message> 
         .into()
 }
 
+/// The loading state: one calm shimmering line where the first lyric line will be, then the
+/// list slides in. Without motion the line is still.
+fn loading_line(app: &App) -> Element<'_, Message> {
+    let m = app.ui.lyric_metrics;
+    let top = (crate::lyrics_view::ANCHOR * app.ui.lyric_viewport_h - m.gap).max(0.0);
+    let line = Shimmer {
+        text: "Looking for lyrics\u{2026}".to_owned(),
+        metrics: m,
+        phase: enter::shimmer_phase(app.ui.lyric_loading_ms),
+        ink: col(color::on_surface()),
+        font: display_font(true),
+        animate: !app.ui.reduced_motion,
+    };
+    container(Element::from(line))
+        .padding(Padding {
+            top,
+            ..Padding::ZERO
+        })
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into()
+}
+
 /// Loading and missing states: one calm block, centred. A missing song gets an icon, the plain
 /// sentence and the providers that were asked; nothing else is drawn under it.
 pub fn lyrics_status(app: &App, width: f32) -> Element<'_, Message> {
@@ -221,7 +247,7 @@ pub fn lyrics_status(app: &App, width: f32) -> Element<'_, Message> {
                 (!names.is_empty()).then(|| format!("Looked at {}", names.join(", "))),
             )
         }
-        LyricsState::Loading => (Icon::Lyrics, "Looking for lyrics\u{2026}", None),
+        LyricsState::Loading => return loading_line(app),
         _ => (Icon::MusicOff, "No lyrics for this song", None),
     };
     let mut c = column![

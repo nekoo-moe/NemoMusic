@@ -10,16 +10,19 @@ use nemo_core::track::Track;
 use crate::lyrics_view::clock::Timeline;
 use crate::lyrics_view::metrics::Metrics;
 use crate::lyrics_view::scroll::Cascade;
-use crate::lyrics_view::{self, FOLLOW_PAUSE_MS, layout};
+use crate::lyrics_view::{self, FOLLOW_PAUSE_MS, enter, layout};
 use crate::motion::Crossfade;
 use crate::palette::Palette;
 use crate::route::{Nav, Route};
 use crate::search::{SearchState, Submit};
 use crate::settings::UiSettings;
+use nemo_core::lyrics::Granularity;
 
 /// A change of the playback position larger than this is a seek: the lyrics jump, no cascade.
 const SEEK_JUMP: Duration = Duration::from_secs(1);
 
+#[cfg(test)]
+mod calm_tests;
 #[cfg(test)]
 mod cascade_tests;
 mod event;
@@ -66,6 +69,10 @@ pub struct UiState {
     pub lyrics_rev: u64,
     /// When each line of the current document starts and stops.
     pub lyric_timeline: Timeline,
+    /// Time since the lyrics arrived, ms: the list slides in over [`enter::ENTER_MS`].
+    pub lyric_enter_ms: f32,
+    /// Time spent loading the lyrics, ms: it drives the shimmer of the loading line.
+    pub lyric_loading_ms: f32,
     /// Text field focused.
     pub text_focused: bool,
     /// Honour reduced motion (the OS option or the setting).
@@ -115,6 +122,8 @@ impl UiState {
             lyric_tops: vec![0.0],
             lyrics_rev: 0,
             lyric_timeline: Timeline::default(),
+            lyric_enter_ms: enter::ENTER_MS,
+            lyric_loading_ms: 0.0,
             text_focused: false,
             reduced_motion,
             settings: UiSettings::default(),
@@ -230,13 +239,32 @@ impl UiState {
         self.follow_pause_ms <= 0.0
     }
 
+    /// `true` while the lyrics move: the loading shimmer, the list sliding in, the scroll
+    /// cascade, and (only while a song plays) a line that is lit or dimming and the intro or gap
+    /// note filling. Paused with nothing lit, it is `false`: the lyrics ask for no frame.
+    #[must_use]
+    pub fn lyrics_frames(&self) -> bool {
+        match &self.lyrics {
+            // The shimmer moves only while a song plays; paused, the line stands still.
+            LyricsState::Loading => !self.reduced_motion && self.is_playing(),
+            LyricsState::Ready(doc) if doc.granularity != Granularity::Unsynced => {
+                let playing = self.is_playing()
+                    && self.lyric_clocks().is_some_and(|c| {
+                        self.lyric_timeline.busy(&c) || self.lyric_focus().note.is_some()
+                    });
+                playing || !self.lyric_scroll.is_settled() || self.lyric_enter_ms < enter::ENTER_MS
+            }
+            _ => false,
+        }
+    }
+
     /// Whether the GUI must subscribe to frames. Idle (paused, nothing animating) is `false`, so
     /// nothing redraws.
     #[must_use]
     pub fn needs_frames(&self) -> bool {
         self.is_playing()
             || !self.accent.is_done()
-            || !self.lyric_scroll.is_settled()
+            || self.lyrics_frames()
             || self.follow_pause_ms > 0.0
             || self.toast.is_some()
     }
@@ -286,6 +314,12 @@ impl UiState {
                     self.lyrics_offset_ms = offset_ms;
                     self.last_active = None;
                     self.lyrics_rev += 1;
+                    // A found document slides in (reduced motion: it is just there).
+                    self.lyric_enter_ms = if self.reduced_motion {
+                        enter::ENTER_MS
+                    } else {
+                        0.0
+                    };
                     self.lyric_timeline = match &self.lyrics {
                         LyricsState::Ready(doc) => Timeline::new(doc),
                         _ => Timeline::default(),

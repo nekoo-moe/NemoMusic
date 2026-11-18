@@ -240,6 +240,8 @@ pub struct Scenario {
     /// Keep motion on (the shots run with reduced motion so they are still); for the syllable
     /// fill, which is the thing being shown.
     pub full_motion: bool,
+    /// Show the lyrics as still loading, this many ms into the shimmer of the loading line.
+    pub loading_lyrics_ms: Option<u32>,
 }
 
 /// Which state of the sign-in sheet a snapshot shows.
@@ -302,6 +304,7 @@ impl Default for Scenario {
             shared_output: false,
             mid_motion_ms: None,
             full_motion: false,
+            loading_lyrics_ms: None,
         }
     }
 }
@@ -459,6 +462,15 @@ pub fn build_app(backend: &Backend, scenario: &Scenario) -> App {
         // A few hundred ms at most, exact in f32.
         #[allow(clippy::cast_precision_loss)]
         app.freeze_mid_motion(ms as f32);
+    }
+    if let Some(ms) = scenario.loading_lyrics_ms {
+        // Still fetching the lyrics, this far into the shimmer.
+        app.ui.lyrics = crate::state::LyricsState::Loading;
+        // A few seconds at most, exact in f32.
+        #[allow(clippy::cast_precision_loss)]
+        {
+            app.ui.lyric_loading_ms = ms as f32;
+        }
     }
     app
 }

@@ -66,6 +66,12 @@ impl App {
                 self.sync_viewport()
             }
             Message::Rescaled(factor) => self.rescale(factor),
+            Message::Focus(on) => {
+                self.focused = on;
+                // The first frame after a pause must not see the pause as one long frame.
+                self.last_frame = None;
+                Vec::new()
+            }
             Message::TogglePane => {
                 self.pane_open = !self.pane_open;
                 self.pane_user_set = true;

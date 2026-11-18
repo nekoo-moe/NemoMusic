@@ -8,6 +8,7 @@ use std::time::Duration;
 use nemo_core::lyrics::{Granularity, LyricsCredit, LyricsDoc};
 
 pub mod clock;
+pub mod enter;
 pub mod layout;
 pub mod metrics;
 pub mod note;

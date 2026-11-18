@@ -15,6 +15,7 @@ use iced::{Color, Element, Font, Length, Point, Rectangle, Size, Transformation,
 use nemo_core::lyrics::LyricsDoc;
 
 use crate::lyrics_view::clock::{Clocks, Timeline};
+use crate::lyrics_view::enter::ENTER_SLIDE;
 use crate::lyrics_view::layout::visible;
 use crate::lyrics_view::metrics::{INACTIVE_ALPHA, Metrics, look};
 use crate::lyrics_view::note::GapNote;
@@ -59,6 +60,8 @@ pub struct LyricList<'a> {
     pub fade_edges: bool,
     /// The glides of the lines (the scroll cascade), when the list scrolls.
     pub cascade: Option<&'a Cascade>,
+    /// How far the list has slid in after the lyrics arrived, 0 to 1 (1: in place).
+    pub enter: f32,
 }
 
 /// What the shaped lines were made for.
@@ -78,8 +81,13 @@ struct State {
 
 impl LyricList<'_> {
     /// How far a line can be from its place in the layout now, px.
-    fn reach(&self) -> f32 {
-        self.cascade.map_or(0.0, Cascade::reach)
+    fn reach(&self, viewport_h: f32) -> f32 {
+        self.cascade.map_or(0.0, Cascade::reach) + self.slide(viewport_h)
+    }
+
+    /// How far below its place the list is while it slides in, px.
+    fn slide(&self, viewport_h: f32) -> f32 {
+        (1.0 - self.enter).clamp(0.0, 1.0) * ENTER_SLIDE * viewport_h
     }
 
     fn count(&self) -> usize {
@@ -107,7 +115,7 @@ impl LyricList<'_> {
             st.lines = std::iter::repeat_with(|| None).take(key.count).collect();
             st.key = Some(key);
         }
-        let margin = self.metrics.slot_height(1) + self.reach();
+        let margin = self.metrics.slot_height(1) + self.reach(viewport_h);
         let range = visible(
             &self.tops,
             self.note.as_ref(),
@@ -152,6 +160,7 @@ impl LyricList<'_> {
         } else {
             1.0
         };
+        let fade = fade * self.enter.clamp(0.0, 1.0);
         if fade <= 0.01 {
             return;
         }
@@ -268,8 +277,9 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for LyricList<'_> {
             &self.metrics,
             self.scroll,
             bounds.height,
-            self.reach(),
+            self.reach(bounds.height),
         );
+        let slide = self.slide(bounds.height);
         renderer.with_layer(bounds, |r| {
             for j in range {
                 let Some(Some(line)) = st.lines.get(j) else {
@@ -277,7 +287,8 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for LyricList<'_> {
                 };
                 let top = geometry::top_of(&self.tops, self.note.as_ref(), &self.metrics, j)
                     - self.scroll
-                    + self.cascade.map_or(0.0, |c| c.offset(self.first + j));
+                    + self.cascade.map_or(0.0, |c| c.offset(self.first + j))
+                    + slide;
                 self.draw_line(r, line, j, bounds, top);
             }
         });

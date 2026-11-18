@@ -47,6 +47,21 @@ fn a_pane_toggle_animates_then_stops_asking() {
 }
 
 #[test]
+fn an_unfocused_window_asks_for_no_frames_and_asks_again_when_focused() {
+    let mut app = idle_app();
+    let _ = app.update_core(Message::TogglePane);
+    assert!(app.needs_frames(), "the pane spring runs");
+    let _ = app.update_core(Message::Focus(false));
+    assert!(!app.needs_frames(), "no focus: no frames");
+    let _ = app.update_core(Message::Focus(true));
+    assert!(
+        app.needs_frames(),
+        "focus is back and the spring still has to settle"
+    );
+    assert!(app.last_frame.is_none(), "the pause is not one long frame");
+}
+
+#[test]
 fn a_page_change_animates_then_stops_asking() {
     let mut app = idle_app();
     let _ = app.update_core(Message::Ui(Event::Go(crate::route::Route::Settings)));

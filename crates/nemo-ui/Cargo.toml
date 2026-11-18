@@ -38,3 +38,7 @@ required-features = ["gui"]
 [[example]]
 name = "snapshots"
 required-features = ["gui"]
+
+[[example]]
+name = "lyrics_frame_cost"
+required-features = ["gui"]
