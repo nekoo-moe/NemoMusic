@@ -129,7 +129,7 @@ fn setup_shots(out: &mut Vec<Shot>) {
 }
 
 /// The bloom from song A (red) to song B (violet) before, in the middle and after, and the
-/// heartbeat at the top of the first beat and at rest, in dark and light, at the minimum window.
+/// breath of the heartbeat at its top and at rest, in dark and light, at the minimum window.
 fn motion_shots(out: &mut Vec<Shot>, size: (u32, u32)) {
     for (stem, base) in [("dark", BaseMode::Dark), ("light", BaseMode::Light)] {
         for (when, ms) in [("before", 0_u32), ("mid", 120), ("after", 700)] {
@@ -146,8 +146,8 @@ fn motion_shots(out: &mut Vec<Shot>, size: (u32, u32)) {
                 },
             ));
         }
-        // 160 ms is the top of "lub" in the 1.6 s cycle, 1120 ms is the rest after "dub".
-        for (when, at) in [("peak", 160.0), ("rest", 1120.0)] {
+        // 1300 ms is the top of the 2.6 s breath, 0 ms is the rest.
+        for (when, at) in [("peak", 1300.0), ("rest", 0.0)] {
             out.push(shot(
                 named(&format!("song-heart-{when}-{stem}"), size),
                 Scenario {

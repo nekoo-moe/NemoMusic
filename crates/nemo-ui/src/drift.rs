@@ -5,11 +5,12 @@
 //! The backdrop is the cover's colour mesh (`crate::mesh`): three or four soft colour fields at
 //! fixed anchors, each moving a few percent on its own closed path and breathing slightly in
 //! scale over one long cycle, so the fields drift against each other like a mesh gradient.
-//! Frames are capped at [`motion::AMBIENT_FPS`]; nothing moves under reduced
-//! motion, under reduce transparency, while the window is not focused, while nothing plays,
-//! while the backdrop is hidden and on the CPU renderer.
+//! The backdrop has no frame timer of its own: it draws on the redraws the window already gets
+//! from the app's one frame ticker (`gui/app/subscribe.rs`) and reads their time. Nothing moves
+//! under reduced motion, under reduce transparency, while the window is not focused, while
+//! nothing plays, while the backdrop is hidden and on the CPU renderer.
 
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use crate::theme::motion;
 
@@ -79,16 +80,8 @@ impl Mode {
     }
 }
 
-// The cap stays low (living-backdrop spec: 20 to 30 fps), checked when the crate builds.
-const _: () = assert!(motion::AMBIENT_FPS >= 20 && motion::AMBIENT_FPS <= 30);
-
-/// Time between two drift frames.
-#[must_use]
-pub fn frame_interval() -> Duration {
-    Duration::from_micros(1_000_000 / u64::from(motion::AMBIENT_FPS))
-}
-
-/// The drift clock: time spent moving, so a frozen backdrop resumes from the same pose.
+/// The drift clock: time spent moving, so a frozen backdrop resumes from the same pose. It reads
+/// the time of each redraw and never asks for one.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct Clock {
     /// Milliseconds of drift so far.
@@ -98,19 +91,22 @@ pub struct Clock {
 
 impl Clock {
     /// One redraw at `now`. While `moving`, advance by the time since the last redraw (at most
-    /// [`MAX_STEP_MS`]) and return when the next drift frame is due; otherwise stop the clock
-    /// and ask for nothing, so an idle window draws no frames.
-    pub fn tick(&mut self, now: Instant, moving: bool) -> Option<Instant> {
+    /// [`MAX_STEP_MS`]); otherwise stop the clock, so the pause is never counted.
+    pub fn tick(&mut self, now: Instant, moving: bool) {
         if !moving {
-            self.last = None;
-            return None;
+            self.stop();
+            return;
         }
         if let Some(prev) = self.last {
             let dt = now.saturating_duration_since(prev).as_secs_f64() * 1000.0;
             self.elapsed_ms += dt.min(MAX_STEP_MS);
         }
         self.last = Some(now);
-        Some(now + frame_interval())
+    }
+
+    /// Stop the clock (the window lost focus): the next redraw starts from the pose it holds.
+    pub fn stop(&mut self) {
+        self.last = None;
     }
 }
 
@@ -164,9 +160,34 @@ pub fn blob_rect(
     (cx - side / 2.0, cy - side / 2.0, side)
 }
 
+/// The rectangle of field `i` after `elapsed_ms` of drift clock: the drift pose, and with
+/// `breathing` the heartbeat's growth and shift on top (`crate::heartbeat`). `layer_scale` is the
+/// bloom's scale of the layer (1 once settled). The one place that decides where a field is
+/// drawn, for the window and for the tests. Returns `(x, y, side)`.
+#[must_use]
+pub fn field_rect(
+    bounds: (f32, f32, f32, f32),
+    i: usize,
+    elapsed_ms: f64,
+    layer_scale: f32,
+    breathing: bool,
+) -> (f32, f32, f32) {
+    let mut at = pose(elapsed_ms, u8::try_from(i).unwrap_or(0));
+    let mut extra = layer_scale;
+    if breathing {
+        let (ax, ay, _) = ANCHORS[i.min(ANCHORS.len() - 1)];
+        let (grow, dx, dy) = crate::heartbeat::nudge(elapsed_ms, ax, ay);
+        at.dx += dx;
+        at.dy += dy;
+        extra *= grow;
+    }
+    blob_rect(bounds, i, at, extra)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Duration;
 
     const ON: Inputs = Inputs {
         reduce_motion: false,
@@ -219,31 +240,25 @@ mod tests {
     }
 
     #[test]
-    fn the_clock_asks_for_at_most_the_capped_rate() {
+    fn the_clock_follows_the_redraws_and_asks_for_none() {
         let mut c = Clock::default();
         let t0 = Instant::now();
-        let mut now = t0;
-        let mut frames = 0_u32;
-        // Follow every request for ten seconds.
-        while now < t0 + Duration::from_secs(10) {
-            let next = c.tick(now, true).expect("moving asks for a frame");
-            assert!(next.duration_since(now) >= frame_interval());
-            now = next;
-            frames += 1;
+        // Ten seconds of redraws at about 60 per second, each a little early or late.
+        for k in 0..600_u64 {
+            let jitter = if k % 3 == 0 { 2 } else { 0 };
+            c.tick(t0 + Duration::from_micros(k * 16_667 + jitter * 1000), true);
         }
-        assert!(frames <= motion::AMBIENT_FPS * 10 + 1, "{frames} frames");
-        assert!(frames >= motion::AMBIENT_FPS * 10 - 1, "{frames} frames");
-        assert!((c.elapsed_ms - 10_000.0).abs() < 50.0, "{}", c.elapsed_ms);
+        assert!((c.elapsed_ms - 9_983.0).abs() < 25.0, "{}", c.elapsed_ms);
     }
 
     #[test]
-    fn a_still_clock_asks_for_nothing_and_resumes_where_it_stopped() {
+    fn a_still_clock_resumes_where_it_stopped() {
         let mut c = Clock::default();
         let t0 = Instant::now();
         c.tick(t0, true);
         c.tick(t0 + Duration::from_millis(40), true);
         let frozen = c.elapsed_ms;
-        assert_eq!(c.tick(t0 + Duration::from_secs(5), false), None);
+        c.tick(t0 + Duration::from_secs(5), false);
         assert!((c.elapsed_ms - frozen).abs() < f64::EPSILON);
         // Resuming after a long pause adds nothing for the pause itself.
         c.tick(t0 + Duration::from_secs(60), true);
@@ -253,6 +268,10 @@ mod tests {
             (c.elapsed_ms - frozen - MAX_STEP_MS).abs() < 1e-6,
             "a stall is clamped"
         );
+        // A lost focus stops the clock the same way.
+        c.stop();
+        c.tick(t0 + Duration::from_secs(90), true);
+        assert!((c.elapsed_ms - frozen - MAX_STEP_MS).abs() < 1e-6);
     }
 
     #[test]
@@ -263,8 +282,8 @@ mod tests {
             let start = pose(0.0, layer);
             let end = pose(cycle, layer);
             assert!((start.dx - end.dx).abs() < 1e-5 && (start.scale - end.scale).abs() < 1e-5);
-            // One drift frame moves a field by under a pixel of a 1920 px window.
-            let step = 1000.0 / f64::from(motion::AMBIENT_FPS);
+            // One drift frame (60 per second) moves a field by under a pixel of a 1920 px window.
+            let step = 1000.0 / 60.0;
             for k in 0..200 {
                 let at = f64::from(k) * 211.0;
                 let (p, q) = (pose(at, layer), pose(at + step, layer));
@@ -295,5 +314,25 @@ mod tests {
         let rest = blob_rect((0.0, 0.0, 1000.0, 600.0), 0, pose(0.0, 0), 1.0);
         let big = blob_rect((0.0, 0.0, 1000.0, 600.0), 0, pose(0.0, 0), 1.04);
         assert!((big.2 / rest.2 - 1.04).abs() < 1e-4);
+    }
+
+    #[test]
+    fn the_breath_only_grows_the_fields_a_little_and_nudges_them_inward() {
+        let b = (0.0, 0.0, 1280.0, 800.0);
+        let top = f64::from(motion::HEART_CYCLE_MS) / 2.0;
+        for i in 0..ANCHORS.len() {
+            let rest = field_rect(b, i, top, 1.0, false);
+            assert_eq!(
+                rest,
+                blob_rect(b, i, pose(top, u8::try_from(i).unwrap_or(0)), 1.0)
+            );
+            let (x, y, side) = field_rect(b, i, top, 1.0, true);
+            assert!((side / rest.2 - 1.02).abs() < 1e-4, "grows by 2 %");
+            let (cx, cy) = (x + side / 2.0, y + side / 2.0);
+            let (rx, ry) = (rest.0 + rest.2 / 2.0, rest.1 + rest.2 / 2.0);
+            assert!(((cx - rx).abs().max((cy - ry).abs())) < 0.015 * 1280.0);
+            // Toward the middle of the window.
+            assert!((cx - 640.0).abs() <= (rx - 640.0).abs() + 1e-3);
+        }
     }
 }

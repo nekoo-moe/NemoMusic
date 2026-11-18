@@ -1,144 +1,85 @@
-//! The gentle heartbeat of the window backdrop (song-colour-theme spec): a soft double pulse,
-//! "lub-dub", in a cycle of 1.6 s, layered over the slow drift. Pure maths; the widget in
-//! `gui/views/backdrop/field.rs` reads it and applies [`SCALE`] and [`LIGHT`].
+//! The gentle heartbeat of the window backdrop (song-colour-theme and backdrop-calm specs): a slow
+//! breath of the colour fields. Every field grows by [`SCALE`] and its centre moves a little
+//! toward the middle of the window, eased in and out over [`motion::HEART_CYCLE_MS`] (2.6 s).
+//! It moves the fields and changes no colour: nothing is lifted, so the brightness of the window
+//! stays within a point or two of its range. Pure maths; `drift::field_rect` applies it.
 //!
-//! The pulse runs on the drift clock, so it follows the same stop rules (paused, unfocused,
-//! reduced motion, reduce transparency, backdrop hidden, CPU renderer) and the same 24 fps
-//! redraw requests: it costs no extra frames, no `update` or `view` call and no re-blur.
+//! The breath runs on the drift clock, so it follows the same stop rules (paused, unfocused,
+//! reduced motion, reduce transparency, backdrop hidden, CPU renderer): it costs no frame, no
+//! `update` and no `view` call of its own and no re-blur.
 
-use crate::drift::Mode;
-use crate::theme::{Rgba, motion};
+use crate::theme::motion;
 
-/// Scale of the colour fields at the top of a beat: 2.5 % (about).
-pub const SCALE: f32 = 0.025;
-/// Opacity of the white lift over the fields at the top of a beat: 5 % brightness (about).
-pub const LIGHT: f32 = 0.05;
+/// Growth of the colour fields at the top of a breath: 2 %.
+pub const SCALE: f32 = 0.02;
+/// How far a field's centre moves toward the middle of the window at the top of a breath, as a
+/// share of the distance between the two (a field 0.3 of the window away moves 0.9 % of it).
+pub const SHIFT: f32 = 0.03;
 
-/// The colour of the lift: white, at [`LIGHT`] times the pulse, over the fields. White lifts a
-/// dark backdrop and a pale one alike, so contrast over the panes only improves in light mode.
-pub const LIFT: Rgba = Rgba::from_rgb_hex(0xFF_FFFF);
+// One breath takes 2 to 3 s and grows the fields by 1.5 to 2.5 % (checked when the crate builds).
+const _: () = assert!(motion::HEART_CYCLE_MS >= 2_000 && motion::HEART_CYCLE_MS <= 3_000);
+const _: () = assert!(SCALE >= 0.015 && SCALE <= 0.025);
 
-/// Where the first beat ("lub") peaks, as a fraction of the cycle.
-const LUB_AT: f64 = 0.10;
-/// Where the second beat ("dub") peaks.
-const DUB_AT: f64 = 0.34;
-/// Height of the second beat against the first.
-const DUB_HEIGHT: f64 = 0.7;
-/// Half the width of one beat, as a fraction of the cycle.
-const HALF_WIDTH: f64 = 0.10;
-
-// The cycle is about 1.6 s and each beat is smooth (checked when the crate builds).
-const _: () = assert!(motion::HEART_CYCLE_MS >= 1_400 && motion::HEART_CYCLE_MS <= 1_800);
-const _: () = assert!(SCALE <= 0.03 && LIGHT <= 0.06);
-
-/// One smooth beat: a raised cosine of height 1 at `at`, 0 further than [`HALF_WIDTH`] away.
-fn bump(phase: f64, at: f64) -> f64 {
-    let d = (phase - at).abs();
-    if d >= HALF_WIDTH {
-        0.0
-    } else {
-        0.5 * (1.0 + (std::f64::consts::PI * d / HALF_WIDTH).cos())
-    }
-}
-
-/// The pulse after `elapsed_ms` of drift clock: 0 at rest, 1 at the top of the first beat.
+/// Where the backdrop is in its breath after `elapsed_ms` of drift clock: 0 at rest, 1 at the
+/// top. A raised cosine, so the speed is 0 at both ends and there is no corner anywhere.
 #[must_use]
-pub fn beat(elapsed_ms: f64) -> f32 {
-    let phase = elapsed_ms.rem_euclid(f64::from(motion::HEART_CYCLE_MS))
-        / f64::from(motion::HEART_CYCLE_MS);
-    let v = bump(phase, LUB_AT) + DUB_HEIGHT * bump(phase, DUB_AT);
-    // At most 1: the two beats do not overlap.
+pub fn breath(elapsed_ms: f64) -> f32 {
+    let cycle = f64::from(motion::HEART_CYCLE_MS);
+    let phase = elapsed_ms.rem_euclid(cycle) / cycle;
     #[allow(clippy::cast_possible_truncation)]
-    let out = v.clamp(0.0, 1.0) as f32;
+    let out = (0.5 - 0.5 * (std::f64::consts::TAU * phase).cos()) as f32;
     out
 }
 
-/// `true` when the backdrop pulses: the heartbeat is available and on, and the backdrop moves
-/// (so every stop rule of the drift stops it too).
+/// What the breath does to the field anchored at `(ax, ay)` (fractions of the window): the
+/// factor for its size and the shift of its centre, in fractions of the window's larger side.
 #[must_use]
-pub const fn active(mode: Mode, switch_on: bool) -> bool {
-    switch_on && matches!(mode, Mode::Moving)
+pub fn nudge(elapsed_ms: f64, ax: f32, ay: f32) -> (f32, f32, f32) {
+    let b = breath(elapsed_ms);
+    (
+        1.0 + SCALE * b,
+        SHIFT * (0.5 - ax) * b,
+        SHIFT * (0.5 - ay) * b,
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::drift::Inputs;
 
     #[test]
-    fn it_is_a_double_pulse_that_rests_between_cycles() {
+    fn it_is_one_slow_eased_breath_per_cycle() {
         let cycle = f64::from(motion::HEART_CYCLE_MS);
-        assert!((beat(0.0)).abs() < 1e-6, "rest at the start of the cycle");
-        assert!((beat(cycle * LUB_AT) - 1.0).abs() < 1e-5, "lub is the top");
-        let dub = beat(cycle * DUB_AT);
-        assert!((dub - 0.7).abs() < 1e-5, "dub is lower: {dub}");
-        assert!(beat(cycle * 0.25) < 0.1, "a dip between the two beats");
-        assert!(beat(cycle * 0.7).abs() < 1e-6, "rest after the beats");
+        assert!(breath(0.0).abs() < 1e-6, "rest at the start");
         assert!(
-            (beat(cycle * 3.0 + 250.0) - beat(250.0)).abs() < 1e-5,
+            (breath(cycle / 2.0) - 1.0).abs() < 1e-6,
+            "top in the middle"
+        );
+        assert!(breath(cycle).abs() < 1e-6, "rest again after one cycle");
+        assert!(
+            (breath(cycle * 3.0 + 400.0) - breath(400.0)).abs() < 1e-5,
             "periodic"
         );
+        // Eased: the first and last 100 ms hardly move.
+        assert!(breath(100.0) < 0.02 && breath(cycle - 100.0) < 0.02);
     }
 
     #[test]
-    fn it_is_smooth_at_the_capped_frame_rate_and_stays_in_range() {
-        let step = 1000.0 / f64::from(motion::AMBIENT_FPS);
+    fn it_stays_in_range_and_moves_a_little() {
         let mut t = 0.0;
-        let mut prev = beat(0.0);
-        while t < 4_000.0 {
-            t += step;
-            let now = beat(t);
-            assert!((0.0..=1.0).contains(&now), "{now}");
-            assert!(
-                (now - prev).abs() < 0.45,
-                "jump of {} at {t} ms",
-                (now - prev).abs()
-            );
-            prev = now;
+        while t < 6_000.0 {
+            assert!((0.0..=1.0).contains(&breath(t)), "{t}");
+            t += 7.0;
         }
-        // About 2.5 % scale and 5 % brightness at the top.
-        assert!((0.02..=0.03).contains(&SCALE) && (0.04..=0.06).contains(&LIGHT));
-    }
-
-    #[test]
-    fn every_stop_rule_of_the_drift_stops_the_pulse_too() {
-        let on = Inputs {
-            reduce_motion: false,
-            reduce_transparency: false,
-            focused: true,
-            playing: true,
-            visible: true,
-            software: false,
-        };
-        assert!(active(Mode::of(on), true));
-        assert!(!active(Mode::of(on), false), "the switch is off");
-        for off in [
-            Inputs {
-                playing: false,
-                ..on
-            },
-            Inputs {
-                focused: false,
-                ..on
-            },
-            Inputs {
-                reduce_motion: true,
-                ..on
-            },
-            Inputs {
-                reduce_transparency: true,
-                ..on
-            },
-            Inputs {
-                visible: false,
-                ..on
-            },
-            Inputs {
-                software: true,
-                ..on
-            },
-        ] {
-            assert!(!active(Mode::of(off), true), "{off:?}");
-        }
+        let (grow, dx, dy) = nudge(f64::from(motion::HEART_CYCLE_MS) / 2.0, 0.18, 0.22);
+        assert!((grow - 1.02).abs() < 1e-6, "{grow}");
+        // A field on the left moves right, one above the middle moves down; under 1.5 % of the
+        // window's larger side.
+        assert!(
+            dx > 0.0 && dy > 0.0 && dx < 0.015 && dy < 0.015,
+            "{dx} {dy}"
+        );
+        let (rest, rx, ry) = nudge(0.0, 0.18, 0.22);
+        assert!((rest - 1.0).abs() < 1e-6 && rx.abs() < 1e-6 && ry.abs() < 1e-6);
     }
 }
