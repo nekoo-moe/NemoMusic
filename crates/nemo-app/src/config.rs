@@ -20,6 +20,9 @@ pub const CONFIG_FILE: &str = "settings.json";
 /// Largest settings file read, in bytes. A bigger file is treated as broken.
 pub const MAX_CONFIG_BYTES: u64 = 256 * 1024;
 
+/// Opacity of the see-through window on a new install, in percent.
+pub const WINDOW_GLASS_OPACITY: u8 = 80;
+
 /// How much glass effect the UI draws (`design.md` section 7).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
@@ -89,6 +92,10 @@ pub struct Settings {
     pub song_colour_theme: bool,
     /// A gentle heartbeat of the background (on by default; song-colour-theme).
     pub song_heartbeat: bool,
+    /// The window itself is see-through (off by default; appearance-glass).
+    pub window_glass: bool,
+    /// Opacity of the see-through window in percent, 40 to 95 (appearance-glass).
+    pub window_glass_opacity: u8,
     /// The opt-in rows, by `OptInInfo.id`. A missing id means the user never touched the row,
     /// so the feature's default holds (see `opt_in_gate`).
     pub opt_ins: BTreeMap<String, OptInChoice>,
@@ -144,6 +151,8 @@ impl Default for Settings {
             animated_covers: AnimatedCovers::default(),
             song_colour_theme: true,
             song_heartbeat: true,
+            window_glass: false,
+            window_glass_opacity: WINDOW_GLASS_OPACITY,
             opt_ins: BTreeMap::new(),
             effects: StoredEffects::default(),
             transition: StoredTransition::default(),
@@ -189,6 +198,7 @@ impl Settings {
     #[must_use]
     pub fn sanitized(mut self) -> Self {
         self.volume_percent = self.volume_percent.min(100);
+        self.window_glass_opacity = self.window_glass_opacity.clamp(40, 95);
         self.music_folders.retain(|p| p.is_absolute());
         self.music_folders.dedup();
         self.effects = self.effects.sanitized();
@@ -301,6 +311,34 @@ mod tests {
         };
         off.save(&root).expect("save");
         assert_eq!(Settings::load(&root), off);
+        std::fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[test]
+    fn window_glass_is_off_by_default_clamped_and_round_trips() {
+        let root = temp_root("window-glass");
+        // A file written before the setting existed: off, 80 percent.
+        std::fs::write(root.join(CONFIG_FILE), r#"{"volume_percent": 40}"#).expect("write");
+        let old = Settings::load(&root);
+        assert!(!old.window_glass);
+        assert_eq!(old.window_glass_opacity, 80);
+        assert!(!Settings::default().window_glass);
+        let on = Settings {
+            window_glass: true,
+            window_glass_opacity: 55,
+            ..Settings::default()
+        };
+        on.save(&root).expect("save");
+        assert_eq!(Settings::load(&root), on);
+        // A hand-edited value outside 40 to 95 is limited when it loads.
+        std::fs::write(
+            root.join(CONFIG_FILE),
+            r#"{"window_glass": true, "window_glass_opacity": 5}"#,
+        )
+        .expect("write");
+        assert_eq!(Settings::load(&root).window_glass_opacity, 40);
+        std::fs::write(root.join(CONFIG_FILE), r#"{"window_glass_opacity": 250}"#).expect("write");
+        assert_eq!(Settings::load(&root).window_glass_opacity, 95);
         std::fs::remove_dir_all(root).expect("cleanup");
     }
 
