@@ -55,8 +55,8 @@ pub fn morph(t_ms: f32) -> f32 {
 /// Scale of the mark on the Done step: a small settle with one overshoot, once.
 #[must_use]
 pub fn settle(t_ms: f32) -> f32 {
-    let t_s = (t_ms / 1000.0).max(0.0);
-    SETTLE_FROM + (1.0 - SETTLE_FROM) * spring_response(t_s, SETTLE_STIFFNESS, SETTLE_DAMPING)
+    let secs = (t_ms / 1000.0).max(0.0);
+    SETTLE_FROM + (1.0 - SETTLE_FROM) * spring_response(secs, SETTLE_STIFFNESS, SETTLE_DAMPING)
 }
 
 /// The milliseconds since the step changed, and the step it changed from.

@@ -46,6 +46,7 @@ pub(super) fn shots(out: &mut Vec<Shot>) {
         }
     }
     wide_shots(out);
+    motion_shots(out);
     out.push(shot(
         "setup-privacy-and-risk-ticked-dark-960x600".to_owned(),
         Scenario {
@@ -101,5 +102,27 @@ fn wide_shots(out: &mut Vec<Shot>) {
             name(step, "dark", EDGE),
             sized(EDGE, BaseMode::Dark, step == SetupStep::Sources, step),
         ));
+    }
+}
+
+/// Key frames of the step change: the Look step 0, 80, 160 and 320 ms in (the block slides, the
+/// rows rise 40 ms apart, the stepper marker morphs), and the Done step 60, 140 and 220 ms in
+/// (the mark settles). Wide, so the brand panel and its stepper show.
+fn motion_shots(out: &mut Vec<Shot>) {
+    let frames = [
+        (SetupStep::Look, "look", [0_u32, 80, 160, 320].as_slice()),
+        (SetupStep::Done, "done", [60, 140, 220].as_slice()),
+    ];
+    for (step, tag, times) in frames {
+        for ms in times {
+            out.push(shot(
+                format!("setup-motion-{tag}-t{ms}-dark-1366x697"),
+                Scenario {
+                    full_motion: true,
+                    setup_ms: Some(*ms),
+                    ..sized(WIDE, BaseMode::Dark, false, step)
+                },
+            ));
+        }
     }
 }
