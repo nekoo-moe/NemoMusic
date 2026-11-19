@@ -27,8 +27,12 @@ pub const BAR_HELPER: &str = "A Material surface with a soft shadow. The backgro
 pub const WINDOW_GLASS_TITLE: &str = "Window glass";
 /// Helper of the Window glass switch.
 pub const WINDOW_GLASS_HELPER: &str = "Makes the window itself see-through, so other windows and the desktop show through the gaps and edges. Panes stay readable.";
-/// The note next to the Window glass switch.
-pub const WINDOW_GLASS_RESTART: &str = "Takes effect after you restart NemoMusic";
+/// The pill that restarts the app once the Window glass switch needs it.
+pub const RESTART_PILL: &str = "Restart now";
+/// The short line that goes with the pill. It says what the restart costs.
+pub const RESTART_HELPER: &str = "Needs a restart. The music stops for a moment.";
+/// The one sentence shown when the new copy of the app could not start.
+pub const RESTART_FAILED: &str = "NemoMusic could not restart. Close it and start it again.";
 /// Title of the opacity row.
 pub const OPACITY_TITLE: &str = "Opacity";
 /// Helper of the opacity row.
@@ -52,10 +56,8 @@ mod tests {
     #[test]
     fn the_glass_text_is_honest_and_the_restart_note_is_exact() {
         assert!(BAR_HELPER.contains("Material") && !BAR_HELPER.contains("Low"));
-        assert_eq!(
-            WINDOW_GLASS_RESTART,
-            "Takes effect after you restart NemoMusic"
-        );
+        assert_eq!(RESTART_PILL, "Restart now");
+        assert!(RESTART_HELPER.len() < 60 && RESTART_FAILED.contains("could not restart"));
         assert!(WINDOW_GLASS_BLUR.contains("compositor"));
         assert!(WINDOW_GLASS_BLUR.contains("Force blur"));
     }

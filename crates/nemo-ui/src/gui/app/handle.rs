@@ -318,6 +318,8 @@ impl App {
                 }
                 Vec::new()
             }
+            // `App::update` answers it with a task that closes the window.
+            Message::Restart => Vec::new(),
             Message::ContentFilter(f) => {
                 self.content_filter = f;
                 Vec::new()

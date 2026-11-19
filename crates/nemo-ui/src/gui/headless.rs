@@ -299,6 +299,9 @@ pub struct Scenario {
     pub bloom: Option<(usize, u32)>,
     /// Draw the window backdrop with its drift clock at this many ms (a point of the heartbeat).
     pub backdrop_ms: Option<f64>,
+    /// Turn the Window glass switch on after the app started solid, so the running window needs
+    /// a restart and the `Restart now` pill shows (bar-material spec).
+    pub glass_switched_on: bool,
 }
 
 /// Which state of the sign-in sheet a snapshot shows.
@@ -367,6 +370,7 @@ impl Default for Scenario {
             account_error: None,
             bloom: None,
             backdrop_ms: None,
+            glass_switched_on: false,
         }
     }
 }
@@ -410,6 +414,8 @@ pub fn build_app(backend: &Backend, scenario: &Scenario) -> App {
         start_route: scenario.route.clone(),
         settings: scenario.settings.clone(),
         music_folders: scenario.music_folders.clone(),
+        // A restart that always works, so the pill shows.
+        on_restart: Some(std::sync::Arc::new(|| true)),
         ..UiOptions::default()
     };
     // Pick the track and position through the real player commands.
@@ -539,6 +545,14 @@ pub fn build_app(backend: &Backend, scenario: &Scenario) -> App {
     {
         app.details.insert(key, super::app::DetailState::Loading);
         app.shimmer = 0.45;
+    }
+    if scenario.glass_switched_on {
+        run(
+            &mut app,
+            Message::Ui(Event::Setting(crate::settings::SettingChange::WindowGlass(
+                true,
+            ))),
+        );
     }
     app.finish_animations();
     if let Some((next, ms)) = scenario.bloom {

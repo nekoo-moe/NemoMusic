@@ -331,6 +331,9 @@ impl App {
                 iced::widget::operation::focus_next()
             };
         }
+        if matches!(message, Message::Restart) {
+            return self.restart();
+        }
         let before = (self.mini, self.fullscreen);
         let copy = match &message {
             Message::CopyLink(t) => t.video_id.as_ref().map(|v| link_of(v.as_str())),
