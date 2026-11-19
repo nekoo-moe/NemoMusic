@@ -1,6 +1,6 @@
 [package]
 name = "nemo-soundcloud"
-description = "SoundCloud catalog of public tracks, read through the yt-dlp URL resolver."
+description = "SoundCloud as a second source: web API v2 client, catalog, stream lookup and HLS reader."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -12,3 +12,14 @@ workspace = true
 
 [dependencies]
 nemo-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+# Same versions and features as `nemo-ytm` (soundcloud-full design): `native-tls` needs no cmake
+# or NASM on Windows. Async client, run on the app runtime.
+reqwest = { version = "=0.13.5", default-features = false, features = ["native-tls"] }
+tokio = { version = "=1.54.1", default-features = false, features = ["rt", "sync", "time"] }
+
+[dev-dependencies]
+tokio = { version = "=1.54.1", default-features = false, features = ["rt-multi-thread", "time", "macros"] }

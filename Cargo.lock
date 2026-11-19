@@ -3768,6 +3768,12 @@ name = "nemo-soundcloud"
 version = "0.2.1"
 dependencies = [
  "nemo-core",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

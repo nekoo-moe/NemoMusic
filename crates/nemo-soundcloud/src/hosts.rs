@@ -1,16 +1,19 @@
-//! The hosts the SoundCloud feature reaches, through `yt-dlp` and the stream reader.
+//! The hosts the SoundCloud feature reaches (soundcloud-full, ADR 0005). Each one is on the
+//! README egress list, marked "only when SoundCloud is on".
 //!
-//! These are the four hosts of the design. The network capture of the spike (soundcloud task 7)
-//! replaces them, and the owner approves that list before the feature ships. Each one is also on
-//! the README egress list, marked "only when SoundCloud is on", from the task that first
-//! contacts it.
+//! Probed on 2026-11-19: the home page and sign-in page, the web API, the script that holds the
+//! client id, covers and avatars, the HLS audio, and the CDN hosts of previews and older MP3
+//! files (`cf-preview-media.sndcdn.com` was seen). A host seen in an answer but never contacted
+//! (`api.soundcloud.com`, `wave.sndcdn.com`) is not listed.
 
 /// Host names, exact or as `*.suffix` for a family of CDN hosts. No scheme, no path.
 pub const HOSTS: &[&str] = &[
     "soundcloud.com",
     "api-v2.soundcloud.com",
-    "*.sndcdn.com",
+    "a-v2.sndcdn.com",
+    "i1.sndcdn.com",
     "playback.media-streaming.soundcloud.cloud",
+    "*.sndcdn.com",
 ];
 
 #[cfg(test)]
