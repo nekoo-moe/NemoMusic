@@ -9,7 +9,11 @@
 //! - [`http`]: the HTTP seam ([`ScHttp`]) and its `reqwest` implementation.
 //! - [`client`]: the API client: client id, pacing, backoff, retries.
 //! - [`catalog`]: [`SoundcloudCatalog`], search, track, playlist, album and user pages.
+//! - [`account`]: [`ScAccount`], sign-in (window or pasted token), sign-out, the token in the OS
+//!   credential store.
 
+pub mod account;
+mod auth;
 pub mod catalog;
 pub mod client;
 pub mod client_id;
@@ -22,7 +26,9 @@ mod model;
 pub mod opener;
 pub mod opt_in;
 pub mod records;
+pub mod signin;
 pub mod stream;
+pub mod wipe;
 
 #[cfg(test)]
 mod fake;
@@ -31,10 +37,14 @@ mod fixtures;
 #[cfg(test)]
 mod test_server;
 
+pub use account::{AccountFiles, ScAccount, TOKEN_KEY};
+pub use auth::Auth;
 pub use catalog::{Link, SoundcloudCatalog};
 pub use client::{ClientError, Endpoints, Pacing, ScClient};
 pub use hosts::HOSTS;
 pub use http::{ReqwestHttp, ScHttp};
 pub use opener::{ScStreamOpener, Shared};
 pub use opt_in::OPT_IN;
+pub use signin::{SignInWindow, TokenSource};
 pub use stream::{ScStreamResolver, streams};
+pub use wipe::SessionCaches;

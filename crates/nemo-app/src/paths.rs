@@ -26,6 +26,9 @@ pub struct AppPaths {
     pub bin: PathBuf,
     /// The sign-in window's own `WebView2` profile. Sign-out deletes it.
     pub webview: PathBuf,
+    /// The SoundCloud sign-in window's own webview profile, apart from the Google one so that
+    /// signing out of one never touches the other. Sign-out deletes it.
+    pub webview_soundcloud: PathBuf,
     /// Cached account header (name, avatar). Sign-out deletes it.
     pub account: PathBuf,
     /// Offline cache of saved songs: files with opaque names and `offline.db`. The cache
@@ -65,6 +68,7 @@ impl AppPaths {
             logs: root.join("logs"),
             bin: root.join("bin"),
             webview: root.join("webview"),
+            webview_soundcloud: root.join("webview-soundcloud"),
             account: root.join("account"),
             offline: root.join("offline"),
             integrations: root.join("integrations"),
@@ -136,6 +140,7 @@ mod tests {
             &p.logs,
             &p.bin,
             &p.webview,
+            &p.webview_soundcloud,
             &p.account,
             &p.offline,
             &p.integrations,
@@ -146,6 +151,13 @@ mod tests {
             assert!(dir.starts_with(root), "{}", dir.display());
         }
         assert_eq!(p.root, root);
+    }
+
+    #[test]
+    fn the_two_sign_in_windows_keep_their_profiles_apart() {
+        let p = AppPaths::under(Path::new("C:/data/NemoMusic"));
+        assert!(!p.webview_soundcloud.starts_with(&p.webview));
+        assert!(!p.webview.starts_with(&p.webview_soundcloud));
     }
 
     #[test]

@@ -80,7 +80,7 @@ These are the only hosts NemoMusic contacts. Adding a host needs owner approval.
 | `sponsor.ajay.app` | SponsorBlock segments (only a 4-character hash prefix is sent) | Only when SponsorBlock is on |
 | `ws.audioscrobbler.com` | Last.fm API: now playing and scrobbles (title, artist, album, play time), over HTTPS only | Only when Last.fm is on |
 | `accounts.google.com`, `*.gstatic.com` | Google sign-in page | Only while you sign in |
-| `soundcloud.com` | The home page, to find the web app's client id; the sign-in page while you sign in | Only when SoundCloud is on |
+| `soundcloud.com` | The home page, to find the web app's client id; the sign-in page while you sign in (SoundCloud's own page in the sign-in window may load more of its own files and a bot check from the providers it uses, which the app does not control) | Only when SoundCloud is on |
 | `api-v2.soundcloud.com` | Search, track, playlist and artist pages, stream lookup, and your account (likes, playlists, following, history) when signed in | Only when SoundCloud is on |
 | `a-v2.sndcdn.com` | The web app's script that holds the client id | Only when SoundCloud is on |
 | `i1.sndcdn.com` | Cover art and avatars | Only when SoundCloud is on |
@@ -114,7 +114,7 @@ cargo run -p nemo-app --release
 Linux notes:
 
 - Sign-in needs a running Secret Service (GNOME Keyring or KWallet). Without one, sign-in is off and nothing is saved.
-- The sign-in window is WebKitGTK. Google may refuse it; "Paste cookie instead" still works.
+- The sign-in window is WebKitGTK. Google may refuse it; "Paste cookie instead" still works. SoundCloud's sign-in with Google, Apple or Facebook uses pop-up windows and may not work in the sign-in window; use SoundCloud's e-mail form there, or paste your `oauth_token` instead.
 - `nemo-app` links GTK 3, WebKitGTK 4.1 and libsoup 3 at load time, so their runtime libraries must be installed for the app to start at all, even if you never sign in.
 - Sound goes through ALSA, so PipeWire or PulseAudio may resample. The signal-path view shows this as shared mode, never as bit-perfect. A direct exclusive path is planned later.
 

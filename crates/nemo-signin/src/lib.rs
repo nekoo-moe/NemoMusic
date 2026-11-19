@@ -1,25 +1,27 @@
-//! `nemo-signin`: shows Google's sign-in page for YouTube Music in a webview window (`WebView2`
-//! on Windows, `WebKitGTK` on Linux) and hands the session cookies to `nemo-ytm` through the
-//! stdout pipe.
+//! `nemo-signin`: shows a sign-in page in a webview window (`WebView2` on Windows, `WebKitGTK`
+//! on Linux) and hands the session back through the stdout pipe. Two sites: Google's page for
+//! YouTube Music (the default) and SoundCloud's own page (`--site soundcloud`).
 //!
 //! This is a library linked into `nemo-app`. The window still runs in its own process, so its
-//! tao/wry event loop never shares a process with iced: `nemo-ytm` starts the app executable
-//! again as `nemo-app --signin --data-dir <folder>`, and the app's `main` hands everything after
-//! [`SIGNIN_ARG`] to [`run`] before anything else starts. The folder is this window's own
-//! webview profile; `nemo-ytm` deletes it on sign-out.
+//! tao/wry event loop never shares a process with iced: `nemo-ytm` or `nemo-soundcloud` starts
+//! the app executable again as `nemo-app --signin [--site soundcloud] --data-dir <folder>`, and
+//! the app's `main` hands everything after [`SIGNIN_ARG`] to [`run`] before anything else
+//! starts. The folder is this window's own webview profile; the account deletes it on sign-out.
 //!
-//! Exit codes: 0 signed in (one JSON line `{"cookie":"a=b; c=d"}` on stdout), 2 the user closed
-//! the window (nothing printed), 3 the webview runtime or the window is not available,
-//! 64 bad arguments. Cookies are never written to stderr, logs or files.
+//! Exit codes: 0 signed in (one JSON line on stdout: `{"cookie":"a=b; c=d"}` for Google, and
+//! `{"token":"…"}` for SoundCloud, which is only the value of its `oauth_token` cookie), 2 the
+//! user closed the window (nothing printed), 3 the webview runtime or the window is not
+//! available, 64 bad arguments. Cookies and tokens are never written to stderr, logs or files.
 
 mod cookies;
 
 use std::ffi::OsString;
 use std::io::Write;
 use std::path::PathBuf;
+use std::time::{Duration, Instant};
 
 use tao::dpi::LogicalSize;
-use tao::event::{Event, WindowEvent};
+use tao::event::{Event, StartCause, WindowEvent};
 use tao::event_loop::{ControlFlow, EventLoop, EventLoopBuilder};
 use tao::window::WindowBuilder;
 use wry::{PageLoadEvent, WebContext, WebView, WebViewBuilder};
@@ -33,22 +35,67 @@ pub const EXIT_UNAVAILABLE: i32 = 3;
 /// Exit code: bad arguments.
 pub const EXIT_USAGE: i32 = 64;
 
+/// How often the SoundCloud window looks for the session cookie. The sign-in there can finish
+/// without loading a new page, so a page-load event alone could miss it.
+const SOUNDCLOUD_POLL: Duration = Duration::from_secs(1);
+
 /// Sent from the page-load callback to the event loop.
 enum Message {
     /// A page finished loading.
     Loaded(String),
 }
 
-/// The folder after `--data-dir`, if the arguments are exactly `--data-dir <folder>`.
-fn parse_args(args: impl IntoIterator<Item = OsString>) -> Option<PathBuf> {
-    let mut args = args.into_iter();
-    let flag = args.next()?;
-    let value = args.next()?;
-    (flag == "--data-dir" && !value.is_empty() && args.next().is_none())
-        .then(|| PathBuf::from(value))
+/// Which sign-in page the window shows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Site {
+    /// Google's page for YouTube Music.
+    Google,
+    /// SoundCloud's own page.
+    SoundCloud,
 }
 
-/// Run the sign-in window with the arguments that follow [`SIGNIN_ARG`] (`--data-dir <folder>`).
+impl Site {
+    /// The site named after `--site`.
+    fn named(name: &std::ffi::OsStr) -> Option<Self> {
+        match name.to_str()? {
+            "youtube" | "google" => Some(Self::Google),
+            "soundcloud" => Some(Self::SoundCloud),
+            _ => None,
+        }
+    }
+
+    const fn title(self) -> &'static str {
+        match self {
+            Self::Google => "Sign in to YouTube Music",
+            Self::SoundCloud => "Sign in to SoundCloud",
+        }
+    }
+
+    const fn url(self) -> &'static str {
+        match self {
+            Self::Google => cookies::SIGN_IN_URL,
+            Self::SoundCloud => cookies::SOUNDCLOUD_SIGN_IN_URL,
+        }
+    }
+}
+
+/// The site and the folder, if the arguments are `[--site <name>] --data-dir <folder>`. Without
+/// `--site` the window is Google's, as before.
+fn parse_args(args: impl IntoIterator<Item = OsString>) -> Option<(Site, PathBuf)> {
+    let mut args = args.into_iter();
+    let mut flag = args.next()?;
+    let mut site = Site::Google;
+    if flag == "--site" {
+        site = Site::named(&args.next()?)?;
+        flag = args.next()?;
+    }
+    let value = args.next()?;
+    (flag == "--data-dir" && !value.is_empty() && args.next().is_none())
+        .then(|| (site, PathBuf::from(value)))
+}
+
+/// Run the sign-in window with the arguments that follow [`SIGNIN_ARG`]
+/// (`[--site soundcloud] --data-dir <folder>`).
 ///
 /// Call it on the main thread, before any other GUI or async runtime starts in this process.
 /// It returns the exit code when the window cannot run ([`EXIT_USAGE`], [`EXIT_UNAVAILABLE`]).
@@ -56,7 +103,7 @@ fn parse_args(args: impl IntoIterator<Item = OsString>) -> Option<PathBuf> {
 /// is written, or with [`EXIT_CANCELLED`] when the user closes the window.
 #[must_use]
 pub fn run(args: impl IntoIterator<Item = OsString>) -> i32 {
-    let Some(data_dir) = parse_args(args) else {
+    let Some((site, data_dir)) = parse_args(args) else {
         return EXIT_USAGE;
     };
     if std::fs::create_dir_all(&data_dir).is_err() {
@@ -65,7 +112,7 @@ pub fn run(args: impl IntoIterator<Item = OsString>) -> i32 {
     let Some(event_loop) = build_event_loop() else {
         return EXIT_UNAVAILABLE;
     };
-    show(event_loop, data_dir)
+    show(event_loop, site, data_dir)
 }
 
 /// Build the event loop. tao panics when the windowing system cannot start (on Linux: no
@@ -100,10 +147,10 @@ fn attach(builder: WebViewBuilder<'_>, window: &tao::window::Window) -> wry::Res
 
 /// Open the window and run its loop. Returns only when the window cannot be built; on success
 /// the cookie line is already written and the process has ended.
-fn show(event_loop: EventLoop<Message>, data_dir: PathBuf) -> i32 {
+fn show(event_loop: EventLoop<Message>, site: Site, data_dir: PathBuf) -> i32 {
     let proxy = event_loop.create_proxy();
     let Ok(window) = WindowBuilder::new()
-        .with_title("Sign in to YouTube Music")
+        .with_title(site.title())
         .with_inner_size(LogicalSize::new(480.0, 720.0))
         .build(&event_loop)
     else {
@@ -111,10 +158,10 @@ fn show(event_loop: EventLoop<Message>, data_dir: PathBuf) -> i32 {
     };
 
     let mut context = WebContext::new(Some(data_dir));
-    // The user agent stays the webview's own: Google checks it, and a spoofed one is what gets
-    // embedded sign-in blocked.
+    // The user agent stays the webview's own: the sign-in pages check it, and a spoofed one is
+    // what gets embedded sign-in blocked.
     let builder = WebViewBuilder::new_with_web_context(&mut context)
-        .with_url(cookies::SIGN_IN_URL)
+        .with_url(site.url())
         .with_navigation_handler(|url| cookies::is_allowed_navigation(&url))
         .with_on_page_load_handler(move |event, url| {
             if matches!(event, PageLoadEvent::Finished) {
@@ -128,27 +175,59 @@ fn show(event_loop: EventLoop<Message>, data_dir: PathBuf) -> i32 {
     };
 
     event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Wait;
+        *control_flow = match site {
+            Site::Google => ControlFlow::Wait,
+            Site::SoundCloud => ControlFlow::WaitUntil(Instant::now() + SOUNDCLOUD_POLL),
+        };
         match event {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 ..
             } => std::process::exit(EXIT_CANCELLED),
-            Event::UserEvent(Message::Loaded(url)) if cookies::is_music_page(&url) => {
-                let Ok(jar) = webview.cookies_for_url(cookies::MUSIC_ORIGIN) else {
-                    return;
-                };
-                let pairs = jar.iter().map(|c| (c.name(), c.value()));
-                if let Some(header) = cookies::cookie_header(pairs) {
-                    let line = serde_json::json!({ "cookie": header }).to_string();
-                    let mut out = std::io::stdout().lock();
-                    let written = writeln!(out, "{line}").and_then(|()| out.flush());
-                    std::process::exit(if written.is_ok() { 0 } else { EXIT_UNAVAILABLE });
+            Event::UserEvent(Message::Loaded(url)) => {
+                if let Some(line) = signed_in_line(site, &webview, &url) {
+                    finish(&line);
+                }
+            }
+            Event::NewEvents(StartCause::ResumeTimeReached { .. }) if site == Site::SoundCloud => {
+                let on_site = webview.url().ok();
+                if let Some(line) = on_site.and_then(|url| signed_in_line(site, &webview, &url)) {
+                    finish(&line);
                 }
             }
             _ => {}
         }
     })
+}
+
+/// The stdout line for the session of `site`, once the page `url` shows a signed-in session.
+fn signed_in_line(site: Site, webview: &WebView, url: &str) -> Option<String> {
+    match site {
+        Site::Google => {
+            if !cookies::is_music_page(url) {
+                return None;
+            }
+            let jar = webview.cookies_for_url(cookies::MUSIC_ORIGIN).ok()?;
+            let pairs = jar.iter().map(|c| (c.name(), c.value()));
+            let header = cookies::cookie_header(pairs)?;
+            Some(serde_json::json!({ "cookie": header }).to_string())
+        }
+        Site::SoundCloud => {
+            if !cookies::is_soundcloud_page(url) {
+                return None;
+            }
+            let jar = webview.cookies_for_url(cookies::SOUNDCLOUD_ORIGIN).ok()?;
+            let all = jar.iter().map(|c| (c.name(), c.value(), c.domain()));
+            cookies::soundcloud_token(all).map(|token| cookies::token_line(&token))
+        }
+    }
+}
+
+/// Write the line and end the process: 0 when it was written, [`EXIT_UNAVAILABLE`] when not.
+fn finish(line: &str) -> ! {
+    let mut out = std::io::stdout().lock();
+    let written = writeln!(out, "{line}").and_then(|()| out.flush());
+    std::process::exit(if written.is_ok() { 0 } else { EXIT_UNAVAILABLE });
 }
 
 #[cfg(test)]
@@ -163,7 +242,7 @@ mod tests {
     fn data_dir_flag_is_required() {
         assert_eq!(
             parse_args(args(&["--data-dir", "C:/x"])),
-            Some(PathBuf::from("C:/x"))
+            Some((Site::Google, PathBuf::from("C:/x")))
         );
         assert_eq!(parse_args(args(&[])), None);
         assert_eq!(parse_args(args(&["--data-dir"])), None);
@@ -173,8 +252,41 @@ mod tests {
     }
 
     #[test]
+    fn the_site_flag_picks_the_window() {
+        assert_eq!(
+            parse_args(args(&["--site", "soundcloud", "--data-dir", "C:/x"])),
+            Some((Site::SoundCloud, PathBuf::from("C:/x")))
+        );
+        assert_eq!(
+            parse_args(args(&["--site", "youtube", "--data-dir", "C:/x"])),
+            Some((Site::Google, PathBuf::from("C:/x")))
+        );
+        for bad in [
+            &["--site", "spotify", "--data-dir", "C:/x"][..],
+            &["--site", "soundcloud"],
+            &["--site", "soundcloud", "--data-dir"],
+            &["--site", "soundcloud", "--data-dir", "C:/x", "extra"],
+            &["--data-dir", "C:/x", "--site", "soundcloud"],
+            &["--site", "--data-dir", "C:/x"],
+        ] {
+            assert_eq!(parse_args(args(bad)), None, "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn each_site_has_its_own_title_and_https_address() {
+        assert_eq!(Site::SoundCloud.url(), "https://soundcloud.com/signin");
+        assert!(
+            Site::Google
+                .url()
+                .starts_with("https://accounts.google.com/")
+        );
+        assert_ne!(Site::Google.title(), Site::SoundCloud.title());
+    }
+
+    #[test]
     fn bad_arguments_exit_with_the_usage_code() {
         assert_eq!(run(args(&[])), EXIT_USAGE);
-        assert_eq!(run(args(&["--site", "youtube"])), EXIT_USAGE);
+        assert_eq!(run(args(&["--site", "spotify"])), EXIT_USAGE);
     }
 }

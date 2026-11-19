@@ -19,6 +19,7 @@ use crate::lyrics::{
 use crate::lyrics_plus::LineMeta;
 use crate::notify::OsNotifier;
 use crate::player::{PlayerCommand, PlayerEvent, PlayerSnapshot};
+use crate::source_account::SourceAccount;
 use crate::stats::StatsService;
 use crate::stream::{ResolvedStream, StreamError};
 use crate::track::{Artwork, VideoId};
@@ -312,6 +313,9 @@ pub struct Backend {
     /// The SoundCloud catalog of public tracks. `None` until the app builds it (the opt-in
     /// switch is on and confirmed), so the UI shows no SoundCloud entry.
     pub soundcloud: Option<Arc<dyn Catalog>>,
+    /// Sign-in to SoundCloud. `None` until the app builds it (the opt-in switch is on and
+    /// confirmed), so the UI shows no SoundCloud account card.
+    pub soundcloud_account: Option<Arc<dyn SourceAccount>>,
     /// Listening stats. [`NoStats`](crate::stats::NoStats) while recording is off or the store
     /// could not open.
     pub stats: Arc<dyn StatsService>,

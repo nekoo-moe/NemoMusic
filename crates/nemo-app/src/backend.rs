@@ -14,6 +14,7 @@ use nemo_core::hooks::PlayObserver;
 use nemo_core::integrations::NoIntegrations;
 use nemo_core::notify::NoNotifier;
 use nemo_core::player::PlayerCommand;
+use nemo_core::secret_store::SecretStore;
 use nemo_core::segment::SegmentSource;
 use nemo_core::services::Backend;
 use nemo_core::stats::NoStats;
@@ -172,15 +173,17 @@ pub fn build(
     report: StepReporter<'_>,
 ) -> Result<Services, StartError> {
     let local = LocalCatalog::new(LocalLibrary::new(settings.music_folders.clone()));
-    let account_slot: SessionSlot = SessionSlot::default();
+    let slot: SessionSlot = SessionSlot::default();
     let offline = open_offline(paths);
     // Streams resolved in the last hours, kept between runs (cold-start spec).
     let streams = Arc::new(StreamStore::open(paths.streams.clone()));
     report(StartStep::Library);
-    let account = build_account(paths, handle, &account_slot, offline, &streams);
+    // One credential store for both accounts; without it no sign-in is offered.
+    let store = open_credential_store();
+    let account = build_account(paths, handle, &slot, offline, &streams, store.clone());
     report(StartStep::CredentialStore);
     // Signed out: the anonymous catalog. Signed in: the account's session, switched live.
-    let remote = AccountCatalog::new(Arc::new(YtmCatalog::new(handle.clone())), account_slot);
+    let remote = AccountCatalog::new(Arc::new(YtmCatalog::new(handle.clone())), slot);
     // The first songs of Home are resolved ahead once the resolver exists (start_warm).
     let warm_slot = WarmSlot::default();
     let home_slot = Arc::clone(&warm_slot);
@@ -223,6 +226,7 @@ pub fn build(
     // SoundCloud exists only when the switch is on and the notice confirmed (soundcloud-full).
     let sc = soundcloud::for_app(&settings.opt_ins, handle, &ytdlp);
     let opener = soundcloud::opener(Arc::new(HttpStreamOpener::default()), sc.as_ref());
+    let sc_account = soundcloud::account_for(sc.as_ref(), store, paths, handle);
 
     let player = Player::spawn(PlayerDeps {
         resolver,
@@ -272,6 +276,7 @@ pub fn build(
             integrations: Arc::new(NoIntegrations),
             notifier: Arc::new(NoNotifier),
             soundcloud: sc.map(|parts| parts.catalog),
+            soundcloud_account: sc_account,
             stats: Arc::new(NoStats),
             comments: None,
             ratings: None,
@@ -352,6 +357,18 @@ fn start_commands(settings: &Settings) -> [PlayerCommand; 4] {
     ]
 }
 
+/// The OS credential store, or `None` (logged) when this computer has none. Tokens and cookies
+/// live only there.
+fn open_credential_store() -> Option<Arc<dyn SecretStore>> {
+    match nemo_secrets::open_platform_store() {
+        Ok(store) => Some(store),
+        Err(err) => {
+            tracing::warn!(error = %err, "sign-in disabled");
+            None
+        }
+    }
+}
+
 /// The Google account service, or `NoAccount` when the OS credential store is missing.
 fn build_account(
     paths: &AppPaths,
@@ -359,13 +376,10 @@ fn build_account(
     slot: &SessionSlot,
     offline: Option<Arc<OfflineCache>>,
     streams: &Arc<StreamStore>,
+    store: Option<Arc<dyn SecretStore>>,
 ) -> Arc<dyn AccountService> {
-    let store = match nemo_secrets::open_platform_store() {
-        Ok(store) => store,
-        Err(err) => {
-            tracing::warn!(error = %err, "sign-in disabled");
-            return Arc::new(NoAccount);
-        }
+    let Some(store) = store else {
+        return Arc::new(NoAccount);
     };
     let config = AccountConfig {
         helper: signin_program(),
@@ -389,7 +403,7 @@ fn build_account(
 /// The sign-in window is this same executable started again with `--signin` (see `main`).
 /// Without a known path, starting the window fails with a clear message and cookie paste still
 /// works.
-fn signin_program() -> PathBuf {
+pub(crate) fn signin_program() -> PathBuf {
     std::env::current_exe().unwrap_or_else(|err| {
         tracing::warn!(error = %err, "cannot find the app executable; the sign-in window is off");
         PathBuf::new()

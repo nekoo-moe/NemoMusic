@@ -19,9 +19,11 @@ tracing.workspace = true
 # Same versions and features as `nemo-ytm` (soundcloud-full design): `native-tls` needs no cmake
 # or NASM on Windows. Async client, run on the app runtime.
 reqwest = { version = "=0.13.5", default-features = false, features = ["blocking", "http2", "native-tls"] }
-tokio = { version = "=1.54.1", default-features = false, features = ["rt", "sync", "time"] }
+tokio = { version = "=1.54.1", default-features = false, features = ["rt", "sync", "time", "process", "io-util"] }
 
 [dev-dependencies]
 # Decodes the recorded AAC segments in the HLS tests (the same dev-dependency `nemo-ytm` has).
 nemo-audio.workspace = true
+# `MemoryStore`, the fake credential store of the account tests.
+nemo-core = { workspace = true, features = ["test-util"] }
 tokio = { version = "=1.54.1", default-features = false, features = ["rt-multi-thread", "time", "macros"] }

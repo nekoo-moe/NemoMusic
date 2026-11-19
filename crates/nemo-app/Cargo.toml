@@ -35,3 +35,7 @@ rfd = { version = "=0.18.0", default-features = false, features = ["xdg-portal"]
 # Mica or acrylic blur behind the see-through window (Windows only; tech.md, Window blur).
 [target.'cfg(windows)'.dependencies]
 window-vibrancy = "=0.8.1"
+
+[dev-dependencies]
+# `MemoryStore`, the fake credential store of the SoundCloud account test.
+nemo-core = { workspace = true, features = ["test-util"] }

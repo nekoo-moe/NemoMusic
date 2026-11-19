@@ -70,6 +70,10 @@ pub(crate) fn to_catalog(e: ClientError) -> CatalogError {
         ClientError::Network => CatalogError::Network("could not reach SoundCloud".to_owned()),
         ClientError::Timeout => CatalogError::Network("the request timed out".to_owned()),
         ClientError::Parse => CatalogError::Parse("unexpected answer from SoundCloud".to_owned()),
+        ClientError::SessionEnded => {
+            CatalogError::Unavailable("Sign in to SoundCloud again".to_owned())
+        }
+        ClientError::Off => CatalogError::Unavailable("SoundCloud is switched off".to_owned()),
         ClientError::NoClientId => {
             CatalogError::Unavailable("SoundCloud changed its web app".to_owned())
         }

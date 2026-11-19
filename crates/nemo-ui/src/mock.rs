@@ -288,6 +288,7 @@ pub fn mock_backend() -> Backend {
         integrations: Arc::new(NoIntegrations),
         notifier: Arc::new(NoNotifier),
         soundcloud: None,
+        soundcloud_account: None,
         stats: Arc::new(NoStats),
         comments: None,
         ratings: None,

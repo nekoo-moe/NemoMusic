@@ -204,3 +204,80 @@ async fn with_yt_dlp_behind_it_the_resolver_is_still_the_native_one_and_the_gate
         nemo_core::url_resolver::ResolverState::Ready { version } if version == "native"
     ));
 }
+
+/// Parts built with a counting host, so a test can see whether the account asks for anything.
+fn open_parts() -> (SoundcloudParts, Arc<CountingHost>) {
+    let host = Arc::new(CountingHost::default());
+    let shared = Arc::clone(&host);
+    let parts = build(
+        &choice(true, OPT_IN.version),
+        &Handle::current(),
+        move || Some(shared as Arc<dyn ScHttp>),
+        None,
+    )
+    .expect("open gate");
+    (parts, host)
+}
+
+#[tokio::test]
+async fn the_account_is_built_with_a_credential_store_and_starts_signed_out_without_a_request() {
+    use nemo_core::secret_store::MemoryStore;
+    use nemo_core::source_account::SourceAccountState;
+
+    let (parts, host) = open_parts();
+    let root = std::env::temp_dir().join(format!("nemo-app-sc-account-{}", std::process::id()));
+    let paths = AppPaths::under(&root);
+    let store: Arc<dyn SecretStore> = Arc::new(MemoryStore::default());
+    let account = build_account(&parts, Some(store), &paths, &Handle::current()).expect("account");
+    assert_eq!(account.state(), SourceAccountState::SignedOut);
+    // Only the client id look-up from `build` may have asked; the account asked for nothing.
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    let urls = host.urls.lock().expect("lock").clone();
+    assert!(
+        urls.iter().all(|u| u == "https://soundcloud.com/"),
+        "{urls:?}"
+    );
+    assert!(!root.exists(), "nothing was written before a sign-in");
+}
+
+#[tokio::test]
+async fn without_a_credential_store_there_is_no_account_and_so_no_place_for_a_token() {
+    let (parts, _) = open_parts();
+    let paths = AppPaths::under(&std::env::temp_dir().join("nemo-app-sc-nostore"));
+    assert!(build_account(&parts, None, &paths, &Handle::current()).is_none());
+}
+
+#[test]
+fn the_two_sign_in_windows_use_their_own_profile_folders() {
+    let paths = AppPaths::under(std::path::Path::new("C:/data/NemoMusic"));
+    assert_ne!(paths.webview, paths.webview_soundcloud);
+}
+
+#[tokio::test]
+async fn a_client_switched_off_sends_nothing() {
+    use nemo_soundcloud::ClientError;
+
+    let (parts, host) = open_parts();
+    tokio::time::sleep(Duration::from_millis(100)).await; // The client id look-up of `build`.
+    parts.client.set_enabled(false);
+    let before = host.urls.lock().expect("lock").len();
+    assert_eq!(
+        parts.client.get("/search", &[]).await,
+        Err(ClientError::Off)
+    );
+    assert_eq!(
+        host.urls.lock().expect("lock").len(),
+        before,
+        "nothing was sent"
+    );
+}
+
+#[test]
+fn a_closed_gate_has_no_account() {
+    let paths = AppPaths::under(&std::env::temp_dir().join("nemo-app-sc-closed"));
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+    assert!(account_for(None, None, &paths, rt.handle()).is_none());
+}

@@ -106,6 +106,10 @@ fn stream_error(e: ClientError) -> StreamError {
         ClientError::Parse => StreamError::Parse("unexpected answer from SoundCloud".to_owned()),
         // The web app is not what the client reads: the one answer the `yt-dlp` fallback may take.
         ClientError::NoClientId => StreamError::Parse("SoundCloud changed its web app".to_owned()),
+        ClientError::SessionEnded => {
+            StreamError::Network("Sign in to SoundCloud again, then play this".to_owned())
+        }
+        ClientError::Off => StreamError::Network("SoundCloud is switched off".to_owned()),
     }
 }
 
@@ -289,6 +293,24 @@ impl ScStreamResolver {
             }),
             handle,
         }
+    }
+}
+
+impl ScStreamResolver {
+    /// Forget every kept stream address and its prefetch (sign-out: some belong to private
+    /// tracks). Returns how many addresses were kept.
+    pub fn forget_all(&self) -> usize {
+        let removed = {
+            let mut cache = self
+                .inner
+                .cache
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            let removed = cache.len();
+            cache.clear();
+            removed
+        };
+        removed + self.inner.shared.clear()
     }
 }
 

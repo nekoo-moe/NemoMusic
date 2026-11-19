@@ -33,24 +33,32 @@ impl Response {
 pub struct TestServer {
     port: u16,
     paths: Arc<Mutex<Vec<String>>>,
+    /// The `Authorization` header of each request, in order.
+    auths: Arc<Mutex<Vec<Option<String>>>>,
     stop: Arc<AtomicBool>,
     thread: Option<JoinHandle<()>>,
 }
 
-/// The request path (with its query) and every header line, lower-cased.
-fn read_request(stream: &TcpStream) -> Option<String> {
+/// The request path (with its query) and the value of its `Authorization` header, if any.
+fn read_request(stream: &TcpStream) -> Option<(String, Option<String>)> {
     let mut reader = BufReader::new(stream);
     let mut line = String::new();
     reader.read_line(&mut line).ok()?;
     let path = line.split_whitespace().nth(1)?.to_owned();
+    let mut auth = None;
     loop {
         let mut header = String::new();
         reader.read_line(&mut header).ok()?;
         if header.trim_end().is_empty() {
             break;
         }
+        if let Some((name, value)) = header.split_once(':')
+            && name.eq_ignore_ascii_case("authorization")
+        {
+            auth = Some(value.trim().to_owned());
+        }
     }
-    Some(path)
+    Some((path, auth))
 }
 
 fn reason(status: u16) -> &'static str {
@@ -93,6 +101,8 @@ impl TestServer {
         let port = listener.local_addr().expect("local addr").port();
         let paths = Arc::new(Mutex::new(Vec::new()));
         let stop = Arc::new(AtomicBool::new(false));
+        let auths = Arc::new(Mutex::new(Vec::new()));
+        let seen_auths = Arc::clone(&auths);
         let seen = Arc::clone(&paths);
         let stopped = Arc::clone(&stop);
         let thread = std::thread::spawn(move || {
@@ -101,9 +111,10 @@ impl TestServer {
                     break;
                 }
                 let Ok(stream) = stream else { continue };
-                let Some(path) = read_request(&stream) else {
+                let Some((path, auth)) = read_request(&stream) else {
                     continue;
                 };
+                seen_auths.lock().expect("lock").push(auth);
                 let index = {
                     let mut all = seen.lock().expect("lock");
                     all.push(path.clone());
@@ -115,6 +126,7 @@ impl TestServer {
         Self {
             port,
             paths,
+            auths,
             stop,
             thread: Some(thread),
         }
@@ -126,6 +138,11 @@ impl TestServer {
 
     pub fn paths(&self) -> Vec<String> {
         self.paths.lock().expect("lock").clone()
+    }
+
+    /// The `Authorization` header of every request so far, in order.
+    pub fn authorizations(&self) -> Vec<Option<String>> {
+        self.auths.lock().expect("lock").clone()
     }
 }
 

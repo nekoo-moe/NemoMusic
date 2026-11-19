@@ -6,10 +6,13 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use nemo_core::catalog::Catalog;
+use nemo_core::secret_store::SecretStore;
 use nemo_core::services::StreamOpener;
+use nemo_core::source_account::SourceAccount;
 use nemo_core::url_resolver::UrlResolver;
 use nemo_soundcloud::{
-    OPT_IN, ReqwestHttp, ScClient, ScHttp, ScStreamOpener, SoundcloudCatalog, streams,
+    AccountFiles, OPT_IN, ReqwestHttp, ScAccount, ScClient, ScHttp, ScStreamOpener, SessionCaches,
+    SignInWindow, SoundcloudCatalog, streams,
 };
 use nemo_ytm::url_resolver::YtDlpUrlResolver;
 use nemo_ytm::ytdlp::YtDlpResolver;
@@ -17,6 +20,7 @@ use tokio::runtime::Handle;
 
 use crate::config::OptInChoice;
 use crate::opt_in_gate::build_if_open;
+use crate::paths::AppPaths;
 
 mod fallback;
 
@@ -30,6 +34,10 @@ pub struct SoundcloudParts {
     pub resolver: Arc<dyn UrlResolver>,
     /// Opens the HLS streams the resolver finds.
     pub opener: ScStreamOpener,
+    /// The client, shared with the account.
+    pub client: Arc<ScClient>,
+    /// The sign-out step that drops this session's track records and kept streams.
+    pub caches: SessionCaches,
 }
 
 /// Build the services when the gate is open. `http` makes the HTTP layer; it is not called while
@@ -47,6 +55,7 @@ pub fn build(
     build_if_open(choices, &OPT_IN, || {
         let client = Arc::new(ScClient::new(http()?));
         let (resolver, opener) = streams(Arc::clone(&client), handle.clone());
+        let caches = SessionCaches::new(Arc::clone(&client), resolver.clone());
         let (warm, early) = (Arc::clone(&client), opener.clone());
         handle.spawn(async move {
             // The client id first. Only once it is known, the media client is built (it loads
@@ -61,12 +70,14 @@ pub fn build(
             }
         });
         Some(SoundcloudParts {
-            catalog: Arc::new(SoundcloudCatalog::new(client)),
+            catalog: Arc::new(SoundcloudCatalog::new(Arc::clone(&client))),
             resolver: match ytdlp {
                 Some(ytdlp) => Arc::new(FallbackResolver::new(Arc::new(resolver), ytdlp)),
                 None => Arc::new(resolver),
             },
             opener,
+            client,
+            caches,
         })
     })
     .flatten()
@@ -81,6 +92,47 @@ pub fn for_app(
 ) -> Option<SoundcloudParts> {
     let page_ytdlp: Arc<dyn UrlResolver> = Arc::new(YtDlpUrlResolver::new(ytdlp.clone()));
     build(choices, handle, || real_http(handle), Some(page_ytdlp))
+}
+
+/// The SoundCloud account (when SoundCloud runs), built with the credential `store`. `None`
+/// without SoundCloud or without a credential store, so no sign-in is offered and no token is
+/// kept anywhere.
+pub fn account_for(
+    sc: Option<&SoundcloudParts>,
+    store: Option<Arc<dyn SecretStore>>,
+    paths: &AppPaths,
+    handle: &Handle,
+) -> Option<Arc<dyn SourceAccount>> {
+    build_account(sc?, store, paths, handle)
+}
+
+/// The SoundCloud account: sign-in window, token in the credential `store`, sign-out that also
+/// drops the session's caches. The window is this same executable started again (`main`).
+pub fn build_account(
+    parts: &SoundcloudParts,
+    store: Option<Arc<dyn SecretStore>>,
+    paths: &AppPaths,
+    handle: &Handle,
+) -> Option<Arc<dyn SourceAccount>> {
+    let store = store?;
+    let window = SignInWindow::new(
+        crate::backend::signin_program(),
+        vec![nemo_signin::SIGNIN_ARG.into()],
+        paths.webview_soundcloud.clone(),
+    );
+    let files = AccountFiles {
+        webview_dir: paths.webview_soundcloud.clone(),
+        cache_file: paths.account.join("soundcloud.json"),
+    };
+    let account = ScAccount::new(
+        Arc::clone(&parts.client),
+        store,
+        Arc::new(window),
+        files,
+        handle.clone(),
+    );
+    account.register_wipe(Arc::new(parts.caches.clone()));
+    Some(Arc::new(account))
 }
 
 /// The player's opener: SoundCloud HLS streams go to their reader, everything else to `files`.
