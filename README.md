@@ -91,6 +91,8 @@ Also needs Visual Studio Build Tools with the C++ workload, and CMake on `PATH` 
 cargo run -p nemo-app --release
 ```
 
+With Window glass on (Settings, Appearance), Windows 11 and Windows 10 1809 or newer blur what is behind the window (Mica or acrylic). The system does it; nothing is downloaded and no host is contacted.
+
 ### Linux
 
 Tested on Linux Mint 22.3 (Ubuntu 24.04 base), X11. Needs these system packages (Debian and Ubuntu names):

@@ -323,6 +323,44 @@ mod tests {
         shell.t0 + Duration::from_millis(ms)
     }
 
+    /// A shell with the hook wired and these settings. The start function never runs here.
+    fn shell_with_hook(window_glass: bool, reduce_transparency: bool, hooked: bool) -> Shell {
+        let options = UiOptions {
+            settings: crate::settings::UiSettings {
+                reduce_transparency,
+                window_glass,
+                ..crate::settings::UiSettings::default()
+            },
+            on_window_ready: hooked.then(|| Arc::new(|_: &dyn iced::window::Window, _| {}) as _),
+            ..UiOptions::default()
+        };
+        let start: StartFn = Box::new(|_| Err("stopped by the test".to_owned()));
+        Shell::boot(start, options).0
+    }
+
+    #[test]
+    fn the_window_goes_to_the_hook_only_when_it_is_see_through_and_not_reduced() {
+        assert!(
+            shell_with_hook(true, false, true)
+                .window_look_task()
+                .units()
+                > 0
+        );
+        for (glass, reduce, hooked) in [
+            (false, false, true),
+            (true, true, true),
+            (false, true, true),
+            (true, false, false),
+        ] {
+            let task = shell_with_hook(glass, reduce, hooked).window_look_task();
+            assert_eq!(
+                task.units(),
+                0,
+                "glass {glass}, reduce {reduce}, hook {hooked}"
+            );
+        }
+    }
+
     #[test]
     fn the_first_frame_does_not_wait_for_the_start_function() {
         let (release, wait) = channel::<()>();
