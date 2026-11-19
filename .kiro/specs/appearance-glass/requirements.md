@@ -45,6 +45,6 @@ Owner request, 2026-11-19: "Rebuild the whole Appearance setting, add the new op
 ## Open Questions
 
 Decided by the author of this spec (owner, 2026-11-19: decide open points and finish):
-1. Windows acrylic or mica blur: not added. It needs the crate `window-vibrancy` (MIT or Apache-2.0), which `tech.md` does not list; adding it is the owner's call. Clear glass works on Windows 11 with a compositor that gives the window an alpha channel; blur does not.
+1. Windows acrylic or mica blur: not added. It needs the crate `window-vibrancy` (MIT or Apache-2.0), which `tech.md` does not list; adding it is the owner's call. Windows is not verified here.
 2. The full-screen Now Playing stays solid, because its lyrics sit straight on the backdrop with no pane.
 3. The player bar, menus and sheets stay solid, as `design.md` section 6 requires for text-bearing floating surfaces.
