@@ -166,6 +166,13 @@ impl ScClient {
         self.enabled.load(Ordering::SeqCst)
     }
 
+    /// Whether `url` is an address on the API host. Only such addresses are followed (`next_href`).
+    #[must_use]
+    pub fn is_api_url(&self, url: &str) -> bool {
+        url.strip_prefix(self.endpoints.api.as_str())
+            .is_some_and(|rest| rest.starts_with('/'))
+    }
+
     /// The session token slot. The account sets it after a sign-in and clears it on sign-out.
     #[must_use]
     pub const fn auth(&self) -> &Auth {

@@ -16,8 +16,14 @@ pub const USER_TRACKS: &str = include_str!("../tests/fixtures/user_tracks.json")
 pub const USER_ALBUMS: &str = include_str!("../tests/fixtures/user_albums.json");
 pub const RELATED: &str = include_str!("../tests/fixtures/related.json");
 pub const ME: &str = include_str!("../tests/fixtures/me.json");
+pub const LIKES: &str = include_str!("../tests/fixtures/likes.json");
+pub const LIKES_PAGE2: &str = include_str!("../tests/fixtures/likes_page2.json");
+pub const LIBRARY_ALL: &str = include_str!("../tests/fixtures/library_all.json");
+pub const FOLLOWINGS: &str = include_str!("../tests/fixtures/followings.json");
+pub const HISTORY: &str = include_str!("../tests/fixtures/history.json");
+pub const FEED: &str = include_str!("../tests/fixtures/feed.json");
 
-const ALL: [&str; 11] = [
+const ALL: [&str; 17] = [
     TRACK_HLS,
     SEARCH_TRACKS,
     SEARCH_MIXED,
@@ -29,6 +35,12 @@ const ALL: [&str; 11] = [
     USER_ALBUMS,
     RELATED,
     ME,
+    LIKES,
+    LIKES_PAGE2,
+    LIBRARY_ALL,
+    FOLLOWINGS,
+    HISTORY,
+    FEED,
 ];
 
 /// Every `https://host` in `text`.

@@ -15,8 +15,9 @@
   - Depends on: 1
   - Steering: `design.md` setup-flow line and a SoundCloud screens section (labelled).
 
-- [ ] 3. Account library reads (PR 3)
+- [x] 3. Account library reads (PR 3)
   - Crate and files: `nemo-soundcloud` (`library.rs`), `nemo-core` mapping.
+  - Does: criteria 11 and 12. Reads of likes, the library (own and liked playlists and albums), followings, the feed and the history, one page at a time; the `Catalog` methods read up to four pages. The Refresh button and the refresh after sign-in are wired with the screens (PR 4), which call these reads.
   - _Requirements: 11, 12_
   - Depends on: 1
 

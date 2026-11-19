@@ -1,0 +1,36 @@
+{
+ "collection": [
+  {
+   "kind": "user",
+   "id": 7000300,
+   "username": "Fixture Followed 1",
+   "avatar_url": "https://i1.sndcdn.com/avatars-000000000100-fixtur-large.jpg",
+   "permalink_url": "https://soundcloud.com/fixture-followed-1",
+   "description": "A short fixture biography of artist 6.",
+   "followers_count": 12,
+   "track_count": 3
+  },
+  {
+   "kind": "user",
+   "id": 7000301,
+   "username": "Fixture Followed 2",
+   "avatar_url": "https://i1.sndcdn.com/avatars-000000000101-fixtur-large.jpg",
+   "permalink_url": "https://soundcloud.com/fixture-followed-2",
+   "description": "A short fixture biography of artist 6.",
+   "followers_count": 12,
+   "track_count": 3
+  },
+  {
+   "kind": "user",
+   "id": 7000302,
+   "username": "Fixture Followed 3",
+   "avatar_url": "https://i1.sndcdn.com/avatars-000000000102-fixtur-large.jpg",
+   "permalink_url": "https://soundcloud.com/fixture-followed-3",
+   "description": "A short fixture biography of artist 6.",
+   "followers_count": 12,
+   "track_count": 3
+  }
+ ],
+ "next_href": "https://api-v2.soundcloud.com/users/7000001/followings?offset=3&limit=3",
+ "total_results": 5
+}
