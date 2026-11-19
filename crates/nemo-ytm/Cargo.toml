@@ -26,6 +26,9 @@ tokio = { version = "=1.54.1", default-features = false, features = ["process", 
 # HTTP: Windows-native TLS (SChannel), so no cmake or NASM is needed. Blocking client for the stream reader,
 # async client (run on the app runtime) for SponsorBlock and cover art.
 reqwest = { version = "=0.13.5", default-features = false, features = ["blocking", "native-tls"] }
+# The embedded JavaScript engine (QuickJS) that solves YouTube's signature and `n` challenges in process
+# (cold-start spec; owner, 2026-11-19). MIT. No scripts, files or network are given to it.
+rquickjs = { version = "=0.14.0", default-features = true }
 # Anonymous YouTube Music catalog (NoAuth token). `native-tls` matches the reqwest backend above.
 ytmapi-rs = { version = "=0.3.4", default-features = false, features = ["native-tls", "simplified-queries"] }
 
