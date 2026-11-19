@@ -20,7 +20,7 @@ pub const SHIFT: f32 = 0.05;
 pub const BREATHE: f32 = 0.02;
 /// Opacity of `surface-container-lowest` at the bottom of the window backdrop (a vignette for
 /// depth; transparent at the top).
-pub const VIGNETTE_ALPHA: f32 = 0.55;
+pub const VIGNETTE_ALPHA: f32 = 0.42;
 /// Opacity of the vignette at 40 % of the window height.
 pub const VIGNETTE_MID_ALPHA: f32 = 0.15;
 /// Where each colour field sits: horizontal and vertical centre as fractions of the window, and
