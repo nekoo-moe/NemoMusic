@@ -23,6 +23,8 @@ pub(super) const CARD_PAD: f32 = gap::LG;
 const MIN_TEXT_W: f32 = 200.0;
 /// Width of a switch with its `On` or `Off` text.
 pub(super) const SWITCH_BOX_W: f32 = 116.0;
+/// Width of a switch with the word `Overridden`.
+const SWITCH_BOX_WIDE: f32 = 156.0;
 
 /// What a switch shows beside its track.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -33,6 +35,16 @@ pub(super) enum SwitchMode {
     Disabled,
     /// Usable, but another setting overrides it: shows `Overridden`.
     Overridden,
+}
+
+impl SwitchMode {
+    /// Width of the switch with its text.
+    pub(super) const fn box_w(self) -> f32 {
+        match self {
+            Self::Overridden => SWITCH_BOX_WIDE,
+            _ => SWITCH_BOX_W,
+        }
+    }
 }
 
 /// The track and thumb of a switch, as a button so it gets the hover layer, the focus ring and
@@ -108,7 +120,7 @@ pub(super) fn switch<'a>(
         Space::new().width(gap::MD),
         track(on, dim, press),
     ]
-    .width(Length::Fixed(SWITCH_BOX_W))
+    .width(Length::Fixed(mode.box_w()))
     .align_y(Alignment::Center)
     .into()
 }

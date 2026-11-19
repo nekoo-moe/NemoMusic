@@ -226,7 +226,7 @@ fn window_glass_card(app: &App, width: f32) -> Element<'_, Message> {
                 inner,
                 text,
                 switch(s.window_glass, mode, SettingChange::WindowGlass),
-                controls::SWITCH_BOX_W,
+                mode.box_w(),
             ),
             aside(
                 inner,
