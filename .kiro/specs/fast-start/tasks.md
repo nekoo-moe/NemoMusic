@@ -2,10 +2,10 @@
 
 ## Tasks
 
-- [ ] 1. Stage timing at debug level and the measuring example `fast_start_stages`; spec files; BEFORE numbers in the PR. _Requirements: 1, 2, 8_
+- [ ] 1. Stage timing at debug level and the measuring example `fast_start_stages`; spec files; BEFORE numbers in the PR. _Requirements: 1, 2, 9_
 - [ ] 2. Reuse the opened next song on Next, and warm only the next entry; tests with fakes; bit-exact and no-alloc tests. _Requirements: 4, 5, 7_
 - [ ] 3. Start yt-dlp beside a native request that is slow (1.5 s); the first good answer wins and the other is cancelled; a dropped yt-dlp resolve kills its process. _Requirements: 2, 6_
-- [ ] 4. (If time allows, owner decides) Linux onedir build for yt-dlp. _Requirements: 1_
+- [ ] 4. Linux onedir build for yt-dlp (`yt-dlp_linux.zip`, unpacked with `unzip`; the one-file build when `unzip` is missing); `ytdlp-auto-install` spec lines updated; the `tech.md` sentence is the owner's to edit. _Requirements: 8_
 
 ## Definition of Done
 

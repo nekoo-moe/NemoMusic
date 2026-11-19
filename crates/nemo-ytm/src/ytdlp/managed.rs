@@ -14,7 +14,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use super::ProgramSlot;
 use crate::ytdlp_install::{
-    self, ASSET, InstallError, LINUX_ASSET, checksum_for, fetch_asset, fetch_sums,
+    self, ASSET, InstallError, LINUX_ASSET, LINUX_ZIP_ASSET, checksum_for, fetch_asset, fetch_sums,
+    unzip_on_path,
 };
 
 /// Shortest time between two update checks of the app-managed copy.
@@ -32,8 +33,10 @@ static RUNNING: AtomicBool = AtomicBool::new(false);
 pub enum Build {
     /// Windows x64: the onedir zip, unpacked into the folder.
     WindowsOnedir,
-    /// Linux `x86_64`: the one-file program.
+    /// Linux `x86_64` without `unzip`: the one-file program (it unpacks itself on every run).
     LinuxOnefile,
+    /// Linux `x86_64` with `unzip`: the onedir zip, unpacked into the folder (starts faster).
+    LinuxOnedir,
 }
 
 impl Build {
@@ -43,7 +46,11 @@ impl Build {
         if cfg!(all(windows, target_arch = "x86_64")) {
             Some(Self::WindowsOnedir)
         } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-            Some(Self::LinuxOnefile)
+            Some(if unzip_on_path() {
+                Self::LinuxOnedir
+            } else {
+                Self::LinuxOnefile
+            })
         } else {
             None
         }
@@ -55,6 +62,7 @@ impl Build {
         match self {
             Self::WindowsOnedir => ASSET,
             Self::LinuxOnefile => LINUX_ASSET,
+            Self::LinuxOnedir => LINUX_ZIP_ASSET,
         }
     }
 
@@ -63,7 +71,7 @@ impl Build {
     pub fn program_name(self) -> &'static str {
         match self {
             Self::WindowsOnedir => "yt-dlp.exe",
-            Self::LinuxOnefile => "yt-dlp",
+            Self::LinuxOnefile | Self::LinuxOnedir => "yt-dlp",
         }
     }
 
@@ -71,6 +79,7 @@ impl Build {
         match self {
             Self::WindowsOnedir => ytdlp_install::unpack_onedir(dir, bytes),
             Self::LinuxOnefile => ytdlp_install::place_onefile(dir, bytes),
+            Self::LinuxOnedir => ytdlp_install::unpack_linux_onedir(dir, bytes),
         }
     }
 }

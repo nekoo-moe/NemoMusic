@@ -3,7 +3,8 @@
 //!
 //! `cargo run -p nemo-ytm --example install_yt_dlp [-- <target folder>]`
 //!
-//! Windows x64: the onedir build; Linux `x86_64`: the one-file `yt-dlp_linux`. Default target:
+//! Windows x64: the onedir build; Linux `x86_64`: the onedir `yt-dlp_linux.zip` when `unzip` is
+//! installed, else the one-file `yt-dlp_linux`. Default target:
 //! `<data>/NemoMusic/bin/yt-dlp`, the first place `locate_yt_dlp` looks. Downloads two files
 //! from the latest GitHub release and checks the SHA-256 before anything is put in place.
 #![allow(
@@ -17,7 +18,9 @@ use std::process::ExitCode;
 use std::time::Instant;
 
 use nemo_ytm::ytdlp::managed::Build;
-use nemo_ytm::ytdlp::{install_onedir, install_onefile, locate_yt_dlp, managed_dir};
+use nemo_ytm::ytdlp::{
+    install_linux_onedir, install_onedir, install_onefile, locate_yt_dlp, managed_dir,
+};
 
 fn main() -> ExitCode {
     let Some(build) = Build::for_this_platform() else {
@@ -36,6 +39,7 @@ fn main() -> ExitCode {
     let installed = match build {
         Build::WindowsOnedir => install_onedir(&target),
         Build::LinuxOnefile => install_onefile(&target),
+        Build::LinuxOnedir => install_linux_onedir(&target),
     };
     match installed {
         Ok(program) => {
