@@ -26,3 +26,7 @@ nemo-secrets.workspace = true
 nemo-signin = { path = "../nemo-signin" }
 tokio = { version = "=1.54.1", default-features = false, features = ["rt-multi-thread", "time"] }
 nemo-ui = { workspace = true, features = ["gui"] }
+# The native folder dialog for `Add a folder` (tech.md, Folder picker). Linux uses the XDG desktop
+# portal (`gtk3` cannot be used: rfd 0.18 needs gtk-sys 0.19 and wry already links gtk-sys 0.18,
+# and Cargo allows one `links = "gtk-3"` package); Windows uses its own native dialog.
+rfd = { version = "=0.18.0", default-features = false, features = ["xdg-portal"] }

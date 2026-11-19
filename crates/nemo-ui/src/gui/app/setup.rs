@@ -169,4 +169,44 @@ mod tests {
             }
         }
     }
+
+    fn app_with_picker(answer: Option<&'static str>) -> App {
+        use crate::gui::app::FolderPicker;
+        let picker = FolderPicker::new(move || Box::pin(async move { answer.map(str::to_owned) }));
+        let options = UiOptions {
+            music_folders: vec!["/music/old".to_owned()],
+            on_add_music_folder: Some(picker),
+            ..UiOptions::default()
+        };
+        App::new(mock_backend(), &options).0
+    }
+
+    #[test]
+    fn add_a_folder_opens_the_dialog_and_lists_the_chosen_folder() {
+        let mut app = app_with_picker(Some("/music/new"));
+        let jobs = app.update_core(Message::AddFolder);
+        assert_eq!(jobs.len(), 1, "one job opens the dialog");
+        app.settle_blocking(jobs);
+        assert_eq!(app.music_folders, ["/music/old", "/music/new"]);
+    }
+
+    #[test]
+    fn a_cancelled_dialog_and_a_folder_already_listed_change_nothing() {
+        let mut cancelled = app_with_picker(None);
+        let jobs = cancelled.update_core(Message::AddFolder);
+        cancelled.settle_blocking(jobs);
+        assert_eq!(cancelled.music_folders, ["/music/old"]);
+
+        let mut again = app_with_picker(Some("/music/old"));
+        let jobs = again.update_core(Message::AddFolder);
+        again.settle_blocking(jobs);
+        assert_eq!(again.music_folders, ["/music/old"]);
+    }
+
+    #[test]
+    fn without_a_picker_the_button_is_hidden_and_the_message_does_nothing() {
+        let (mut app, _) = App::new(mock_backend(), &UiOptions::default());
+        assert!(!app.has_add_folder());
+        assert!(app.update_core(Message::AddFolder).is_empty());
+    }
 }

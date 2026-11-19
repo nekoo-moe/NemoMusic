@@ -109,6 +109,18 @@ pub enum SettingsMsg {
     Ui(UiSettings),
     /// Output status updated from the player.
     Output(OutputStatus),
+    /// A music folder chosen in the folder dialog.
+    AddFolder(PathBuf),
+}
+
+/// Keep a chosen music folder. Returns `true` when the list changed: a folder that is not
+/// absolute or is already listed is left out.
+pub fn add_music_folder(settings: &mut Settings, path: PathBuf) -> bool {
+    if !path.is_absolute() || settings.music_folders.contains(&path) {
+        return false;
+    }
+    settings.music_folders.push(path);
+    true
 }
 
 /// Update `settings.output_device` from the player's output status.
@@ -147,7 +159,7 @@ pub fn options(settings: Settings, root: PathBuf) -> (UiOptions, Sender<Settings
         settings: initial,
         on_settings: Some(on_settings),
         music_folders: folders,
-        // No folder picker yet: folders are edited in settings.json (see README).
+        // The folder picker is set by `main` once the saver and the library slot exist.
         on_add_music_folder: None,
         maximized: true,
         // One switch: the OS preference here, OR the user's Settings toggle (the UI joins them).
@@ -203,6 +215,9 @@ fn spawn_saver(mut settings: Settings, root: PathBuf) -> Sender<SettingsMsg> {
                                 SettingsMsg::Output(status) => {
                                     apply_output_choice(&mut settings, &status);
                                 }
+                                SettingsMsg::AddFolder(path) => {
+                                    add_music_folder(&mut settings, path);
+                                }
                             }
                         }
                         apply_ui(&mut settings, &ui);
@@ -210,6 +225,16 @@ fn spawn_saver(mut settings: Settings, root: PathBuf) -> Sender<SettingsMsg> {
                     }
                     SettingsMsg::Output(status) => {
                         changed |= apply_output_choice(&mut settings, &status);
+                    }
+                    SettingsMsg::AddFolder(path) => {
+                        changed |= add_music_folder(&mut settings, path);
+                        if changed {
+                            // Counts only: a folder's path is never logged.
+                            tracing::info!(
+                                folders = settings.music_folders.len(),
+                                "music folder added"
+                            );
+                        }
                     }
                 }
                 if changed && let Err(err) = settings.save(&root) {
@@ -397,5 +422,18 @@ mod tests {
         status.chosen = None;
         assert!(apply_output_choice(&mut s, &status));
         assert_eq!(s.output_device, None);
+    }
+
+    #[test]
+    fn a_chosen_folder_is_kept_once_and_only_when_it_is_absolute() {
+        let mut s = Settings {
+            music_folders: Vec::new(),
+            ..Settings::default()
+        };
+        let folder = std::env::temp_dir().join("music");
+        assert!(add_music_folder(&mut s, folder.clone()));
+        assert!(!add_music_folder(&mut s, folder.clone()), "listed once");
+        assert!(!add_music_folder(&mut s, PathBuf::from("relative")));
+        assert_eq!(s.music_folders, [folder]);
     }
 }

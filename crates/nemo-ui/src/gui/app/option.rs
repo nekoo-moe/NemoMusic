@@ -74,6 +74,33 @@ pub enum CreateMsg {
     Confirm,
 }
 
+/// What opens the operating system's folder dialog. The future resolves to the folder the person
+/// chose (as text for the screen), or `None` when the dialog was cancelled. It runs off the UI
+/// thread, so a slow dialog never blocks a frame.
+#[derive(Clone)]
+pub struct FolderPicker(Arc<dyn Fn() -> PickFuture + Send + Sync>);
+
+/// The answer of a [`FolderPicker`].
+pub type PickFuture = std::pin::Pin<Box<dyn std::future::Future<Output = Option<String>> + Send>>;
+
+impl FolderPicker {
+    /// A picker that starts `open` each time the person asks to add a folder.
+    pub fn new(open: impl Fn() -> PickFuture + Send + Sync + 'static) -> Self {
+        Self(Arc::new(open))
+    }
+
+    /// Open the dialog and wait for the answer.
+    pub async fn pick(&self) -> Option<String> {
+        (self.0)().await
+    }
+}
+
+impl std::fmt::Debug for FolderPicker {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("FolderPicker")
+    }
+}
+
 /// Options for [`run`](super::run).
 #[derive(Clone)]
 pub struct UiOptions {
@@ -99,9 +126,10 @@ pub struct UiOptions {
     pub on_settings: Option<Arc<dyn Fn(UiSettings) + Send + Sync>>,
     /// Music folders shown (read-only) on the Settings screen.
     pub music_folders: Vec<String>,
-    /// Called when the user presses "Add folder" in Settings; the app opens its folder picker.
-    /// The button is hidden when this is `None`.
-    pub on_add_music_folder: Option<Arc<dyn Fn() + Send + Sync>>,
+    /// Opens the folder dialog when the user presses "Add folder" (Settings, setup). The folder
+    /// it returns is shown in the lists at once; a cancelled dialog changes nothing. The button
+    /// is hidden when this is `None`.
+    pub on_add_music_folder: Option<FolderPicker>,
 }
 
 impl std::fmt::Debug for UiOptions {

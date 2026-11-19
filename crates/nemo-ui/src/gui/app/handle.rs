@@ -312,9 +312,17 @@ impl App {
                 }
                 Vec::new()
             }
-            Message::AddFolder => {
-                if let Some(cb) = &self.on_add_music_folder {
-                    cb();
+            Message::AddFolder => self
+                .on_add_music_folder
+                .iter()
+                .map(|picker| Job::PickFolder(picker.clone()))
+                .collect(),
+            Message::FolderPicked(picked) => {
+                // A cancelled dialog changes nothing; a folder already listed is not listed twice.
+                if let Some(folder) = picked
+                    && !self.music_folders.contains(&folder)
+                {
+                    self.music_folders.push(folder);
                 }
                 Vec::new()
             }

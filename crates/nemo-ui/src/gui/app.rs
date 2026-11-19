@@ -67,7 +67,9 @@ pub use model::{
     AccountMsg, AccountUi, CompactTab, DetailData, DetailKey, DetailKind, DetailState, HomeFilter,
     HomePhase, HomeState, LibFilter, ListSource, NpTab, SettingsSection,
 };
-pub use option::{AccountLibrary, CreateMsg, SleepState, UiHooks, UiOptions};
+pub use option::{
+    AccountLibrary, CreateMsg, FolderPicker, PickFuture, SleepState, UiHooks, UiOptions,
+};
 pub use setup::SLIDE_PX;
 
 /// Widget id of the search box.
@@ -157,7 +159,7 @@ pub struct App {
     pub(crate) readout: bool,
     pub(crate) music_folders: Vec<String>,
     pub(crate) on_settings: Option<Arc<dyn Fn(UiSettings) + Send + Sync>>,
-    on_add_music_folder: Option<Arc<dyn Fn() + Send + Sync>>,
+    on_add_music_folder: Option<FolderPicker>,
     focus_search: bool,
     last_route: Route,
     last_frame: Option<Instant>,
