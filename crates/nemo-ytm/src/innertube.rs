@@ -92,30 +92,64 @@ pub const VISIONOS: ClientProfile = ClientProfile {
     android_sdk: None,
 };
 
+/// The `tv` client (yt-dlp `_base.py`, `INNERTUBE_CLIENTS['tv']`, read 2026-11-19). It needs the
+/// player script (ciphered addresses, solved in process by the [`cipher`](crate::cipher)
+/// tier) and no PO token: yt-dlp lists no PO-token policy for it.
+pub const TV: ClientProfile = ClientProfile {
+    label: "tv",
+    name: "TVHTML5",
+    version: "7.20260707.07.00",
+    header_id: 7,
+    user_agent: "Mozilla/5.0 (ChromiumStylePlatform) Cobalt/25.lts.30.1034943-gold (unlike Gecko), Unknown_TV_Unknown_0/Unknown (Unknown, Unknown)",
+    device_make: "",
+    device_model: "",
+    os_name: "",
+    os_version: "",
+    android_sdk: None,
+};
+
 /// The JSON body of a player request.
 #[must_use]
 pub fn player_body(profile: &ClientProfile, video: &VideoId) -> Value {
+    player_body_with(profile, video, None)
+}
+
+/// The JSON body of a player request that names the player script in use by its signature
+/// timestamp `sts` (the clients that need the script send it; without it the answer cannot be
+/// matched to a script). A device field the profile leaves empty is not sent.
+#[must_use]
+pub fn player_body_with(profile: &ClientProfile, video: &VideoId, sts: Option<u32>) -> Value {
     let mut client = json!({
         "clientName": profile.name,
         "clientVersion": profile.version,
-        "deviceMake": profile.device_make,
-        "deviceModel": profile.device_model,
         "userAgent": profile.user_agent,
-        "osName": profile.os_name,
-        "osVersion": profile.os_version,
         "hl": "en",
         "timeZone": "UTC",
         "utcOffsetMinutes": 0,
     });
-    if let (Some(sdk), Some(map)) = (profile.android_sdk, client.as_object_mut()) {
-        map.insert("androidSdkVersion".to_owned(), json!(sdk));
+    if let Some(map) = client.as_object_mut() {
+        for (key, value) in [
+            ("deviceMake", profile.device_make),
+            ("deviceModel", profile.device_model),
+            ("osName", profile.os_name),
+            ("osVersion", profile.os_version),
+        ] {
+            if !value.is_empty() {
+                map.insert(key.to_owned(), json!(value));
+            }
+        }
+        if let Some(sdk) = profile.android_sdk {
+            map.insert("androidSdkVersion".to_owned(), json!(sdk));
+        }
+    }
+    let mut playback = json!({ "html5Preference": "HTML5_PREF_WANTS" });
+    if let (Some(sts), Some(map)) = (sts, playback.as_object_mut()) {
+        map.insert("signatureTimestamp".to_owned(), json!(sts));
     }
     json!({
         "context": { "client": client },
         "videoId": video.as_str(),
-        "playbackContext": {
-            "contentPlaybackContext": { "html5Preference": "HTML5_PREF_WANTS" }
-        },
+        "playbackContext": { "contentPlaybackContext": playback },
         "contentCheckOk": true,
         "racyCheckOk": true,
     })
@@ -124,7 +158,7 @@ pub fn player_body(profile: &ClientProfile, video: &VideoId) -> Value {
 mod player;
 
 use player::parse_err;
-pub use player::{describe_player, parse_player};
+pub use player::{Pending, describe_player, parse_player, parse_player_ciphered};
 
 /// Resolves streams with one innertube player request per client profile, in order.
 #[derive(Debug, Clone)]
@@ -176,11 +210,13 @@ impl InnertubeResolver {
                 video.clone(),
             );
             let task = self.handle.spawn(async move {
-                match send(&client, &profile, &video, &visitor).await {
-                    Ok((_, true)) => send(&client, &profile, &video, &visitor).await.map_or_else(
-                        |e| e.to_string(),
-                        |(t, _)| format!("retried with visitor data: {}", describe_player(&t)),
-                    ),
+                match send(&client, &profile, &video, &visitor, None).await {
+                    Ok((_, true)) => send(&client, &profile, &video, &visitor, None)
+                        .await
+                        .map_or_else(
+                            |e| e.to_string(),
+                            |(t, _)| format!("retried with visitor data: {}", describe_player(&t)),
+                        ),
                     Ok((text, false)) => describe_player(&text),
                     Err(e) => e.to_string(),
                 }
@@ -194,7 +230,7 @@ impl InnertubeResolver {
 
 /// The anonymous visitor id YouTube hands out in `responseContext.visitorData`, shared by the
 /// requests of one resolver. It is not an account cookie and is never logged.
-type Visitor = Arc<Mutex<Option<String>>>;
+pub(crate) type Visitor = Arc<Mutex<Option<String>>>;
 
 /// `responseContext.visitorData` of an answer, when it looks like one.
 fn visitor_of(json: &Value) -> Option<String> {
@@ -211,17 +247,18 @@ fn visitor_of(json: &Value) -> Option<String> {
 
 /// Send one player request. Returns the answer text and `true` when the answer refused the
 /// request (bot check) while no visitor data was sent yet but now is known: worth one retry.
-async fn send(
+pub(crate) async fn send(
     client: &reqwest::Client,
     profile: &ClientProfile,
     video: &VideoId,
     visitor: &Visitor,
+    sts: Option<u32>,
 ) -> Result<(String, bool), StreamError> {
     let known = visitor
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .clone();
-    let mut body = player_body(profile, video);
+    let mut body = player_body_with(profile, video, sts);
     if let Some(v) = &known {
         body["context"]["client"]["visitorData"] = json!(v);
     }
@@ -279,12 +316,12 @@ async fn ask(
     allowed: Option<Vec<Codec>>,
 ) -> Result<ResolvedStream, StreamError> {
     let began = Instant::now();
-    let (mut text, retry) = send(&client, &profile, &video, &visitor).await?;
+    let (mut text, retry) = send(&client, &profile, &video, &visitor, None).await?;
     timing::stage("native player request", began, true);
     if retry {
         // The first answer refused the request and gave visitor data: ask once more with it.
         let again = Instant::now();
-        text = send(&client, &profile, &video, &visitor).await?.0;
+        text = send(&client, &profile, &video, &visitor, None).await?.0;
         timing::stage("native player retry with visitor data", again, true);
     }
     parse_player(&text, allowed.as_deref())
