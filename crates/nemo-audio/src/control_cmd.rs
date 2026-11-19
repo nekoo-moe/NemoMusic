@@ -11,8 +11,8 @@ use nemo_core::player::{PlayState, PlayerCommand, PlayerEvent, RepeatMode};
 use nemo_core::track::{Track, VideoId};
 
 use crate::control::{Core, NextSlot, NextState, Run, micros};
-use crate::feeder::{FrameSpan, file_time};
-use crate::pipeline::{FeedCmd, Pipeline, plan_stages};
+use crate::feeder::{FrameSpan, file_time, snap_to_frame};
+use crate::pipeline::{FeedCmd, FeedEvent, Pipeline, plan_stages};
 use crate::prepare::{PrepareDeps, spawn_prepare};
 use crate::render::gain_for_percent;
 use crate::sink::{AudioSink, OutputSelection};
@@ -567,18 +567,34 @@ impl Core {
     }
 
     fn migrate_pipeline(&mut self, new_sink: Box<dyn AudioSink>) -> Result<(), String> {
-        let Some(old_pipe) = self.pipe.take() else {
+        let Some(mut old_pipe) = self.pipe.take() else {
             return Ok(());
         };
-        let pos = self.shared.position();
+        // Stop the old device first: while it runs it keeps playing frames the position read
+        // below would not count, and the new device would play them again.
+        old_pipe.halt_output();
         self.underruns_base += old_pipe.shared.underruns.load(Ordering::Relaxed);
-        let mut jobs = old_pipe.stop_and_take();
+        let (mut jobs, events) = old_pipe.stop_and_take_with_events();
+        // A song that began a moment ago may have its `Started` report still unread. Without it
+        // the position is unknown (counted as zero) and the new device would start the song over.
+        for event in events {
+            if let FeedEvent::Started {
+                token,
+                at_frame,
+                base,
+            } = event
+            {
+                self.on_started(token, at_frame, base);
+            }
+        }
+        let mut pos = self.shared.position();
 
         let source_format = jobs.first().map(|j| j.decoder.info().format);
 
         if let Some(first_job) = jobs.first_mut() {
-            first_job.start = pos;
             let rate = first_job.decoder.info().format.sample_rate;
+            pos = snap_to_frame(pos, rate);
+            first_job.start = pos;
             let span = first_job.span.map(|s| FrameSpan::new(s, rate));
             let from = file_time(span, pos, rate);
             let _ = first_job.decoder.seek(from);

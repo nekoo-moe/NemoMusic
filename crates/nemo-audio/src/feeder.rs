@@ -93,6 +93,13 @@ fn frame_time(frames: u64, rate: u32) -> Duration {
     Duration::from_nanos(u64::try_from(nanos).unwrap_or(u64::MAX))
 }
 
+/// `pos` moved to the nearest source frame and written as the earliest time that lands on it.
+/// A decoder turns a seek time into a frame by rounding down, so a position that falls between
+/// two frames (the played count of a device that takes odd block sizes) would repeat one frame.
+pub(crate) fn snap_to_frame(pos: Duration, rate: u32) -> Duration {
+    frame_time(to_frames(pos, rate), rate)
+}
+
 /// The file time of track position `to`: the same time without a span, else counted from the
 /// span start, on an exact frame.
 pub(crate) fn file_time(span: Option<FrameSpan>, to: Duration, rate: u32) -> Duration {
