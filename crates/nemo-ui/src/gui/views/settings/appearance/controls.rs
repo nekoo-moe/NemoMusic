@@ -195,7 +195,7 @@ pub(super) fn aside<'a>(
 }
 
 /// A card on `surface-container` with `rows` inside, `width` px wide.
-pub(super) fn card<'a>(width: f32, rows: Vec<Element<'a, Message>>) -> Element<'a, Message> {
+pub(super) fn card(width: f32, rows: Vec<Element<'_, Message>>) -> Element<'_, Message> {
     container(column(rows).spacing(gap::MD))
         .width(Length::Fixed(width))
         .padding(Padding::from(CARD_PAD))
