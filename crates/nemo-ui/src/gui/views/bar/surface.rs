@@ -22,16 +22,21 @@ pub fn glassy(app: &App) -> bool {
     app.ui.settings.glass_tier == GlassTier::Low && !app.ui.settings.reduce_transparency
 }
 
-/// The glass fill at the top and at the bottom edge, with alpha: `base` at
-/// [`glass::BAR_FILL_ALPHA`] plus and minus [`glass::BAR_FILL_SLOPE`], the top lifted toward
-/// white by [`glass::BAR_LIFT`].
+/// The glass fill at the top and at the bottom edge, with alpha: `base` at the mean alpha of the
+/// mode ([`glass::BAR_FILL_ALPHA`] in light mode, [`glass::BAR_FILL_ALPHA_DARK`] in dark and
+/// AMOLED) plus and minus its slope, the top lifted toward white by [`glass::BAR_LIFT`].
 #[must_use]
-pub fn glass_stops(base: Rgba) -> [Rgba; 2] {
+pub fn glass_stops(base: Rgba, light: bool) -> [Rgba; 2] {
+    let (mean, slope) = if light {
+        (glass::BAR_FILL_ALPHA, glass::BAR_FILL_SLOPE)
+    } else {
+        (glass::BAR_FILL_ALPHA_DARK, glass::BAR_FILL_SLOPE_DARK)
+    };
     let top = glass::EDGE
         .with_alpha(glass::BAR_LIFT)
         .over(base)
-        .with_alpha(glass::BAR_FILL_ALPHA + glass::BAR_FILL_SLOPE);
-    let bottom = base.with_alpha(glass::BAR_FILL_ALPHA - glass::BAR_FILL_SLOPE);
+        .with_alpha(mean + slope);
+    let bottom = base.with_alpha(mean - slope);
     [top, bottom]
 }
 
@@ -47,7 +52,8 @@ fn across(stops: [iced::Color; 3]) -> iced::Background {
 /// The capsule body: fill, edge and shadow, `bar_w` px wide.
 pub(super) fn body<'a>(app: &App, bar_w: f32) -> Element<'a, Message> {
     let (background, edge, shade) = if glassy(app) {
-        let [top, bottom] = glass_stops(color::surface_container());
+        let [top, bottom] =
+            glass_stops(color::surface_container(), app.ui.settings.base.is_light());
         (
             vertical_gradient(col(top), col(bottom)),
             col(color::outline_variant().with_alpha(glass::BAR_OUTLINE_ALPHA)),
@@ -190,13 +196,13 @@ mod tests {
 
     /// Check both inks over the glass over `back`, with and without the shadow the CPU renderer
     /// also draws under the fill.
-    fn check(n: &Neutrals, back: Rgba, what: &str) {
+    fn check(n: &Neutrals, light: bool, back: Rgba, what: &str) {
         let shadow_colour = Rgba::from_rgb_hex(0x00_0000);
         for v in [0.0, VIGNETTE_MID_ALPHA, VIGNETTE_ALPHA] {
             let seen = n.lowest.with_alpha(v).over(back);
             for shade in [0.0, glass::SHADOW.alpha()] {
                 let behind = shadow_colour.with_alpha(shade).over(seen);
-                for fill in glass_stops(n.container) {
+                for fill in glass_stops(n.container, light) {
                     let f = fill.over(behind);
                     for (ink, name) in [
                         (n.on_surface, "on-surface"),
@@ -232,7 +238,12 @@ mod tests {
                 for seed in seeds {
                     let n = window_neutrals(base, seed);
                     for back in backdrops(&m, base) {
-                        check(&n, back, &format!("{name} {base:?} {seed:?}"));
+                        check(
+                            &n,
+                            base.is_light(),
+                            back,
+                            &format!("{name} {base:?} {seed:?}"),
+                        );
                     }
                 }
             }
@@ -242,18 +253,27 @@ mod tests {
             for seed in seeds {
                 let n = window_neutrals(base, seed);
                 for flat in bg_colors(seed, base) {
-                    check(&n, flat, &format!("flat {base:?} {seed:?}"));
+                    check(
+                        &n,
+                        base.is_light(),
+                        flat,
+                        &format!("flat {base:?} {seed:?}"),
+                    );
                 }
             }
         }
     }
 
     #[test]
-    fn the_glass_is_translucent_and_a_little_lighter_on_top() {
-        for n in [Neutrals::DARK, Neutrals::AMOLED, Neutrals::LIGHT] {
-            let [top, bottom] = glass_stops(n.container);
+    fn the_glass_is_translucent_clearer_in_dark_and_a_little_lighter_on_top() {
+        for (n, light, lo, hi) in [
+            (Neutrals::DARK, false, 0.35, 0.45),
+            (Neutrals::AMOLED, false, 0.35, 0.45),
+            (Neutrals::LIGHT, true, 0.49, 0.55),
+        ] {
+            let [top, bottom] = glass_stops(n.container, light);
             for a in [top.alpha(), bottom.alpha()] {
-                assert!((0.40..=0.55).contains(&a), "fill alpha {a}");
+                assert!((lo..=hi).contains(&a), "fill alpha {a}");
             }
             assert!(top.alpha() > bottom.alpha(), "more fill at the top edge");
             assert_ne!(top.with_alpha(1.0), bottom.with_alpha(1.0), "a lifted top");
