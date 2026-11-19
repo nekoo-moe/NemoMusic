@@ -42,6 +42,7 @@ mod explore;
 mod frame_tests;
 mod glass;
 mod handle;
+mod hint;
 mod job;
 mod message;
 mod micro;
@@ -216,6 +217,8 @@ pub struct App {
     /// Window size before the mini player.
     normal_size: Size,
     hooks: UiHooks,
+    /// Where the pointer rests among the play targets (resolve ahead of the click).
+    hint: hint::HintState,
     /// Lyrics provider switcher: every provider's answer for the playing song, best first.
     pub(crate) lyric_candidates: Vec<LyricsCandidate>,
     /// Index into `lyric_candidates` of the lyrics shown now.
@@ -355,6 +358,7 @@ impl App {
             fullscreen: false,
             normal_size: Size::new(options.window_size.0, options.window_size.1),
             hooks: options.hooks.clone(),
+            hint: hint::HintState::default(),
             lyric_candidates: Vec::new(),
             lyric_provider: 0,
             lyric_pinned: false,

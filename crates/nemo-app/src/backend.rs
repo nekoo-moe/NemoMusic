@@ -28,7 +28,7 @@ use nemo_ytm::catalog::YtmCatalog;
 use nemo_ytm::cipher::CipherResolver;
 use nemo_ytm::images::ImageCache;
 use nemo_ytm::offline::{OfflineCache, SystemClock};
-use nemo_ytm::resolver::{StreamStore, persisted_chain_with};
+use nemo_ytm::resolver::{CachedResolver, StreamStore, persisted_chain_with};
 use nemo_ytm::session::YtmSessionBackend;
 use nemo_ytm::sponsorblock::{ReqwestHttp, SponsorBlockSource};
 use nemo_ytm::stream::HttpStreamOpener;
@@ -37,6 +37,7 @@ use nemo_ytm::ytdlp::{YtDlpResolver, locate_yt_dlp, managed};
 use tokio::runtime::Handle;
 
 use crate::config::{Settings, StoredDevice};
+use crate::hover_hint::{HintSlot, HoverHint};
 use crate::merged::MergedCatalog;
 use crate::paths::AppPaths;
 use crate::play_hub::{self, PlayHub};
@@ -66,6 +67,8 @@ pub struct Services {
     pub streams: Arc<StreamStore>,
     /// The in-process resolver, prepared in the background when an earlier run left a player.
     pub cipher: Option<Arc<CipherResolver>>,
+    /// The cache in front of the resolvers, for the pointer hint.
+    pub cache: Arc<CachedResolver>,
     /// The start-up resolve-ahead budget (the last played song, the first songs of Home).
     pub start_warm: Arc<StartupWarm>,
     /// The local library, rescanned on a worker thread.
@@ -88,6 +91,8 @@ pub struct Startup {
     pub library: crate::folder_picker::LibrarySlot,
     /// Where the start-up warm-up goes, so `main` can end it after the window closes.
     pub warm: Arc<Mutex<Option<WarmUp>>>,
+    /// Where the pointer hint goes, once the resolver exists.
+    pub hint: HintSlot,
 }
 
 /// How long after the services are up the warm-up starts: the first frame is long drawn by then.
@@ -106,6 +111,8 @@ impl Startup {
         if let Ok(mut slot) = self.library.lock() {
             *slot = Some(services.local.clone());
         }
+        // The UI can now hint the song the pointer rests on.
+        let _ = self.hint.set(HoverHint::new(Arc::clone(&services.cache)));
         // The song that played last is resolved ahead now, before Home brings its own hints.
         services.start_warm.hint(services.streams.last_played());
         match play_hub::spawn(
@@ -208,6 +215,7 @@ pub fn build(
     );
     // Cache -> native player request -> yt-dlp (fast arguments, then the full extraction).
     let (resolver, cipher) = build_resolver(paths, handle, &ytdlp, &streams);
+    let cache = Arc::clone(&resolver);
     let start_warm = start_warm_budget(&resolver, &warm_slot);
 
     let segments = sponsorblock_source(handle);
@@ -257,6 +265,7 @@ pub fn build(
         ytdlp,
         streams,
         cipher,
+        cache,
         start_warm,
         backend: Backend {
             catalog: Arc::new(catalog),
@@ -279,8 +288,9 @@ pub fn build(
 
 /// The start-up resolve-ahead budget for `resolver`, also handed to the Home catalog through
 /// `slot`.
-fn start_warm_budget(resolver: &Arc<dyn StreamResolver>, slot: &WarmSlot) -> Arc<StartupWarm> {
-    let budget = StartupWarm::new(Arc::clone(resolver));
+fn start_warm_budget(resolver: &Arc<CachedResolver>, slot: &WarmSlot) -> Arc<StartupWarm> {
+    let as_resolver: Arc<dyn StreamResolver> = resolver.clone();
+    let budget = StartupWarm::new(as_resolver);
     // Already set only if `build` ran twice on one slot, which it does not.
     let _ = slot.set(Arc::clone(&budget));
     budget
@@ -292,7 +302,7 @@ fn build_resolver(
     handle: &Handle,
     ytdlp: &YtDlpResolver,
     streams: &Arc<StreamStore>,
-) -> (Arc<dyn StreamResolver>, Option<Arc<CipherResolver>>) {
+) -> (Arc<CachedResolver>, Option<Arc<CipherResolver>>) {
     let cipher = build_cipher(paths, handle);
     let chain = persisted_chain_with(
         ytdlp.clone(),

@@ -1,6 +1,6 @@
 //! Large cards and the card grid, with the hover play badge.
 
-use iced::widget::{button, column, container, row, stack};
+use iced::widget::{MouseArea, button, column, container, mouse_area, row, stack};
 use iced::{Alignment, Background, Border, Color, Element, Length, Padding};
 use nemo_core::track::Artwork;
 
@@ -26,6 +26,13 @@ pub struct Card {
     pub on_press: Message,
     /// Sent by the play button that fades in on hover; none for cards that cannot play.
     pub play: Option<Message>,
+}
+
+/// Tell the app when the pointer rests on, or leaves, the play target `play` (cold-start spec:
+/// the song is resolved ahead of the click). Changes nothing on screen.
+pub fn hint_on_hover(area: MouseArea<'_, Message>, play: Message) -> MouseArea<'_, Message> {
+    area.on_enter(Message::HoverTarget(Some(Box::new(play))))
+        .on_exit(Message::HoverTarget(None))
 }
 
 /// The hover play button in the cover's colours.
@@ -145,10 +152,14 @@ pub fn card_view<'a>(app: &App, card: Card, size: u32, stagger: usize) -> Elemen
         .radius(radius)
         .lift(4.0)
         .zoom(0.025);
+    let hint = card.play.clone();
     if let Some(play) = card.play {
         host = host.badge(play_badge(app, 44.0, BadgeAnchor::BottomRight(12.0), play));
     }
-    entrance(host, progress, pane_bg())
+    match hint {
+        Some(play) => entrance(hint_on_hover(mouse_area(host), play), progress, pane_bg()),
+        None => entrance(host, progress, pane_bg()),
+    }
 }
 
 /// Cards in rows of `grid.columns`, at most `max_rows` rows. `base` is the stagger index of the

@@ -414,6 +414,9 @@ impl App {
                 }
                 iced::Event::Window(window::Event::Focused) => Some(Message::Focus(true)),
                 iced::Event::Window(window::Event::Unfocused) => Some(Message::Focus(false)),
+                iced::Event::Mouse(iced::mouse::Event::ButtonPressed(
+                    iced::mouse::Button::Left,
+                )) => Some(Message::PointerDown),
                 _ => None,
             }),
             Subscription::run_with(PlayerKey(Arc::clone(&self.backend.player)), player_events),

@@ -18,7 +18,7 @@
 //! Nothing here logs a URL or a video id.
 
 use std::collections::{HashMap, HashSet};
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant, SystemTime};
 
@@ -116,6 +116,35 @@ pub struct CachedResolver {
     persisted: Option<Persisted>,
     /// One permit: hints are resolved one at a time.
     warming: Arc<tokio::sync::Semaphore>,
+    /// The song of the running [`hint`](Self::hint) and whether a play has asked for it.
+    hinted: Arc<Mutex<Option<Hinted>>>,
+}
+
+/// The video id of the running hint and the flag a play sets when it asks for the same song.
+type Hinted = (String, Arc<AtomicBool>);
+
+/// A background resolve started by [`CachedResolver::hint`] (the pointer rests on a play target).
+/// Dropping it cancels the resolve, and a `yt-dlp` run with it, unless a play has asked for the
+/// same song meanwhile: then the resolve belongs to the play and runs on.
+pub struct ResolveHint {
+    task: Option<tokio::task::JoinHandle<()>>,
+    taken: Arc<AtomicBool>,
+}
+
+impl std::fmt::Debug for ResolveHint {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ResolveHint").finish_non_exhaustive()
+    }
+}
+
+impl Drop for ResolveHint {
+    fn drop(&mut self) {
+        if let Some(task) = &self.task
+            && !self.taken.load(Ordering::SeqCst)
+        {
+            task.abort();
+        }
+    }
 }
 
 /// The file of kept streams and the check that runs before one of them is reused.
@@ -141,6 +170,7 @@ impl CachedResolver {
             slots: Arc::default(),
             persisted: None,
             warming: Arc::new(tokio::sync::Semaphore::new(1)),
+            hinted: Arc::default(),
         }
     }
 
@@ -240,6 +270,50 @@ impl CachedResolver {
         answer
     }
 
+    /// Resolve `video` now, in the background, because the pointer rests on its play target (or
+    /// went down on it): the click that follows finds the stream ready or the resolve running.
+    /// Unlike [`warm`](StreamResolver::warm) it does not wait its turn and it can be cancelled:
+    /// drop the returned [`ResolveHint`] when the pointer leaves. A song that is cached or
+    /// already being resolved starts nothing.
+    #[must_use]
+    pub fn hint(&self, video: &VideoId) -> ResolveHint {
+        let taken = Arc::new(AtomicBool::new(false));
+        let known = self
+            .slots
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(&CacheKey::new(video, &DEFAULT_REQUEST))
+            .is_some_and(|s| slot_is_live(s, SystemTime::now()));
+        if known {
+            return ResolveHint { task: None, taken };
+        }
+        *self.hinted.lock().unwrap_or_else(PoisonError::into_inner) =
+            Some((video.as_str().to_owned(), Arc::clone(&taken)));
+        let (inner, slots, persisted) = (
+            Arc::clone(&self.inner),
+            Arc::clone(&self.slots),
+            self.persisted.clone(),
+        );
+        let video = video.clone();
+        let task = self.handle.spawn(async move {
+            let _ = Self::get(inner, slots, persisted, video, StreamRequest::default()).await;
+        });
+        ResolveHint {
+            task: Some(task),
+            taken,
+        }
+    }
+
+    /// A play asked for `video`: a running hint of it is the play's now.
+    fn take_hint(&self, video: &VideoId) {
+        let hinted = self.hinted.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some((id, taken)) = hinted.as_ref()
+            && id == video.as_str()
+        {
+            taken.store(true, Ordering::SeqCst);
+        }
+    }
+
     /// Number of cached or pending answers, one per video and request (for tests and reports).
     #[must_use]
     pub fn len(&self) -> usize {
@@ -266,6 +340,7 @@ impl StreamResolver for CachedResolver {
         video: &'a VideoId,
         request: &'a StreamRequest,
     ) -> BoxFuture<'a, Answer> {
+        self.take_hint(video);
         let task = self.handle.spawn(Self::get(
             Arc::clone(&self.inner),
             Arc::clone(&self.slots),
@@ -561,7 +636,7 @@ pub fn persisted_chain(
     allowed: &[Codec],
     handle: &Handle,
     store: Option<Arc<StreamStore>>,
-) -> Arc<dyn StreamResolver> {
+) -> Arc<CachedResolver> {
     persisted_chain_with(ytdlp, allowed, handle, store, None)
 }
 
@@ -575,7 +650,7 @@ pub fn persisted_chain_with(
     handle: &Handle,
     store: Option<Arc<StreamStore>>,
     cipher: Option<Arc<CipherResolver>>,
-) -> Arc<dyn StreamResolver> {
+) -> Arc<CachedResolver> {
     let ytdlp: Arc<dyn StreamResolver> = Arc::new(ytdlp);
     let second: Arc<dyn StreamResolver> = match cipher {
         Some(cipher) => Arc::new(FallbackResolver::new(cipher, ytdlp)),
