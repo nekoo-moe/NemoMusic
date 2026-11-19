@@ -164,3 +164,50 @@ fn the_switch_is_in_the_gate_list_so_its_hosts_are_checked_against_the_readme() 
             .any(|info| info.id == "soundcloud")
     );
 }
+
+/// Parts built with a counting host, so a test can see whether the account asks for anything.
+fn open_parts() -> (SoundcloudParts, Arc<CountingHost>) {
+    let host = Arc::new(CountingHost::default());
+    let shared = Arc::clone(&host);
+    let parts = build(
+        &choice(true, OPT_IN.version),
+        &Handle::current(),
+        move || Some(shared as Arc<dyn ScHttp>),
+    )
+    .expect("open gate");
+    (parts, host)
+}
+
+#[tokio::test]
+async fn the_account_is_built_with_a_credential_store_and_starts_signed_out_without_a_request() {
+    use nemo_core::secret_store::MemoryStore;
+    use nemo_core::source_account::SourceAccountState;
+
+    let (parts, host) = open_parts();
+    let root = std::env::temp_dir().join(format!("nemo-app-sc-account-{}", std::process::id()));
+    let paths = AppPaths::under(&root);
+    let store: Arc<dyn SecretStore> = Arc::new(MemoryStore::default());
+    let account = build_account(&parts, Some(store), &paths, &Handle::current()).expect("account");
+    assert_eq!(account.state(), SourceAccountState::SignedOut);
+    // Only the client id look-up from `build` may have asked; the account asked for nothing.
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    let urls = host.urls.lock().expect("lock").clone();
+    assert!(
+        urls.iter().all(|u| u == "https://soundcloud.com/"),
+        "{urls:?}"
+    );
+    assert!(!root.exists(), "nothing was written before a sign-in");
+}
+
+#[tokio::test]
+async fn without_a_credential_store_there_is_no_account_and_so_no_place_for_a_token() {
+    let (parts, _) = open_parts();
+    let paths = AppPaths::under(&std::env::temp_dir().join("nemo-app-sc-nostore"));
+    assert!(build_account(&parts, None, &paths, &Handle::current()).is_none());
+}
+
+#[test]
+fn the_two_sign_in_windows_use_their_own_profile_folders() {
+    let paths = AppPaths::under(std::path::Path::new("C:/data/NemoMusic"));
+    assert_ne!(paths.webview, paths.webview_soundcloud);
+}

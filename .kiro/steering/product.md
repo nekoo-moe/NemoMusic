@@ -59,7 +59,7 @@ NemoMusic is a desktop music player in Rust that treats the signal path with res
 Each one goes through its own spec in `.kiro/specs/<name>/` (`workflow.md` section 1). Anything that alters samples is off by default and shown in the signal path (principle 1). Anything that shares data, sends notifications or uses the microphone is opt-in and off by default (principles 4 and 5).
 - `local-library`: local files and playlists (M3U), folder scan, tags, ReplayGain (opt-in), CUE sheets.
 - `offline-cache`: save songs, albums and playlists for offline listening, plus capped smart downloads of the most-played songs (see coc.md).
-- `soundcloud`: SoundCloud as a second source.
+- `soundcloud`: SoundCloud as a second source. SoundCloud now has sign-in with the user's own account (their library, and later likes, follows and playlist edits), off by default, token only in the credential store (owner, 2026-11-19; soundcloud-account).
 - `audio-effects`: ten-band equalizer with presets and AutoEq headphone profiles, crossfade, delay and reverb.
 - `output-devices`: output device picker and WASAPI exclusive mode. `cast`: play on Cast or DLNA devices.
 - `now-playing-styles`: Classic, Material 3 Expressive and an Apple Music-style Now Playing, with animated cover art where available.

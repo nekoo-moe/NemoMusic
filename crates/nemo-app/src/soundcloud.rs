@@ -6,15 +6,19 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use nemo_core::catalog::Catalog;
+use nemo_core::secret_store::SecretStore;
 use nemo_core::services::StreamOpener;
+use nemo_core::source_account::SourceAccount;
 use nemo_core::url_resolver::UrlResolver;
 use nemo_soundcloud::{
-    OPT_IN, ReqwestHttp, ScClient, ScHttp, ScStreamOpener, SoundcloudCatalog, streams,
+    AccountFiles, OPT_IN, ReqwestHttp, ScAccount, ScClient, ScHttp, ScStreamOpener, SessionCaches,
+    SignInWindow, SoundcloudCatalog, streams,
 };
 use tokio::runtime::Handle;
 
 use crate::config::OptInChoice;
 use crate::opt_in_gate::build_if_open;
+use crate::paths::AppPaths;
 
 /// The services of one SoundCloud client.
 pub struct SoundcloudParts {
@@ -24,6 +28,10 @@ pub struct SoundcloudParts {
     pub resolver: Arc<dyn UrlResolver>,
     /// Opens the HLS streams the resolver finds.
     pub opener: ScStreamOpener,
+    /// The client, shared with the account.
+    pub client: Arc<ScClient>,
+    /// The sign-out step that drops this session's track records and kept streams.
+    pub caches: SessionCaches,
 }
 
 /// Build the services when the gate is open. `http` makes the HTTP layer; it is not called while
@@ -42,18 +50,88 @@ pub fn build(
             let _ = warm.warm_up().await;
         });
         let (resolver, opener) = streams(Arc::clone(&client), handle.clone());
+        let caches = SessionCaches::new(Arc::clone(&client), resolver.clone());
         let early = opener.clone();
         // Builds the media client (loads the system certificates) before the first play.
         handle.spawn_blocking(move || {
             let _ = early.warm_up();
         });
         Some(SoundcloudParts {
-            catalog: Arc::new(SoundcloudCatalog::new(client)),
+            catalog: Arc::new(SoundcloudCatalog::new(Arc::clone(&client))),
             resolver: Arc::new(resolver),
             opener,
+            client,
+            caches,
         })
     })
     .flatten()
+}
+
+/// What the app takes from SoundCloud, all absent while the gate is closed.
+pub struct Wired {
+    /// Search and pages, for `Backend.soundcloud`.
+    pub catalog: Option<Arc<dyn Catalog>>,
+    /// The account, for `Backend.soundcloud_account`.
+    pub account: Option<Arc<dyn SourceAccount>>,
+    /// Page address to stream, for the player.
+    pub resolver: Option<Arc<dyn UrlResolver>>,
+    /// The player's opener: `files` alone, or SoundCloud's HLS reader in front of it.
+    pub opener: Arc<dyn StreamOpener>,
+}
+
+/// Build everything of SoundCloud when the gate is open (see [`build`]), with the account when a
+/// credential `store` exists. `files` opens every stream that is not SoundCloud's HLS.
+pub fn wire(
+    choices: &BTreeMap<String, OptInChoice>,
+    handle: &Handle,
+    store: Option<Arc<dyn SecretStore>>,
+    paths: &AppPaths,
+    files: Arc<dyn StreamOpener>,
+) -> Wired {
+    let Some(parts) = build(choices, handle, || real_http(handle)) else {
+        return Wired {
+            catalog: None,
+            account: None,
+            resolver: None,
+            opener: files,
+        };
+    };
+    Wired {
+        account: build_account(&parts, store, paths, handle),
+        opener: Arc::new(RoutingOpener::new(files, Arc::new(parts.opener.clone()))),
+        resolver: Some(Arc::clone(&parts.resolver)),
+        catalog: Some(parts.catalog),
+    }
+}
+
+/// The SoundCloud account: sign-in window, token in the credential `store`, sign-out that also
+/// drops the session's caches. The window is this same executable started again (`main`).
+/// `None` without a credential store, so no sign-in is offered and no token is kept anywhere.
+pub fn build_account(
+    parts: &SoundcloudParts,
+    store: Option<Arc<dyn SecretStore>>,
+    paths: &AppPaths,
+    handle: &Handle,
+) -> Option<Arc<dyn SourceAccount>> {
+    let store = store?;
+    let window = SignInWindow::new(
+        crate::backend::signin_program(),
+        vec![nemo_signin::SIGNIN_ARG.into()],
+        paths.webview_soundcloud.clone(),
+    );
+    let files = AccountFiles {
+        webview_dir: paths.webview_soundcloud.clone(),
+        cache_file: paths.account.join("soundcloud.json"),
+    };
+    let account = ScAccount::new(
+        Arc::clone(&parts.client),
+        store,
+        Arc::new(window),
+        files,
+        handle.clone(),
+    );
+    account.register_wipe(Arc::new(parts.caches.clone()));
+    Some(Arc::new(account))
 }
 
 /// The real HTTP layer, or `None` (logged) when the TLS backend cannot start.

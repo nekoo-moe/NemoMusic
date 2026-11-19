@@ -107,6 +107,9 @@ fn stream_error(e: ClientError) -> StreamError {
         ClientError::NoClientId => {
             StreamError::Network("SoundCloud changed its web app".to_owned())
         }
+        ClientError::SessionEnded => {
+            StreamError::Network("Sign in to SoundCloud again, then play this".to_owned())
+        }
     }
 }
 
@@ -264,6 +267,24 @@ impl ScStreamResolver {
             }),
             handle,
         }
+    }
+}
+
+impl ScStreamResolver {
+    /// Forget every kept stream address and its prefetch (sign-out: some belong to private
+    /// tracks). Returns how many addresses were kept.
+    pub fn forget_all(&self) -> usize {
+        let removed = {
+            let mut cache = self
+                .inner
+                .cache
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            let removed = cache.len();
+            cache.clear();
+            removed
+        };
+        removed + self.inner.shared.clear()
     }
 }
 

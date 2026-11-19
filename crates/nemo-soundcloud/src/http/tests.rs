@@ -10,7 +10,7 @@ fn http() -> ReqwestHttp {
 }
 
 fn get(url: String, max_bytes: usize) -> ScRequest {
-    ScRequest { url, max_bytes }
+    ScRequest::new(url, max_bytes)
 }
 
 #[test]
@@ -80,4 +80,68 @@ async fn a_dead_port_gives_a_fixed_error_text() {
     let e = answer.expect_err("nothing listens there");
     assert_eq!(e, ScHttpError::Failed);
     assert!(!e.to_string().contains("abc"));
+}
+
+fn with_token(url: String, token: &str) -> ScRequest {
+    ScRequest {
+        authorization: Some(Secret::new(token.to_owned())),
+        ..ScRequest::new(url, 100)
+    }
+}
+
+#[tokio::test]
+async fn a_token_goes_out_as_an_oauth_authorization_header_and_only_then() {
+    let server = TestServer::start(|_, _| Response::new(200, "ok"));
+    http()
+        .send(with_token(server.url("/me"), "2-1-2-synthetic"))
+        .await
+        .expect("answer");
+    http()
+        .send(get(server.url("/open"), 100))
+        .await
+        .expect("answer");
+    assert_eq!(
+        server.authorizations(),
+        [Some("OAuth 2-1-2-synthetic".to_owned()), None]
+    );
+}
+
+#[tokio::test]
+async fn a_redirect_off_https_is_not_followed_so_the_token_goes_nowhere_else() {
+    // `reqwest` also drops `Authorization` when a redirect changes the host; this client only
+    // follows https redirects at all, and the loopback servers here are plain http.
+    let elsewhere = TestServer::start(|_, _| Response::new(200, "ok"));
+    let target = elsewhere.url("/landing");
+    let first = TestServer::start(move |_, _| Response::new(302, "").header("Location", &target));
+    let answer = http()
+        .send(with_token(first.url("/api"), "2-1-2-synthetic"))
+        .await
+        .expect("answer");
+    assert_eq!(answer.status, 302);
+    assert_eq!(first.authorizations().len(), 1);
+    assert!(
+        elsewhere.paths().is_empty(),
+        "nothing was sent to the new address"
+    );
+}
+
+#[tokio::test]
+async fn a_token_that_cannot_be_a_header_fails_without_sending_or_naming_it() {
+    let server = TestServer::start(|_, _| Response::new(200, "ok"));
+    let e = http()
+        .send(with_token(server.url("/me"), "bad\nvalue"))
+        .await
+        .expect_err("no header");
+    assert_eq!(e, ScHttpError::Failed);
+    assert!(!e.to_string().contains("bad"));
+    assert!(server.paths().is_empty());
+}
+
+#[test]
+fn a_request_never_shows_its_token_in_debug() {
+    let text = format!(
+        "{:?}",
+        with_token("https://x.invalid/".to_owned(), "2-1-2-synthetic")
+    );
+    assert!(!text.contains("synthetic"), "{text}");
 }

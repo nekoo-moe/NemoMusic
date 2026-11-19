@@ -99,6 +99,15 @@ impl TrackRecords {
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
+
+    /// Forget every record; returns how many were kept.
+    pub fn clear(&self) -> usize {
+        let mut inner = self.inner.lock().unwrap_or_else(PoisonError::into_inner);
+        let removed = inner.by_page.len();
+        inner.by_page.clear();
+        inner.order.clear();
+        removed
+    }
 }
 
 #[cfg(test)]

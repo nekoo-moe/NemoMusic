@@ -14,6 +14,8 @@ type Handler = Box<dyn Fn(&str, usize) -> Result<ScAnswer, ScHttpError> + Send +
 pub struct FakeHttp {
     handler: Handler,
     seen: Mutex<Vec<String>>,
+    /// The `Authorization` token of each request, in order.
+    tokens: Mutex<Vec<Option<String>>>,
     in_flight: AtomicUsize,
     max_in_flight: AtomicUsize,
 }
@@ -26,6 +28,7 @@ impl FakeHttp {
         Self {
             handler: Box::new(handler),
             seen: Mutex::new(Vec::new()),
+            tokens: Mutex::new(Vec::new()),
             in_flight: AtomicUsize::new(0),
             max_in_flight: AtomicUsize::new(0),
         }
@@ -34,6 +37,11 @@ impl FakeHttp {
     /// Every url requested so far, in order.
     pub fn urls(&self) -> Vec<String> {
         self.seen.lock().expect("lock").clone()
+    }
+
+    /// The token each request carried (`None` for a request without one), in order.
+    pub fn tokens(&self) -> Vec<Option<String>> {
+        self.tokens.lock().expect("lock").clone()
     }
 
     /// The most requests that were open at the same moment.
@@ -63,6 +71,10 @@ impl ScHttp for FakeHttp {
             let index = {
                 let mut seen = self.seen.lock().expect("lock");
                 seen.push(request.url.clone());
+                self.tokens
+                    .lock()
+                    .expect("lock")
+                    .push(request.authorization.as_ref().map(|t| t.expose().clone()));
                 seen.len() - 1
             };
             let open = self.in_flight.fetch_add(1, Ordering::SeqCst) + 1;

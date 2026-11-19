@@ -8,6 +8,8 @@
 use std::time::Duration;
 
 use nemo_core::BoxFuture;
+use nemo_core::secret::Secret;
+use reqwest::header::{AUTHORIZATION, HeaderValue};
 use reqwest::redirect::Policy;
 
 /// `User-Agent` of every request. It names the app, as the other non-YouTube hosts get it.
@@ -33,6 +35,21 @@ pub struct ScRequest {
     pub url: String,
     /// Longest body to read; a longer answer fails with [`ScHttpError::TooLarge`].
     pub max_bytes: usize,
+    /// The session token, sent as `Authorization: OAuth <token>` (criterion 9). Only API calls
+    /// carry one; never log it.
+    pub authorization: Option<Secret<String>>,
+}
+
+impl ScRequest {
+    /// A request without a token.
+    #[must_use]
+    pub fn new(url: String, max_bytes: usize) -> Self {
+        Self {
+            url,
+            max_bytes,
+            authorization: None,
+        }
+    }
 }
 
 /// A finished answer, whatever its status.
@@ -125,8 +142,24 @@ impl ReqwestHttp {
     }
 }
 
+/// The `Authorization` header of a token, marked sensitive so it is not shown in debug output.
+/// `None` for a token that cannot be a header value.
+fn authorization(token: &Secret<String>) -> Option<HeaderValue> {
+    let mut value = HeaderValue::from_str(&format!("OAuth {}", token.expose())).ok()?;
+    value.set_sensitive(true);
+    Some(value)
+}
+
 async fn fetch(client: reqwest::Client, request: ScRequest) -> Result<ScAnswer, ScHttpError> {
-    let mut response = client.get(&request.url).send().await.map_err(|e| {
+    let mut call = client.get(&request.url);
+    if let Some(token) = &request.authorization {
+        // `reqwest` drops this header again when a redirect leaves the host.
+        call = call.header(
+            AUTHORIZATION,
+            authorization(token).ok_or(ScHttpError::Failed)?,
+        );
+    }
+    let mut response = call.send().await.map_err(|e| {
         if e.is_timeout() {
             ScHttpError::Timeout
         } else {

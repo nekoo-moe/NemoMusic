@@ -15,8 +15,9 @@ pub const USER: &str = include_str!("../tests/fixtures/user.json");
 pub const USER_TRACKS: &str = include_str!("../tests/fixtures/user_tracks.json");
 pub const USER_ALBUMS: &str = include_str!("../tests/fixtures/user_albums.json");
 pub const RELATED: &str = include_str!("../tests/fixtures/related.json");
+pub const ME: &str = include_str!("../tests/fixtures/me.json");
 
-const ALL: [&str; 10] = [
+const ALL: [&str; 11] = [
     TRACK_HLS,
     SEARCH_TRACKS,
     SEARCH_MIXED,
@@ -27,6 +28,7 @@ const ALL: [&str; 10] = [
     USER_TRACKS,
     USER_ALBUMS,
     RELATED,
+    ME,
 ];
 
 /// Every `https://host` in `text`.

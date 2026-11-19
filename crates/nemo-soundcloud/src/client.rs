@@ -11,6 +11,7 @@ use std::time::{Duration, Instant};
 
 use nemo_core::secret::Secret;
 
+use crate::auth::Auth;
 use crate::client_id::{MAX_SCRIPTS, find_client_id, script_urls};
 use crate::http::{MAX_JSON_BYTES, MAX_SCRIPT_BYTES, ScAnswer, ScHttp, ScHttpError, ScRequest};
 use crate::records::TrackRecords;
@@ -86,6 +87,10 @@ pub enum ClientError {
     /// No script of the home page holds a client id: the web app changed.
     #[error("could not find the SoundCloud web app's client id")]
     NoClientId,
+    /// SoundCloud rejected the signed-in session (401 twice, with a fresh client id). The token
+    /// is no longer sent.
+    #[error("SoundCloud ended this sign-in")]
+    SessionEnded,
 }
 
 impl From<ScHttpError> for ClientError {
@@ -110,6 +115,8 @@ pub struct ScClient {
     blocked_until: Mutex<Option<Instant>>,
     /// What the catalog learned about tracks, for the stream lookup.
     records: TrackRecords,
+    /// The session token of the signed-in account, sent to the API host only.
+    auth: Auth,
 }
 
 impl std::fmt::Debug for ScClient {
@@ -136,7 +143,14 @@ impl ScClient {
             gate: tokio::sync::Mutex::new(None),
             blocked_until: Mutex::new(None),
             records: TrackRecords::default(),
+            auth: Auth::default(),
         }
+    }
+
+    /// The session token slot. The account sets it after a sign-in and clears it on sign-out.
+    #[must_use]
+    pub const fn auth(&self) -> &Auth {
+        &self.auth
     }
 
     /// The tracks the catalog has mapped, by page address.
@@ -154,24 +168,49 @@ impl ScClient {
         self.client_id().await.map(|_| ())
     }
 
-    /// `GET <api><path>?<params>&client_id=…` and the body of a 200 answer.
+    /// `GET <api><path>?<params>&client_id=…` and the body of a 200 answer. While signed in the
+    /// call carries the session token; a rejected session ends here (see [`ScClient::get_as`]).
     ///
     /// # Errors
     /// [`ClientError`] for a 429 ([`ClientError::RateLimited`], also while the backoff lasts), a
-    /// 404 or 410, a refusal, a network failure or a missing client id.
+    /// 404 or 410, a refusal, a network failure, a missing client id or an ended session.
     pub async fn get(&self, path: &str, params: &[(&str, &str)]) -> Result<Vec<u8>, ClientError> {
+        let session = self.auth.current();
+        let token = session.as_ref().map(|(token, _)| token);
+        let result = self.get_as(path, params, token).await;
+        if let (Err(ClientError::SessionEnded), Some((_, epoch))) = (&result, &session) {
+            self.auth.reject(*epoch);
+        }
+        result
+    }
+
+    /// Like [`ScClient::get`] with an explicit token (`None` sends none). The sign-in uses it to
+    /// check a token before keeping it. A 401 or 403 makes the client look the id up again once
+    /// and repeat the call once. With a token, a second 401 means SoundCloud rejected the session
+    /// ([`ClientError::SessionEnded`]); nothing is retried after that, so a dead token costs one
+    /// extra request, not a storm.
+    ///
+    /// # Errors
+    /// As [`ScClient::get`]; this call never changes the stored session.
+    pub async fn get_as(
+        &self,
+        path: &str,
+        params: &[(&str, &str)],
+        token: Option<&Secret<String>>,
+    ) -> Result<Vec<u8>, ClientError> {
         let mut refreshed = false;
         loop {
             self.check_blocked()?;
             let id = self.client_id().await?;
             let url = self.api_url(path, params, &id)?;
-            let answer = self.request(url, MAX_JSON_BYTES).await?;
+            let answer = self.request(url, MAX_JSON_BYTES, token).await?;
             match answer.status {
                 200 => return Ok(answer.body),
                 401 | 403 if !refreshed => {
                     refreshed = true;
                     self.forget_id(&id).await;
                 }
+                401 if token.is_some() => return Err(ClientError::SessionEnded),
                 404 | 410 => return Err(ClientError::NotFound),
                 _ => return Err(ClientError::Refused),
             }
@@ -234,7 +273,12 @@ impl ScClient {
 
     /// One paced request, one at a time. A 429 starts the backoff and ends the call; a 5xx or a
     /// connection error is tried again after the pacing delays, then fails with `Network`.
-    async fn request(&self, url: String, max_bytes: usize) -> Result<ScAnswer, ClientError> {
+    async fn request(
+        &self,
+        url: String,
+        max_bytes: usize,
+        token: Option<&Secret<String>>,
+    ) -> Result<ScAnswer, ClientError> {
         let mut gate = self.gate.lock().await;
         let mut retries = self.pacing.retry_delays.iter();
         loop {
@@ -248,6 +292,7 @@ impl ScClient {
                 .send(ScRequest {
                     url: url.clone(),
                     max_bytes,
+                    authorization: token.cloned(),
                 })
                 .await;
             let failure = match sent {
@@ -287,7 +332,7 @@ impl ScClient {
     /// Read the home page, then its scripts from last to first, until one holds the id.
     async fn discover(&self) -> Result<Secret<String>, ClientError> {
         let page = self
-            .request(format!("{}/", self.endpoints.site), MAX_JSON_BYTES)
+            .request(format!("{}/", self.endpoints.site), MAX_JSON_BYTES, None)
             .await?;
         if page.status != 200 {
             return Err(ClientError::Refused);
@@ -295,7 +340,7 @@ impl ScClient {
         let html = String::from_utf8_lossy(&page.body);
         let scripts = script_urls(&html, &self.endpoints.script_prefix);
         for url in scripts.into_iter().rev().take(MAX_SCRIPTS) {
-            let script = self.request(url, MAX_SCRIPT_BYTES).await?;
+            let script = self.request(url, MAX_SCRIPT_BYTES, None).await?;
             if script.status != 200 {
                 continue;
             }

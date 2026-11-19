@@ -152,6 +152,14 @@ impl Shared {
         (entry.at.elapsed() < KEEP).then_some((entry.list, entry.head))
     }
 
+    /// Drop every prefetch; returns how many were waiting.
+    pub fn clear(&self) -> usize {
+        let mut slots = self.slots.lock().unwrap_or_else(PoisonError::into_inner);
+        let removed = slots.len();
+        slots.clear();
+        removed
+    }
+
     /// Forget the prefetch of `url` (its address stopped working).
     pub fn forget(&self, url: &str) {
         self.slots
