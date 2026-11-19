@@ -62,6 +62,7 @@ fn main() {
     let library = folder_picker::LibrarySlot::default();
     options.on_add_music_folder = Some(folder_picker::native(saver.clone(), Arc::clone(&library)));
     let hub = Arc::new(Mutex::new(None));
+    let warm = Arc::new(Mutex::new(None));
     let startup = backend::Startup {
         paths,
         settings,
@@ -69,12 +70,15 @@ fn main() {
         saver,
         hub: Arc::clone(&hub),
         library,
+        warm: Arc::clone(&warm),
     };
     if let Err(err) =
         nemo_ui::run_with_startup(Box::new(move |report| startup.run(report)), options)
     {
         tracing::error!(error = %err, "the window closed with an error");
     }
+    // End the warm-up, if it is still running.
+    drop(warm.lock().ok().and_then(|mut slot| slot.take()));
     // End the last play, so observers see its TrackEnded.
     if let Some(hub) = hub.lock().ok().and_then(|mut slot| slot.take()) {
         hub.stop();
