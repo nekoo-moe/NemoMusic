@@ -163,6 +163,8 @@ pub enum Message {
     AddFolder,
     /// The `Restart now` pill of the Window glass card (bar-material spec).
     Restart,
+    /// The folder dialog closed: the chosen folder, or `None` when it was cancelled.
+    FolderPicked(Option<String>),
     /// Header content chip (All, Music, Videos, Podcasts).
     ContentFilter(ContentFilter),
     /// Library tab.
@@ -301,6 +303,8 @@ pub struct CoverBuilt {
 /// Work that needs the backend; run as a task (or blocking, for snapshots).
 #[derive(Debug, Clone)]
 pub enum Job {
+    /// Open the folder dialog and wait for the person's choice.
+    PickFolder(super::FolderPicker),
     /// Ask the catalog for a home feed.
     HomeFeed,
     /// Run seed search number `n` for Home.

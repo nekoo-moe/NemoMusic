@@ -6,6 +6,8 @@
 
 pub mod cost;
 pub mod glass;
+mod pending;
+pub use pending::Pending;
 
 use std::path::{Path, PathBuf};
 
@@ -275,6 +277,8 @@ pub struct Scenario {
     pub sleep: bool,
     /// Show the page of the route as still loading (skeleton).
     pub loading_detail: bool,
+    /// Put a page back to "waiting for its first data" after the app settled (skeleton shots).
+    pub pending: Option<Pending>,
     /// Draw the skeletons that are wanted now (past the 150 ms wait), with the shimmer band this
     /// far into its sweep (0 to 1; needs `full_motion` to show the band).
     pub skeleton_phase: Option<f32>,
@@ -295,6 +299,8 @@ pub struct Scenario {
     pub setup: Option<crate::setup::SetupStep>,
     /// With `setup`: tick the notice checkbox.
     pub setup_ticked: bool,
+    /// With `setup`: draw the step this many ms into its transition (needs motion on).
+    pub setup_ms: Option<u32>,
     /// With `setup`: a sign-in failure sentence shown on the Sources step.
     pub account_error: Option<String>,
     /// Switch to this mock track after the app settled and draw this many ms into the bloom of
@@ -366,6 +372,7 @@ impl Default for Scenario {
             sleep: false,
             loading_detail: false,
             skeleton_phase: None,
+            pending: None,
             sort_menu: false,
             lyrics_pick: None,
             shared_output: false,
@@ -374,6 +381,7 @@ impl Default for Scenario {
             loading_lyrics_ms: None,
             setup: None,
             setup_ticked: false,
+            setup_ms: None,
             account_error: None,
             bloom: None,
             backdrop_ms: None,
@@ -407,6 +415,11 @@ fn open_setup(app: &mut App, scenario: &Scenario) {
         run(app, Message::Ui(Event::TosCheck(true)));
     }
     app.account.error.clone_from(&scenario.account_error);
+    if let Some(ms) = scenario.setup_ms {
+        // A few hundred ms: exact in f32.
+        #[allow(clippy::cast_precision_loss)]
+        app.set_setup_ms(ms as f32);
+    }
 }
 
 /// Build an app on `backend`, load everything synchronously and finish all animations, so the
@@ -552,6 +565,9 @@ pub fn build_app(backend: &Backend, scenario: &Scenario) -> App {
         && let Some(key) = super::app::DetailKey::of(&scenario.route)
     {
         app.details.insert(key, super::app::DetailState::Loading);
+    }
+    if let Some(p) = scenario.pending {
+        p.apply(&mut app);
     }
     if scenario.glass_switched_on {
         run(

@@ -5,12 +5,15 @@
 //!   [`EXPIRY_MARGIN`], shares one request between callers that ask for the same video with the
 //!   same [`StreamRequest`] at the same time, and resolves [`warm`](StreamResolver::warm) hints
 //!   in the background. A stream resolved for one request is never served for another.
-//! - [`FallbackResolver`] tries the primary resolver first and the fallback on any error. A
+//! - [`FallbackResolver`] tries the primary resolver first and the fallback on any error. When
+//!   the primary has not answered after [`RACE_AFTER`], the fallback starts alongside it and the
+//!   first good answer wins; the other is cancelled. A
 //!   request the anonymous native path cannot honour (an audio language or Premium) goes to the
 //!   fallback directly. When
 //!   a stream from the primary cannot be opened ([`stream_failed`](StreamResolver::stream_failed)),
 //!   that video goes to the fallback from then on; after [`PRIMARY_FAILURE_LIMIT`] such
-//!   failures the primary is switched off for the session.
+//!   failures the primary is switched off for the session. A primary that fails requests, or
+//!   refuses many videos in a row, rests for a while (`rest` module); one refused video does not.
 //!
 //! Nothing here logs a URL or a video id.
 
@@ -36,14 +39,19 @@ pub const EXPIRY_MARGIN: Duration = Duration::from_mins(10);
 pub const MAX_CACHED: usize = 64;
 /// Failed opens of primary streams after which the primary is switched off.
 pub const PRIMARY_FAILURE_LIMIT: u32 = 3;
-/// Failed primary resolves in a row after which the primary rests.
-pub const PRIMARY_MISS_LIMIT: u32 = 2;
-/// How long the primary rests.
-pub const PRIMARY_PAUSE: Duration = Duration::from_mins(10);
+/// How long the primary may take before the fallback starts alongside it. A native answer
+/// takes 70 to 500 ms and a refusal about 100 ms (measured 2026-11-19); the request timeout is
+/// [`PLAYER_TIMEOUT`](crate::innertube::PLAYER_TIMEOUT) per client.
+pub const RACE_AFTER: Duration = Duration::from_millis(1500);
 /// Client profiles of the native path, in order. `visionos` answered in 251 ms and its URL
 /// opened; `android_vr` (the owner's plan) answered in 477 ms and opened too, but yt-dlp
 /// reports its formats need a PO token, so it is second (measured 2026-11-11, one video).
 pub const NATIVE_PROFILES: &[ClientProfile] = &[VISIONOS, ANDROID_VR];
+
+mod rest;
+
+use rest::{Outcome, Rest};
+pub use rest::{PRIMARY_MISS_LIMIT, PRIMARY_PAUSE, PRIMARY_REFUSAL_LIMIT, PRIMARY_REFUSAL_PAUSE};
 
 type Answer = Result<ResolvedStream, StreamError>;
 
@@ -231,10 +239,10 @@ pub struct FallbackResolver {
     /// Videos whose primary stream could not be opened.
     skip_primary: Mutex<HashSet<String>>,
     failures: AtomicU32,
-    /// Primary resolves that failed in a row.
-    misses: AtomicU32,
-    /// The primary is not asked before this moment.
-    paused_until: Mutex<Option<Instant>>,
+    /// Failed and refused primary resolves, and when the primary rests.
+    rest: Rest,
+    /// The fallback starts alongside the primary after this long.
+    race_after: Duration,
 }
 
 impl std::fmt::Debug for FallbackResolver {
@@ -255,9 +263,16 @@ impl FallbackResolver {
             via_primary: Mutex::default(),
             skip_primary: Mutex::default(),
             failures: AtomicU32::new(0),
-            misses: AtomicU32::new(0),
-            paused_until: Mutex::new(None),
+            rest: Rest::default(),
+            race_after: RACE_AFTER,
         }
+    }
+
+    /// Start the fallback alongside the primary after `after` instead of [`RACE_AFTER`].
+    #[must_use]
+    pub const fn with_race_after(mut self, after: Duration) -> Self {
+        self.race_after = after;
+        self
     }
 
     /// The primary is the anonymous native path: it serves the original track only, so a
@@ -266,35 +281,13 @@ impl FallbackResolver {
         if request.audio_language.is_some() || request.prefer_premium {
             return false;
         }
-        let paused = self
-            .paused_until
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .is_some_and(|until| Instant::now() < until);
-        !paused
+        !self.rest.resting()
             && self.failures.load(Ordering::SeqCst) < PRIMARY_FAILURE_LIMIT
             && !self
                 .skip_primary
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
                 .contains(video.as_str())
-    }
-
-    /// Count a failed primary resolve; after [`PRIMARY_MISS_LIMIT`] in a row the primary rests
-    /// for [`PRIMARY_PAUSE`] (YouTube's bot check refuses anonymous player requests for a while).
-    fn primary_missed(&self, missed: bool) {
-        if !missed {
-            self.misses.store(0, Ordering::SeqCst);
-            return;
-        }
-        if self.misses.fetch_add(1, Ordering::SeqCst) + 1 >= PRIMARY_MISS_LIMIT {
-            self.misses.store(0, Ordering::SeqCst);
-            *self
-                .paused_until
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner) = Some(Instant::now() + PRIMARY_PAUSE);
-            tracing::info!("native resolver paused after repeated refusals");
-        }
     }
 
     fn mark(&self, video: &VideoId, primary: bool) {
@@ -313,6 +306,114 @@ impl FallbackResolver {
     }
 }
 
+impl FallbackResolver {
+    /// Take the answer of the primary: a stream is kept, an error goes to the fallback.
+    async fn after_primary(
+        &self,
+        video: &VideoId,
+        request: &StreamRequest,
+        answer: Answer,
+        began: Instant,
+    ) -> Answer {
+        timing::stage("resolve native", began, answer.is_ok());
+        match answer {
+            Ok(stream) => {
+                self.rest.record(Outcome::Answered);
+                self.mark(video, true);
+                Ok(stream)
+            }
+            Err(e) => {
+                self.rest.record(Outcome::of(&Err(e.clone())));
+                tracing::debug!(error = %e, "native resolve failed, using yt-dlp");
+                self.run_fallback(video, request).await
+            }
+        }
+    }
+
+    async fn run_fallback(&self, video: &VideoId, request: &StreamRequest) -> Answer {
+        let began = Instant::now();
+        let answer = self.fallback.resolve_with(video, request).await;
+        self.after_fallback(video, answer, began)
+    }
+
+    fn after_fallback(&self, video: &VideoId, answer: Answer, began: Instant) -> Answer {
+        timing::stage("resolve yt-dlp", began, answer.is_ok());
+        if let Err(e) = &answer {
+            // Fixed texts only (no URL, no id): the reason behind "could not get the stream".
+            tracing::warn!(error = %e, "no stream from the native path or yt-dlp");
+        }
+        self.mark(video, false);
+        answer
+    }
+
+    /// The primary is slow: start the fallback beside it and take the first good answer. The
+    /// future that is dropped ends its request or process. When both fail, the fallback's error
+    /// is the answer, as without a race.
+    async fn race(
+        &self,
+        video: &VideoId,
+        request: &StreamRequest,
+        mut primary: BoxFuture<'_, Answer>,
+        began: Instant,
+    ) -> Answer {
+        tracing::debug!(target: "nemo::start", "native is slow, yt-dlp starts beside it");
+        let fallback_began = Instant::now();
+        let mut fallback = self.fallback.resolve_with(video, request);
+        tokio::select! {
+            answer = &mut primary => {
+                self.primary_first(video, answer, began, fallback, fallback_began).await
+            }
+            answer = &mut fallback => {
+                self.fallback_first(video, answer, primary, fallback_began).await
+            }
+        }
+    }
+
+    /// The primary answered first: a stream cancels the fallback; an error waits for it.
+    async fn primary_first(
+        &self,
+        video: &VideoId,
+        answer: Answer,
+        began: Instant,
+        fallback: BoxFuture<'_, Answer>,
+        fallback_began: Instant,
+    ) -> Answer {
+        timing::stage("resolve native", began, answer.is_ok());
+        self.rest.record(Outcome::of(&answer));
+        if let Ok(stream) = answer {
+            drop(fallback);
+            self.mark(video, true);
+            return Ok(stream);
+        }
+        let answer = fallback.await;
+        self.after_fallback(video, answer, fallback_began)
+    }
+
+    /// The fallback answered first: a stream cancels the primary (too slow to count on); an
+    /// error waits for the primary.
+    async fn fallback_first(
+        &self,
+        video: &VideoId,
+        answer: Answer,
+        primary: BoxFuture<'_, Answer>,
+        fallback_began: Instant,
+    ) -> Answer {
+        if answer.is_ok() {
+            drop(primary);
+            // Too slow to count on: it counts as a failed request.
+            self.rest.record(Outcome::Failed);
+            return self.after_fallback(video, answer, fallback_began);
+        }
+        let late = primary.await;
+        self.rest.record(Outcome::of(&late));
+        if let Ok(stream) = late {
+            self.mark(video, true);
+            return Ok(stream);
+        }
+        self.after_fallback(video, answer, fallback_began)
+    }
+}
+
 impl StreamResolver for FallbackResolver {
     fn resolve<'a>(&'a self, video: &'a VideoId) -> BoxFuture<'a, Answer> {
         self.resolve_with(video, &DEFAULT_REQUEST)
@@ -324,31 +425,15 @@ impl StreamResolver for FallbackResolver {
         request: &'a StreamRequest,
     ) -> BoxFuture<'a, Answer> {
         Box::pin(async move {
-            if self.use_primary(video, request) {
-                let began = Instant::now();
-                let answer = self.primary.resolve_with(video, request).await;
-                timing::stage("resolve native", began, answer.is_ok());
-                match answer {
-                    Ok(stream) => {
-                        self.primary_missed(false);
-                        self.mark(video, true);
-                        return Ok(stream);
-                    }
-                    Err(e) => {
-                        self.primary_missed(true);
-                        tracing::debug!(error = %e, "native resolve failed, using yt-dlp");
-                    }
-                }
+            if !self.use_primary(video, request) {
+                return self.run_fallback(video, request).await;
             }
             let began = Instant::now();
-            let answer = self.fallback.resolve_with(video, request).await;
-            timing::stage("resolve yt-dlp", began, answer.is_ok());
-            if let Err(e) = &answer {
-                // Fixed texts only (no URL, no id): the reason behind "could not get the stream".
-                tracing::warn!(error = %e, "no stream from the native path or yt-dlp");
+            let mut primary = self.primary.resolve_with(video, request);
+            match tokio::time::timeout(self.race_after, &mut primary).await {
+                Ok(answer) => self.after_primary(video, request, answer, began).await,
+                Err(_) => self.race(video, request, primary, began).await,
             }
-            self.mark(video, false);
-            answer
         })
     }
 

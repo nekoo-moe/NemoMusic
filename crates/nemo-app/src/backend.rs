@@ -71,6 +71,8 @@ pub struct Startup {
     pub saver: Sender<SettingsMsg>,
     /// Where the play hub goes, so `main` can stop it after the window closes.
     pub hub: Arc<Mutex<Option<PlayHub>>>,
+    /// Where the running library goes, so the folder dialog can add a folder to it.
+    pub library: crate::folder_picker::LibrarySlot,
 }
 
 impl Startup {
@@ -83,6 +85,9 @@ impl Startup {
         let services = build(&self.paths, &self.settings, &self.handle, report)
             .map_err(|err| format!("NemoMusic could not start. {err}"))?;
         rescan_in_background(&services.local);
+        if let Ok(mut slot) = self.library.lock() {
+            *slot = Some(services.local.clone());
+        }
         match play_hub::spawn(Arc::clone(&services.backend.player), play_observers()) {
             Ok(hub) => {
                 if let Ok(mut slot) = self.hub.lock() {

@@ -7,7 +7,8 @@ use iced::{Alignment, Element, Length};
 
 use super::super::kit::{paragraph, text_button, tile, tonal_button, vspace};
 use super::super::settings::switch_style;
-use super::steps::heading;
+use super::reveal::rise;
+use super::steps::{has_two_columns, heading, two_columns};
 use crate::copy::{self, setup as text};
 use crate::gui::app::{AccountMsg, App, Message};
 use crate::gui::assets::Icon;
@@ -18,26 +19,35 @@ use crate::theme::{color, type_scale};
 use nemo_core::account::AccountState;
 
 pub(super) fn view(app: &App, width: f32) -> Element<'_, Message> {
-    let inner = width - 2.0 * gap::LG;
-    column![
-        heading(text::SOURCES_TITLE, Some(text::SOURCES_HELP), width),
-        vspace(gap::LG),
-        card(youtube(app, inner), width),
-        vspace(gap::MD),
-        card(soundcloud(inner), width),
-        vspace(gap::MD),
-        card(local(app, inner), width),
-    ]
-    .width(Length::Fixed(width))
-    .into()
+    let two = has_two_columns(width);
+    let col_w = if two {
+        ((width - gap::LG) / 2.0).floor()
+    } else {
+        width
+    };
+    let inner = col_w - 2.0 * gap::MD;
+    let head = heading(text::SOURCES_TITLE, Some(text::SOURCES_HELP), width);
+    let yt = card(youtube(app, inner), col_w);
+    let sc = card(soundcloud(inner), col_w);
+    let local = card(local(app, inner), col_w);
+    let (yt, sc, local) = (rise(app, 0, yt), rise(app, 1, sc), rise(app, 2, local));
+    let body: Element<'_, Message> = if two {
+        // YouTube Music is the tall card; the other two share the second column.
+        two_columns(vec![yt], vec![sc, vspace(gap::SM), local], width)
+    } else {
+        column![yt, vspace(gap::SM), sc, vspace(gap::SM), local].into()
+    };
+    column![head, vspace(gap::MD), body]
+        .width(Length::Fixed(width))
+        .into()
 }
 
 fn card(content: Element<'_, Message>, width: f32) -> Element<'_, Message> {
     tile(
         container(content)
-            .padding(gap::LG)
+            .padding(gap::MD)
             .width(Length::Fixed(width)),
-        color::surface_container(),
+        color::surface_container_high(),
     )
 }
 
@@ -66,6 +76,7 @@ fn youtube(app: &App, inner: f32) -> Element<'_, Message> {
             .push(status_line(
                 Icon::CheckCircle,
                 format!("Signed in as {}", info.name),
+                inner,
             ))
             .into();
     }
@@ -97,13 +108,14 @@ fn youtube(app: &App, inner: f32) -> Element<'_, Message> {
     }
     if let Some(error) = &app.account.error {
         c = c
-            .push(status_line(Icon::Info, error.clone()))
+            .push(status_line(Icon::Info, error.clone(), inner))
             .push(dim(text::YT_FAILED_WAY, inner));
     }
     if app.ui.setup.without_account() {
         c = c.push(status_line(
             Icon::Check,
             text::YT_WITHOUT_ACCOUNT.to_owned(),
+            inner,
         ));
     }
     let mut actions = row![tonal_button(
@@ -186,7 +198,11 @@ fn local(app: &App, inner: f32) -> Element<'_, Message> {
         actions = actions.push(tonal_button("Add a folder", None, Some(Message::AddFolder)));
     }
     if app.ui.setup.folders_skipped() {
-        c = c.push(status_line(Icon::Check, text::LOCAL_SKIPPED.to_owned()));
+        c = c.push(status_line(
+            Icon::Check,
+            text::LOCAL_SKIPPED.to_owned(),
+            inner,
+        ));
     } else {
         actions = actions.push(text_button(
             "Skip",
@@ -196,13 +212,15 @@ fn local(app: &App, inner: f32) -> Element<'_, Message> {
     c.push(actions).into()
 }
 
-/// An icon and one sentence.
-fn status_line<'a>(glyph: Icon, text: String) -> Element<'a, Message> {
+/// An icon and one sentence that wraps inside `width`.
+fn status_line<'a>(glyph: Icon, text: String, width: f32) -> Element<'a, Message> {
     row![
         icon(glyph, 20.0, col(color::on_surface_variant())),
         Space::new().width(gap::SM),
-        label(text, type_scale::BODY_MD, true, col(color::on_surface())),
+        label(text, type_scale::BODY_MD, true, col(color::on_surface()))
+            .wrapping(iced::widget::text::Wrapping::Word)
+            .width(Length::Fixed(width - 20.0 - gap::SM)),
     ]
-    .align_y(Alignment::Center)
+    .align_y(Alignment::Start)
     .into()
 }

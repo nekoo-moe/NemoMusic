@@ -6,6 +6,7 @@ use iced::{Alignment, Element, Length, Padding};
 
 use super::super::kit::{paragraph, text_button, vspace};
 use super::super::overlays::notice_checkbox;
+use super::reveal::rise;
 use super::steps::heading;
 use crate::copy::{self, setup as text};
 use crate::gui::app::{App, Message};
@@ -19,17 +20,11 @@ use crate::theme::{color, shape, type_scale};
 const BUTTON_H: f32 = 48.0;
 
 pub(super) fn view(app: &App, width: f32) -> Element<'_, Message> {
-    let mut c = column![heading(text::NOTICE_TITLE, None, width), vspace(gap::LG)]
+    let mut c = column![heading(text::NOTICE_TITLE, None, width), vspace(gap::MD)]
         .width(Length::Fixed(width));
-    for p in copy::TOS_NOTICE {
-        c = c
-            .push(paragraph(
-                p,
-                type_scale::BODY_MD,
-                col(color::on_surface()),
-                width,
-            ))
-            .push(vspace(gap::MD));
+    for (i, p) in copy::TOS_NOTICE.into_iter().enumerate() {
+        let text = paragraph(p, type_scale::BODY_MD, col(color::on_surface()), width);
+        c = c.push(rise(app, i, text)).push(vspace(gap::MD));
     }
     if app.ui.settings.tos_acknowledged {
         let ink = col(color::success());
@@ -49,10 +44,13 @@ pub(super) fn view(app: &App, width: f32) -> Element<'_, Message> {
         return c.into();
     }
     let checked = app.ui.tos_checked;
+    let n = copy::TOS_NOTICE.len();
     c = c
-        .push(notice_checkbox(checked))
+        .push(rise(app, n, notice_checkbox(checked)))
         .push(vspace(gap::LG))
-        .push(
+        .push(rise(
+            app,
+            n + 1,
             row![
                 continue_button(app, checked),
                 Space::new().width(gap::SM),
@@ -61,8 +59,9 @@ pub(super) fn view(app: &App, width: f32) -> Element<'_, Message> {
                     Message::Ui(Event::Setup(SetupEvent::NoticeLater))
                 ),
             ]
-            .align_y(Alignment::Center),
-        )
+            .align_y(Alignment::Center)
+            .into(),
+        ))
         .push(vspace(gap::MD))
         .push(label(
             text::NOTICE_FOOT,

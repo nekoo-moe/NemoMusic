@@ -19,8 +19,9 @@ A song starts to play quickly after the click on Play, and the next song of the 
 5. WHILE a song plays, THE SYSTEM SHALL resolve and open at most the one song after it. WHEN the queue changes so that another song is next, THE SYSTEM SHALL drop the prefetch and prefetch the new next song.
 6. WHEN the native path has not answered after 1.5 s, THE SYSTEM SHALL start the fallback (yt-dlp) beside it and use the first good answer; the other resolve is cancelled (its request or process ends). WHEN the native path answers or fails within 1.5 s, THE SYSTEM SHALL behave as before and start nothing extra.
 7. WHEN the audio code changes, THE SYSTEM SHALL keep the output samples bit-identical (`bit_exact` and `rt_no_alloc` pass) and SHALL allocate and lock nothing in the audio callback.
-8. WHEN the platform is Linux `x86_64` and `unzip` is on `PATH`, THE SYSTEM SHALL install the onedir `yt-dlp_linux.zip` (checksum verified as before) instead of the one-file build; without `unzip` it keeps the one-file build.
-9. WHEN the measuring example runs (development only, real network, `NEMO_PROBE_QUERY` or `NEMO_PROBE_IDS`), THE SYSTEM SHALL print the stage times of each song and never a URL or an id.
+8. WHEN the measuring example runs (development only, real network, `NEMO_PROBE_QUERY` or `NEMO_PROBE_IDS`), THE SYSTEM SHALL print the stage times of each song and never a URL or an id.
+9. WHEN the native path answers that one video cannot be played (the bot check, an unplayable video), THE SYSTEM SHALL use the fallback for that video and SHALL NOT count the answer as a failed request; the native path rests for 2 minutes only after 5 such refusals in a row, and for 10 minutes after 2 failed requests in a row (an HTTP error, a timeout, an unreadable answer), as before.
+10. WHEN the platform is Linux `x86_64` and `unzip` is on `PATH`, THE SYSTEM SHALL install the onedir `yt-dlp_linux.zip` (checksum verified as before) instead of the one-file build; without `unzip` it keeps the one-file build.
 
 ## Out of Scope
 
@@ -32,5 +33,4 @@ A song starts to play quickly after the click on Play, and the next song of the 
 ## Open Questions
 
 - Warm the first song on hover or on selection of a row: needs a call from the UI crate to the resolver (`warm`). Not done here; owner decides.
-- Native refusal accounting: two refused native answers in a row rest the native path for 10 minutes, and a per-video "not available" counts like a bot check. If an owner log (`NEMO_LOG=debug`, lines `resolve native ok=false` and `native resolver paused after repeated refusals`) shows the pause is what sends songs to yt-dlp, tell a bot check (`LOGIN_REQUIRED`) from a missing video and count only the first. Not changed without that evidence (the Codespace IP got the bot check, so it could not be measured here).
 - Open the output device while the stream resolves (hides the device open time). Needs the sample rate before the probe; not done without a measured device-open time (the Codespace has no audio device).

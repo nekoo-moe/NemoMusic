@@ -6,9 +6,6 @@ use crate::keys::Key;
 use crate::setup::{SetupEvent, SetupStep};
 use crate::state::Event;
 
-/// Slide distance of a step change, in px (`design.md` section 8: translate up to 16 px).
-pub const SLIDE_PX: f32 = 16.0;
-
 impl App {
     /// Start the step transition when the flow opens or moves to another step. Reduced motion
     /// shows the new step at once.
@@ -17,13 +14,13 @@ impl App {
         if self.setup_seen == now {
             return;
         }
+        let from = self.setup_seen;
         self.setup_seen = now;
         if now.is_none() {
-            self.setup_anim.snap(1.0);
+            self.setup_anim.finish();
             return;
         }
-        self.setup_anim.snap(0.0);
-        self.setup_anim.target = 1.0;
+        self.setup_anim.restart(from);
         if self.ui.reduced_motion {
             self.setup_anim.finish();
         }
@@ -38,10 +35,22 @@ impl App {
         Vec::new()
     }
 
-    /// Progress of the step transition, 0 to 1.
+    /// Milliseconds since the setup step changed (at most 400, then nothing moves).
     #[must_use]
-    pub fn setup_progress(&self) -> f32 {
-        self.setup_anim.value.clamp(0.0, 1.0)
+    pub fn setup_ms(&self) -> f32 {
+        self.setup_anim.ms()
+    }
+
+    /// The step the flow moved from, while its transition runs.
+    #[must_use]
+    pub fn setup_from(&self) -> Option<SetupStep> {
+        self.setup_anim.from()
+    }
+
+    /// Put the transition `ms` milliseconds in (for snapshots).
+    pub fn set_setup_ms(&mut self, ms: f32) {
+        self.setup_anim.restart(self.setup_anim.from());
+        self.setup_anim.advance(ms);
     }
 
     /// The step the transition belongs to, if the flow is open.
@@ -126,7 +135,7 @@ mod tests {
     fn a_step_slides_in_within_400_ms_and_reduced_motion_is_instant() {
         let mut app = first_run(false);
         key(&mut app, Key::Enter);
-        assert!(app.setup_progress() < 0.1, "starts at the beginning");
+        assert!(app.setup_ms() < 1.0, "starts at the beginning");
         assert!(app.needs_frames());
         let t0 = Instant::now();
         let mut ms = 0_u32;
@@ -135,11 +144,12 @@ mod tests {
             drop(app.update_core(Message::Frame(t0 + Duration::from_millis(u64::from(ms)))));
         }
         assert!(ms <= 400, "settled after {ms} ms");
-        assert!((app.setup_progress() - 1.0).abs() < 0.01);
+        assert!((app.setup_ms() - 400.0).abs() < f32::EPSILON);
+        assert!(!app.needs_frames(), "no frames once it has run");
 
         let mut app = first_run(true);
         key(&mut app, Key::Enter);
-        assert!((app.setup_progress() - 1.0).abs() < f32::EPSILON);
+        assert!((app.setup_ms() - 400.0).abs() < f32::EPSILON);
         assert!(!app.needs_frames());
     }
 
@@ -168,5 +178,45 @@ mod tests {
                 drop(app.dispatch(Event::Setup(next)));
             }
         }
+    }
+
+    fn app_with_picker(answer: Option<&'static str>) -> App {
+        use crate::gui::app::FolderPicker;
+        let picker = FolderPicker::new(move || Box::pin(async move { answer.map(str::to_owned) }));
+        let options = UiOptions {
+            music_folders: vec!["/music/old".to_owned()],
+            on_add_music_folder: Some(picker),
+            ..UiOptions::default()
+        };
+        App::new(mock_backend(), &options).0
+    }
+
+    #[test]
+    fn add_a_folder_opens_the_dialog_and_lists_the_chosen_folder() {
+        let mut app = app_with_picker(Some("/music/new"));
+        let jobs = app.update_core(Message::AddFolder);
+        assert_eq!(jobs.len(), 1, "one job opens the dialog");
+        app.settle_blocking(jobs);
+        assert_eq!(app.music_folders, ["/music/old", "/music/new"]);
+    }
+
+    #[test]
+    fn a_cancelled_dialog_and_a_folder_already_listed_change_nothing() {
+        let mut cancelled = app_with_picker(None);
+        let jobs = cancelled.update_core(Message::AddFolder);
+        cancelled.settle_blocking(jobs);
+        assert_eq!(cancelled.music_folders, ["/music/old"]);
+
+        let mut again = app_with_picker(Some("/music/old"));
+        let jobs = again.update_core(Message::AddFolder);
+        again.settle_blocking(jobs);
+        assert_eq!(again.music_folders, ["/music/old"]);
+    }
+
+    #[test]
+    fn without_a_picker_the_button_is_hidden_and_the_message_does_nothing() {
+        let (mut app, _) = App::new(mock_backend(), &UiOptions::default());
+        assert!(!app.has_add_folder());
+        assert!(app.update_core(Message::AddFolder).is_empty());
     }
 }

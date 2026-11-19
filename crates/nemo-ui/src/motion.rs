@@ -14,6 +14,8 @@ use crate::theme::motion::ACCENT_CROSSFADE_MS;
 
 mod presence;
 pub use presence::Presence;
+mod response;
+pub use response::spring_response;
 
 /// Evaluate a CSS-style cubic bezier easing `(x1, y1, x2, y2)` at time fraction `x` (0 to 1).
 #[must_use]

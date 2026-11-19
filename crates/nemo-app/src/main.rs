@@ -6,6 +6,7 @@ mod backend;
 #[cfg(windows)]
 mod blur;
 mod config;
+mod folder_picker;
 mod logging;
 mod merged;
 mod opt_in_gate;
@@ -56,7 +57,10 @@ fn main() {
     };
     // The window and the splash open at once; the services open on their own thread behind the
     // first frame (startup-flow spec).
-    let (options, saver) = ui_bridge::options(settings.clone(), paths.root.clone());
+    let (mut options, saver) = ui_bridge::options(settings.clone(), paths.root.clone());
+    // `Add a folder`: the native dialog, storing the folder and adding it to the running library.
+    let library = folder_picker::LibrarySlot::default();
+    options.on_add_music_folder = Some(folder_picker::native(saver.clone(), Arc::clone(&library)));
     let hub = Arc::new(Mutex::new(None));
     let startup = backend::Startup {
         paths,
@@ -64,6 +68,7 @@ fn main() {
         handle: runtime.handle().clone(),
         saver,
         hub: Arc::clone(&hub),
+        library,
     };
     if let Err(err) =
         nemo_ui::run_with_startup(Box::new(move |report| startup.run(report)), options)

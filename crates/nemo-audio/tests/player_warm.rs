@@ -1,5 +1,5 @@
-//! Resolver hints from the player: the next queue entries are warmed, a stream that cannot be
-//! opened is reported and resolved once more, and every resolve carries the player's stream
+//! Resolver hints from the player: only the next queue entry is warmed, a stream that cannot
+//! be opened is reported and resolved once more, and every resolve carries the player's stream
 //! request. No device, no network.
 
 mod common;
@@ -132,28 +132,20 @@ fn wait(what: &str, mut done: impl FnMut() -> bool) {
 }
 
 #[test]
-fn the_next_two_entries_are_warmed_while_one_plays() {
+fn only_the_next_entry_is_warmed_while_one_plays() {
     let (player, resolver) = start(&[], StreamRequest::default());
     player.send(PlayerCommand::SetQueue {
         tracks: (1..=4).map(video_track).collect(),
         start: 0,
     });
     wait("playing", || player.snapshot().state == PlayState::Playing);
-    wait("warm hints", || {
-        resolver.log.lock().expect("log").len() >= 2
+    wait("warm hint", || {
+        !resolver.log.lock().expect("log").is_empty()
     });
+    // Time for a second hint, were one going to come.
+    std::thread::sleep(Duration::from_millis(300));
     let log = resolver.log.lock().expect("log").clone();
-    assert_eq!(
-        log[..2],
-        [
-            format!("warm {}", video_id(2)),
-            format!("warm {}", video_id(3))
-        ]
-    );
-    assert!(
-        !log.iter()
-            .any(|l| l.contains(&video_id(1)) || l.contains(&video_id(4)))
-    );
+    assert_eq!(log, [format!("warm {}", video_id(2))]);
 }
 
 #[test]

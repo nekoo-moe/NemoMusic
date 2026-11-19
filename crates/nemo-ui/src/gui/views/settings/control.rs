@@ -6,7 +6,7 @@ use iced::{Alignment, Element, Length, Padding};
 use crate::gui::app::{App, Message};
 use crate::gui::assets::Icon;
 use crate::gui::style::{animated, col, gap, icon, label};
-use crate::gui::views::kit::{paragraph, tile, vspace};
+use crate::gui::views::kit::{paragraph, tile};
 use crate::settings::SettingChange;
 use crate::state::Event;
 use crate::theme::{color, shape, type_scale};
@@ -61,36 +61,6 @@ pub(in crate::gui::views) fn setting_row<'a>(
     .align_y(Alignment::Center)
     .padding(Padding::from([gap::MD, gap::LG]))
     .into()
-}
-
-/// A row whose control needs the full width: text on top, the control under it.
-pub(in crate::gui::views) fn stacked_row<'a>(
-    width: f32,
-    title: &'a str,
-    helper: Option<String>,
-    control: Element<'a, Message>,
-) -> Element<'a, Message> {
-    let inner = width - 2.0 * gap::LG;
-    let mut c = column![label(
-        title,
-        type_scale::BODY_MD,
-        false,
-        col(color::on_surface())
-    )]
-    .spacing(gap::XS)
-    .width(Length::Fixed(inner));
-    if let Some(h) = helper {
-        c = c.push(paragraph(
-            h,
-            type_scale::BODY_SM,
-            col(color::on_surface_variant()),
-            inner,
-        ));
-    }
-    c = c.push(vspace(gap::SM)).push(control);
-    container(c)
-        .padding(Padding::from([gap::MD, gap::LG]))
-        .into()
 }
 
 /// A segmented control: one pill per option, the chosen one filled with the accent container.

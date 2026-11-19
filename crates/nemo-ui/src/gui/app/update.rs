@@ -181,7 +181,7 @@ impl App {
             sw.step(dt.min(50.0) / 1000.0);
         }
         self.queue_anim.step(dt.min(50.0) / 1000.0);
-        self.setup_anim.step(dt.min(50.0) / 1000.0);
+        self.setup_anim.advance(dt.min(50.0));
         // While a track menu is open nothing but the menu moves (app-motion spec, criterion 11).
         let held = self.surfaces.menu.visible();
         if self.ui.is_playing() && !self.ui.reduced_motion && !held {

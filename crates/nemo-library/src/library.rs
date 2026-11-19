@@ -79,6 +79,16 @@ impl LocalLibrary {
         &self.folders
     }
 
+    /// Watch one more folder. Returns `false` and changes nothing when it is already watched.
+    /// Call [`LocalLibrary::rescan`] to read its tracks.
+    pub fn add_folder(&mut self, path: PathBuf) -> bool {
+        if self.folders.contains(&path) {
+            return false;
+        }
+        self.folders.push(path);
+        true
+    }
+
     /// Every track, sorted by artist, album, then path.
     #[must_use]
     pub fn tracks(&self) -> &[Track] {
@@ -337,5 +347,14 @@ mod tests {
         let lib = LocalLibrary::new(vec![PathBuf::from("C:/Music")]);
         assert!(lib.contains_path(Path::new("C:/Music/a/b.flac")));
         assert!(!lib.contains_path(Path::new("C:/Windows/b.flac")));
+    }
+
+    #[test]
+    fn add_folder_watches_a_new_folder_once() {
+        let mut lib = LocalLibrary::new(vec![PathBuf::from("/music/a")]);
+        assert!(lib.add_folder(PathBuf::from("/music/b")));
+        assert!(!lib.add_folder(PathBuf::from("/music/b")));
+        assert!(!lib.add_folder(PathBuf::from("/music/a")));
+        assert_eq!(lib.folders().len(), 2);
     }
 }

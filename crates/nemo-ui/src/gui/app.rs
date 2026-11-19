@@ -71,9 +71,9 @@ pub use model::{
     HomePhase, HomeState, LibFilter, ListSource, NpTab, SettingsSection,
 };
 pub use option::{
-    AccountLibrary, CreateMsg, RestartHandler, SleepState, UiHooks, UiOptions, WindowHandler,
+    AccountLibrary, CreateMsg, FolderPicker, PickFuture, RestartHandler, SleepState, UiHooks,
+    UiOptions, WindowHandler,
 };
-pub use setup::SLIDE_PX;
 
 /// Widget id of the search box.
 pub const SEARCH_ID: &str = "nemo-search";
@@ -145,8 +145,8 @@ pub struct App {
     pub(crate) skeletons: crate::skeleton::Skeletons,
     /// Tab and sidebar pills, the like heart, the title fade and picture fades.
     pub(crate) micro: Micro,
-    /// Progress (0 to 1) of the setup flow's step transition.
-    pub(crate) setup_anim: crate::motion::Spring,
+    /// The clock of the setup flow's step transition.
+    pub(crate) setup_anim: crate::setup::motion::Clock,
     /// The setup step the transition last started for (`None` while the flow is closed).
     setup_seen: Option<crate::setup::SetupStep>,
     /// Phase of the equaliser bars on the playing row.
@@ -162,7 +162,7 @@ pub struct App {
     pub(crate) readout: bool,
     pub(crate) music_folders: Vec<String>,
     pub(crate) on_settings: Option<Arc<dyn Fn(UiSettings) + Send + Sync>>,
-    on_add_music_folder: Option<Arc<dyn Fn() + Send + Sync>>,
+    on_add_music_folder: Option<FolderPicker>,
     /// The parent's restart hook, and whether it already started a new copy.
     pub(crate) on_restart: Option<RestartHandler>,
     pub(crate) restarting: bool,
@@ -296,7 +296,7 @@ impl App {
             spin: 0.0,
             skeletons: crate::skeleton::Skeletons::default(),
             micro: Micro::default(),
-            setup_anim: crate::motion::Spring::tuned(1.0, 700.0, 1.0),
+            setup_anim: crate::setup::motion::Clock::settled(),
             setup_seen: None,
             eq_phase: 0.0,
             chip_pills: [

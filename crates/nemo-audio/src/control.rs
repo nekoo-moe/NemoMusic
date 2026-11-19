@@ -16,6 +16,7 @@ use nemo_core::player::{PlayState, PlayerEvent, PlayerSnapshot, RepeatMode};
 use nemo_core::segment::Segment;
 use nemo_core::track::Track;
 
+use crate::control_tick::Adopted;
 use crate::pipeline::{FeedCmd, Job, Pipeline, gain_stage, plan_stages};
 use crate::player::{Msg, PlayerDeps, Shared};
 use crate::prepare::{Prepared, spawn_segments};
@@ -271,12 +272,15 @@ impl Core {
             p.send(FeedCmd::Reset);
             p.shared.paused.store(false, Ordering::SeqCst);
         }
-        self.next = None;
+        let adopted = self.take_next_for(entry_id);
         self.following = None;
         self.skips.clear();
         self.last_skip = None;
         self.ignored.retain(|e, _| *e == entry_id);
-        let token = self.new_id();
+        let token = match &adopted {
+            Adopted::InFlight(token) => *token,
+            Adopted::Ready(_) | Adopted::Nothing => self.new_id(),
+        };
         self.cur = Some(Run::new(token, entry_id, track.clone(), start));
         self.index = Some(index);
         if self.parked {
@@ -293,7 +297,13 @@ impl Core {
         self.set_state(PlayState::Buffering);
         self.notify(&PlayerEvent::TrackChanged(track.id.clone()));
         self.notify(&PlayerEvent::QueueChanged);
-        self.spawn_prepare(token, track);
+        match adopted {
+            // Already open: no new resolve, no new request.
+            Adopted::Ready(prepared) => self.on_prepared(token, Ok(prepared)),
+            // Still opening on the prefetch thread: its answer lands on this run.
+            Adopted::InFlight(_) => {}
+            Adopted::Nothing => self.spawn_prepare(token, track),
+        }
     }
 
     /// Stop playback, release the device and reset the queue position. The queue stays.
