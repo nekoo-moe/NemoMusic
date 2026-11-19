@@ -29,6 +29,7 @@ use nemo_core::track::VideoId;
 use tokio::runtime::Handle;
 use tokio::sync::OnceCell;
 
+use crate::cipher::CipherResolver;
 use crate::innertube::{ANDROID_VR, ClientProfile, InnertubeResolver, VISIONOS};
 use crate::timing;
 use crate::ytdlp::YtDlpResolver;
@@ -402,6 +403,8 @@ pub struct FallbackResolver {
     rest: Rest,
     /// The fallback starts alongside the primary after this long.
     race_after: Duration,
+    /// Called once, when the failed opens switch the primary off for the session.
+    switched_off: Option<Arc<dyn Fn() + Send + Sync>>,
 }
 
 impl std::fmt::Debug for FallbackResolver {
@@ -424,7 +427,16 @@ impl FallbackResolver {
             failures: AtomicU32::new(0),
             rest: Rest::default(),
             race_after: RACE_AFTER,
+            switched_off: None,
         }
+    }
+
+    /// Call `hook` once, when [`PRIMARY_FAILURE_LIMIT`] streams of the primary could not be opened
+    /// and the primary is switched off for the session.
+    #[must_use]
+    pub fn with_switched_off(mut self, hook: Arc<dyn Fn() + Send + Sync>) -> Self {
+        self.switched_off = Some(hook);
+        self
     }
 
     /// Start the fallback alongside the primary after `after` instead of [`RACE_AFTER`].
@@ -610,6 +622,11 @@ impl StreamResolver for FallbackResolver {
                 .unwrap_or_else(PoisonError::into_inner)
                 .insert(video.as_str().to_owned());
             self.primary.stream_failed(video);
+            if total == PRIMARY_FAILURE_LIMIT
+                && let Some(hook) = &self.switched_off
+            {
+                hook();
+            }
         } else {
             self.fallback.stream_failed(video);
         }
@@ -636,15 +653,41 @@ pub fn persisted_chain(
     handle: &Handle,
     store: Option<Arc<StreamStore>>,
 ) -> Arc<CachedResolver> {
+    persisted_chain_with(ytdlp, allowed, handle, store, None)
+}
+
+/// [`persisted_chain`] with the in-process tier (cold-start spec): the order is the cache, the
+/// plain native request, `cipher` (the `tv` client and the embedded solver), `yt-dlp`. Without a
+/// `cipher` it is the chain of [`persisted_chain`].
+#[must_use]
+pub fn persisted_chain_with(
+    ytdlp: YtDlpResolver,
+    allowed: &[Codec],
+    handle: &Handle,
+    store: Option<Arc<StreamStore>>,
+    cipher: Option<Arc<CipherResolver>>,
+) -> Arc<CachedResolver> {
+    let ytdlp: Arc<dyn StreamResolver> = Arc::new(ytdlp);
+    let second: Arc<dyn StreamResolver> = match cipher {
+        Some(cipher) => {
+            let hook = cipher.off_hook();
+            let tier = FallbackResolver::new(cipher, ytdlp);
+            Arc::new(match hook {
+                Some(hook) => tier.with_switched_off(hook),
+                None => tier,
+            })
+        }
+        None => ytdlp,
+    };
     let inner: Arc<dyn StreamResolver> =
         match InnertubeResolver::new(handle.clone(), NATIVE_PROFILES) {
             Ok(native) => Arc::new(FallbackResolver::new(
                 Arc::new(native.with_allowed_codecs(allowed)),
-                Arc::new(ytdlp),
+                second,
             )),
             Err(e) => {
                 tracing::warn!(error = %e, "native resolver disabled");
-                Arc::new(ytdlp)
+                second
             }
         };
     let cached = CachedResolver::new(inner, handle.clone());

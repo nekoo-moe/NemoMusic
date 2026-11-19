@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 use nemo_audio::decoder::supported_stream_codecs;
 use nemo_audio::player::{Player, PlayerDeps};
@@ -26,9 +26,10 @@ use nemo_ui::StepReporter;
 use nemo_ui::splash::StartStep;
 use nemo_ytm::account::{AccountCatalog, AccountConfig, GoogleAccount, SessionSlot};
 use nemo_ytm::catalog::YtmCatalog;
+use nemo_ytm::cipher::{CipherResolver, OffMarker};
 use nemo_ytm::images::ImageCache;
 use nemo_ytm::offline::{OfflineCache, SystemClock};
-use nemo_ytm::resolver::{CachedResolver, StreamStore, persisted_chain};
+use nemo_ytm::resolver::{CachedResolver, StreamStore, persisted_chain_with};
 use nemo_ytm::session::YtmSessionBackend;
 use nemo_ytm::sponsorblock::{ReqwestHttp, SponsorBlockSource};
 use nemo_ytm::stream::HttpStreamOpener;
@@ -65,6 +66,8 @@ pub struct Services {
     pub ytdlp: YtDlpResolver,
     /// The streams kept between runs; the last played song is read from it at start-up.
     pub streams: Arc<StreamStore>,
+    /// The in-process resolver, prepared in the background when an earlier run left a player.
+    pub cipher: Option<Arc<CipherResolver>>,
     /// The cache in front of the resolvers, for the pointer hint.
     pub cache: Arc<CachedResolver>,
     /// The start-up resolve-ahead budget (the last played song, the first songs of Home).
@@ -135,6 +138,11 @@ impl Startup {
             }
         }
         crate::ui_bridge::spawn_output_watcher(&services.backend.player, self.saver);
+        // A player kept by an earlier run is made ready now, so the first song that the native
+        // request refuses is solved in process.
+        if let Some(cipher) = &services.cipher {
+            cipher.warm_from_file(&self.handle);
+        }
         // After the first frame (this runs behind the splash): the HTTP client of the stream
         // opener and one `yt-dlp --version`, so the first song does not pay for them.
         let warm = WarmUp::start(
@@ -218,12 +226,7 @@ pub fn build(
         ytdlp.program_slot(),
     );
     // Cache -> native player request -> yt-dlp (fast arguments, then the full extraction).
-    let resolver = persisted_chain(
-        ytdlp.clone(),
-        supported_stream_codecs(),
-        handle,
-        Some(Arc::clone(&streams)),
-    );
+    let (resolver, cipher) = build_resolver(paths, settings, handle, &ytdlp, &streams);
     let cache = Arc::clone(&resolver);
     let start_warm = start_warm_budget(&resolver, &warm_slot);
 
@@ -270,6 +273,7 @@ pub fn build(
     Ok(Services {
         ytdlp,
         streams,
+        cipher,
         cache,
         start_warm,
         backend: Backend {
@@ -300,6 +304,55 @@ fn start_warm_budget(resolver: &Arc<CachedResolver>, slot: &WarmSlot) -> Arc<Sta
     // Already set only if `build` ran twice on one slot, which it does not.
     let _ = slot.set(Arc::clone(&budget));
     budget
+}
+
+/// The resolver chain of the play path: cache, native request, in-process resolver, `yt-dlp`.
+fn build_resolver(
+    paths: &AppPaths,
+    settings: &Settings,
+    handle: &Handle,
+    ytdlp: &YtDlpResolver,
+    streams: &Arc<StreamStore>,
+) -> (Arc<CachedResolver>, Option<Arc<CipherResolver>>) {
+    let cipher = build_cipher(paths, settings, handle);
+    let chain = persisted_chain_with(
+        ytdlp.clone(),
+        supported_stream_codecs(),
+        handle,
+        Some(Arc::clone(streams)),
+        cipher.clone(),
+    );
+    (chain, cipher)
+}
+
+/// Whether the in-process tier is used this run: the `in_process_resolver` setting is on and the
+/// tier did not switch itself off in the last 24 hours (a network that refuses its addresses).
+fn in_process_wanted(enabled: bool, marker: &OffMarker, now: SystemTime) -> bool {
+    enabled && !marker.resting(now)
+}
+
+/// The in-process resolver (the `tv` client and the embedded solver) between the native request
+/// and `yt-dlp`, or `None` when it is switched off in the settings or for a day, or when its
+/// engine thread or HTTP client cannot start.
+fn build_cipher(
+    paths: &AppPaths,
+    settings: &Settings,
+    handle: &Handle,
+) -> Option<Arc<CipherResolver>> {
+    let marker = OffMarker::new(Some(paths.in_process_off.clone()));
+    if !in_process_wanted(settings.in_process_resolver, &marker, SystemTime::now()) {
+        tracing::debug!("the in-process resolver is off this run; yt-dlp is the fallback");
+        return None;
+    }
+    let player = Some(paths.player.clone());
+    let off = Some(paths.in_process_off.clone());
+    match CipherResolver::new(handle, player, off, supported_stream_codecs()) {
+        Ok(cipher) => Some(cipher),
+        Err(err) => {
+            tracing::warn!(error = %err, "the in-process resolver is off; yt-dlp is the fallback");
+            None
+        }
+    }
 }
 
 /// The saved player settings, sent once after the player starts: volume, SponsorBlock, and the
@@ -440,6 +493,30 @@ mod tests {
         let commands = start_commands(&settings);
         assert!(commands.contains(&PlayerCommand::SetEffects(settings.effects.to_core())));
         assert!(commands.contains(&PlayerCommand::SetTransition(settings.transition.to_core())));
+    }
+
+    #[test]
+    fn the_in_process_tier_needs_the_setting_and_no_marker_for_the_day() {
+        let dir = std::env::temp_dir().join(format!("nemo-app-off-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir); // A leftover of an earlier run is fine to drop.
+        let marker = OffMarker::new(Some(dir.join("off.json")));
+        let now = SystemTime::now();
+        assert!(in_process_wanted(true, &marker, now));
+        assert!(
+            !in_process_wanted(false, &marker, now),
+            "the setting is off"
+        );
+        marker.switch_off(now);
+        assert!(
+            !in_process_wanted(true, &marker, now),
+            "it switched itself off"
+        );
+        let later = now + Duration::from_hours(25);
+        assert!(
+            in_process_wanted(true, &marker, later),
+            "a day later it is tried again"
+        );
+        let _ = std::fs::remove_dir_all(dir); // Cleanup only.
     }
 
     #[test]
