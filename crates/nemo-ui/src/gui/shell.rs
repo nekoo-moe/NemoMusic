@@ -7,6 +7,7 @@
 use std::sync::Mutex;
 use std::time::Instant;
 
+use iced::widget::image::Handle;
 use iced::widget::stack;
 use iced::{Element, Subscription, Task, window};
 use nemo_core::services::Backend;
@@ -16,6 +17,7 @@ use super::views::splash::{SplashLook, view as splash_view};
 use super::{assets, boot_app, fx, style};
 use crate::motion::Spring;
 use crate::scheme::accent_palette;
+use crate::splash::intro::{BLOOM_PEAK, BLOOM_PX, bloom_rgba};
 use crate::splash::{Splash, StartStep};
 use crate::theme::{color, shape};
 
@@ -68,6 +70,8 @@ pub struct Shell {
     now_ms: u64,
     last_frame: Option<Instant>,
     bar: Spring,
+    /// The accent bloom of the intro, built once so no frame uploads a texture.
+    bloom: Handle,
 }
 
 impl Shell {
@@ -80,6 +84,9 @@ impl Shell {
         let splash = Splash::new(reduced);
         let mut bar = Spring::tuned(0.0, 700.0, 1.0);
         bar.snap(splash.fraction());
+        let st = &options.settings;
+        let accent = accent_palette(st.theme, st.base, st.accent_intensity, None);
+        let bloom = Handle::from_rgba(BLOOM_PX, BLOOM_PX, bloom_rgba(accent.primary, BLOOM_PEAK));
         let mut shell = Self {
             stage: Stage::Starting,
             options,
@@ -88,6 +95,7 @@ impl Shell {
             now_ms: 0,
             last_frame: None,
             bar,
+            bloom,
         };
         let (tx, rx) = iced::futures::channel::mpsc::unbounded::<ShellMessage>();
         let steps = tx.clone();
@@ -227,6 +235,9 @@ impl Shell {
             opacity: self.splash.opacity(self.now_ms),
             accent: accent_palette(s.theme, s.base, s.accent_intensity, None),
             failed: self.splash.failure().is_some(),
+            t_ms: self.now_ms,
+            reduced: fx::reduced_motion(),
+            bloom: &self.bloom,
         };
         splash_view(&look, ShellMessage::Quit)
     }
@@ -334,9 +345,9 @@ mod tests {
 
         drop(shell.update(ShellMessage::Frame(at(&shell, 100))));
         assert_eq!(shell.splash.phase(), SplashPhase::Showing);
-        drop(shell.update(ShellMessage::Frame(at(&shell, 520))));
+        drop(shell.update(ShellMessage::Frame(at(&shell, 1_220))));
         assert_eq!(shell.splash.phase(), SplashPhase::Fading);
-        drop(shell.update(ShellMessage::Frame(at(&shell, 760))));
+        drop(shell.update(ShellMessage::Frame(at(&shell, 1_460))));
         assert_eq!(shell.splash.phase(), SplashPhase::Gone);
         drop(shell.view());
     }
