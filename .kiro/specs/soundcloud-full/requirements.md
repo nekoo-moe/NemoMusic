@@ -50,7 +50,7 @@ Account library (signed in)
 25. WHEN the user likes or unlikes a track, THE SYSTEM SHALL change it on the account, show the new state at once and undo it with a plain message if SoundCloud refuses.
 26. WHEN the user follows or unfollows an artist, THE SYSTEM SHALL do the same.
 27. WHEN the user creates, renames, deletes or edits one of their own SoundCloud playlists, or adds or removes a track, THE SYSTEM SHALL write the change to the account and refresh that playlist.
-28. WHILE signed in, THE SYSTEM SHALL show the SoundCloud home (the mixes and selections SoundCloud offers) and the charts, fetched when the home opens.
+28. WHEN the SoundCloud home or its charts page opens, THE SYSTEM SHALL show the rows SoundCloud offers (selections and mixes; signed in it also holds the account's own) and the trending chart, fetched then and not in the background. A mix, a chart and a track's radio open as playlist pages.
 29. WHERE the user turned on "Add plays to my SoundCloud history" (off by default), THE SYSTEM SHALL add each SoundCloud track played to the account history once, and SHALL NOT send any other play or analytics event.
 
 Interface

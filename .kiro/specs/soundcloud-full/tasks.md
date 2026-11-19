@@ -84,13 +84,13 @@ Waves: 1 = native client and playback (agent H, PRs 1 to 3 of 2026-11-19); 2 to 
   - Checks: fixtures for each list; `design.md` checklist with screenshots; keyboard and reduced-motion checks.
   - Steering: `design.md` section (labelled).
 
-- [ ] 10. Home, mixes, charts and radio (next agent)
-  - Crate and files: `nemo-soundcloud` (`home.rs`), `nemo-ui`.
-  - Does: `mixed-selections`, `system-playlists/<urn>`, `charts` (the anonymous `charts` call answered 404 on 2026-11-19; read the web app's request first), related-track radio.
+- [x] 10. Home, mixes, charts and radio: the reads (the screens belong to the UI wave)
+  - Crate and files: `nemo-soundcloud` (`home.rs`, `model.rs`, hooks in `catalog.rs`).
+  - Does: `Catalog::home`, `home_feed`, `explore`; mixes, the chart and a radio as playlist pages (`sc:system:<tail>`, `sc:chart:trending:all-music`, `sc:station:<id>`); `SoundcloudCatalog::radio`. The anonymous `charts` call answered 404 for `kind=top` and for genres other than all music; `kind=trending` with all music works, so that is what is read.
   - _Requirements: 23, 28_
-  - Depends on: soundcloud-full#9
+  - Depends on: soundcloud-full#6
   - Wave: 3
-  - Checks: fixtures; screenshots.
+  - Checks: fixture tests (rows kept as titled, empty and unknown entries dropped, system playlists as playlists with their own page ids, order of a chart, one failing half of the charts page, ids filled in batches, page ids that cannot leave the path, errors plain), `tests/live.rs` against the real service (home 5 rows and 68 items, 30 chart songs, a mix of 49 tracks, a radio of 50 tracks, 11 requests).
   - Steering: none
 
 - [ ] 11. HLS seek by segment (needed first: a seek on a SoundCloud track fails today), then the `yt-dlp` fallback (next agent)
