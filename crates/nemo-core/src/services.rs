@@ -42,6 +42,27 @@ pub trait ByteSource: Read + Seek + Send + Sync {
     fn duration_hint(&self) -> Option<Duration> {
         None
     }
+
+    /// A way to open this stream again at a later point, for a source that cannot seek bytes
+    /// (an HLS stream seeks by segment). `None` (the default): seek the bytes.
+    fn reopener(&self) -> Option<Arc<dyn Reopen>> {
+        None
+    }
+}
+
+/// Opens a stream again so that it starts near a time. The decoder uses it for a seek when the
+/// source cannot seek bytes: it probes the new source, drops the audio before the time and goes
+/// on from there (soundcloud-full task 11).
+pub trait Reopen: Send + Sync {
+    /// Open the stream again so that it starts at the unit (segment) that holds `to`, with the
+    /// container headers first, as a fresh open does. Returns the source and the time at which
+    /// its audio starts, at most `to`. A `to` past the end opens the last unit.
+    ///
+    /// This call may block on the network; call it from the decoder thread.
+    ///
+    /// # Errors
+    /// An [`std::io::Error`] when the stream cannot be opened again.
+    fn open_at(&self, to: Duration) -> std::io::Result<(Box<dyn ByteSource>, Duration)>;
 }
 
 /// Opens a resolved stream for reading.
