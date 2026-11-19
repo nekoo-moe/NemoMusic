@@ -65,11 +65,11 @@ fn the_page_names_the_restart_and_every_target_is_32_px() {
             texts.iter().any(|t| t == "On") && texts.iter().any(|t| t == "Off"),
             "switches show On and Off as text"
         );
-        // The settings column starts right of the section list; the page's own controls are
-        // the focusable boxes there.
+        // The settings column starts right of the section list and ends above the player bar;
+        // the page's own controls are the focusable boxes there.
         let page: Vec<_> = focusable
             .iter()
-            .filter(|b| b.x > 300.0 && b.y > 200.0)
+            .filter(|b| b.x > 300.0 && b.y > 200.0 && b.y < 1950.0)
             .collect();
         assert!(page.len() > 20, "{} controls found", page.len());
         for b in page {
