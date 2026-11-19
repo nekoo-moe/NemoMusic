@@ -226,3 +226,65 @@ pub(super) fn library_shots(out: &mut Vec<Shot>) {
         )
     });
 }
+
+/// Search with the source switch on SoundCloud (PR 5): the answer, a filter chip, loading, and the
+/// switch on YouTube Music for comparison.
+pub(super) fn search_shots(out: &mut Vec<Shot>) {
+    use nemo_core::catalog::SearchKind;
+    use nemo_ui::gui::app::Source;
+    use nemo_ui::gui::headless::Pending;
+    use nemo_ui::gui::headless::soundcloud::ScScene;
+
+    let search = |base: BaseMode, size: (u32, u32), source: Source| Scenario {
+        route: Route::Search(String::new()),
+        size,
+        settings: UiSettings {
+            base,
+            tos_acknowledged: true,
+            ..UiSettings::default()
+        },
+        soundcloud: Some(ScScene::Account),
+        search_source: Some(source),
+        search: Some("velvet".to_owned()),
+        ..Scenario::default()
+    };
+    for (base, tag) in [(BaseMode::Dark, "dark"), (BaseMode::Light, "light")] {
+        for (size, dims) in [(SMALL, "960x600"), (LARGE, "1366x697")] {
+            out.push(running(
+                format!("soundcloud-search-{tag}-{dims}"),
+                search(base, size, Source::SoundCloud),
+                signed_in(),
+            ));
+        }
+    }
+    out.push(running(
+        "soundcloud-search-songs-dark-960x600".to_owned(),
+        Scenario {
+            search_filter: Some(SearchKind::Songs),
+            ..search(BaseMode::Dark, SMALL, Source::SoundCloud)
+        },
+        signed_in(),
+    ));
+    out.push(running(
+        "soundcloud-search-playlists-dark-960x600".to_owned(),
+        Scenario {
+            search_filter: Some(SearchKind::Playlists),
+            ..search(BaseMode::Dark, SMALL, Source::SoundCloud)
+        },
+        signed_in(),
+    ));
+    out.push(running(
+        "soundcloud-search-loading-dark-960x600".to_owned(),
+        Scenario {
+            pending: Some(Pending::Search),
+            skeleton_phase: Some(0.0),
+            ..search(BaseMode::Dark, SMALL, Source::SoundCloud)
+        },
+        signed_in(),
+    ));
+    out.push(running(
+        "soundcloud-search-youtube-dark-960x600".to_owned(),
+        search(BaseMode::Dark, SMALL, Source::YouTube),
+        signed_in(),
+    ));
+}

@@ -120,6 +120,17 @@ impl SearchState {
         Some(q)
     }
 
+    /// Forget every answer, so the current text runs again from nothing (the source switch: an
+    /// answer of one service must not stay on screen for another).
+    pub fn forget_answers(&mut self) {
+        self.clear_filter();
+        self.results = None;
+        self.answered = None;
+        self.error = None;
+        self.loading = false;
+        self.running = None;
+    }
+
     /// Re-run the current text after an error.
     pub fn retry(&mut self) -> Option<String> {
         self.answered = None;

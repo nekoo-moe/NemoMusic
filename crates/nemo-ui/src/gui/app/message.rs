@@ -355,6 +355,15 @@ pub enum Job {
     ScSignInToken(Secret<String>),
     /// Sign out of SoundCloud.
     ScSignOut,
+    /// Search SoundCloud (the Search page is set to SoundCloud).
+    ScSearch(String),
+    /// Search SoundCloud, one kind (a filter chip).
+    ScSearchKind {
+        /// The text.
+        query: String,
+        /// The chip.
+        kind: nemo_core::catalog::SearchKind,
+    },
     /// Read the SoundCloud library (likes, playlists, albums, followed artists, history).
     ScLibrary {
         /// The read; its answer carries it back.

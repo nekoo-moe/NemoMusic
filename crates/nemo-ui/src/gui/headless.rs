@@ -320,6 +320,8 @@ pub struct Scenario {
     pub soundcloud: Option<soundcloud::ScScene>,
     /// Show the SoundCloud Library in this state (soundcloud-account, PR 4).
     pub sc_library: Option<soundcloud::ScLibraryScene>,
+    /// Search this service (soundcloud-account, PR 5): chosen before the search text is typed.
+    pub search_source: Option<crate::gui::app::Source>,
 }
 
 /// Which state of the sign-in sheet a snapshot shows.
@@ -394,6 +396,7 @@ impl Default for Scenario {
             glass_switched_on: false,
             soundcloud: None,
             sc_library: None,
+            search_source: None,
             restart_ms: None,
         }
     }
@@ -489,6 +492,12 @@ pub fn build_app(backend: &Backend, scenario: &Scenario) -> App {
         soundcloud::enter_library(&mut app, scene);
     }
     app.dispatch(Event::Position(backend.player.position()));
+    if let Some(source) = scenario.search_source {
+        run(
+            &mut app,
+            Message::Sc(crate::gui::app::ScMsg::Source(source)),
+        );
+    }
     if let Some(q) = &scenario.search {
         run(&mut app, Message::Ui(Event::Go(Route::Search(q.clone()))));
         if scenario.search_filter.is_some() {

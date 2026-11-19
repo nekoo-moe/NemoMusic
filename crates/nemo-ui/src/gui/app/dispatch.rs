@@ -35,7 +35,9 @@ impl App {
                     Effect::ToggleFrameReadout => self.readout = !self.readout,
                     Effect::Debounce(seq) => jobs.push(Job::Debounce(seq)),
                     Effect::RunSearch(query) => {
-                        if self.ui.youtube_enabled() {
+                        if self.search_is_soundcloud() {
+                            jobs.push(Job::ScSearch(query));
+                        } else if self.ui.youtube_enabled() {
                             jobs.push(Job::Search(query));
                         } else {
                             // Nothing leaves the computer before the notice is accepted.
@@ -46,7 +48,9 @@ impl App {
                         }
                     }
                     Effect::RunFilteredSearch { query, kind } => {
-                        if self.ui.youtube_enabled() {
+                        if self.search_is_soundcloud() {
+                            jobs.push(Job::ScSearchKind { query, kind });
+                        } else if self.ui.youtube_enabled() {
                             jobs.push(Job::SearchKind { query, kind });
                         } else {
                             pending.push_back(Event::SearchFilterDone {

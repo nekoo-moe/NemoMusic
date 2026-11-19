@@ -29,7 +29,7 @@
   - _Requirements: 13, 14, 15_
   - Depends on: 4
 
-- [ ] 6. SoundCloud search results with filter chips (PR 6)
+- [x] 6. SoundCloud search results with filter chips (PR 5 of the 2026-11-19 stack; `All` and a track page are left)
   - _Requirements: 13, 14, 15_
   - Depends on: 4
 

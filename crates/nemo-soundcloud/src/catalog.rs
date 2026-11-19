@@ -426,10 +426,9 @@ impl Catalog for SoundcloudCatalog {
             SearchKind::Albums => "/search/albums",
             SearchKind::Artists => "/search/users",
             SearchKind::Playlists => "/search/playlists_without_albums",
+            // SoundCloud has no videos or channels: the chip shows its empty answer, not an error.
             SearchKind::Videos | SearchKind::Channels => {
-                return Box::pin(async {
-                    Err(CatalogError::Unavailable("search filter".to_owned()))
-                });
+                return Box::pin(async { Ok(SearchResults::default()) });
             }
         };
         Box::pin(self.search_path(path, query))
