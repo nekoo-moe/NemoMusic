@@ -21,6 +21,7 @@ fn runtime() -> tokio::runtime::Runtime {
         .expect("runtime")
 }
 
+#[cfg(target_os = "linux")]
 fn lines_in(file: &std::path::Path) -> usize {
     std::fs::read_to_string(file).map_or(0, |t| t.lines().count())
 }
