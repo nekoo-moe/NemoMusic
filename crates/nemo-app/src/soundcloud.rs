@@ -3,7 +3,7 @@
 //! made, no host contacted and no SoundCloud entry shown.
 
 use std::collections::BTreeMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, PoisonError};
 
 use nemo_core::catalog::Catalog;
 use nemo_core::secret_store::SecretStore;
@@ -25,6 +25,29 @@ use crate::paths::AppPaths;
 mod fallback;
 
 pub use fallback::FallbackResolver;
+
+/// Where the running SoundCloud client is kept, so the settings can switch it off at once (ADR
+/// 0004, opt-in rule 6). Shared between the settings callback and the service start-up.
+#[derive(Clone, Default)]
+pub struct ClientSlot(Arc<Mutex<Option<Arc<ScClient>>>>);
+
+impl ClientSlot {
+    fn set(&self, client: Arc<ScClient>) {
+        *self.0.lock().unwrap_or_else(PoisonError::into_inner) = Some(client);
+    }
+
+    /// Switch the client on or off, if it was built. Nothing happens before the services start.
+    pub fn apply(&self, open: bool) {
+        let client = self
+            .0
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
+        if let Some(client) = client {
+            client.set_enabled(open);
+        }
+    }
+}
 
 /// The services of one SoundCloud client.
 pub struct SoundcloudParts {
@@ -94,16 +117,20 @@ pub fn for_app(
     build(choices, handle, || real_http(handle), Some(page_ytdlp))
 }
 
-/// The SoundCloud account (when SoundCloud runs), built with the credential `store`. `None`
-/// without SoundCloud or without a credential store, so no sign-in is offered and no token is
-/// kept anywhere.
+/// The SoundCloud account (when SoundCloud runs): the client goes into `slot` so the settings can
+/// switch it off, and the account is built with the credential `store`. `None` without
+/// SoundCloud or without a credential store, so no sign-in is offered and no token is kept
+/// anywhere.
 pub fn account_for(
     sc: Option<&SoundcloudParts>,
     store: Option<Arc<dyn SecretStore>>,
     paths: &AppPaths,
     handle: &Handle,
+    slot: &ClientSlot,
 ) -> Option<Arc<dyn SourceAccount>> {
-    build_account(sc?, store, paths, handle)
+    let parts = sc?;
+    slot.set(Arc::clone(&parts.client));
+    build_account(parts, store, paths, handle)
 }
 
 /// The SoundCloud account: sign-in window, token in the credential `store`, sign-out that also

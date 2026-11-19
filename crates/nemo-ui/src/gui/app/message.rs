@@ -7,7 +7,7 @@ use crate::home;
 
 use super::art::ArtSpec;
 use super::model::{
-    AccountMsg, CompactTab, DetailData, DetailKey, HomeFilter, LibFilter, ListSource, NpTab,
+    AccountMsg, CompactTab, DetailData, DetailKey, HomeFilter, LibFilter, ListSource, NpTab, ScMsg,
     SettingsSection,
 };
 use super::option::{AccountLibrary, CreateMsg};
@@ -153,6 +153,8 @@ pub enum Message {
     OpenNowPlaying,
     /// The sign-in sheet.
     Account(AccountMsg),
+    /// The SoundCloud page and the SoundCloud card of the setup flow.
+    Sc(ScMsg),
     /// Load a detail page again after an error.
     RetryDetail(DetailKey),
     /// Like or un-like a song (opens the sign-in sheet when nobody is signed in).
@@ -347,6 +349,12 @@ pub enum Job {
     SignInCookie(Secret<String>),
     /// Sign out.
     SignOut,
+    /// Open the SoundCloud sign-in window.
+    ScSignIn,
+    /// Sign in to SoundCloud with a pasted token.
+    ScSignInToken(Secret<String>),
+    /// Sign out of SoundCloud.
+    ScSignOut,
     /// Like or un-like a song.
     Rate {
         /// The song.

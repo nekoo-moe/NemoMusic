@@ -94,6 +94,8 @@ pub struct Startup {
     pub warm: Arc<Mutex<Option<WarmUp>>>,
     /// Where the pointer hint goes, once the resolver exists.
     pub hint: HintSlot,
+    /// Where the SoundCloud client goes, so the settings can switch it off at once.
+    pub sc_slot: soundcloud::ClientSlot,
 }
 
 /// How long after the services are up the warm-up starts: the first frame is long drawn by then.
@@ -106,8 +108,14 @@ impl Startup {
     /// # Errors
     /// A plain sentence for the splash when a service cannot start.
     pub fn run(self, report: StepReporter<'_>) -> Result<Backend, String> {
-        let services = build(&self.paths, &self.settings, &self.handle, report)
-            .map_err(|err| format!("NemoMusic could not start. {err}"))?;
+        let services = build(
+            &self.paths,
+            &self.settings,
+            &self.handle,
+            report,
+            &self.sc_slot,
+        )
+        .map_err(|err| format!("NemoMusic could not start. {err}"))?;
         rescan_in_background(&services.local);
         if let Ok(mut slot) = self.library.lock() {
             *slot = Some(services.local.clone());
@@ -171,6 +179,7 @@ pub fn build(
     settings: &Settings,
     handle: &Handle,
     report: StepReporter<'_>,
+    sc_slot: &soundcloud::ClientSlot,
 ) -> Result<Services, StartError> {
     let local = LocalCatalog::new(LocalLibrary::new(settings.music_folders.clone()));
     let slot: SessionSlot = SessionSlot::default();
@@ -226,7 +235,7 @@ pub fn build(
     // SoundCloud exists only when the switch is on and the notice confirmed (soundcloud-full).
     let sc = soundcloud::for_app(&settings.opt_ins, handle, &ytdlp);
     let opener = soundcloud::opener(Arc::new(HttpStreamOpener::default()), sc.as_ref());
-    let sc_account = soundcloud::account_for(sc.as_ref(), store, paths, handle);
+    let sc_account = soundcloud::account_for(sc.as_ref(), store, paths, handle, sc_slot);
 
     let player = Player::spawn(PlayerDeps {
         resolver,

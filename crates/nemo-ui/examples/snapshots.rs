@@ -38,6 +38,8 @@ mod setup;
 mod skeleton;
 #[path = "snapshots/song_colour.rs"]
 mod song_colour;
+#[path = "snapshots/soundcloud_account.rs"]
+mod soundcloud_account;
 #[path = "snapshots/startup.rs"]
 mod startup;
 #[path = "snapshots/state.rs"]
@@ -52,8 +54,11 @@ mod wave_lyrics;
 use std::path::PathBuf;
 
 use nemo_core::services::Backend;
+use nemo_core::source_account::SourceAccountState;
 use nemo_ui::gui::headless::{Scenario, build_app, render_png, render_view_png, specimen};
-use nemo_ui::mock::{mock_backend, mock_backend_seeded, mock_backend_signed_in};
+use nemo_ui::mock::{
+    mock_backend, mock_backend_seeded, mock_backend_signed_in, mock_backend_soundcloud,
+};
 
 /// The two window sizes the owner cares about: the maximized 1366 x 768 laptop and full HD.
 const SIZES: [(u32, u32); 2] = [(1366, 697), (1920, 1040)];
@@ -63,6 +68,8 @@ struct Shot {
     name: String,
     seeded: bool,
     signed_in: bool,
+    /// SoundCloud runs in the backend, with its account in this state.
+    soundcloud: Option<SourceAccountState>,
     scenario: Scenario,
 }
 
@@ -71,6 +78,7 @@ fn shot(name: String, scenario: Scenario) -> Shot {
         name,
         seeded: false,
         signed_in: false,
+        soundcloud: None,
         scenario,
     }
 }
@@ -89,6 +97,7 @@ fn scenarios() -> Vec<Shot> {
     motion::shots(&mut out);
     setup::shots(&mut out);
     song_colour::shots(&mut out);
+    soundcloud_account::shots(&mut out);
     skeleton::shots(&mut out);
     out.extend(wave_lyrics::shots());
     out.extend(syllable_motion::shots());
@@ -168,10 +177,11 @@ fn main() {
         if !only.is_empty() && !only.contains(&s.name) {
             continue;
         }
-        let backend: Backend = match (s.seeded, s.signed_in) {
-            (true, _) => mock_backend_seeded(),
-            (false, true) => mock_backend_signed_in(),
-            (false, false) => mock_backend(),
+        let backend: Backend = match (s.seeded, s.signed_in, s.soundcloud.clone()) {
+            (_, _, Some(state)) => mock_backend_soundcloud(state),
+            (true, _, None) => mock_backend_seeded(),
+            (false, true, None) => mock_backend_signed_in(),
+            (false, false, None) => mock_backend(),
         };
         let app = build_app(&backend, &s.scenario);
         let path = out_dir.join(format!("{}.png", s.name));

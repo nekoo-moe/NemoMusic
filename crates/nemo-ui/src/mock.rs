@@ -32,7 +32,7 @@ mod player;
 #[cfg(test)]
 mod tests;
 
-pub use account::MockAccount;
+pub use account::{MockAccount, MockScAccount};
 pub use catalog::{MockCatalog, SeededCatalog, mock_backend_seeded, signal_path};
 pub use cover::{MockImages, cover_png};
 pub use player::MockPlayer;
@@ -294,6 +294,17 @@ pub fn mock_backend() -> Backend {
         ratings: None,
         ai: Arc::new(NoAi),
         translator: Arc::new(NoTranslator),
+    }
+}
+
+/// Like [`mock_backend`], with SoundCloud running: a catalog and an account in `state`
+/// (snapshots of the SoundCloud page).
+#[must_use]
+pub fn mock_backend_soundcloud(state: nemo_core::source_account::SourceAccountState) -> Backend {
+    Backend {
+        soundcloud: Some(Arc::new(MockCatalog)),
+        soundcloud_account: Some(Arc::new(MockScAccount::with_state(state))),
+        ..mock_backend()
     }
 }
 

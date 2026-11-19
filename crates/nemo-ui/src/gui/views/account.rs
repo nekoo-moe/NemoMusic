@@ -90,7 +90,7 @@ pub fn sheet(app: &App) -> Element<'_, Message> {
     .into()
 }
 
-fn notice_box<'a>(
+pub(in crate::gui::views) fn notice_box<'a>(
     glyph: Icon,
     ink: Color,
     tint: Color,
@@ -244,35 +244,65 @@ fn filled_button_neutral<'a>(enabled: bool) -> Element<'a, Message> {
 
 /// The masked cookie field.
 fn cookie_field(app: &App, width: f32, enabled: bool) -> Element<'_, Message> {
-    let ring = col(app.accent().primary);
-    let mut input = text_input(
-        copy::ACCOUNT_COOKIE_PLACEHOLDER,
-        app.account.cookie.expose(),
+    secret_field(
+        app,
+        SecretField {
+            placeholder: copy::ACCOUNT_COOKIE_PLACEHOLDER,
+            value: &app.account.cookie,
+            width,
+            enabled,
+        },
+        |s| Message::Account(AccountMsg::CookieInput(s)),
+        Message::Account(AccountMsg::CookieSubmit),
     )
-    .secure(true)
-    .size(f32::from(type_scale::BODY_MD.size))
-    .font(font(false))
-    .width(Length::Fixed(width))
-    .padding(Padding::from([gap::MD, gap::LG]))
-    .style(move |_, status| {
-        let focused = matches!(status, text_input::Status::Focused { .. });
-        text_input::Style {
-            background: Background::Color(col(color::surface_container_highest())),
-            border: Border {
-                width: if focused { 2.0 } else { 0.0 },
-                radius: shape::lg().into(),
-                color: ring,
-            },
-            icon: col(color::on_surface_variant()),
-            placeholder: col(color::on_surface_variant()),
-            value: col(color::on_surface()),
-            selection: col(color::PRIMARY_FALLBACK.with_alpha(0.4)),
-        }
-    });
-    if enabled {
+}
+
+/// What a masked field shows and whether it takes input.
+#[derive(Clone, Copy)]
+pub(in crate::gui::views) struct SecretField<'a> {
+    /// Hint while the field is empty.
+    pub placeholder: &'a str,
+    /// What was typed. Shown as dots only.
+    pub value: &'a Secret<String>,
+    /// Field width.
+    pub width: f32,
+    /// `false` while a call runs: the field then ignores input.
+    pub enabled: bool,
+}
+
+/// A masked field for a secret (a cookie or a token): dots only, never echoed.
+pub(in crate::gui::views) fn secret_field<'a>(
+    app: &App,
+    field: SecretField<'a>,
+    on_input: fn(Secret<String>) -> Message,
+    on_submit: Message,
+) -> Element<'a, Message> {
+    let ring = col(app.accent().primary);
+    let mut input = text_input(field.placeholder, field.value.expose())
+        .secure(true)
+        .size(f32::from(type_scale::BODY_MD.size))
+        .font(font(false))
+        .width(Length::Fixed(field.width))
+        .padding(Padding::from([gap::MD, gap::LG]))
+        .style(move |_, status| {
+            let focused = matches!(status, text_input::Status::Focused { .. });
+            text_input::Style {
+                background: Background::Color(col(color::surface_container_highest())),
+                border: Border {
+                    width: if focused { 2.0 } else { 0.0 },
+                    radius: shape::lg().into(),
+                    color: ring,
+                },
+                icon: col(color::on_surface_variant()),
+                placeholder: col(color::on_surface_variant()),
+                value: col(color::on_surface()),
+                selection: col(color::PRIMARY_FALLBACK.with_alpha(0.4)),
+            }
+        });
+    if field.enabled {
         input = input
-            .on_input(|s| Message::Account(AccountMsg::CookieInput(Secret::new(s))))
-            .on_submit(Message::Account(AccountMsg::CookieSubmit));
+            .on_input(move |s| on_input(Secret::new(s)))
+            .on_submit(on_submit);
     }
     input.into()
 }

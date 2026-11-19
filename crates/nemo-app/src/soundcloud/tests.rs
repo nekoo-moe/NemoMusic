@@ -254,12 +254,15 @@ fn the_two_sign_in_windows_use_their_own_profile_folders() {
 }
 
 #[tokio::test]
-async fn a_client_switched_off_sends_nothing() {
+async fn switching_off_in_settings_stops_the_client_at_once_and_on_again_restores_it() {
     use nemo_soundcloud::ClientError;
 
     let (parts, host) = open_parts();
+    let slot = ClientSlot::default();
+    slot.apply(false); // Nothing is built yet: nothing happens.
+    slot.set(Arc::clone(&parts.client));
     tokio::time::sleep(Duration::from_millis(100)).await; // The client id look-up of `build`.
-    parts.client.set_enabled(false);
+    slot.apply(false);
     let before = host.urls.lock().expect("lock").len();
     assert_eq!(
         parts.client.get("/search", &[]).await,
@@ -270,14 +273,18 @@ async fn a_client_switched_off_sends_nothing() {
         before,
         "nothing was sent"
     );
+    slot.apply(true);
+    assert!(parts.client.is_enabled());
 }
 
 #[test]
-fn a_closed_gate_has_no_account() {
+fn a_closed_gate_has_no_account_and_leaves_the_slot_empty() {
     let paths = AppPaths::under(&std::env::temp_dir().join("nemo-app-sc-closed"));
+    let slot = ClientSlot::default();
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
-    assert!(account_for(None, None, &paths, rt.handle()).is_none());
+    assert!(account_for(None, None, &paths, rt.handle(), &slot).is_none());
+    slot.apply(false); // Nothing to switch.
 }

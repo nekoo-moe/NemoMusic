@@ -43,11 +43,8 @@ pub const YT_WITHOUT_ACCOUNT: &str = "Using YouTube Music without an account.";
 /// Way forward under a failed sign-in.
 pub const YT_FAILED_WAY: &str =
     "You can also use YouTube Music without an account. Nothing here blocks you.";
-/// SoundCloud card, what it is (requirements, criterion 12).
-pub const SC_BODY: &str = "Public tracks only. No sign-in needed.";
-/// SoundCloud card, why the switch cannot be turned on yet.
-pub const SC_NOT_YET: &str =
-    "The SoundCloud catalog is not part of this version yet, so the switch stays off.";
+/// SoundCloud card title.
+pub const SC_TITLE: &str = "SoundCloud";
 /// Local music card.
 pub const LOCAL_BODY: &str =
     "Play the audio files in folders on this computer, lossless files included.";
@@ -76,16 +73,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_flow_says_it_runs_here_and_names_the_soundcloud_limits() {
+    fn the_flow_says_it_runs_here() {
         assert!(WELCOME[1].contains("no server of ours"));
-        assert_eq!(SC_BODY, "Public tracks only. No sign-in needed.");
-        assert!(!SC_NOT_YET.to_lowercase().contains("sign in with"));
     }
 
     #[test]
-    fn nothing_here_promises_a_sign_in_that_does_not_exist() {
-        let all = [WELCOME.join(" "), SC_BODY.to_owned(), SC_NOT_YET.to_owned()].join(" ");
-        assert!(!all.to_lowercase().contains("soundcloud account"));
+    fn the_old_soundcloud_sentence_is_gone_and_nothing_here_claims_lossless() {
+        let all = WELCOME.join(" ");
+        assert!(!all.contains("Public tracks only"));
         assert!(!all.to_lowercase().contains("lossless stream"));
     }
 }

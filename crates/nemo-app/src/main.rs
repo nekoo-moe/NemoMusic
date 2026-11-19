@@ -60,7 +60,9 @@ fn main() {
     };
     // The window and the splash open at once; the services open on their own thread behind the
     // first frame (startup-flow spec).
-    let (mut options, saver) = ui_bridge::options(settings.clone(), paths.root.clone());
+    let sc_slot = soundcloud::ClientSlot::default();
+    let (mut options, saver) =
+        ui_bridge::options(settings.clone(), paths.root.clone(), sc_slot.clone());
     // `Add a folder`: the native dialog, storing the folder and adding it to the running library.
     let library = folder_picker::LibrarySlot::default();
     options.on_add_music_folder = Some(folder_picker::native(saver.clone(), Arc::clone(&library)));
@@ -78,6 +80,7 @@ fn main() {
         library,
         warm: Arc::clone(&warm),
         hint,
+        sc_slot,
     };
     if let Err(err) =
         nemo_ui::run_with_startup(Box::new(move |report| startup.run(report)), options)

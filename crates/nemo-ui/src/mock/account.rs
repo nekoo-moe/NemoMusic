@@ -7,6 +7,9 @@ use super::thumbs;
 use nemo_core::BoxFuture;
 use nemo_core::account::{AccountError, AccountInfo, AccountService, AccountState, SignOutReport};
 use nemo_core::secret::Secret;
+use nemo_core::source_account::{
+    SourceAccount, SourceAccountError, SourceAccountInfo, SourceAccountState,
+};
 
 /// A future that is ready after a delay, without a runtime: a plain thread sleeps and wakes it.
 struct Delay {
@@ -153,6 +156,107 @@ impl AccountService for MockAccount {
                 credentials_removed: 1,
                 files_removed: 12,
                 ended_remotely: true,
+                ..SignOutReport::default()
+            })
+        })
+    }
+}
+
+/// A fake SoundCloud account: signing in (window or pasted token) takes a moment, then "Mira
+/// Okonkwo" is signed in; signing out clears it. Nothing is stored and no token is kept.
+pub struct MockScAccount {
+    state: Arc<Mutex<SourceAccountState>>,
+    delay: Duration,
+}
+
+impl MockScAccount {
+    /// Signed out; signs in after one second, like a quick real sign-in.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::with_state(SourceAccountState::SignedOut)
+    }
+
+    /// Start in `state` (snapshots of each card).
+    #[must_use]
+    pub fn with_state(state: SourceAccountState) -> Self {
+        Self {
+            state: Arc::new(Mutex::new(state)),
+            delay: Duration::from_secs(1),
+        }
+    }
+
+    /// Start already signed in.
+    #[must_use]
+    pub fn signed_in() -> Self {
+        Self::with_state(SourceAccountState::SignedIn(Self::info()))
+    }
+
+    fn lock(&self) -> MutexGuard<'_, SourceAccountState> {
+        self.state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// The account every mock sign-in gives.
+    #[must_use]
+    pub fn info() -> SourceAccountInfo {
+        SourceAccountInfo {
+            name: "Mira Okonkwo".to_owned(),
+            avatar: thumbs(7),
+        }
+    }
+
+    fn finish(&self, ok: bool) -> BoxFuture<'_, Result<SourceAccountInfo, SourceAccountError>> {
+        *self.lock() = SourceAccountState::SigningIn;
+        let wait = Delay::new(self.delay);
+        let state = Arc::clone(&self.state);
+        Box::pin(async move {
+            wait.await;
+            let mut s = state
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if ok {
+                let info = Self::info();
+                *s = SourceAccountState::SignedIn(info.clone());
+                Ok(info)
+            } else {
+                *s = SourceAccountState::SignedOut;
+                Err(SourceAccountError::Rejected)
+            }
+        })
+    }
+}
+
+impl Default for MockScAccount {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SourceAccount for MockScAccount {
+    fn state(&self) -> SourceAccountState {
+        self.lock().clone()
+    }
+
+    fn sign_in(&self) -> BoxFuture<'_, Result<SourceAccountInfo, SourceAccountError>> {
+        self.finish(true)
+    }
+
+    fn sign_in_with_token(
+        &self,
+        token: Secret<String>,
+    ) -> BoxFuture<'_, Result<SourceAccountInfo, SourceAccountError>> {
+        // The mock accepts any non-empty token and keeps nothing.
+        self.finish(!token.expose().trim().is_empty())
+    }
+
+    fn sign_out(&self) -> BoxFuture<'_, Result<SignOutReport, SourceAccountError>> {
+        *self.lock() = SourceAccountState::SignedOut;
+        Box::pin(async {
+            Ok(SignOutReport {
+                credentials_removed: 1,
+                files_removed: 2,
+                items_removed: 14,
                 ..SignOutReport::default()
             })
         })
