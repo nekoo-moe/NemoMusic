@@ -144,14 +144,13 @@ pub mod motion {
     pub const FRAME_BUDGET_MS: f64 = 16.6;
     /// One full cycle of the backdrop drift (owner override of "static", 2026-11-15).
     pub const AMBIENT_CYCLE_MS: u32 = 48_000;
-    /// Frame cap of the backdrop drift.
-    pub const AMBIENT_FPS: u32 = 24;
     /// Bloom of the window backdrop when the next song's colours arrive: an owner override of
     /// the 400 ms cap for this one animation (2026-11-18; song-colour-theme).
     pub const BLOOM_MS: u32 = 600;
-    /// One cycle of the heartbeat of the window backdrop: the second allowed background loop
-    /// beside the drift (owner, 2026-11-18; song-colour-theme).
-    pub const HEART_CYCLE_MS: u32 = 1_600;
+    /// One cycle of the heartbeat of the window backdrop, a slow breath of the colour fields: the
+    /// second allowed background loop beside the drift (owner, 2026-11-18; song-colour-theme;
+    /// slowed from a 1.6 s double pulse to a 2.6 s breath, 2026-11-19; backdrop-calm).
+    pub const HEART_CYCLE_MS: u32 = 2_600;
 }
 
 /// Glass tokens (`design.md` section 6). Tier Low draws no live blur.

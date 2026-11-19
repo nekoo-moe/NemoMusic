@@ -3,8 +3,9 @@
 //! work ran on the cover worker (`crate::canvas`); here it is only drawn. The pane uses gradient
 //! stops, because images cannot be clipped to the pane's round corners on tiny-skia (see
 //! `bar.rs`); the full screen has square corners and draws the toned texture. All of them
-//! cross-fade with the cover (400 ms). Only the window backdrop moves: a slow drift at a capped
-//! frame rate ([`crate::drift`]).
+//! cross-fade with the cover (400 ms). Only the window backdrop moves: a slow drift and a slow
+//! breath ([`crate::drift`], [`crate::heartbeat`]) on the window's one frame clock, the app's
+//! frame ticker ([`moves`] keeps it running).
 
 use iced::widget::{Space, container, image, stack};
 use iced::{Background, ContentFit, Element, Length};
@@ -17,6 +18,8 @@ use crate::drift::{Inputs, Mode, VIGNETTE_ALPHA, VIGNETTE_MID_ALPHA};
 use crate::route::Route;
 use crate::theme::{Rgba, color};
 
+#[cfg(test)]
+mod calm_tests;
 mod field;
 #[cfg(test)]
 mod tests;
@@ -38,6 +41,14 @@ pub fn window_inputs(app: &App) -> Inputs {
     }
 }
 
+/// `true` while the window backdrop moves: song colours on with a cover, and every stop rule
+/// of [`Mode`] allows it. The app asks for frames for as long as this holds
+/// (`App::needs_frames`), so the backdrop never depends on a timer of its own.
+#[must_use]
+pub fn moves(app: &App) -> bool {
+    song_cover(app).is_some() && Mode::of(window_inputs(app)) == Mode::Moving
+}
+
 /// The field behind the panes. With `Match colours to the playing song` on and a cover: the
 /// cover's colour mesh (three or four soft fields, `crate::mesh`) drifting slowly, the old
 /// fields fading out while the new ones fade in; a flat tonal colour from the cover's canvas
@@ -52,9 +63,25 @@ pub fn window_field(app: &App) -> Element<'_, Message> {
     if Mode::of(inputs) == Mode::Flat {
         return flat_cover_field(app, cover);
     }
+    let (under, layers) = window_layers(app, cover);
+    let s = &app.ui.settings;
+    let beat = s.song_heartbeat && s.heartbeat_available(app.ui.reduced_motion);
+    let field = Field::new(under, layers, inputs)
+        .heartbeat(beat)
+        .preview(app.backdrop_preview_ms);
+    stack![Element::from(field), vignette()]
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into()
+}
+
+/// The flat colour under the fields and the field layers of the window backdrop: the new cover's
+/// fields and, while the bloom runs, the old cover's under them. The handles are the ones the
+/// cover was built with (cloned, never rebuilt), so the renderer keeps its uploaded textures.
+fn window_layers(app: &App, cover: &CoverView) -> (Rgba, Vec<Layer>) {
     let base = app.ui.settings.base;
     // The bloom: the new fields fade in and settle from 1.04 to 1.0 over the old ones, which fade
-    // out; the flat colour under them follows.
+    // out; the flat colour under them follows. It runs once per song change (`Anim::restart_cover`).
     let bloom = app.anim.bloom();
     let prev = app.prev_cover.as_ref().filter(|_| bloom < 0.999);
     let under = prev.map_or(cover.mesh.under(base), |p| {
@@ -75,15 +102,7 @@ pub fn window_field(app: &App) -> Element<'_, Message> {
         opacity: bloom,
         scale: bloom_scale(bloom),
     });
-    let s = &app.ui.settings;
-    let beat = s.song_heartbeat && s.heartbeat_available(app.ui.reduced_motion);
-    let field = Field::new(under, layers, inputs)
-        .heartbeat(beat)
-        .preview(app.backdrop_preview_ms);
-    stack![Element::from(field), vignette()]
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .into()
+    (under, layers)
 }
 
 /// Reduce transparency: one flat tonal colour from the cover's canvas, cross-faded with the

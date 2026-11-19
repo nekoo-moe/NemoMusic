@@ -7,8 +7,6 @@ use crate::palette::{MAX_CHROMA, Seed, mix_rgb};
 use crate::scheme::{PANE_ALPHA, pane_tint};
 use crate::theme::contrast_ratio;
 
-/// Opacity of the white lift at the peak of the heartbeat (song-colour-theme design).
-const PEAK_LIFT: f32 = 0.05;
 const PX: usize = 24;
 
 fn solid(c: [u8; 3]) -> Vec<u8> {
@@ -210,28 +208,24 @@ fn drawn(m: &Mesh, base: BaseMode) -> Vec<Rgba> {
 
 #[test]
 fn every_ink_reaches_4_5_over_the_panes_and_the_two_main_inks_over_the_bare_field() {
-    let white = Rgba::from_rgb_hex(0xFF_FFFF);
     for (name, rgba) in fixtures() {
         let m = build(&rgba);
         for base in MODES {
             let n = base.neutrals();
             let inks = text_inks(&n, base);
             for field in drawn(&m, base) {
-                for lift in [0.0, PEAK_LIFT] {
-                    for v in [0.0, VIGNETTE_MID_ALPHA, VIGNETTE_ALPHA] {
-                        let lifted = white.with_alpha(lift).over(field);
-                        let bare = n.lowest.with_alpha(v).over(lifted);
-                        // The two main inks can sit on the bare field (the gaps between panes).
-                        for (ink, fg) in &inks[..2] {
-                            let r = contrast_ratio(fg.over(bare), bare);
-                            assert!(r >= 4.5, "{name} {base:?} {ink} bare {r:.2}");
-                        }
-                        for tint in tints(base) {
-                            let pane = tint.with_alpha(PANE_ALPHA).over(bare);
-                            for (ink, fg) in &inks {
-                                let r = contrast_ratio(fg.over(pane), pane);
-                                assert!(r >= 4.5, "{name} {base:?} {ink} pane {r:.2}");
-                            }
+                for v in [0.0, VIGNETTE_MID_ALPHA, VIGNETTE_ALPHA] {
+                    let bare = n.lowest.with_alpha(v).over(field);
+                    // The two main inks can sit on the bare field (the gaps between panes).
+                    for (ink, fg) in &inks[..2] {
+                        let r = contrast_ratio(fg.over(bare), bare);
+                        assert!(r >= 4.5, "{name} {base:?} {ink} bare {r:.2}");
+                    }
+                    for tint in tints(base) {
+                        let pane = tint.with_alpha(PANE_ALPHA).over(bare);
+                        for (ink, fg) in &inks {
+                            let r = contrast_ratio(fg.over(pane), pane);
+                            assert!(r >= 4.5, "{name} {base:?} {ink} pane {r:.2}");
                         }
                     }
                 }
