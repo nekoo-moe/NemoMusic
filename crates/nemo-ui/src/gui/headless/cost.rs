@@ -60,7 +60,7 @@ pub fn backdrop_frame_cost(
     // Window sizes are small positive numbers.
     #[allow(clippy::cast_precision_loss)]
     let logical = Size::new(size.0 as f32, size.1 as f32);
-    let step_ms = 1000.0 / f64::from(crate::theme::motion::AMBIENT_FPS);
+    let step_ms = 1000.0 / 60.0;
     let mut fastest = |song_colours: bool, heartbeat: bool, preview: bool| -> Result<f64, String> {
         app.ui.settings.song_colour_theme = song_colours;
         app.ui.settings.song_heartbeat = heartbeat;

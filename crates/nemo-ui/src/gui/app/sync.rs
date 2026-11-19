@@ -57,12 +57,15 @@ impl App {
         })
     }
 
-    /// `true` while anything animates; the window subscribes to frames only then.
+    /// `true` while anything animates; the window subscribes to frames only then. The frame
+    /// ticker is the window's only frame clock: the backdrop draws on its frames, so it is
+    /// listed here and has no timer of its own (backdrop-calm spec).
     #[must_use]
     pub fn needs_frames(&self) -> bool {
         // An unfocused window draws nothing: the music plays on, the screen waits.
         self.focused
             && (self.ui.needs_frames()
+                || views::backdrop::moves(self)
                 || self.anim.active()
                 || self.account_busy()
                 || !self.scheme_fade.is_done()
