@@ -479,4 +479,5 @@ fn when_both_fail_the_error_is_the_fallbacks_and_a_fast_primary_starts_no_race()
     assert_eq!(idle.calls(), 0);
 }
 
+mod persisted;
 mod refusals;
