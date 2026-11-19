@@ -403,6 +403,8 @@ pub struct FallbackResolver {
     rest: Rest,
     /// The fallback starts alongside the primary after this long.
     race_after: Duration,
+    /// Called once, when the failed opens switch the primary off for the session.
+    switched_off: Option<Arc<dyn Fn() + Send + Sync>>,
 }
 
 impl std::fmt::Debug for FallbackResolver {
@@ -425,7 +427,16 @@ impl FallbackResolver {
             failures: AtomicU32::new(0),
             rest: Rest::default(),
             race_after: RACE_AFTER,
+            switched_off: None,
         }
+    }
+
+    /// Call `hook` once, when [`PRIMARY_FAILURE_LIMIT`] streams of the primary could not be opened
+    /// and the primary is switched off for the session.
+    #[must_use]
+    pub fn with_switched_off(mut self, hook: Arc<dyn Fn() + Send + Sync>) -> Self {
+        self.switched_off = Some(hook);
+        self
     }
 
     /// Start the fallback alongside the primary after `after` instead of [`RACE_AFTER`].
@@ -611,6 +622,11 @@ impl StreamResolver for FallbackResolver {
                 .unwrap_or_else(PoisonError::into_inner)
                 .insert(video.as_str().to_owned());
             self.primary.stream_failed(video);
+            if total == PRIMARY_FAILURE_LIMIT
+                && let Some(hook) = &self.switched_off
+            {
+                hook();
+            }
         } else {
             self.fallback.stream_failed(video);
         }
@@ -653,7 +669,14 @@ pub fn persisted_chain_with(
 ) -> Arc<CachedResolver> {
     let ytdlp: Arc<dyn StreamResolver> = Arc::new(ytdlp);
     let second: Arc<dyn StreamResolver> = match cipher {
-        Some(cipher) => Arc::new(FallbackResolver::new(cipher, ytdlp)),
+        Some(cipher) => {
+            let hook = cipher.off_hook();
+            let tier = FallbackResolver::new(cipher, ytdlp);
+            Arc::new(match hook {
+                Some(hook) => tier.with_switched_off(hook),
+                None => tier,
+            })
+        }
         None => ytdlp,
     };
     let inner: Arc<dyn StreamResolver> =

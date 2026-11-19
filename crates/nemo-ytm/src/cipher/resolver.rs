@@ -16,6 +16,7 @@ use nemo_core::stream::{ResolvedStream, StreamError, StreamResolver};
 use nemo_core::track::VideoId;
 use tokio::runtime::Handle;
 
+use super::off::OffMarker;
 use super::player::{HttpPlayerSource, PlayerInfo, PlayerStore};
 use super::solver::{ChallengeSolver, Challenges, JsSolver, Script, SolveError, Solved};
 use crate::http::InitError;
@@ -120,6 +121,8 @@ pub struct CipherResolver {
     solver: Arc<dyn ChallengeSolver>,
     request: Arc<dyn PlayerRequest>,
     allowed: Option<Vec<Codec>>,
+    /// Where the tier remembers that it switched itself off.
+    off: Option<Arc<OffMarker>>,
 }
 
 impl std::fmt::Debug for CipherResolver {
@@ -129,8 +132,9 @@ impl std::fmt::Debug for CipherResolver {
 }
 
 impl CipherResolver {
-    /// The real resolver: its player cache file is `player_file` (`None`: memory only), and it
-    /// picks formats whose codec is in `allowed`.
+    /// The real resolver: its player cache file is `player_file` (`None`: memory only), it
+    /// remembers in `off_file` that it switched itself off, and it picks formats whose codec is
+    /// in `allowed`.
     ///
     /// # Errors
     /// [`InitError::Client`] when an HTTP client cannot be built; the solver thread failing to
@@ -138,6 +142,7 @@ impl CipherResolver {
     pub fn new(
         handle: &Handle,
         player_file: Option<PathBuf>,
+        off_file: Option<PathBuf>,
         allowed: &[Codec],
     ) -> Result<Arc<Self>, InitError> {
         let solver: Arc<dyn ChallengeSolver> =
@@ -148,12 +153,9 @@ impl CipherResolver {
             handle.clone(),
             player_file,
         );
-        Ok(Arc::new(Self::with_parts(
-            store,
-            solver,
-            Arc::new(TvRequest::new()?),
-            allowed,
-        )))
+        let resolver = Self::with_parts(store, solver, Arc::new(TvRequest::new()?), allowed)
+            .with_off_marker(Arc::new(OffMarker::new(off_file)));
+        Ok(Arc::new(resolver))
     }
 
     /// A resolver from its parts (tests give fakes).
@@ -169,7 +171,22 @@ impl CipherResolver {
             solver,
             request,
             allowed: Some(allowed.to_vec()),
+            off: None,
         }
+    }
+
+    /// Remember in `marker` when the resolver chain stops using this tier.
+    #[must_use]
+    pub fn with_off_marker(mut self, marker: Arc<OffMarker>) -> Self {
+        self.off = Some(marker);
+        self
+    }
+
+    /// What the chain calls when it switches this tier off for the session: it writes the
+    /// "off for a day" marker. `None` when no marker is kept.
+    #[must_use]
+    pub fn off_hook(&self) -> Option<Arc<dyn Fn() + Send + Sync>> {
+        self.off.as_ref().map(OffMarker::hook)
     }
 
     /// The player cache, for the start-up preparation and the sign-out wipe.

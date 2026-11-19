@@ -3,6 +3,7 @@
 //! of `yt-dlp/ejs` (`src/yt/solver/test/tests.ts`, Unlicense).
 
 mod fakes;
+mod off;
 mod resolver;
 mod solver;
 mod store;

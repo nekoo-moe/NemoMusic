@@ -42,7 +42,7 @@ fn main() {
         return;
     };
     let codecs = nemo_audio::decoder::supported_stream_codecs();
-    let Ok(cipher) = CipherResolver::new(runtime.handle(), file, codecs) else {
+    let Ok(cipher) = CipherResolver::new(runtime.handle(), file, None, codecs) else {
         eprintln!("the resolver could not start");
         return;
     };

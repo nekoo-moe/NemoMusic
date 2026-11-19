@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 use nemo_audio::decoder::supported_stream_codecs;
 use nemo_audio::player::{Player, PlayerDeps};
@@ -25,7 +25,7 @@ use nemo_ui::StepReporter;
 use nemo_ui::splash::StartStep;
 use nemo_ytm::account::{AccountCatalog, AccountConfig, GoogleAccount, SessionSlot};
 use nemo_ytm::catalog::YtmCatalog;
-use nemo_ytm::cipher::CipherResolver;
+use nemo_ytm::cipher::{CipherResolver, OffMarker};
 use nemo_ytm::images::ImageCache;
 use nemo_ytm::offline::{OfflineCache, SystemClock};
 use nemo_ytm::resolver::{CachedResolver, StreamStore, persisted_chain_with};
@@ -214,7 +214,7 @@ pub fn build(
         ytdlp.program_slot(),
     );
     // Cache -> native player request -> yt-dlp (fast arguments, then the full extraction).
-    let (resolver, cipher) = build_resolver(paths, handle, &ytdlp, &streams);
+    let (resolver, cipher) = build_resolver(paths, settings, handle, &ytdlp, &streams);
     let cache = Arc::clone(&resolver);
     let start_warm = start_warm_budget(&resolver, &warm_slot);
 
@@ -299,11 +299,12 @@ fn start_warm_budget(resolver: &Arc<CachedResolver>, slot: &WarmSlot) -> Arc<Sta
 /// The resolver chain of the play path: cache, native request, in-process resolver, `yt-dlp`.
 fn build_resolver(
     paths: &AppPaths,
+    settings: &Settings,
     handle: &Handle,
     ytdlp: &YtDlpResolver,
     streams: &Arc<StreamStore>,
 ) -> (Arc<CachedResolver>, Option<Arc<CipherResolver>>) {
-    let cipher = build_cipher(paths, handle);
+    let cipher = build_cipher(paths, settings, handle);
     let chain = persisted_chain_with(
         ytdlp.clone(),
         supported_stream_codecs(),
@@ -314,14 +315,28 @@ fn build_resolver(
     (chain, cipher)
 }
 
+/// Whether the in-process tier is used this run: the `in_process_resolver` setting is on and the
+/// tier did not switch itself off in the last 24 hours (a network that refuses its addresses).
+fn in_process_wanted(enabled: bool, marker: &OffMarker, now: SystemTime) -> bool {
+    enabled && !marker.resting(now)
+}
+
 /// The in-process resolver (the `tv` client and the embedded solver) between the native request
-/// and `yt-dlp`, or `None` when its engine thread or HTTP client cannot start.
-fn build_cipher(paths: &AppPaths, handle: &Handle) -> Option<Arc<CipherResolver>> {
-    match CipherResolver::new(
-        handle,
-        Some(paths.player.clone()),
-        supported_stream_codecs(),
-    ) {
+/// and `yt-dlp`, or `None` when it is switched off in the settings or for a day, or when its
+/// engine thread or HTTP client cannot start.
+fn build_cipher(
+    paths: &AppPaths,
+    settings: &Settings,
+    handle: &Handle,
+) -> Option<Arc<CipherResolver>> {
+    let marker = OffMarker::new(Some(paths.in_process_off.clone()));
+    if !in_process_wanted(settings.in_process_resolver, &marker, SystemTime::now()) {
+        tracing::debug!("the in-process resolver is off this run; yt-dlp is the fallback");
+        return None;
+    }
+    let player = Some(paths.player.clone());
+    let off = Some(paths.in_process_off.clone());
+    match CipherResolver::new(handle, player, off, supported_stream_codecs()) {
         Ok(cipher) => Some(cipher),
         Err(err) => {
             tracing::warn!(error = %err, "the in-process resolver is off; yt-dlp is the fallback");
@@ -459,6 +474,30 @@ mod tests {
         let commands = start_commands(&settings);
         assert!(commands.contains(&PlayerCommand::SetEffects(settings.effects.to_core())));
         assert!(commands.contains(&PlayerCommand::SetTransition(settings.transition.to_core())));
+    }
+
+    #[test]
+    fn the_in_process_tier_needs_the_setting_and_no_marker_for_the_day() {
+        let dir = std::env::temp_dir().join(format!("nemo-app-off-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir); // A leftover of an earlier run is fine to drop.
+        let marker = OffMarker::new(Some(dir.join("off.json")));
+        let now = SystemTime::now();
+        assert!(in_process_wanted(true, &marker, now));
+        assert!(
+            !in_process_wanted(false, &marker, now),
+            "the setting is off"
+        );
+        marker.switch_off(now);
+        assert!(
+            !in_process_wanted(true, &marker, now),
+            "it switched itself off"
+        );
+        let later = now + Duration::from_hours(25);
+        assert!(
+            in_process_wanted(true, &marker, later),
+            "a day later it is tried again"
+        );
+        let _ = std::fs::remove_dir_all(dir); // Cleanup only.
     }
 
     #[test]

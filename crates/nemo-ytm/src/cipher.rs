@@ -18,10 +18,12 @@
 //! or session leaves the app, nothing is decoded by a remote service, and no URL, id or script
 //! text is logged. A format that is DRM protected is skipped.
 
+mod off;
 mod player;
 mod resolver;
 mod solver;
 
+pub use off::{OFF_FOR, OffMarker};
 pub use player::{HttpPlayerSource, PLAYER_CHECK_EVERY, PlayerInfo, PlayerSource, PlayerStore};
 pub use resolver::{CipherResolver, PlayerRequest, TvRequest};
 pub use solver::{
