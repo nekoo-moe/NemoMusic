@@ -355,6 +355,11 @@ pub enum Job {
     ScSignInToken(Secret<String>),
     /// Sign out of SoundCloud.
     ScSignOut,
+    /// Read the SoundCloud library (likes, playlists, albums, followed artists, history).
+    ScLibrary {
+        /// The read; its answer carries it back.
+        generation: u64,
+    },
     /// Like or un-like a song.
     Rate {
         /// The song.

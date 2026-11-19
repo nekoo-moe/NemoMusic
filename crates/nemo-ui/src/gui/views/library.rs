@@ -8,7 +8,7 @@ use iced::font::Weight;
 use iced::widget::{Space, button, column, row};
 use iced::{Alignment, Color, Element, Length, Padding};
 
-use super::super::app::{AccountMsg, App, CreateMsg, ListSource, Message};
+use super::super::app::{AccountMsg, App, CreateMsg, ListSource, Message, ScMsg, Source};
 use super::super::assets::Icon;
 use super::super::style::{animated, col, gap, icon, icon_button, label, label_w, tip};
 use super::kit::{
@@ -22,6 +22,7 @@ use crate::theme::{color, shape, type_scale};
 
 mod collection;
 mod list;
+mod sc;
 mod section;
 mod skeleton;
 
@@ -29,8 +30,40 @@ use collection::{account_data, album_coll, local_tracks, sorted};
 use list::{collections, song_block};
 use section::{account_overview, local_section};
 
+/// The choices of the Library's source switch (the Library shows one service at a time).
+#[must_use]
+pub fn source_labels() -> Vec<&'static str> {
+    vec![Source::YouTube.label(), Source::SoundCloud.label()]
+}
+
+/// The place of `source` in [`source_labels`].
+#[must_use]
+pub const fn source_index(source: Source) -> usize {
+    match source {
+        Source::SoundCloud => 1,
+        Source::YouTube | Source::All => 0,
+    }
+}
+
+/// The switch between YouTube Music and SoundCloud, drawn only while SoundCloud is on.
+pub(super) fn source_switch(app: &App) -> Option<Element<'_, Message>> {
+    app.sc_open().then(|| {
+        let labels = source_labels();
+        super::kit::sliding_chips(app, &labels, source_index(app.source), 4, |i| {
+            Message::Sc(ScMsg::Source(if i == 1 {
+                Source::SoundCloud
+            } else {
+                Source::YouTube
+            }))
+        })
+    })
+}
+
 /// The Library screen.
 pub fn view(app: &App, w: u32) -> Element<'_, Message> {
+    if app.source == Source::SoundCloud && app.sc_open() {
+        return sc::view(app, w);
+    }
     let grid = layout::grid_in(w);
     // Content widths are small exact numbers.
     #[allow(clippy::cast_precision_loss)]
@@ -155,18 +188,17 @@ fn tab_body(app: &App, grid: layout::Grid, content_w: f32) -> Element<'_, Messag
 
 /// Title row with the Create playlist button.
 fn header(app: &App, _width: f32) -> Element<'_, Message> {
-    let _ = app;
-    row![
-        page_title("Library"),
-        Space::new().width(Length::Fill),
-        tonal_button(
+    let mut r = row![page_title("Library"), Space::new().width(gap::LG)].align_y(Alignment::Center);
+    if let Some(switch) = source_switch(app) {
+        r = r.push(switch);
+    }
+    r.push(Space::new().width(Length::Fill))
+        .push(tonal_button(
             "Create playlist",
             Some(Icon::Add),
             Some(Message::Create(CreateMsg::Open)),
-        ),
-    ]
-    .align_y(Alignment::Center)
-    .into()
+        ))
+        .into()
 }
 
 /// Tabs on the left; sort and list or grid on the right.

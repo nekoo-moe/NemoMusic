@@ -53,7 +53,7 @@ impl App {
     pub fn detail_loading(&self) -> bool {
         DetailKey::of(self.ui.route()).is_some_and(|k| {
             matches!(self.details.get(&k), None | Some(DetailState::Loading))
-                && (self.ui.youtube_enabled() || k.is_local())
+                && (self.ui.youtube_enabled() || k.is_local() || k.is_soundcloud())
         })
     }
 
@@ -139,9 +139,23 @@ impl App {
             .unwrap_or(0);
         let search = super::super::views::search::filter_labels();
         let search_sel = super::super::views::search::filter_index(self.ui.search.filter);
-        for (slot, (labels, sel)) in [(home, home_sel), (lib, lib_sel), (search, search_sel)]
-            .into_iter()
-            .enumerate()
+        // The SoundCloud tabs and the source switch of the Library (soundcloud-account spec).
+        let sc_tabs: Vec<&str> = super::model::ScTab::ALL.iter().map(|t| t.label()).collect();
+        let sc_sel = super::model::ScTab::ALL
+            .iter()
+            .position(|t| *t == self.sc_tab)
+            .unwrap_or(0);
+        let sources = crate::gui::views::library::source_labels();
+        let source_sel = crate::gui::views::library::source_index(self.source);
+        for (slot, (labels, sel)) in [
+            (home, home_sel),
+            (lib, lib_sel),
+            (search, search_sel),
+            (sc_tabs, sc_sel),
+            (sources, source_sel),
+        ]
+        .into_iter()
+        .enumerate()
         {
             let (x, w) = chip_geometry(&labels, sel);
             let (sx, sw) = &mut self.chip_pills[slot];

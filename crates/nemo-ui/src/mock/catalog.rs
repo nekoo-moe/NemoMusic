@@ -461,3 +461,51 @@ fn mock_playlist_meta(p: usize) -> CollectionMeta {
         duration_text: None,
     }
 }
+
+/// A catalog of an account with nothing in it: every list answers and is empty (the empty states
+/// of the SoundCloud Library).
+pub struct EmptyCatalog;
+
+impl Catalog for EmptyCatalog {
+    fn search<'a>(&'a self, _query: &'a str) -> BoxFuture<'a, Result<SearchResults, CatalogError>> {
+        Box::pin(async { Ok(SearchResults::default()) })
+    }
+
+    fn album<'a>(&'a self, _id: &'a BrowseId) -> BoxFuture<'a, Result<AlbumDetail, CatalogError>> {
+        Box::pin(async { Err(CatalogError::NotFound) })
+    }
+
+    fn artist<'a>(
+        &'a self,
+        _id: &'a BrowseId,
+    ) -> BoxFuture<'a, Result<ArtistDetail, CatalogError>> {
+        Box::pin(async { Err(CatalogError::NotFound) })
+    }
+
+    fn playlist<'a>(
+        &'a self,
+        _id: &'a BrowseId,
+    ) -> BoxFuture<'a, Result<PlaylistDetail, CatalogError>> {
+        Box::pin(async { Err(CatalogError::NotFound) })
+    }
+
+    fn library_playlists(&self) -> BoxFuture<'_, Result<Vec<PlaylistSummary>, CatalogError>> {
+        Box::pin(async { Ok(Vec::new()) })
+    }
+
+    fn liked_songs(&self) -> BoxFuture<'_, Result<Vec<Track>, CatalogError>> {
+        Box::pin(async { Ok(Vec::new()) })
+    }
+
+    fn library_albums(&self) -> BoxFuture<'_, Result<Vec<AlbumSummary>, CatalogError>> {
+        Box::pin(async { Ok(Vec::new()) })
+    }
+
+    fn library_artists(&self) -> BoxFuture<'_, Result<Vec<ArtistSummary>, CatalogError>> {
+        Box::pin(async { Ok(Vec::new()) })
+    }
+
+    fn history(&self) -> BoxFuture<'_, Result<Vec<HistorySection>, CatalogError>> {
+        Box::pin(async { Ok(Vec::new()) })
+    }
+}

@@ -2,7 +2,7 @@
 
 use super::art::device_px;
 use super::message::{AccountBundle, CoverBuilt, ExploreMsg, Job, Message, RefreshData};
-use super::model::{AccountMsg, DetailData, DetailKind, ScMsg};
+use super::model::{AccountMsg, DetailData, DetailKey, DetailKind, ScLibData, ScMsg};
 use crate::cover;
 use crate::home;
 use crate::refresh::{Start, Step};
@@ -109,18 +109,11 @@ pub async fn run_job(job: Job, backend: Backend) -> Message {
             Message::Ui(Event::SearchDebounced(seq))
         }
         Job::Detail(key) => {
+            let catalog = detail_catalog(&backend, &key);
             let result = match key.kind {
-                DetailKind::Album => backend.catalog.album(&key.id).await.map(DetailData::Album),
-                DetailKind::Artist => backend
-                    .catalog
-                    .artist(&key.id)
-                    .await
-                    .map(DetailData::Artist),
-                DetailKind::Playlist => backend
-                    .catalog
-                    .playlist(&key.id)
-                    .await
-                    .map(DetailData::Playlist),
+                DetailKind::Album => catalog.album(&key.id).await.map(DetailData::Album),
+                DetailKind::Artist => catalog.artist(&key.id).await.map(DetailData::Artist),
+                DetailKind::Playlist => catalog.playlist(&key.id).await.map(DetailData::Playlist),
             }
             .map(Arc::new)
             .map_err(|e| e.to_string());
@@ -188,6 +181,10 @@ pub async fn run_job(job: Job, backend: Backend) -> Message {
             Message::Sc(ScMsg::SignedIn(sc_sign_in(&backend, Some(token)).await))
         }
         Job::ScSignOut => Message::Sc(ScMsg::SignedOut(sc_sign_out(&backend).await)),
+        Job::ScLibrary { generation } => Message::Sc(ScMsg::LibraryLoaded {
+            generation,
+            result: sc_library(&backend).await.map(Arc::new),
+        }),
         Job::Rate { track, liked } => {
             let result = match &track.video_id {
                 Some(video) => backend
@@ -381,5 +378,67 @@ async fn sc_sign_out(backend: &Backend) -> Result<SignOutReport, SourceAccountEr
     match &backend.soundcloud_account {
         Some(account) => account.sign_out().await,
         None => Err(no_sc_account()),
+    }
+}
+
+/// Read the SoundCloud library one list after the other, at the client's pace. A list that fails
+/// stays empty; when every list fails, the first reason is the answer.
+async fn sc_library(backend: &Backend) -> Result<ScLibData, String> {
+    let Some(c) = &backend.soundcloud else {
+        return Err("SoundCloud is not running.".to_owned());
+    };
+    let mut data = ScLibData::default();
+    let mut first_error = None;
+    let mut answered = false;
+    match c.liked_songs().await {
+        Ok(v) => {
+            data.likes = v;
+            answered = true;
+        }
+        Err(e) => first_error = Some(e),
+    }
+    match c.library_playlists().await {
+        Ok(v) => {
+            data.playlists = v;
+            answered = true;
+        }
+        Err(e) => first_error = first_error.or(Some(e)),
+    }
+    match c.library_albums().await {
+        Ok(v) => {
+            data.albums = v;
+            answered = true;
+        }
+        Err(e) => first_error = first_error.or(Some(e)),
+    }
+    match c.library_artists().await {
+        Ok(v) => {
+            data.artists = v;
+            answered = true;
+        }
+        Err(e) => first_error = first_error.or(Some(e)),
+    }
+    match c.history().await {
+        Ok(v) => {
+            data.history = v;
+            answered = true;
+        }
+        Err(e) => first_error = first_error.or(Some(e)),
+    }
+    match (answered, first_error) {
+        (true, _) | (false, None) => Ok(data),
+        (false, Some(e)) => Err(e.to_string()),
+    }
+}
+
+/// The catalog that answers a detail page: the SoundCloud one for a SoundCloud id, the app's
+/// catalog (YouTube Music and local files) for every other.
+fn detail_catalog<'a>(
+    backend: &'a Backend,
+    key: &DetailKey,
+) -> &'a Arc<dyn nemo_core::catalog::Catalog> {
+    match (&backend.soundcloud, key.is_soundcloud()) {
+        (Some(soundcloud), true) => soundcloud,
+        _ => &backend.catalog,
     }
 }

@@ -151,3 +151,78 @@ pub(super) fn shots(out: &mut Vec<Shot>) {
         setup(BaseMode::Dark, ScScene::Restart),
     ));
 }
+
+/// The SoundCloud Library (PR 4): every tab with data, loading, failed, empty, signed out and off.
+pub(super) fn library_shots(out: &mut Vec<Shot>) {
+    use nemo_ui::gui::app::ScTab;
+    use nemo_ui::gui::headless::soundcloud::ScLibraryScene;
+
+    let lib = |base: BaseMode, size: (u32, u32), scene: ScLibraryScene| Scenario {
+        route: Route::Library,
+        size,
+        settings: UiSettings {
+            base,
+            tos_acknowledged: true,
+            ..UiSettings::default()
+        },
+        sc_library: Some(scene),
+        ..Scenario::default()
+    };
+    let tab = |t: ScTab| ScLibraryScene::Tab(t);
+    for (size, dims) in [(SMALL, "960x600"), (LARGE, "1366x697")] {
+        for t in ScTab::ALL {
+            let name = format!(
+                "soundcloud-library-{}-dark-{dims}",
+                t.label().to_lowercase()
+            );
+            out.push(running(
+                name,
+                lib(BaseMode::Dark, size, tab(t)),
+                signed_in(),
+            ));
+        }
+    }
+    for (t, stem) in [(ScTab::Likes, "likes"), (ScTab::Playlists, "playlists")] {
+        for (size, dims) in [(SMALL, "960x600"), (LARGE, "1366x697")] {
+            out.push(running(
+                format!("soundcloud-library-{stem}-light-{dims}"),
+                lib(BaseMode::Light, size, tab(t)),
+                signed_in(),
+            ));
+        }
+    }
+    let dark = |scene| lib(BaseMode::Dark, SMALL, scene);
+    out.push(Shot {
+        scenario: Scenario {
+            skeleton_phase: Some(0.0),
+            ..dark(ScLibraryScene::Loading)
+        },
+        ..running(
+            "soundcloud-library-loading-dark-960x600".to_owned(),
+            dark(ScLibraryScene::Loading),
+            signed_in(),
+        )
+    });
+    out.push(running(
+        "soundcloud-library-error-dark-960x600".to_owned(),
+        dark(ScLibraryScene::Failed),
+        signed_in(),
+    ));
+    out.push(running(
+        "soundcloud-library-signed-out-dark-960x600".to_owned(),
+        dark(ScLibraryScene::SignedOut),
+        SourceAccountState::SignedOut,
+    ));
+    out.push(shot(
+        "soundcloud-library-off-dark-960x600".to_owned(),
+        dark(ScLibraryScene::Off),
+    ));
+    out.push(Shot {
+        empty: true,
+        ..running(
+            "soundcloud-library-empty-dark-960x600".to_owned(),
+            dark(tab(ScTab::Likes)),
+            signed_in(),
+        )
+    });
+}

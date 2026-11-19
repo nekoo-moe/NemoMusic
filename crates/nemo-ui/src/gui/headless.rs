@@ -318,6 +318,8 @@ pub struct Scenario {
     /// Show the SoundCloud page in this state (soundcloud-account spec). The backend decides
     /// whether SoundCloud runs and which account state the card shows.
     pub soundcloud: Option<soundcloud::ScScene>,
+    /// Show the SoundCloud Library in this state (soundcloud-account, PR 4).
+    pub sc_library: Option<soundcloud::ScLibraryScene>,
 }
 
 /// Which state of the sign-in sheet a snapshot shows.
@@ -391,6 +393,7 @@ impl Default for Scenario {
             backdrop_ms: None,
             glass_switched_on: false,
             soundcloud: None,
+            sc_library: None,
             restart_ms: None,
         }
     }
@@ -468,6 +471,9 @@ pub fn build_app(backend: &Backend, scenario: &Scenario) -> App {
     if let Some(scene) = scenario.soundcloud {
         soundcloud::options(scene, &mut options);
     }
+    if let Some(scene) = scenario.sc_library {
+        soundcloud::library_options(scene, &mut options);
+    }
     let (mut app, jobs) = App::new(backend.clone(), &options);
     app.settle_blocking(jobs);
     // `iced_test` draws at 2x: fetch covers for that scale, as a 200 % window would.
@@ -478,6 +484,9 @@ pub fn build_app(backend: &Backend, scenario: &Scenario) -> App {
     app.settings_section = scenario.section;
     if let Some(scene) = scenario.soundcloud {
         soundcloud::enter(&mut app, scene);
+    }
+    if let Some(scene) = scenario.sc_library {
+        soundcloud::enter_library(&mut app, scene);
     }
     app.dispatch(Event::Position(backend.player.position()));
     if let Some(q) = &scenario.search {

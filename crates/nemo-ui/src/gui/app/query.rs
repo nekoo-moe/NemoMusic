@@ -215,6 +215,14 @@ impl App {
                 .map(|l| l.songs.clone())
                 .unwrap_or_default(),
             ListSource::Recent => self.ui.recent.clone(),
+            ListSource::ScLikes => self.sc_lib.data.likes.clone(),
+            ListSource::ScHistory(n) => self
+                .sc_lib
+                .data
+                .history
+                .get(*n)
+                .map(|s| s.tracks.clone())
+                .unwrap_or_default(),
             ListSource::Home(n) => self
                 .home
                 .shelves

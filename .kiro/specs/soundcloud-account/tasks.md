@@ -21,7 +21,7 @@
   - _Requirements: 11, 12_
   - Depends on: 1
 
-- [ ] 4. Source switch and SoundCloud library screen (PR 4)
+- [x] 4. Source switch and SoundCloud library screen (PR 4)
   - _Requirements: 13, 14, 15_
   - Depends on: 2, 3
 

@@ -6,7 +6,7 @@ use nemo_core::secret::Secret;
 use nemo_core::source_account::SourceAccountError;
 
 use super::run;
-use crate::gui::app::{App, Message, ScMsg, UiOptions};
+use crate::gui::app::{App, Message, ScMsg, ScTab, Source, UiOptions};
 use crate::settings::OptInState;
 
 /// Which state of the SoundCloud page a snapshot shows.
@@ -96,5 +96,53 @@ pub(super) fn enter(app: &mut App, scene: ScScene) {
                 ..SignOutReport::default()
             }))),
         ),
+    }
+}
+
+/// Which state of the SoundCloud Library a snapshot shows (soundcloud-account, PR 4). The backend
+/// of the snapshot decides whether SoundCloud runs and whether the account is signed in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScLibraryScene {
+    /// The tab with its data.
+    Tab(ScTab),
+    /// The first read is on its way (skeleton).
+    Loading,
+    /// The first read failed.
+    Failed,
+    /// Signed out (the backend's account is signed out).
+    SignedOut,
+    /// SoundCloud is switched off.
+    Off,
+}
+
+/// The options of a library scene: SoundCloud on, except for `Off`.
+pub(super) fn library_options(scene: ScLibraryScene, opts: &mut UiOptions) {
+    let base = if scene == ScLibraryScene::Off {
+        ScScene::Off
+    } else {
+        ScScene::Account
+    };
+    options(base, opts);
+}
+
+/// Show the SoundCloud Library in `scene` on a started app.
+pub(super) fn enter_library(app: &mut App, scene: ScLibraryScene) {
+    run(app, Message::Sc(ScMsg::Source(Source::SoundCloud)));
+    match scene {
+        ScLibraryScene::Tab(tab) => run(app, Message::Sc(ScMsg::Tab(tab))),
+        ScLibraryScene::Loading => app.sc_lib.phase = crate::gui::app::ScPhase::Loading,
+        ScLibraryScene::Failed => {
+            let generation = app.sc_lib.generation;
+            run(
+                app,
+                Message::Sc(ScMsg::LibraryLoaded {
+                    generation,
+                    result: Err("could not reach SoundCloud".to_owned()),
+                }),
+            );
+            // A first read that failed has nothing to show.
+            app.sc_lib.data = std::sync::Arc::default();
+        }
+        ScLibraryScene::SignedOut | ScLibraryScene::Off => {}
     }
 }
