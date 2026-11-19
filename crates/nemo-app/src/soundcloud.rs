@@ -42,6 +42,11 @@ pub fn build(
             let _ = warm.warm_up().await;
         });
         let (resolver, opener) = streams(Arc::clone(&client), handle.clone());
+        let early = opener.clone();
+        // Builds the media client (loads the system certificates) before the first play.
+        handle.spawn_blocking(move || {
+            let _ = early.warm_up();
+        });
         Some(SoundcloudParts {
             catalog: Arc::new(SoundcloudCatalog::new(client)),
             resolver: Arc::new(resolver),

@@ -32,6 +32,9 @@ struct Entry {
 pub struct Shared {
     rules: Rules,
     slots: Mutex<Vec<Entry>>,
+    /// One blocking client for every stream: building it loads the system certificates, and
+    /// reusing it keeps the connection to the media host open between tracks.
+    client: Mutex<Option<Client>>,
 }
 
 impl std::fmt::Debug for Shared {
@@ -69,7 +72,23 @@ impl Shared {
         Self {
             rules,
             slots: Mutex::new(Vec::new()),
+            client: Mutex::new(None),
         }
+    }
+
+    /// The shared blocking client, built on first use. Call it from a plain thread, never from
+    /// an async task.
+    ///
+    /// # Errors
+    /// [`StreamError::Network`] when the TLS backend cannot start.
+    pub fn client(&self) -> Result<Client, StreamError> {
+        let mut slot = self.client.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some(client) = slot.as_ref() {
+            return Ok(client.clone());
+        }
+        let client = self.rules.client().map_err(stream_error)?;
+        *slot = Some(client.clone());
+        Ok(client)
     }
 
     /// The fetch rules.
@@ -99,7 +118,7 @@ impl Shared {
             return Ok(());
         }
         let url = stream.url.expose();
-        let client = self.rules.client().map_err(stream_error)?;
+        let client = self.client()?;
         let list = self.playlist(&client, url)?;
         let head = fetch_head(&client, &list, &self.rules).map_err(stream_error)?;
         let mut slots = self.slots.lock().unwrap_or_else(PoisonError::into_inner);
@@ -142,6 +161,23 @@ impl Shared {
     }
 }
 
+impl Drop for Shared {
+    fn drop(&mut self) {
+        // A blocking client panics when it is dropped inside an async runtime, and the last
+        // owner of this state can be an async task, so it is dropped on a thread of its own.
+        let client = self
+            .client
+            .get_mut()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take();
+        if let Some(client) = client {
+            let _ = std::thread::Builder::new()
+                .name("nemo-sc-drop".into())
+                .spawn(move || drop(client));
+        }
+    }
+}
+
 impl Default for Shared {
     fn default() -> Self {
         Self::new()
@@ -163,6 +199,23 @@ impl ScStreamOpener {
     }
 }
 
+impl ScStreamOpener {
+    /// Build the HTTP client now, so the first play does not pay for loading the system
+    /// certificates. Blocks for a moment: call it from a blocking thread. It makes no request.
+    ///
+    /// # Errors
+    /// [`StreamError::Network`] when the TLS backend cannot start.
+    pub fn warm_up(&self) -> Result<(), StreamError> {
+        self.shared.client().map(|_| ())
+    }
+
+    /// The shared prefetch state, to ask whether a stream is waiting.
+    #[must_use]
+    pub const fn shared(&self) -> &Arc<Shared> {
+        &self.shared
+    }
+}
+
 impl StreamOpener for ScStreamOpener {
     fn open(&self, stream: &ResolvedStream) -> Result<Box<dyn ByteSource>, StreamError> {
         if !matches!(stream.transport, Transport::Hls { live: false }) {
@@ -170,7 +223,7 @@ impl StreamOpener for ScStreamOpener {
         }
         let url = stream.url.expose();
         let rules = self.shared.rules();
-        let client = rules.client().map_err(stream_error)?;
+        let client = self.shared.client()?;
         let (list, head) = match self.shared.take(url) {
             Some((list, head)) => (list, Some(head)),
             None => (self.shared.playlist(&client, url)?, None),
@@ -180,3 +233,6 @@ impl StreamOpener for ScStreamOpener {
         Ok(Box::new(source))
     }
 }
+
+#[cfg(test)]
+mod tests;
