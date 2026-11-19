@@ -38,7 +38,7 @@ const MAX_PLAYLIST_TRACKS: usize = 500;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Link {
     /// A track.
-    Track(Track),
+    Track(Box<Track>),
     /// A playlist, for [`Catalog::playlist`].
     Playlist(BrowseId),
     /// An album, for [`Catalog::album`]. The same page id as a playlist.
@@ -165,7 +165,7 @@ impl SoundcloudCatalog {
         let value: Value = parse_one(&body).map_err(to_catalog)?;
         match parse_item(value).ok_or(CatalogError::NotFound)? {
             Item::Track(t) => map::track(&t)
-                .map(Link::Track)
+                .map(|track| Link::Track(Box::new(track)))
                 .ok_or(CatalogError::NotFound),
             Item::Playlist(p) if p.is_album => {
                 Ok(Link::Album(map::browse_id(Kind::Playlist, p.id)))
