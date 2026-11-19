@@ -7,26 +7,16 @@ use crate::collection_sort::CollectionSort;
 use crate::scheme::{AccentIntensity, BaseMode, CornerStyle, ThemeChoice};
 use crate::window_glass::{OPACITY_DEFAULT, WindowGlass, clamp_opacity};
 
-/// How much glass the floating bar draws (`design.md` section 7). The live-blur tiers need the
-/// owner's GPU and are not built yet, so only the two cheapest tiers exist here.
+/// The old glass tier of the player bar. The bar is a Material surface now (owner, 2026-11-19;
+/// bar-material), so both values draw the same thing. The enum and its config key stay so old
+/// config files load.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum GlassTier {
-    /// Pre-blurred cover texture, tint and edge (the shipped glass).
+    /// Written by older versions as the default. Draws the Material surface.
     #[default]
     Low,
-    /// Tonal surface, no glass at all.
+    /// Draws the Material surface.
     Off,
-}
-
-impl GlassTier {
-    /// Label for the settings control.
-    #[must_use]
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::Low => "Low",
-            Self::Off => "Off",
-        }
-    }
 }
 
 /// Which look draws the Now Playing pane and full-screen view (now-playing-styles spec). Only the
@@ -74,7 +64,7 @@ pub struct UiSettings {
     pub block_ads: bool,
     /// Volume in percent (0 to 100).
     pub volume: u8,
-    /// Glass tier of the player bar.
+    /// Old glass tier of the player bar: kept for old config files, no effect on the look.
     pub glass_tier: GlassTier,
     /// Reduce motion: no cross-fades, no lyric glide.
     pub reduce_motion: bool,
@@ -221,13 +211,6 @@ impl UiSettings {
             created_transparent,
         }
     }
-
-    /// `true` when the player bar must use the opaque tonal surface instead of glass.
-    #[must_use]
-    pub fn opaque_chrome(&self) -> bool {
-        // The glass tint maths is tuned for dark surfaces, so light mode uses the tonal bar.
-        self.reduce_transparency || self.glass_tier == GlassTier::Off || self.base.is_light()
-    }
 }
 
 #[cfg(test)]
@@ -239,7 +222,6 @@ mod tests {
         let s = UiSettings::default();
         assert!(s.sponsorblock && s.block_ads && !s.tos_acknowledged);
         assert_eq!(s.volume, 100);
-        assert!(!s.opaque_chrome());
     }
 
     #[test]
@@ -254,7 +236,6 @@ mod tests {
         s.apply(SettingChange::AccentIntensity(AccentIntensity::Vivid));
         s.apply(SettingChange::CornerStyle(CornerStyle::Round));
         assert_eq!(s.theme, ThemeChoice::Sakura);
-        assert!(s.opaque_chrome(), "light mode uses the tonal bar");
         assert_eq!(s.corner_style, CornerStyle::Round);
     }
 
@@ -310,9 +291,8 @@ mod tests {
         s.apply(SettingChange::SponsorBlock(true));
         s.apply(SettingChange::Volume(250));
         s.apply(SettingChange::ReduceTransparency(true));
-        assert!(s.sponsorblock && s.volume == 100 && s.opaque_chrome());
-        s.apply(SettingChange::ReduceTransparency(false));
+        assert!(s.sponsorblock && s.volume == 100 && s.reduce_transparency);
         s.apply(SettingChange::GlassTier(GlassTier::Off));
-        assert!(s.opaque_chrome());
+        assert_eq!(s.glass_tier, GlassTier::Off, "old config values still load");
     }
 }

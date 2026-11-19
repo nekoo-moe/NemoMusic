@@ -3,6 +3,8 @@
 #![windows_subsystem = "windows"]
 
 mod backend;
+#[cfg(windows)]
+mod blur;
 mod config;
 mod logging;
 mod merged;
@@ -10,6 +12,7 @@ mod opt_in_gate;
 mod os_motion;
 mod paths;
 mod play_hub;
+mod restart;
 mod ui_bridge;
 
 use std::sync::{Arc, Mutex};

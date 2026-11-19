@@ -275,6 +275,9 @@ pub struct Scenario {
     pub sleep: bool,
     /// Show the page of the route as still loading (skeleton).
     pub loading_detail: bool,
+    /// Draw the skeletons that are wanted now (past the 150 ms wait), with the shimmer band this
+    /// far into its sweep (0 to 1; needs `full_motion` to show the band).
+    pub skeleton_phase: Option<f32>,
     /// Open the Sort menu of the album or playlist page of the route.
     pub sort_menu: bool,
     /// Pick this lyrics provider in the switcher (index into the candidates).
@@ -301,6 +304,12 @@ pub struct Scenario {
     pub bloom: Option<(usize, u32)>,
     /// Draw the window backdrop with its drift clock at this many ms (a point of the heartbeat).
     pub backdrop_ms: Option<f64>,
+    /// Turn the Window glass switch on after the app started solid, so the running window needs
+    /// a restart and the `Restart now` pill shows (bar-material spec).
+    pub glass_switched_on: bool,
+    /// With `glass_switched_on`: draw the pill this many ms into its entrance. The rest of the
+    /// page stays settled.
+    pub restart_ms: Option<u32>,
 }
 
 /// Which state of the sign-in sheet a snapshot shows.
@@ -358,6 +367,7 @@ impl Default for Scenario {
             mini: false,
             sleep: false,
             loading_detail: false,
+            skeleton_phase: None,
             sort_menu: false,
             lyrics_pick: None,
             shared_output: false,
@@ -370,6 +380,8 @@ impl Default for Scenario {
             account_error: None,
             bloom: None,
             backdrop_ms: None,
+            glass_switched_on: false,
+            restart_ms: None,
         }
     }
 }
@@ -418,6 +430,8 @@ pub fn build_app(backend: &Backend, scenario: &Scenario) -> App {
         start_route: scenario.route.clone(),
         settings: scenario.settings.clone(),
         music_folders: scenario.music_folders.clone(),
+        // A restart that always works, so the pill shows.
+        on_restart: Some(std::sync::Arc::new(|| true)),
         ..UiOptions::default()
     };
     // Pick the track and position through the real player commands.
@@ -546,9 +560,21 @@ pub fn build_app(backend: &Backend, scenario: &Scenario) -> App {
         && let Some(key) = super::app::DetailKey::of(&scenario.route)
     {
         app.details.insert(key, super::app::DetailState::Loading);
-        app.shimmer = 0.45;
+    }
+    if scenario.glass_switched_on {
+        run(
+            &mut app,
+            Message::Ui(Event::Setting(crate::settings::SettingChange::WindowGlass(
+                true,
+            ))),
+        );
     }
     app.finish_animations();
+    if let Some(phase) = scenario.skeleton_phase {
+        // Past the 150 ms wait, this far into the shimmer sweep.
+        app.skeletons.skip_waits();
+        app.skeletons.seek(phase);
+    }
     if let Some((next, ms)) = scenario.bloom {
         run(
             &mut app,
@@ -564,6 +590,12 @@ pub fn build_app(backend: &Backend, scenario: &Scenario) -> App {
             app.anim.step(left.min(100) as f32);
             left = left.saturating_sub(100);
         }
+    }
+    if let Some(ms) = scenario.restart_ms {
+        app.surfaces.restart.restart(false);
+        // A few hundred ms at most, exact in f32.
+        #[allow(clippy::cast_precision_loss)]
+        app.surfaces.restart.advance(ms as f32);
     }
     app.backdrop_preview_ms = scenario.backdrop_ms;
     if let Some(ms) = scenario.mid_motion_ms {
