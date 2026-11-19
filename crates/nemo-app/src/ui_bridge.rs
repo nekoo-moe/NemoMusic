@@ -56,6 +56,8 @@ pub fn to_ui(s: &Settings) -> UiSettings {
         },
         song_colour_theme: s.song_colour_theme,
         song_heartbeat: s.song_heartbeat,
+        window_glass: s.window_glass,
+        window_glass_opacity: s.window_glass_opacity.clamp(40, 95),
         // Unknown labels (an older or newer file) and the default order are skipped.
         collection_sorts: s
             .collection_sorts
@@ -92,6 +94,8 @@ pub fn apply_ui(s: &mut Settings, ui: &UiSettings) {
     s.animated_covers.spotify_canvas = ui.animated_covers.spotify_canvas;
     s.song_colour_theme = ui.song_colour_theme;
     s.song_heartbeat = ui.song_heartbeat;
+    s.window_glass = ui.window_glass;
+    s.window_glass_opacity = ui.window_glass_opacity.clamp(40, 95);
     s.collection_sorts = ui
         .collection_sorts
         .iter()
@@ -280,6 +284,20 @@ mod tests {
         ui.song_heartbeat = false;
         apply_ui(&mut stored, &ui);
         assert!(!stored.song_colour_theme && !stored.song_heartbeat);
+        assert_eq!(to_ui(&stored), ui);
+    }
+
+    #[test]
+    fn window_glass_round_trips_through_the_bridge() {
+        let mut stored = Settings::default();
+        let mut ui = to_ui(&stored);
+        assert!(!ui.window_glass);
+        assert_eq!(ui.window_glass_opacity, 80);
+        ui.window_glass = true;
+        ui.window_glass_opacity = 60;
+        apply_ui(&mut stored, &ui);
+        assert!(stored.window_glass);
+        assert_eq!(stored.window_glass_opacity, 60);
         assert_eq!(to_ui(&stored), ui);
     }
 

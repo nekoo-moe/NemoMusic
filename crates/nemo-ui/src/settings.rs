@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 
 use crate::collection_sort::CollectionSort;
 use crate::scheme::{AccentIntensity, BaseMode, CornerStyle, ThemeChoice};
+use crate::window_glass::{OPACITY_DEFAULT, WindowGlass, clamp_opacity};
 
 /// How much glass the floating bar draws (`design.md` section 7). The live-blur tiers need the
 /// owner's GPU and are not built yet, so only the two cheapest tiers exist here.
@@ -101,6 +102,11 @@ pub struct UiSettings {
     /// A slow, soft pulse in the background while a song plays. On by default; it needs
     /// [`Self::song_colour_theme`] and stops under reduced motion.
     pub song_heartbeat: bool,
+    /// The window itself is see-through (owner, 2026-11-19; appearance-glass spec). Off by
+    /// default. The window is created once, so a change from off to on shows after a restart.
+    pub window_glass: bool,
+    /// Opacity of the window backdrop with [`Self::window_glass`] on, in percent (40 to 95).
+    pub window_glass_opacity: u8,
     /// The order the user picked per album or playlist page, by [`crate::collection_sort`] page
     /// key (`album:<id>`, `playlist:<id>`). Pages in their default order have no entry.
     pub collection_sorts: BTreeMap<String, CollectionSort>,
@@ -126,6 +132,8 @@ impl Default for UiSettings {
             animated_covers: AnimatedCoverSettings::default(),
             song_colour_theme: true,
             song_heartbeat: true,
+            window_glass: false,
+            window_glass_opacity: OPACITY_DEFAULT,
             collection_sorts: BTreeMap::new(),
         }
     }
@@ -160,6 +168,10 @@ pub enum SettingChange {
     SongColourTheme(bool),
     /// Gentle heartbeat of the background.
     SongHeartbeat(bool),
+    /// See-through window switch.
+    WindowGlass(bool),
+    /// Opacity of the see-through window in percent (limited to 40 to 95).
+    WindowGlassOpacity(u8),
 }
 
 impl UiSettings {
@@ -179,6 +191,8 @@ impl UiSettings {
             SettingChange::NowPlayingStyle(v) => self.now_playing_style = v,
             SettingChange::SongColourTheme(v) => self.song_colour_theme = v,
             SettingChange::SongHeartbeat(v) => self.song_heartbeat = v,
+            SettingChange::WindowGlass(v) => self.window_glass = v,
+            SettingChange::WindowGlassOpacity(v) => self.window_glass_opacity = clamp_opacity(v),
         }
     }
 
@@ -194,6 +208,18 @@ impl UiSettings {
     #[must_use]
     pub const fn heartbeat_available(&self, reduced_motion: bool) -> bool {
         self.song_colour_theme && !reduced_motion
+    }
+
+    /// The window glass inputs. `created_transparent` is whether the running window was created
+    /// see-through (the switch was on when the app started).
+    #[must_use]
+    pub fn window_glass(&self, created_transparent: bool) -> WindowGlass {
+        WindowGlass {
+            enabled: self.window_glass,
+            opacity: self.window_glass_opacity,
+            reduce_transparency: self.reduce_transparency,
+            created_transparent,
+        }
     }
 
     /// `true` when the player bar must use the opaque tonal surface instead of glass.
@@ -258,6 +284,24 @@ mod tests {
         assert!(!s.song_colour_theme && !s.heartbeat_available(false));
         s.apply(SettingChange::SongHeartbeat(false));
         assert!(!s.song_heartbeat);
+    }
+
+    #[test]
+    fn window_glass_starts_off_at_80_and_the_opacity_is_clamped() {
+        let mut s = UiSettings::default();
+        assert!(!s.window_glass);
+        assert_eq!(s.window_glass_opacity, 80);
+        s.apply(SettingChange::WindowGlass(true));
+        s.apply(SettingChange::WindowGlassOpacity(10));
+        assert!(s.window_glass && s.window_glass_opacity == 40);
+        s.apply(SettingChange::WindowGlassOpacity(99));
+        assert_eq!(s.window_glass_opacity, 95);
+        s.apply(SettingChange::WindowGlassOpacity(65));
+        assert_eq!(s.window_glass_opacity, 65);
+        assert!(s.window_glass(true).is_clear());
+        assert!(s.window_glass(false).needs_restart());
+        s.apply(SettingChange::ReduceTransparency(true));
+        assert!(!s.window_glass(true).is_clear(), "reduce transparency wins");
     }
 
     #[test]

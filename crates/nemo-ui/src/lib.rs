@@ -47,6 +47,7 @@ pub mod signal;
 pub mod splash;
 pub mod state;
 pub mod theme;
+pub mod window_glass;
 
 pub use settings::{AnimatedCoverSettings, GlassTier, NowPlayingStyle, UiSettings};
 
