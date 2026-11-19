@@ -23,7 +23,7 @@ use crate::theme::{TextStyle, color, shape, type_scale};
 use super::ROW_H;
 
 /// Alpha of a block: `surface-container-high` over the pane.
-const BASE_ALPHA: f32 = 0.55;
+const BASE_ALPHA: f32 = 0.8;
 /// Alpha of the band: `surface-container-highest`.
 const BAND_ALPHA: f32 = 0.9;
 /// Share of the viewport width the band covers.
