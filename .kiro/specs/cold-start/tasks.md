@@ -8,7 +8,7 @@
 - [x] 4. Start-up warm-up of the last played song and the first Home items (at most 3), precache of two songs. _Requirements: 6_
 - [x] 5. Pointer hover (150 ms) and press hint from the UI: a cancellable resolve, one at a time, never a list (round 2, PR `feat/nemo-ui-hover-hint`). _Requirements: 7_
 - [ ] 6. A resting or failed native path starts yt-dlp at once. _Requirements: 8_ NOT DONE: it already does. A resting path goes straight to yt-dlp (`use_primary`), and a refused or failed native answer starts yt-dlp at once (the 1.5 s race only matters for a slow native request). A refusal costs 53-134 ms here (measured); no rest sooner than 5 refusals, because a refusal is per video (fast-start).
-- [ ] 7. NOT DONE. Only if the numbers show yt-dlp is still the slow path: in-process native extractor with `rquickjs` and a local cipher solver (own PR; `tech.md` row and README host added in that PR). _Requirements: 10_
+- [x] 7. In-process resolver tier: `rquickjs` and the EJS scripts, player store, `tv` and `tv_samsung` clients, tier before `yt-dlp`; offline validation with the EJS vectors (PR `feat/nemo-ytm-js-extractor`). Not validated end to end on the Codespace IP: googlevideo refuses (403) the addresses of these clients here for `yt-dlp` too. _Requirements: 11 to 15_
 
 ## Definition of Done
 

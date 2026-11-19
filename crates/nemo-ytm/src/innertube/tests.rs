@@ -130,3 +130,107 @@ mod props {
         }
     }
 }
+
+mod ciphered {
+    //! Formats whose address carries a signature cipher and an `n` value.
+
+    use std::collections::HashMap;
+
+    use super::*;
+    use crate::cipher::Solved;
+
+    fn answer_with(entry: &Value) -> String {
+        answer(&json!([entry]))
+    }
+
+    fn ciphered_opus() -> Value {
+        json!({
+            "mimeType": "audio/webm; codecs=\"opus\"",
+            "bitrate": 130_000,
+            "signatureCipher": "s=AB%3DC&sp=sig&url=https%3A%2F%2Fr1.example.invalid%2Fvideoplayback%3Fexpire%3D1900000000%26n%3Dabc%26itag%3D251",
+        })
+    }
+
+    fn solved(n: &str, sig: &str) -> Solved {
+        Solved {
+            n: HashMap::from([("abc".to_owned(), n.to_owned())]),
+            sig: HashMap::from([("AB=C".to_owned(), sig.to_owned())]),
+            preprocessed: None,
+        }
+    }
+
+    #[test]
+    fn the_plain_reader_leaves_a_ciphered_format_alone_and_the_other_reads_it() {
+        let text = answer_with(&ciphered_opus());
+        assert!(parse_player(&text, None).is_err());
+        let pending = parse_player_ciphered(&text, None).expect("ciphered format");
+        let asked = pending.challenges();
+        assert_eq!(asked.n, ["abc"]);
+        assert_eq!(asked.sig, ["AB=C"], "the cipher is decoded");
+    }
+
+    #[test]
+    fn the_solved_signature_is_added_under_its_own_name_and_n_is_replaced() {
+        let pending = parse_player_ciphered(&answer_with(&ciphered_opus()), None).expect("pending");
+        let stream = pending.finish(&solved("xyz", "SIG123")).expect("finished");
+        assert_eq!(
+            stream.url.expose(),
+            "https://r1.example.invalid/videoplayback?expire=1900000000&n=xyz&itag=251&sig=SIG123"
+        );
+        assert!(stream.expires_at.is_some());
+        assert_eq!(stream.info.codec, Codec::Opus);
+    }
+
+    #[test]
+    fn an_answer_the_solver_did_not_give_or_a_signature_that_breaks_the_address_is_refused() {
+        let pending = parse_player_ciphered(&answer_with(&ciphered_opus()), None).expect("pending");
+        assert!(pending.finish(&Solved::default()).is_err());
+        for bad in ["a&b", "a#b", "a b", ""] {
+            assert!(pending.finish(&solved("xyz", bad)).is_err(), "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn a_protected_format_is_never_taken() {
+        let mut protected = ciphered_opus();
+        protected["drmFamilies"] = json!(["WIDEVINE"]);
+        assert!(parse_player_ciphered(&answer_with(&protected), None).is_err());
+    }
+
+    #[test]
+    fn a_cipher_with_no_address_or_no_signature_is_skipped() {
+        for cipher in [
+            "s=AB&sp=sig",
+            "url=https%3A%2F%2Fr1.example.invalid%2Fv%3Fn%3Da",
+            "s=AB&url=http%3A%2F%2Fr1.example.invalid%2Fv",
+        ] {
+            let entry = json!({"mimeType": "audio/webm; codecs=\"opus\"", "bitrate": 1, "signatureCipher": cipher});
+            assert!(
+                parse_player_ciphered(&answer_with(&entry), None).is_err(),
+                "{cipher}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_tv_body_names_the_player_by_its_timestamp_and_sends_no_empty_device_fields() {
+        let body = player_body_with(&TV, &vid(), Some(20_773));
+        assert_eq!(
+            body["playbackContext"]["contentPlaybackContext"]["signatureTimestamp"],
+            20_773
+        );
+        let client = &body["context"]["client"];
+        assert_eq!(client["clientName"], "TVHTML5");
+        for key in ["deviceMake", "deviceModel", "osName", "osVersion"] {
+            assert!(client.get(key).is_none(), "{key}");
+        }
+        let samsung = player_body_with(&TV_SAMSUNG, &vid(), None);
+        assert_eq!(samsung["context"]["client"]["deviceMake"], "Samsung");
+        assert!(
+            samsung["playbackContext"]["contentPlaybackContext"]
+                .get("signatureTimestamp")
+                .is_none()
+        );
+        assert!(!body.to_string().to_ascii_lowercase().contains("cookie"));
+    }
+}
