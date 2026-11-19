@@ -10,9 +10,10 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use super::ProgramSlot;
+use crate::timing;
 use crate::ytdlp_install::{
     self, ASSET, InstallError, LINUX_ASSET, LINUX_ZIP_ASSET, checksum_for, fetch_asset, fetch_sums,
     unzip_on_path,
@@ -249,7 +250,10 @@ fn run_startup(start: &Startup<'_>, slot: &ProgramSlot) {
     if RUNNING.swap(true, Ordering::AcqRel) {
         return;
     }
-    match run(&managed, plan, now) {
+    let began = Instant::now();
+    let done = run(&managed, plan, now);
+    timing::stage("yt-dlp install worker", began, done.is_ok());
+    match done {
         Ok(Some(program)) => {
             tracing::info!(update = plan == Plan::CheckForUpdate, "yt-dlp installed");
             // Already set only when an earlier install in this run set the same path.

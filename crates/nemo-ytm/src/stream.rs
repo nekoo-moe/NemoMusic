@@ -15,7 +15,7 @@
 
 use std::fmt;
 use std::io::{self, Read, Seek, SeekFrom};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use nemo_core::services::{ByteSource, StreamOpener};
 use nemo_core::stream::{ResolvedStream, StreamError};
@@ -23,6 +23,7 @@ use reqwest::blocking::Client;
 use reqwest::header::{CONTENT_RANGE, RANGE};
 
 use crate::http::{https_redirects, is_https};
+use crate::timing;
 
 /// Largest range one request may ask for, in bytes.
 pub const MAX_CHUNK_BYTES: u64 = 10 * 1024 * 1024;
@@ -167,17 +168,21 @@ impl HttpStream {
         if https_only && !is_https(url) {
             return Err(StreamError::Network("stream URL is not HTTPS".to_owned()));
         }
+        let building = Instant::now();
+        let client = build_client(https_only)?;
+        timing::stage("http client build", building, true);
         let mut stream = Self {
-            client: build_client(https_only)?,
+            client,
             url: url.to_owned(),
             pos: 0,
             len: None,
             buf: Vec::new(),
             buf_start: 0,
         };
-        stream
-            .fetch_window(0, FIRST_WINDOW_BYTES)
-            .map_err(FetchError::into_stream_error)?;
+        let fetching = Instant::now();
+        let first = stream.fetch_window(0, FIRST_WINDOW_BYTES);
+        timing::stage("http first window", fetching, first.is_ok());
+        first.map_err(FetchError::into_stream_error)?;
         if stream.buf.is_empty() {
             return Err(StreamError::Network("empty stream".to_owned()));
         }
