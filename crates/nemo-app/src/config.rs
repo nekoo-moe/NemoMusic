@@ -76,6 +76,11 @@ pub struct Settings {
     /// Install and update the app's own `yt-dlp` copy when none is found (on by default,
     /// owner decision 2026-11-15). Never touches a `yt-dlp` the user installed.
     pub yt_dlp_auto_install: bool,
+    /// Resolve songs the plain native request refuses inside the app (the `tv` clients and an
+    /// embedded JavaScript engine) before `yt-dlp` is started (on by default, owner decision
+    /// 2026-11-19; cold-start spec). The tier also switches itself off for 24 hours when its
+    /// streams are refused three times, see `in-process-off.json` in the cache folder.
+    pub in_process_resolver: bool,
     /// Theme accent source, stored as its menu label (empty = default).
     pub theme: String,
     /// Surface mode label (Dark, AMOLED, Light; empty = default).
@@ -143,6 +148,7 @@ impl Default for Settings {
             output_options: StoredOutputOptions::default(),
             yt_dlp_path: None,
             yt_dlp_auto_install: true,
+            in_process_resolver: true,
             theme: String::new(),
             base_mode: String::new(),
             accent_intensity: String::new(),
@@ -359,6 +365,24 @@ mod tests {
         assert_eq!(Settings::load(&root), s);
         std::fs::write(root.join(CONFIG_FILE), r#"{"volume_percent": 40}"#).expect("write");
         assert!(Settings::load(&root).opt_ins.is_empty());
+        std::fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[test]
+    fn the_in_process_resolver_is_on_by_default_and_round_trips() {
+        assert!(Settings::default().in_process_resolver);
+        let root = temp_root("in-process");
+        // A file written before the key existed: on.
+        std::fs::write(root.join(CONFIG_FILE), r#"{"volume_percent": 40}"#).expect("write");
+        assert!(Settings::load(&root).in_process_resolver);
+        std::fs::write(root.join(CONFIG_FILE), r#"{"in_process_resolver": false}"#).expect("write");
+        assert!(!Settings::load(&root).in_process_resolver);
+        let off = Settings {
+            in_process_resolver: false,
+            ..Settings::default()
+        };
+        off.save(&root).expect("save");
+        assert!(!Settings::load(&root).in_process_resolver);
         std::fs::remove_dir_all(root).expect("cleanup");
     }
 
