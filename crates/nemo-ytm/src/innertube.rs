@@ -15,7 +15,7 @@
 //! Same Terms of Service risk as the `yt-dlp` path (`coc.md`).
 
 use std::sync::{Arc, Mutex, PoisonError};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use nemo_core::BoxFuture;
 use nemo_core::audio::Codec;
@@ -26,6 +26,7 @@ use tokio::runtime::Handle;
 
 use crate::http::InitError;
 use crate::task::AbortOnDrop;
+use crate::timing;
 
 /// Endpoint of the player request.
 const PLAYER_URL: &str = "https://www.youtube.com/youtubei/v1/player?prettyPrint=false";
@@ -277,9 +278,14 @@ async fn ask(
     visitor: Visitor,
     allowed: Option<Vec<Codec>>,
 ) -> Result<ResolvedStream, StreamError> {
+    let began = Instant::now();
     let (mut text, retry) = send(&client, &profile, &video, &visitor).await?;
+    timing::stage("native player request", began, true);
     if retry {
+        // The first answer refused the request and gave visitor data: ask once more with it.
+        let again = Instant::now();
         text = send(&client, &profile, &video, &visitor).await?.0;
+        timing::stage("native player retry with visitor data", again, true);
     }
     parse_player(&text, allowed.as_deref())
 }
