@@ -34,6 +34,7 @@ pub(crate) mod search;
 pub mod session;
 pub mod sponsorblock;
 pub mod stream;
+pub(crate) mod timing;
 pub mod web_search;
 pub mod ytdlp;
 pub(crate) mod ytdlp_install;

@@ -8,6 +8,7 @@ use nemo_core::player::{PlayState, PlayerEvent};
 use crate::control::{Core, NextState, Run, micros};
 use crate::pipeline::{FeedCmd, FeedEvent, Job, plan_stages};
 use crate::replay_gain::ReplayGain;
+use crate::timing;
 
 impl Core {
     /// One round of housekeeping. Called after every message and at least every few ms.
@@ -107,6 +108,9 @@ impl Core {
             self.notify(&PlayerEvent::UnderrunsCounted { total });
         }
         if self.state == PlayState::Buffering && started && !held {
+            if let Some(began) = self.cur.as_mut().and_then(|c| c.began.take()) {
+                timing::stage("first audio", began);
+            }
             self.set_state(PlayState::Playing);
         }
     }

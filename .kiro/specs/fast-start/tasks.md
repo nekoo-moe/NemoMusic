@@ -1,0 +1,12 @@
+# Fast start: tasks
+
+## Tasks
+
+- [ ] 1. Stage timing at debug level and the measuring example `fast_start_stages`; spec files; BEFORE numbers in the PR. _Requirements: 1, 2, 8_
+- [ ] 2. Reuse the opened next song on Next, and warm only the next entry; tests with fakes; bit-exact and no-alloc tests. _Requirements: 4, 5, 7_
+- [ ] 3. Start yt-dlp beside a native request that is slow (1.5 s); the first good answer wins and the other is cancelled; a dropped yt-dlp resolve kills its process. _Requirements: 2, 6_
+- [ ] 4. (If time allows, owner decides) Linux onedir build for yt-dlp. _Requirements: 1_
+
+## Definition of Done
+
+See section 4 of `.kiro/steering/workflow.md`. Per PR here: `cargo fmt --all -- --check`, `cargo clippy -p nemo-ytm -p nemo-audio -p nemo-app --all-targets -- -D warnings`, `cargo test` for the crates touched, and for task 2 `cargo test -p nemo-audio --test bit_exact --test rt_no_alloc`.

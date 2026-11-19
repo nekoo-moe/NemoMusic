@@ -3,7 +3,7 @@
 use std::sync::Arc;
 use std::sync::mpsc::Sender;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use nemo_core::audio::{Codec, Origin, StreamInfo};
 use nemo_core::downloads::OfflineStore;
@@ -18,6 +18,7 @@ use crate::decoder::DecodeError;
 use crate::player::Msg;
 use crate::source::FileSource;
 use crate::stream_decoder::StreamDecoder;
+use crate::timing;
 
 /// A track that is open and ready to decode.
 pub struct Prepared {
@@ -140,8 +141,13 @@ fn prepare(deps: &PrepareDeps, track: &Track) -> Result<Prepared, String> {
         return Ok(saved);
     }
     let resolve = || block_on(deps.resolver.resolve_with(video, &deps.request));
+    let began = Instant::now();
     let stream = resolve().map_err(|e| describe(&e))?;
-    let source: Box<dyn ByteSource> = match deps.opener.open(&stream) {
+    timing::stage("resolve", began);
+    let opening = Instant::now();
+    let opened = deps.opener.open(&stream);
+    timing::stage("open", opening);
+    let source: Box<dyn ByteSource> = match opened {
         Ok(source) => source,
         Err(StreamError::NotAvailable | StreamError::Network(_)) => {
             // A stale or refused URL (HTTP 403, 404/410, connection reset): tell the resolver,
@@ -209,7 +215,9 @@ fn finish_stream(
     source: Box<dyn ByteSource>,
     stream: &nemo_core::stream::ResolvedStream,
 ) -> Result<Prepared, String> {
+    let probing = Instant::now();
     let decoder = StreamDecoder::open(source, None).map_err(|e| describe_decode(&e))?;
+    timing::stage("probe", probing);
     let probed = decoder.info();
     let codec = if probed.codec == Codec::Unknown {
         stream.info.codec

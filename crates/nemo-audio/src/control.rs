@@ -7,7 +7,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, PoisonError};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use nemo_core::audio::{AudioFormat, ProcessingStage, SignalPath, StreamInfo};
 use nemo_core::effects::{EffectsStatus, TransitionSettings};
@@ -21,6 +21,7 @@ use crate::player::{Msg, PlayerDeps, Shared};
 use crate::prepare::{Prepared, spawn_segments};
 use crate::render::UNITY_GAIN_BITS;
 use crate::replay_gain::ReplayGain;
+use crate::timing;
 
 /// How often the control thread wakes when no message arrives.
 const TICK: Duration = Duration::from_millis(5);
@@ -45,6 +46,8 @@ pub(crate) struct Run {
     pub finished: Option<u64>,
     pub at_frame: Option<u64>,
     pub segments_requested: bool,
+    /// When this run became the current track; `None` once its first audio was reported.
+    pub began: Option<Instant>,
 }
 
 impl Run {
@@ -62,6 +65,7 @@ impl Run {
             finished: None,
             at_frame: None,
             segments_requested: false,
+            began: Some(Instant::now()),
         }
     }
 }
@@ -365,6 +369,7 @@ impl Core {
             self.underruns_base += old.shared.underruns.load(Ordering::Relaxed);
             old.stop();
         }
+        let opening = Instant::now();
         let sink = self.deps.sink_factory.open(format).map_err(|e| {
             tracing::error!(error = %e, "could not open the audio output");
             "could not open the audio output".to_owned()
@@ -373,6 +378,7 @@ impl Core {
             tracing::error!(error = %e, "could not start the audio output");
             "could not start the audio output".to_owned()
         })?;
+        timing::stage("output", opening);
         self.shared
             .pos
             .rate
@@ -383,6 +389,9 @@ impl Core {
     }
 
     fn load_current(&mut self, prepared: Prepared) {
+        if let Some(began) = self.cur.as_ref().and_then(|c| c.began) {
+            timing::stage("prepared", began);
+        }
         let format = prepared.decoder.info().format;
         if let Err(message) = self.ensure_pipeline(format) {
             self.fail_current(&message);

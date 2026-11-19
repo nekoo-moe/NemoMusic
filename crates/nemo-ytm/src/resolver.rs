@@ -27,6 +27,7 @@ use tokio::runtime::Handle;
 use tokio::sync::OnceCell;
 
 use crate::innertube::{ANDROID_VR, ClientProfile, InnertubeResolver, VISIONOS};
+use crate::timing;
 use crate::ytdlp::YtDlpResolver;
 
 /// A cached stream is used only while it is valid for at least this long.
@@ -324,7 +325,10 @@ impl StreamResolver for FallbackResolver {
     ) -> BoxFuture<'a, Answer> {
         Box::pin(async move {
             if self.use_primary(video, request) {
-                match self.primary.resolve_with(video, request).await {
+                let began = Instant::now();
+                let answer = self.primary.resolve_with(video, request).await;
+                timing::stage("resolve native", began, answer.is_ok());
+                match answer {
                     Ok(stream) => {
                         self.primary_missed(false);
                         self.mark(video, true);
@@ -336,7 +340,9 @@ impl StreamResolver for FallbackResolver {
                     }
                 }
             }
+            let began = Instant::now();
             let answer = self.fallback.resolve_with(video, request).await;
+            timing::stage("resolve yt-dlp", began, answer.is_ok());
             if let Err(e) = &answer {
                 // Fixed texts only (no URL, no id): the reason behind "could not get the stream".
                 tracing::warn!(error = %e, "no stream from the native path or yt-dlp");
