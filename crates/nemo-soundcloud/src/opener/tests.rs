@@ -1,6 +1,5 @@
 //! Tests for the opener and the prefetch over a loopback server and the recorded AAC segments.
 
-use std::io::Read;
 use std::time::SystemTime;
 
 use nemo_core::audio::{Codec, Origin, StreamInfo};
