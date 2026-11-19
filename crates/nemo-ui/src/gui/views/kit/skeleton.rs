@@ -22,10 +22,19 @@ use crate::theme::{TextStyle, color, shape, type_scale};
 
 use super::ROW_H;
 
+mod shapes;
+pub use shapes::LIST_ITEM_H;
+#[cfg(test)]
+pub(crate) mod measure;
+#[cfg(test)]
+mod tests;
+
 /// Alpha of a block: `surface-container-high` over the pane.
 const BASE_ALPHA: f32 = 0.8;
 /// Alpha of the band: `surface-container-highest`.
 const BAND_ALPHA: f32 = 0.9;
+/// Alpha of the band over an inset block: `on-surface`, a light touch.
+const INSET_BAND_ALPHA: f32 = 0.14;
 /// Share of the viewport width the band covers.
 const BAND_SHARE: f32 = 0.35;
 /// Narrowest and widest band in px.
@@ -47,6 +56,8 @@ pub struct Skeleton {
     opacity: f32,
     /// Draw the band (off with reduced motion).
     animate: bool,
+    /// Nested in another block: one tone further from the pane, so it shows on the block under it.
+    inset: bool,
 }
 
 impl Skeleton {
@@ -62,7 +73,30 @@ impl Skeleton {
             phase: app.skeletons.phase(),
             opacity,
             animate: !app.ui.reduced_motion,
+            inset: false,
         })
+    }
+
+    /// The look for blocks drawn on top of another block (the lines and cover inside a card, the
+    /// hero or the Top result).
+    #[must_use]
+    pub fn inset(self) -> Self {
+        Self {
+            inset: true,
+            ..self
+        }
+    }
+
+    /// A look at full opacity without the band, for tests and measurements.
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn still() -> Self {
+        Self {
+            phase: 0.0,
+            opacity: 1.0,
+            animate: false,
+            inset: false,
+        }
     }
 
     /// A rounded block `width` wide (any length) and `height` px high with corner `radius`.
@@ -119,13 +153,6 @@ impl Skeleton {
         .align_y(Alignment::Center)
         .into()
     }
-
-    /// Opacity of the look, for tests.
-    #[cfg(test)]
-    #[must_use]
-    pub fn opacity(self) -> f32 {
-        self.opacity
-    }
 }
 
 /// One rounded block. Draws a single quad; with the band under it, a gradient quad.
@@ -138,7 +165,18 @@ struct Block {
 
 impl Block {
     fn background(&self, bounds: Rectangle, viewport: &Rectangle) -> Background {
-        let base = col(color::surface_container_high().with_alpha(BASE_ALPHA * self.look.opacity));
+        let k = self.look.opacity;
+        let (base, glow) = if self.look.inset {
+            (
+                col(color::surface_container_highest().with_alpha(BASE_ALPHA * k)),
+                col(color::on_surface().with_alpha(INSET_BAND_ALPHA * k)),
+            )
+        } else {
+            (
+                col(color::surface_container_high().with_alpha(BASE_ALPHA * k)),
+                col(color::surface_container_highest().with_alpha(BAND_ALPHA * k)),
+            )
+        };
         if !self.look.animate || bounds.width <= 0.0 {
             return Background::Color(base);
         }
@@ -151,8 +189,6 @@ impl Block {
             return Background::Color(base);
         }
         let at = |x: f32| ((x - bounds.x) / bounds.width).clamp(0.0, 1.0);
-        let glow =
-            col(color::surface_container_highest().with_alpha(BAND_ALPHA * self.look.opacity));
         let grad = Linear::new(iced::Radians(std::f32::consts::FRAC_PI_2))
             .add_stop(0.0, base)
             .add_stop(at(lo), base)

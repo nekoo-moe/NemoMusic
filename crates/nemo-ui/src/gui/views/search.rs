@@ -9,13 +9,15 @@ use iced::{Alignment, Border, Element, Length, Padding};
 use super::super::app::{App, Message, SEARCH_ID};
 use super::super::assets::Icon;
 use super::super::style::{col, gap, icon, label};
-use super::kit::{page, page_title, status, vspace};
+use super::kit::{blank, page, page_title, status, swap, vspace};
 use crate::layout;
+use crate::skeleton::Region;
 use crate::state::Event;
 use crate::theme::{color, shape, type_scale};
 
 mod filter;
 mod section;
+mod skeleton;
 mod top;
 
 pub(crate) use filter::{index as filter_index, labels as filter_labels};
@@ -63,10 +65,15 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
         width: content_w,
         full: search.filter.is_some(),
     };
-    c = c.push(match search.filter {
-        Some(kind) => filter::filtered(app, kind, &frame),
-        None => all(app, &frame),
-    });
+    c = c.push(swap(
+        app,
+        Region::Search,
+        || match search.filter {
+            Some(kind) => filter::filtered(app, kind, &frame),
+            None => all(app, &frame),
+        },
+        |sk| skeleton::view(sk, &frame, search.filter),
+    ));
     page(grid.content, c)
 }
 
@@ -96,7 +103,8 @@ fn all<'a>(app: &'a App, frame: &section::Frame) -> Element<'a, Message> {
             Some(("Try again", Message::Ui(Event::SearchRetry))),
         ));
     } else {
-        c = c.push(searching());
+        // Pending: the skeleton comes after its 150 ms wait.
+        c = c.push(blank());
     }
     if results.is_some()
         && let Some(e) = &search.error
@@ -120,17 +128,6 @@ pub(super) fn no_results(query: &str) -> Element<'_, Message> {
         "Check the spelling or try fewer words.",
         None,
     )
-}
-
-/// The line shown while an answer is on its way.
-pub(super) fn searching<'a>() -> Element<'a, Message> {
-    label(
-        "Searching\u{2026}",
-        type_scale::BODY_MD,
-        false,
-        col(color::on_surface_variant()),
-    )
-    .into()
 }
 
 /// The query box: a pill, height 48, glyph on the left, "Searching" hint on the right. The pill

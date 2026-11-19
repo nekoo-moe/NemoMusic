@@ -10,13 +10,14 @@ use crate::gui::app::{App, ArtShape, LibFilter, Message};
 use crate::gui::assets::Icon;
 use crate::gui::fx::entrance;
 use crate::gui::style::{animated, col, fit, gap, icon, icon_button, label, scroll, tip};
-use crate::gui::views::kit::{art, chip_padded, pane_bg};
+use crate::gui::views::kit::{LIST_ITEM_H, Skeleton, art, blank, chip_padded, pane_bg, swap};
 use crate::route::Route;
+use crate::skeleton::Region;
 use crate::state::Event;
 use crate::theme::{color, shape, type_scale};
 
 /// Height of a library row.
-const LIB_ROW_H: f32 = 64.0;
+const LIB_ROW_H: f32 = LIST_ITEM_H;
 
 pub(super) fn library_header<'a>() -> Element<'a, Message> {
     row![
@@ -171,21 +172,47 @@ pub(crate) fn hint(app: &App) -> &'static str {
     empty_hint(app)
 }
 
+/// What the list says when it has no rows. While the library loads it says nothing: the
+/// skeleton stands in after its 150 ms wait.
+fn empty_list(app: &App, width: f32) -> Element<'_, Message> {
+    if app.library_loading() {
+        return blank();
+    }
+    container(
+        label(
+            empty_hint(app),
+            type_scale::BODY_SM,
+            false,
+            col(color::on_surface_variant()),
+        )
+        .wrapping(iced::widget::text::Wrapping::Word)
+        .width(Length::Fixed(width - 2.0 * gap::MD)),
+    )
+    .padding(gap::MD)
+    .into()
+}
+
+/// Rows of the skeleton list.
+const LOADING_ROWS: usize = 6;
+
+/// The list while the account library loads: skeleton rows with the spacing of the real ones.
+fn loading_list<'a>(sk: Skeleton, width: f32) -> Element<'a, Message> {
+    let mut list = column![].spacing(gap::XS);
+    for _ in 0..LOADING_ROWS {
+        list = list.push(sk.list_item(width));
+    }
+    list.into()
+}
+
 pub(super) fn library_list<'a>(app: &'a App, width: f32, route: &Route) -> Element<'a, Message> {
     let rows = library_rows(app);
     if rows.is_empty() {
-        return container(
-            label(
-                empty_hint(app),
-                type_scale::BODY_SM,
-                false,
-                col(color::on_surface_variant()),
-            )
-            .wrapping(iced::widget::text::Wrapping::Word)
-            .width(Length::Fixed(width - 2.0 * gap::MD)),
-        )
-        .padding(gap::MD)
-        .into();
+        return swap(
+            app,
+            Region::Sidebar,
+            || empty_list(app, width),
+            |sk| loading_list(sk, width),
+        );
     }
     let text_w = width - 48.0 - gap::MD - 2.0 * gap::SM;
     let mut list = column![].spacing(gap::XS);

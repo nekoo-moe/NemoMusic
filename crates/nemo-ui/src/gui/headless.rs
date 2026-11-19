@@ -6,6 +6,8 @@
 
 pub mod cost;
 pub mod glass;
+mod pending;
+pub use pending::Pending;
 
 use std::path::{Path, PathBuf};
 
@@ -275,6 +277,8 @@ pub struct Scenario {
     pub sleep: bool,
     /// Show the page of the route as still loading (skeleton).
     pub loading_detail: bool,
+    /// Put a page back to "waiting for its first data" after the app settled (skeleton shots).
+    pub pending: Option<Pending>,
     /// Draw the skeletons that are wanted now (past the 150 ms wait), with the shimmer band this
     /// far into its sweep (0 to 1; needs `full_motion` to show the band).
     pub skeleton_phase: Option<f32>,
@@ -366,6 +370,7 @@ impl Default for Scenario {
             sleep: false,
             loading_detail: false,
             skeleton_phase: None,
+            pending: None,
             sort_menu: false,
             lyrics_pick: None,
             shared_output: false,
@@ -552,6 +557,9 @@ pub fn build_app(backend: &Backend, scenario: &Scenario) -> App {
         && let Some(key) = super::app::DetailKey::of(&scenario.route)
     {
         app.details.insert(key, super::app::DetailState::Loading);
+    }
+    if let Some(p) = scenario.pending {
+        p.apply(&mut app);
     }
     if scenario.glass_switched_on {
         run(

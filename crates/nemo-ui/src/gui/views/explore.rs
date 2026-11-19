@@ -12,16 +12,20 @@ use super::super::app::{App, ExploreMsg, GATE_MESSAGE, ListSource, Message};
 use super::super::assets::Icon;
 use super::super::fx::fx;
 use super::super::style::{col, fit, gap, icon, label};
-use super::kit::{card_grid, page, page_title, section_title, status, text_button, vspace};
+use super::kit::{
+    blank, card_grid, page, page_title, section_title, status, swap, text_button, vspace,
+};
 use crate::explore::{MOODS, Mood};
 use crate::layout;
 use crate::palette::{Oklch, oklch_to_rgb};
 use crate::route::Route;
+use crate::skeleton::Region;
 use crate::state::Event;
 use crate::theme::{Rgba, color, shape, type_scale};
 
 mod feed;
 pub mod mood;
+mod skeleton;
 
 use feed::{album_cards, collection_cards, feed_cards};
 
@@ -91,19 +95,20 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
         c = c.push(vspace(gap::SM)).push(notice(line));
     }
     c = c.push(vspace(gap::LG));
-    let body: Element<'_, Message> = match app.explore.data() {
-        Some(e) => real(app, grid, e),
-        None if app.explore.shows_fallback() => fallback(app, grid),
-        None if !app.ui.youtube_enabled() => {
-            status(Icon::Explore, "Explore is waiting", GATE_MESSAGE, None)
-        }
-        None => status(
-            Icon::Explore,
-            "Loading Explore",
-            "Asking YouTube Music for new releases, charts, moods and genres.",
-            None,
-        ),
-    };
+    let body = swap(
+        app,
+        Region::Explore,
+        || match app.explore.data() {
+            Some(e) => real(app, grid, e),
+            None if app.explore.shows_fallback() => fallback(app, grid),
+            None if !app.ui.youtube_enabled() => {
+                status(Icon::Explore, "Explore is waiting", GATE_MESSAGE, None)
+            }
+            // Loading: the skeleton comes after its 150 ms wait.
+            None => blank(),
+        },
+        |sk| skeleton::view(sk, grid),
+    );
     page(grid.content, c.push(body))
 }
 

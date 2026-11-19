@@ -13,11 +13,12 @@ use super::super::app::{
 };
 use super::super::assets::Icon;
 use super::super::style::{col, gap, label};
-use super::kit::{Card, card_grid, page, shelf_header, status, vspace};
+use super::kit::{Card, card_grid, page, shelf_header, status, swap, vspace};
 use crate::explore::ContentFilter;
 use crate::format;
 use crate::layout;
 use crate::route::Route;
+use crate::skeleton::Region;
 use crate::state::Event;
 use crate::theme::{color, type_scale};
 
@@ -25,6 +26,7 @@ mod daily;
 mod feed;
 mod hero;
 mod quick;
+mod skeleton;
 
 use daily::daily_section;
 use feed::feed_kind_page;
@@ -33,6 +35,16 @@ use quick::{quick_access, quick_access_grid, quick_picks, quick_picks_source, qu
 
 /// The Home screen. `w` is the width of the centre pane.
 pub fn view(app: &App, w: u32) -> Element<'_, Message> {
+    swap(
+        app,
+        Region::Home,
+        || real(app, w),
+        |sk| skeleton::view(app, sk, layout::grid_in(w)),
+    )
+}
+
+/// The Home page as the data says.
+fn real(app: &App, w: u32) -> Element<'_, Message> {
     let grid = layout::grid_in(w);
     // Content widths are small exact numbers.
     #[allow(clippy::cast_precision_loss)]
@@ -159,7 +171,8 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
             "Read the short notice to browse and search YouTube Music. Your own files work without it.",
             Some(("Review notice", Message::Ui(Event::TosReview))),
         ));
-    } else if app.home.phase != HomePhase::Done {
+    } else if app.home.phase != HomePhase::Done && app.home_cached() {
+        // The small refresh state; with nothing cached the skeleton stands in.
         c = c.push(label(
             "Finding something calm\u{2026}",
             type_scale::BODY_MD,

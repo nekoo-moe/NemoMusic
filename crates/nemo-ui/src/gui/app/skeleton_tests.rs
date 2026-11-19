@@ -164,3 +164,180 @@ fn leaving_the_page_drops_its_skeleton_at_once() {
     frames(&mut app, 600);
     assert!(!app.skeletons.any_visible());
 }
+
+/// An app on `route` with the notice accepted (YouTube is on), motion on, settled.
+fn app_on(route: Route, search: Option<&str>) -> App {
+    let mut app = build_app(
+        &mock_backend(),
+        &Scenario {
+            route,
+            search: search.map(str::to_owned),
+            settings: crate::UiSettings {
+                tos_acknowledged: true,
+                ..crate::UiSettings::default()
+            },
+            ..Scenario::default()
+        },
+    );
+    app.ui.reduced_motion = false;
+    app.sync_anim();
+    app
+}
+
+#[test]
+fn search_waits_with_a_skeleton_only_with_no_answer_on_screen() {
+    use crate::gui::headless::Pending;
+    use nemo_core::catalog::{SearchKind, SearchResults};
+    let mut app = app_on(Route::Search(String::new()), Some("velvet"));
+    assert!(!app.search_pending(), "an answer is on screen");
+    Pending::Search.apply(&mut app);
+    assert!(app.search_pending(), "nothing answered yet");
+    app.ui.search.error = Some("offline".to_owned());
+    assert!(!app.search_pending(), "an error keeps its sentence");
+    app.ui.search.error = None;
+    app.ui.search.results = Some(std::sync::Arc::new(SearchResults::default()));
+    assert!(
+        !app.search_pending(),
+        "an empty answer keeps its empty state"
+    );
+    // A picked chip with no answer yet waits again, even with the All answer on screen.
+    app.ui.search.filter = Some(SearchKind::Albums);
+    app.ui.search.filtered = None;
+    assert!(app.search_pending(), "the chip's answer is on its way");
+}
+
+#[test]
+fn search_shows_its_skeleton_after_150_ms_and_never_when_the_box_is_empty() {
+    use crate::gui::headless::Pending;
+    let mut app = app_on(Route::Search(String::new()), Some("velvet"));
+    Pending::Search.apply(&mut app);
+    app.sync_anim();
+    frames(&mut app, 100);
+    assert_eq!(app.skeletons.show(Region::Search), Show::Content);
+    frames(&mut app, 100);
+    assert_eq!(app.skeletons.show(Region::Search), Show::Skeleton);
+    app.ui.search.input.clear();
+    app.sync_anim();
+    frames(&mut app, 600);
+    assert!(!app.skeletons.any_visible(), "no text, nothing to wait for");
+}
+
+#[test]
+fn home_waits_with_a_skeleton_only_when_nothing_is_cached() {
+    use crate::gui::headless::Pending;
+    let mut app = app_on(Route::Home, None);
+    assert!(!app.home_pending(), "Home has its shelves");
+    Pending::Home.apply(&mut app);
+    assert!(app.home_pending());
+    app.sync_anim();
+    frames(&mut app, 200);
+    assert_eq!(app.skeletons.show(Region::Home), Show::Skeleton);
+    // A recent song is cached data: the page shows it and the small refresh line stays.
+    app.ui.recent.push(crate::mock::track(0));
+    assert!(!app.home_pending());
+}
+
+#[test]
+fn explore_waits_with_a_skeleton_until_an_answer_or_a_failure() {
+    use crate::gui::headless::Pending;
+    let mut app = app_on(Route::Explore, None);
+    Pending::Explore.apply(&mut app);
+    assert!(app.explore_pending());
+    app.sync_anim();
+    frames(&mut app, 200);
+    assert_eq!(app.skeletons.show(Region::Explore), Show::Skeleton);
+    app.explore.finish(Err("offline".to_owned()));
+    assert!(
+        !app.explore_pending(),
+        "the fallback shelves and the notice show"
+    );
+    app.sync_anim();
+    frames(&mut app, 600);
+    assert_eq!(app.skeletons.show(Region::Explore), Show::Content);
+}
+
+#[test]
+fn a_skeleton_asks_for_no_frames_while_another_page_is_open() {
+    use crate::gui::headless::Pending;
+    let mut app = app_on(Route::Home, None);
+    Pending::Home.apply(&mut app);
+    app.sync_anim();
+    frames(&mut app, 200);
+    assert!(app.needs_frames());
+    let _ = app.update_core(Message::Ui(Event::Go(Route::Settings)));
+    frames(&mut app, 600);
+    assert!(!app.skeletons.any_visible());
+    assert!(!app.needs_frames(), "the hidden page costs no frames");
+}
+
+/// A signed-in app on `route` whose account library has not arrived (nothing cached), motion on.
+fn loading_library_app(route: Route) -> App {
+    use crate::gui::headless::Pending;
+    let mut app = build_app(
+        &crate::mock::mock_backend_signed_in(),
+        &Scenario {
+            route,
+            size: (1366, 697),
+            settings: crate::UiSettings {
+                tos_acknowledged: true,
+                ..crate::UiSettings::default()
+            },
+            ..Scenario::default()
+        },
+    );
+    app.ui.reduced_motion = false;
+    Pending::Library.apply(&mut app);
+    app.sync_anim();
+    app
+}
+
+#[test]
+fn the_library_and_the_sidebar_wait_with_a_skeleton_only_while_it_loads() {
+    let mut app = loading_library_app(Route::Library);
+    assert!(app.library_loading() && app.library_pending() && app.sidebar_pending());
+    frames(&mut app, 200);
+    assert_eq!(app.skeletons.show(Region::Library), Show::Skeleton);
+    assert_eq!(app.skeletons.show(Region::Sidebar), Show::Skeleton);
+    // Local files are cached data: the Local tab never waits.
+    app.lib_tab = crate::explore::LibTab::Local;
+    assert!(!app.library_pending());
+    app.lib_tab = crate::explore::LibTab::Overview;
+    // A failure has its sentence, an empty library its empty state: neither is loading.
+    app.library_failed = true;
+    assert!(!app.library_loading());
+    app.library_failed = false;
+    app.account_library = Some(std::sync::Arc::new(super::AccountLibrary::default()));
+    assert!(!app.library_loading() && !app.sidebar_pending());
+    app.sync_anim();
+    frames(&mut app, 600);
+    assert!(!app.skeletons.any_visible());
+    assert!(!app.needs_frames());
+}
+
+#[test]
+fn a_signed_out_window_and_cached_local_albums_never_wait_for_the_library() {
+    let app = app_on(Route::Library, None);
+    assert!(!app.library_loading(), "signed out: nothing to load");
+    let mut app = loading_library_app(Route::Library);
+    app.local_albums.push(nemo_core::catalog::AlbumSummary {
+        id: BrowseId("local-album-x".to_owned()),
+        title: "Album".to_owned(),
+        artists: Vec::new(),
+        year: None,
+        thumbnails: Vec::new(),
+    });
+    assert!(!app.sidebar_pending(), "a local album is a row");
+    app.lib_tab = crate::explore::LibTab::Albums;
+    assert!(!app.library_pending(), "the Albums tab shows it");
+}
+
+#[test]
+fn the_sidebar_skeleton_needs_the_wide_sidebar() {
+    let mut app = loading_library_app(Route::Library);
+    assert!(app.sidebar_pending());
+    app.fullscreen = true;
+    assert!(!app.sidebar_pending(), "full screen hides it");
+    app.fullscreen = false;
+    app.mini = true;
+    assert!(!app.sidebar_pending(), "the mini player hides it");
+}
