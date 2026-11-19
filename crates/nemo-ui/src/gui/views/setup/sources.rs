@@ -1,22 +1,23 @@
 //! The sources step: a YouTube Music card (sign in, or use it without an account), a SoundCloud
-//! card (public tracks, no sign-in) and a local music card. Each card changes only itself; the
+//! card (turn it on, then sign in) and a local music card. Each card changes only itself; the
 //! bottom bar moves on.
 
-use iced::widget::{Space, column, container, row, toggler};
+use iced::widget::{Space, column, container, row};
 use iced::{Alignment, Element, Length};
 
 use super::super::kit::{paragraph, text_button, tile, tonal_button, vspace};
-use super::super::settings::switch_style;
+use super::super::opt_in::{OptInActions, OptInPhase, OptInRow, opt_in_row};
 use super::reveal::rise;
 use super::steps::{has_two_columns, heading, two_columns};
 use crate::copy::{self, setup as text};
-use crate::gui::app::{AccountMsg, App, Message};
+use crate::gui::app::{AccountMsg, App, Message, ScMsg};
 use crate::gui::assets::Icon;
 use crate::gui::style::{col, fit, gap, icon, label, spinner};
 use crate::setup::SetupEvent;
 use crate::state::Event;
 use crate::theme::{color, type_scale};
 use nemo_core::account::AccountState;
+use nemo_core::source_account::SourceAccountState;
 
 pub(super) fn view(app: &App, width: f32) -> Element<'_, Message> {
     let two = has_two_columns(width);
@@ -28,7 +29,7 @@ pub(super) fn view(app: &App, width: f32) -> Element<'_, Message> {
     let inner = col_w - 2.0 * gap::MD;
     let head = heading(text::SOURCES_TITLE, Some(text::SOURCES_HELP), width);
     let yt = card(youtube(app, inner), col_w);
-    let sc = card(soundcloud(inner), col_w);
+    let sc = card(soundcloud(app, inner), col_w);
     let local = card(local(app, inner), col_w);
     let (yt, sc, local) = (rise(app, 0, yt), rise(app, 1, sc), rise(app, 2, local));
     let body: Element<'_, Message> = if two {
@@ -142,37 +143,73 @@ fn youtube(app: &App, inner: f32) -> Element<'_, Message> {
     c.into()
 }
 
-/// The SoundCloud card. There is no SoundCloud sign-in and, in this version, no SoundCloud
-/// catalog behind the switch, so the switch is shown off and cannot be turned on.
-fn soundcloud<'a>(inner: f32) -> Element<'a, Message> {
-    let switch = row![
-        label(
-            "Off",
-            type_scale::BODY_MD,
-            false,
-            col(color::on_surface_variant())
-        ),
-        Space::new().width(gap::MD),
-        toggler(false).size(24.0).style(switch_style(false)),
-    ]
-    .align_y(Alignment::Center);
-    column![
-        row![
-            title("SoundCloud"),
-            Space::new().width(Length::Fill),
-            switch
+/// The SoundCloud card: what it is, then the switch's own confirmation, or sign-in once it runs.
+/// The panel and the sign-in are the ones of Settings; this card only starts them.
+fn soundcloud(app: &App, inner: f32) -> Element<'_, Message> {
+    let Some(info) = app.sc_info() else {
+        return column![
+            title(text::SC_TITLE),
+            dim(copy::soundcloud::NOT_IN_THIS_BUILD, inner)
         ]
-        .align_y(Alignment::Center),
-        label(
-            text::SC_BODY,
-            type_scale::BODY_MD,
-            false,
-            col(color::on_surface())
-        ),
-        dim(text::SC_NOT_YET, inner),
+        .spacing(gap::SM)
+        .into();
+    };
+    if app.sc.confirming {
+        return opt_in_row(
+            OptInRow {
+                info,
+                phase: OptInPhase::Confirming,
+                status: None,
+                stays: None,
+            },
+            OptInActions {
+                ask: Message::Sc(ScMsg::Ask),
+                turn_on: Message::Sc(ScMsg::TurnOn),
+                cancel: Message::Sc(ScMsg::Cancel),
+                turn_off: Message::Sc(ScMsg::TurnOff),
+                delete_now: None,
+            },
+            inner + 2.0 * gap::MD,
+        );
+    }
+    let mut c = column![
+        title(text::SC_TITLE),
+        dim(copy::soundcloud::SETUP_BODY, inner)
     ]
     .spacing(gap::SM)
-    .width(Length::Fixed(inner))
+    .width(Length::Fixed(inner));
+    if !app.sc_open() {
+        return c
+            .push(tonal_button(
+                copy::soundcloud::SETUP_TURN_ON,
+                None,
+                Some(Message::Sc(ScMsg::Ask)),
+            ))
+            .into();
+    }
+    match app.sc_state() {
+        _ if !app.sc_running() => c.push(status_line(
+            Icon::Check,
+            copy::soundcloud::SETUP_AFTER_RESTART.to_owned(),
+            inner,
+        )),
+        Some(SourceAccountState::SignedIn(info)) => c.push(status_line(
+            Icon::CheckCircle,
+            format!("Signed in as {}", info.name),
+            inner,
+        )),
+        Some(_) => {
+            if let Some(error) = &app.sc.error {
+                c = c.push(status_line(Icon::Info, error.clone(), inner));
+            }
+            c.push(tonal_button(
+                copy::soundcloud::SIGN_IN,
+                Some(Icon::Login),
+                (!app.sc.busy).then_some(Message::Sc(ScMsg::SignIn)),
+            ))
+        }
+        None => c.push(dim(copy::soundcloud::NO_STORE, inner)),
+    }
     .into()
 }
 

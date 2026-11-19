@@ -339,3 +339,18 @@ async fn it_works_over_real_http_on_loopback() {
         ["/", "/assets/a.js", &format!("/search?q=a&client_id={ID}")]
     );
 }
+
+#[tokio::test]
+async fn a_client_switched_off_sends_nothing_and_comes_back_on() {
+    let fake = Arc::new(FakeHttp::new(site(ID)));
+    let client = client(&fake, fast());
+    client.get("/search", &[]).await.expect("on");
+    let sent = fake.urls().len();
+    client.set_enabled(false);
+    assert!(!client.is_enabled());
+    assert_eq!(client.get("/search", &[]).await, Err(ClientError::Off));
+    assert_eq!(client.get("/tracks/1", &[]).await, Err(ClientError::Off));
+    assert_eq!(fake.urls().len(), sent, "no request while off");
+    client.set_enabled(true);
+    client.get("/search", &[]).await.expect("on again");
+}

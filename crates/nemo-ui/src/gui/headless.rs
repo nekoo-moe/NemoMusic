@@ -7,6 +7,7 @@
 pub mod cost;
 pub mod glass;
 mod pending;
+pub mod soundcloud;
 pub use pending::Pending;
 
 use std::path::{Path, PathBuf};
@@ -314,6 +315,9 @@ pub struct Scenario {
     /// With `glass_switched_on`: draw the pill this many ms into its entrance. The rest of the
     /// page stays settled.
     pub restart_ms: Option<u32>,
+    /// Show the SoundCloud page in this state (soundcloud-account spec). The backend decides
+    /// whether SoundCloud runs and which account state the card shows.
+    pub soundcloud: Option<soundcloud::ScScene>,
 }
 
 /// Which state of the sign-in sheet a snapshot shows.
@@ -386,6 +390,7 @@ impl Default for Scenario {
             bloom: None,
             backdrop_ms: None,
             glass_switched_on: false,
+            soundcloud: None,
             restart_ms: None,
         }
     }
@@ -459,6 +464,10 @@ pub fn build_app(backend: &Backend, scenario: &Scenario) -> App {
     if scenario.stopped == Some(false) {
         backend.player.send(PlayerCommand::Stop);
     }
+    let mut options = options;
+    if let Some(scene) = scenario.soundcloud {
+        soundcloud::options(scene, &mut options);
+    }
     let (mut app, jobs) = App::new(backend.clone(), &options);
     app.settle_blocking(jobs);
     // `iced_test` draws at 2x: fetch covers for that scale, as a 200 % window would.
@@ -467,6 +476,9 @@ pub fn build_app(backend: &Backend, scenario: &Scenario) -> App {
         run(&mut app, Message::Ui(Event::Command(PlayerCommand::Stop)));
     }
     app.settings_section = scenario.section;
+    if let Some(scene) = scenario.soundcloud {
+        soundcloud::enter(&mut app, scene);
+    }
     app.dispatch(Event::Position(backend.player.position()));
     if let Some(q) = &scenario.search {
         run(&mut app, Message::Ui(Event::Go(Route::Search(q.clone()))));

@@ -6,6 +6,7 @@
 //! 403 makes the client look the id up again once. Nothing here logs an address, an id or a
 //! response body; errors are fixed texts (`soundcloud-full` criteria 4 and 6).
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
@@ -91,6 +92,9 @@ pub enum ClientError {
     /// is no longer sent.
     #[error("SoundCloud ended this sign-in")]
     SessionEnded,
+    /// The user switched SoundCloud off: no request is made.
+    #[error("SoundCloud is switched off")]
+    Off,
 }
 
 impl From<ScHttpError> for ClientError {
@@ -117,6 +121,8 @@ pub struct ScClient {
     records: TrackRecords,
     /// The session token of the signed-in account, sent to the API host only.
     auth: Auth,
+    /// Cleared when the user switches SoundCloud off: every later request fails at once.
+    enabled: AtomicBool,
 }
 
 impl std::fmt::Debug for ScClient {
@@ -144,7 +150,20 @@ impl ScClient {
             blocked_until: Mutex::new(None),
             records: TrackRecords::default(),
             auth: Auth::default(),
+            enabled: AtomicBool::new(true),
         }
+    }
+
+    /// Switch the client on or off. While off, every request fails with [`ClientError::Off`]
+    /// before anything is sent (ADR 0004, opt-in rule 6: requests stop at once).
+    pub fn set_enabled(&self, on: bool) {
+        self.enabled.store(on, Ordering::SeqCst);
+    }
+
+    /// Whether requests may be sent.
+    #[must_use]
+    pub fn is_enabled(&self) -> bool {
+        self.enabled.load(Ordering::SeqCst)
     }
 
     /// The session token slot. The account sets it after a sign-in and clears it on sign-out.
@@ -283,6 +302,9 @@ impl ScClient {
         let mut retries = self.pacing.retry_delays.iter();
         loop {
             self.check_blocked()?;
+            if !self.is_enabled() {
+                return Err(ClientError::Off);
+            }
             if let Some(last) = *gate {
                 tokio::time::sleep_until((last + self.pacing.min_gap).into()).await;
             }

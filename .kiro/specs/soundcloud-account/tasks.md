@@ -1,6 +1,6 @@
 ## Tasks
 
-- [ ] 1. Sign-in, account state and sign-out (PR 1)
+- [x] 1. Sign-in, account state and sign-out (PR 1)
   - Crate and files: `nemo-signin`, `nemo-core/src/source_account.rs`, `nemo-soundcloud` (`account.rs`, `auth.rs`, `signin.rs`, `wipe.rs`, `client.rs`, `http.rs`), `nemo-app` (`soundcloud.rs`, `backend.rs`, `paths.rs`).
   - Does: criteria 1 to 6, 17.
   - _Requirements: 1, 2, 3, 4, 5, 6, 17_
@@ -8,8 +8,9 @@
   - Checks: the tests named in design.md; `cargo fmt`, clippy and tests of `nemo-signin`, `nemo-core`, `nemo-soundcloud`, `nemo-app`.
   - Steering: `product.md` Scope line for `soundcloud` (labelled).
 
-- [ ] 2. Settings row, account card, setup Sources step (PR 2)
+- [x] 2. Settings row, account card, setup Sources step (PR 2)
   - Crate and files: `nemo-ui` (settings, setup, copy), `nemo-app` (bridge).
+  - Does: criteria 7 to 10. The switch is stored by `nemo-app` (`Settings.opt_ins`) and read by the UI through `UiSettings.soundcloud`; turning it on shows `Restart now` because the services start with the app; turning it off stops the client at once (`ScClient::set_enabled`).
   - _Requirements: 7, 8, 9, 10_
   - Depends on: 1
   - Steering: `design.md` setup-flow line and a SoundCloud screens section (labelled).

@@ -10,11 +10,13 @@ use nemo_core::player::PlayerEvent;
 use nemo_core::services::PlayerControl;
 use nemo_ui::collection_sort::{CollectionSort, MAX_REMEMBERED};
 use nemo_ui::scheme::{AccentIntensity, BaseMode, CornerStyle, ThemeChoice};
+use nemo_ui::settings::OptInState;
 use nemo_ui::{
     AnimatedCoverSettings, GlassTier as UiGlass, NowPlayingStyle, UiOptions, UiSettings,
 };
 
-use crate::config::{GlassTier, Settings, StoredDevice};
+use crate::config::{GlassTier, OptInChoice, Settings, StoredDevice};
+use crate::soundcloud::ClientSlot;
 
 /// Find the menu entry whose label matches; unknown or empty text gives the default.
 fn by_label<T: Copy + Default>(all: &[T], label: fn(T) -> &'static str, stored: &str) -> T {
@@ -66,7 +68,23 @@ pub fn to_ui(s: &Settings) -> UiSettings {
             .filter(|(_, v)| *v != CollectionSort::Default)
             .take(MAX_REMEMBERED)
             .collect(),
+        soundcloud: s
+            .opt_ins
+            .get(SOUNDCLOUD_ID)
+            .map(|c| OptInState {
+                enabled: c.enabled,
+                confirmed_version: c.confirmed_version,
+            })
+            .unwrap_or_default(),
     }
+}
+
+/// The id of the SoundCloud row in `Settings.opt_ins`.
+const SOUNDCLOUD_ID: &str = nemo_soundcloud::OPT_IN.id;
+
+/// Whether the SoundCloud row is on and confirmed for the current notice.
+fn soundcloud_open(ui: &UiSettings) -> bool {
+    ui.soundcloud.is_open(nemo_soundcloud::OPT_IN.version)
 }
 
 /// Fold a UI change into the stored settings. Fields the UI does not own stay as they are.
@@ -101,6 +119,16 @@ pub fn apply_ui(s: &mut Settings, ui: &UiSettings) {
         .iter()
         .map(|(k, v)| (k.clone(), v.label().to_owned()))
         .collect();
+    // A row the user never touched has no entry, so the feature's default holds.
+    if ui.soundcloud != OptInState::default() || s.opt_ins.contains_key(SOUNDCLOUD_ID) {
+        s.opt_ins.insert(
+            SOUNDCLOUD_ID.to_owned(),
+            OptInChoice {
+                enabled: ui.soundcloud.enabled,
+                confirmed_version: ui.soundcloud.confirmed_version,
+            },
+        );
+    }
 }
 
 /// An update to be saved to settings.
@@ -142,7 +170,11 @@ pub fn apply_output_choice(settings: &mut Settings, status: &OutputStatus) -> bo
 /// Start the saver thread and build the UI options. The callback only sends on a channel, so it
 /// never blocks the UI thread. The returned sender also feeds the output watcher, which starts
 /// with the player (see `backend::Startup`).
-pub fn options(settings: Settings, root: PathBuf) -> (UiOptions, Sender<SettingsMsg>) {
+pub fn options(
+    settings: Settings,
+    root: PathBuf,
+    soundcloud: ClientSlot,
+) -> (UiOptions, Sender<SettingsMsg>) {
     let initial = to_ui(&settings);
     let folders = settings
         .music_folders
@@ -152,6 +184,8 @@ pub fn options(settings: Settings, root: PathBuf) -> (UiOptions, Sender<Settings
     let saver = spawn_saver(settings, root);
     let tx = Mutex::new(saver.clone());
     let on_settings: Arc<dyn Fn(UiSettings) + Send + Sync> = Arc::new(move |ui| {
+        // Turning SoundCloud off stops its requests at once, not at the next start.
+        soundcloud.apply(soundcloud_open(&ui));
         if let Ok(tx) = tx.lock() {
             // The saver only stops when the app exits; a failed send then is harmless.
             let _ = tx.send(SettingsMsg::Ui(ui));
@@ -165,6 +199,7 @@ pub fn options(settings: Settings, root: PathBuf) -> (UiOptions, Sender<Settings
         // The folder picker is set by `main` once the saver and the library slot exist.
         on_add_music_folder: None,
         on_restart: Some(crate::restart::handler(saver.clone())),
+        soundcloud_info: Some(nemo_soundcloud::OPT_IN),
         #[cfg(windows)]
         on_window_ready: Some(crate::blur::handler()),
         maximized: true,
@@ -296,6 +331,49 @@ mod tests {
     }
 
     #[test]
+    fn the_soundcloud_row_round_trips_and_an_untouched_row_leaves_no_entry() {
+        let mut stored = Settings::default();
+        assert_eq!(to_ui(&stored).soundcloud, OptInState::default());
+        let untouched = to_ui(&stored);
+        apply_ui(&mut stored, &untouched);
+        assert!(stored.opt_ins.is_empty(), "never touched: no entry");
+        let ui = UiSettings {
+            soundcloud: OptInState {
+                enabled: true,
+                confirmed_version: nemo_soundcloud::OPT_IN.version,
+            },
+            ..to_ui(&stored)
+        };
+        apply_ui(&mut stored, &ui);
+        assert_eq!(
+            stored.opt_ins.get("soundcloud"),
+            Some(&OptInChoice {
+                enabled: true,
+                confirmed_version: nemo_soundcloud::OPT_IN.version
+            })
+        );
+        assert_eq!(to_ui(&stored), ui);
+        assert!(crate::opt_in_gate::is_open(
+            &stored.opt_ins,
+            &nemo_soundcloud::OPT_IN
+        ));
+        // Off keeps the confirmed version, so turning it on again needs no new panel.
+        let off = UiSettings {
+            soundcloud: OptInState {
+                enabled: false,
+                ..ui.soundcloud
+            },
+            ..ui
+        };
+        apply_ui(&mut stored, &off);
+        assert!(!crate::opt_in_gate::is_open(
+            &stored.opt_ins,
+            &nemo_soundcloud::OPT_IN
+        ));
+        assert_eq!(to_ui(&stored), off);
+    }
+
+    #[test]
     fn now_playing_style_and_canvas_switch_round_trip() {
         let mut s = Settings::default();
         assert_eq!(to_ui(&s).now_playing_style, NowPlayingStyle::M3Expressive);
@@ -383,9 +461,9 @@ mod tests {
         assert!(fresh.setup_completed && !to_ui(&fresh).needs_setup());
         // `options` opens the flow for a new user only.
         let root = std::env::temp_dir();
-        let (opts, _saver) = options(Settings::default(), root.clone());
+        let (opts, _saver) = options(Settings::default(), root.clone(), ClientSlot::default());
         assert!(opts.start_setup);
-        let (opts, _saver) = options(s, root);
+        let (opts, _saver) = options(s, root, ClientSlot::default());
         assert!(!opts.start_setup);
     }
 

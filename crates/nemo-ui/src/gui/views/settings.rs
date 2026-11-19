@@ -17,6 +17,7 @@ mod appearance;
 pub(super) mod control;
 mod info;
 mod playback;
+mod soundcloud;
 
 use control::group;
 use info::{about, privacy};
@@ -76,6 +77,8 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
         SettingsSection::AudioOutput => group(audio_output(app, right_w), right_w),
         SettingsSection::Lyrics => group(lyrics(app, right_w), right_w),
         SettingsSection::Library => group(library(app, right_w), right_w),
+        // The SoundCloud switch and account are their own cards.
+        SettingsSection::SoundCloud => soundcloud::section(app, right_w),
         // Appearance is its own cards under a live preview.
         SettingsSection::Appearance => appearance::page(app, right_w),
         SettingsSection::Privacy => group(privacy(right_w), right_w),

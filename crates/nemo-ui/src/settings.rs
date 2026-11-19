@@ -55,6 +55,25 @@ pub struct AnimatedCoverSettings {
     pub spotify_canvas: bool,
 }
 
+/// The stored answer of one opt-in row: the switch and the version of its notice the user
+/// confirmed (ADR 0004, "Opt-in settings pattern"). Off and never confirmed by default.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct OptInState {
+    /// The switch.
+    pub enabled: bool,
+    /// The `OptInInfo.version` the user confirmed in the panel; 0 when never confirmed.
+    pub confirmed_version: u32,
+}
+
+impl OptInState {
+    /// `true` when the switch is on and the notice of `version` was confirmed: the only state in
+    /// which the app may build the service.
+    #[must_use]
+    pub const fn is_open(self, version: u32) -> bool {
+        self.enabled && self.confirmed_version == version
+    }
+}
+
 /// Settings the UI owns a view of.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UiSettings {
@@ -100,6 +119,8 @@ pub struct UiSettings {
     /// The order the user picked per album or playlist page, by [`crate::collection_sort`] page
     /// key (`album:<id>`, `playlist:<id>`). Pages in their default order have no entry.
     pub collection_sorts: BTreeMap<String, CollectionSort>,
+    /// The SoundCloud opt-in row (owner, 2026-11-19; soundcloud-account). Off by default.
+    pub soundcloud: OptInState,
 }
 
 impl Default for UiSettings {
@@ -125,6 +146,7 @@ impl Default for UiSettings {
             window_glass: false,
             window_glass_opacity: OPACITY_DEFAULT,
             collection_sorts: BTreeMap::new(),
+            soundcloud: OptInState::default(),
         }
     }
 }
@@ -162,6 +184,8 @@ pub enum SettingChange {
     WindowGlass(bool),
     /// Opacity of the see-through window in percent (limited to 40 to 95).
     WindowGlassOpacity(u8),
+    /// The SoundCloud opt-in row: the switch and the confirmed notice version.
+    SoundCloud(OptInState),
 }
 
 impl UiSettings {
@@ -183,6 +207,7 @@ impl UiSettings {
             SettingChange::SongHeartbeat(v) => self.song_heartbeat = v,
             SettingChange::WindowGlass(v) => self.window_glass = v,
             SettingChange::WindowGlassOpacity(v) => self.window_glass_opacity = clamp_opacity(v),
+            SettingChange::SoundCloud(v) => self.soundcloud = v,
         }
     }
 
@@ -283,6 +308,28 @@ mod tests {
         assert!(s.window_glass(false).needs_restart());
         s.apply(SettingChange::ReduceTransparency(true));
         assert!(!s.window_glass(true).is_clear(), "reduce transparency wins");
+    }
+
+    #[test]
+    fn soundcloud_starts_off_and_is_open_only_with_the_confirmed_version() {
+        let mut s = UiSettings::default();
+        assert_eq!(s.soundcloud, OptInState::default());
+        assert!(!s.soundcloud.is_open(2));
+        s.apply(SettingChange::SoundCloud(OptInState {
+            enabled: true,
+            confirmed_version: 1,
+        }));
+        assert!(!s.soundcloud.is_open(2), "an old notice is not enough");
+        s.apply(SettingChange::SoundCloud(OptInState {
+            enabled: true,
+            confirmed_version: 2,
+        }));
+        assert!(s.soundcloud.is_open(2));
+        s.apply(SettingChange::SoundCloud(OptInState {
+            enabled: false,
+            confirmed_version: 2,
+        }));
+        assert!(!s.soundcloud.is_open(2), "off is off");
     }
 
     #[test]

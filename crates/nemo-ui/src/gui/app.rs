@@ -55,6 +55,7 @@ mod setup;
 mod skeleton;
 #[cfg(test)]
 mod skeleton_tests;
+mod soundcloud;
 mod subscribe;
 mod surfaces;
 mod sync;
@@ -69,7 +70,7 @@ pub use message::{AccountBundle, CoverBuilt, ExploreMsg, Job, Message, RefreshDa
 pub use micro::{ART_FADE_MS, Micro, NAV_ENTRIES};
 pub use model::{
     AccountMsg, AccountUi, CompactTab, DetailData, DetailKey, DetailKind, DetailState, HomeFilter,
-    HomePhase, HomeState, LibFilter, ListSource, NpTab, SettingsSection,
+    HomePhase, HomeState, LibFilter, ListSource, NpTab, ScMsg, ScUi, SettingsSection,
 };
 pub use option::{
     AccountLibrary, CreateMsg, FolderPicker, PickFuture, RestartHandler, SleepState, UiHooks,
@@ -130,6 +131,10 @@ pub struct App {
     pub(crate) home_filter: HomeFilter,
     pub(crate) lib_filter: Option<LibFilter>,
     pub(crate) account: AccountUi,
+    /// The SoundCloud page and card (soundcloud-account spec).
+    pub(crate) sc: ScUi,
+    /// What the SoundCloud switch shows, from the app; `None` when the app has no SoundCloud.
+    pub(crate) soundcloud_info: Option<nemo_core::opt_in::OptInInfo>,
     /// Likes the user changed in this session (over what the Liked songs shelf says).
     likes: HashMap<TrackId, bool>,
     last_line: Option<usize>,
@@ -288,6 +293,8 @@ impl App {
             home_filter: HomeFilter::default(),
             lib_filter: None,
             account: AccountUi::default(),
+            sc: ScUi::default(),
+            soundcloud_info: options.soundcloud_info,
             likes: HashMap::new(),
             last_line: None,
             prev_line: None,

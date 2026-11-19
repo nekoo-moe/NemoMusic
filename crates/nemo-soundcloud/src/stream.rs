@@ -110,6 +110,7 @@ fn stream_error(e: ClientError) -> StreamError {
         ClientError::SessionEnded => {
             StreamError::Network("Sign in to SoundCloud again, then play this".to_owned())
         }
+        ClientError::Off => StreamError::Network("SoundCloud is switched off".to_owned()),
     }
 }
 

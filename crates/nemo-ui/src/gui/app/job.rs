@@ -2,16 +2,19 @@
 
 use super::art::device_px;
 use super::message::{AccountBundle, CoverBuilt, ExploreMsg, Job, Message, RefreshData};
-use super::model::{AccountMsg, DetailData, DetailKind};
+use super::model::{AccountMsg, DetailData, DetailKind, ScMsg};
 use crate::cover;
 use crate::home;
 use crate::refresh::{Start, Step};
 use crate::route::Route;
 use crate::search::DEBOUNCE_MS;
 use crate::state::{Event, ResolveKind};
+use nemo_core::account::SignOutReport;
 use nemo_core::catalog::CatalogError;
 use nemo_core::lyrics::LyricsQuery;
+use nemo_core::secret::Secret;
 use nemo_core::services::Backend;
+use nemo_core::source_account::{SourceAccountError, SourceAccountInfo};
 use nemo_core::track::{Artwork, Track};
 use std::sync::Arc;
 use std::thread;
@@ -180,6 +183,11 @@ pub async fn run_job(job: Job, backend: Backend) -> Message {
             backend.account.sign_in_with_cookie(cookie).await,
         )),
         Job::SignOut => Message::Account(AccountMsg::SignedOut(backend.account.sign_out().await)),
+        Job::ScSignIn => Message::Sc(ScMsg::SignedIn(sc_sign_in(&backend, None).await)),
+        Job::ScSignInToken(token) => {
+            Message::Sc(ScMsg::SignedIn(sc_sign_in(&backend, Some(token)).await))
+        }
+        Job::ScSignOut => Message::Sc(ScMsg::SignedOut(sc_sign_out(&backend).await)),
         Job::Rate { track, liked } => {
             let result = match &track.video_id {
                 Some(video) => backend
@@ -346,5 +354,32 @@ pub(super) async fn resolve(backend: &Backend, kind: ResolveKind, track: &Track)
                 Err(_) => fallback(query),
             }
         }
+    }
+}
+
+/// The error of a SoundCloud account call when the app built no SoundCloud account.
+fn no_sc_account() -> SourceAccountError {
+    SourceAccountError::Unavailable("SoundCloud is not running".to_owned())
+}
+
+/// Sign in to SoundCloud through the window, or with a pasted `token`.
+async fn sc_sign_in(
+    backend: &Backend,
+    token: Option<Secret<String>>,
+) -> Result<SourceAccountInfo, SourceAccountError> {
+    let Some(account) = &backend.soundcloud_account else {
+        return Err(no_sc_account());
+    };
+    match token {
+        Some(token) => account.sign_in_with_token(token).await,
+        None => account.sign_in().await,
+    }
+}
+
+/// Sign out of SoundCloud.
+async fn sc_sign_out(backend: &Backend) -> Result<SignOutReport, SourceAccountError> {
+    match &backend.soundcloud_account {
+        Some(account) => account.sign_out().await,
+        None => Err(no_sc_account()),
     }
 }

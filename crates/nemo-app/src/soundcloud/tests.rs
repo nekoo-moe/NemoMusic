@@ -211,3 +211,47 @@ fn the_two_sign_in_windows_use_their_own_profile_folders() {
     let paths = AppPaths::under(std::path::Path::new("C:/data/NemoMusic"));
     assert_ne!(paths.webview, paths.webview_soundcloud);
 }
+
+#[tokio::test]
+async fn switching_off_in_settings_stops_the_client_at_once_and_on_again_restores_it() {
+    use nemo_soundcloud::ClientError;
+
+    let (parts, host) = open_parts();
+    let slot = ClientSlot::default();
+    slot.apply(false); // Nothing is built yet: nothing happens.
+    slot.set(Arc::clone(&parts.client));
+    tokio::time::sleep(Duration::from_millis(100)).await; // The client id look-up of `build`.
+    slot.apply(false);
+    let before = host.urls.lock().expect("lock").len();
+    assert_eq!(
+        parts.client.get("/search", &[]).await,
+        Err(ClientError::Off)
+    );
+    assert_eq!(
+        host.urls.lock().expect("lock").len(),
+        before,
+        "nothing was sent"
+    );
+    slot.apply(true);
+    assert!(parts.client.is_enabled());
+}
+
+#[test]
+fn the_wire_of_a_closed_gate_has_no_soundcloud_and_keeps_the_plain_opener() {
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+    let paths = AppPaths::under(&std::env::temp_dir().join("nemo-app-sc-closed"));
+    let files: Arc<dyn StreamOpener> = Arc::new(Named("files"));
+    let wired = wire(
+        &BTreeMap::new(),
+        rt.handle(),
+        None,
+        &paths,
+        Arc::clone(&files),
+        &ClientSlot::default(),
+    );
+    assert!(wired.catalog.is_none() && wired.account.is_none() && wired.resolver.is_none());
+    assert!(Arc::ptr_eq(&wired.opener, &files));
+}

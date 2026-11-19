@@ -5,6 +5,7 @@ use crate::route::Route;
 use nemo_core::account::{AccountError, AccountInfo, SignOutReport};
 use nemo_core::catalog::{AlbumDetail, ArtistDetail, BrowseId, PlaylistDetail, Shelf, ShelfItem};
 use nemo_core::secret::Secret;
+use nemo_core::source_account::{SourceAccountError, SourceAccountInfo};
 use std::hash::Hash;
 use std::sync::Arc;
 
@@ -297,6 +298,72 @@ pub enum AccountMsg {
     SignedOut(Result<SignOutReport, AccountError>),
 }
 
+/// What the SoundCloud page remembers (soundcloud-account spec). The token lives only in a
+/// [`Secret`]: its `Debug` prints `[redacted]`, it is never logged, and it is emptied when it is
+/// sent.
+#[derive(Debug, Clone)]
+pub struct ScUi {
+    /// The opt-in panel ("Turn on", "Cancel") is open. The switch is still off.
+    pub confirming: bool,
+    /// The masked token field is shown.
+    pub paste: bool,
+    /// What was typed in the masked field.
+    pub token: Secret<String>,
+    /// A sign-in or sign-out call is running.
+    pub busy: bool,
+    /// Plain-words error of the last call.
+    pub error: Option<String>,
+    /// Sign out waits for the confirmation.
+    pub confirm_sign_out: bool,
+    /// Result line of the last sign-out.
+    pub notice: Option<String>,
+}
+
+impl Default for ScUi {
+    fn default() -> Self {
+        Self {
+            confirming: false,
+            paste: false,
+            token: Secret::new(String::new()),
+            busy: false,
+            error: None,
+            confirm_sign_out: false,
+            notice: None,
+        }
+    }
+}
+
+/// Messages of the SoundCloud page and of the SoundCloud card of the setup flow.
+#[derive(Debug, Clone)]
+pub enum ScMsg {
+    /// The switch was turned on: open the panel. The feature stays off.
+    Ask,
+    /// "Cancel" in the panel.
+    Cancel,
+    /// "Turn on" in the panel: store the choice and the confirmed notice version.
+    TurnOn,
+    /// The switch was turned off: one click, no panel.
+    TurnOff,
+    /// Press "Sign in with SoundCloud".
+    SignIn,
+    /// Show or hide the masked token field.
+    PasteMode(bool),
+    /// The masked field changed.
+    PasteInput(Secret<String>),
+    /// Press "Check token".
+    PasteSubmit,
+    /// Press "Sign out" (asks first).
+    AskSignOut,
+    /// Leave the confirmation.
+    CancelSignOut,
+    /// Confirm sign out.
+    SignOut,
+    /// A sign-in call finished.
+    SignedIn(Result<SourceAccountInfo, SourceAccountError>),
+    /// A sign-out call finished.
+    SignedOut(Result<SignOutReport, SourceAccountError>),
+}
+
 /// Sections of the Settings screen.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SettingsSection {
@@ -309,6 +376,8 @@ pub enum SettingsSection {
     Lyrics,
     /// Library folders.
     Library,
+    /// The SoundCloud switch and account.
+    SoundCloud,
     /// Glass, motion, transparency.
     Appearance,
     /// Egress list.
@@ -319,11 +388,12 @@ pub enum SettingsSection {
 
 impl SettingsSection {
     /// All sections in menu order.
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 8] = [
         Self::Playback,
         Self::AudioOutput,
         Self::Lyrics,
         Self::Library,
+        Self::SoundCloud,
         Self::Appearance,
         Self::Privacy,
         Self::About,
@@ -337,6 +407,7 @@ impl SettingsSection {
             Self::AudioOutput => "Audio output",
             Self::Lyrics => "Lyrics",
             Self::Library => "Library",
+            Self::SoundCloud => "SoundCloud",
             Self::Appearance => "Appearance",
             Self::Privacy => "Privacy",
             Self::About => "About",

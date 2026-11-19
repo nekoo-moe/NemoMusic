@@ -9,6 +9,7 @@ use crate::settings::UiSettings;
 use crate::theme::layout as theme_layout;
 use crate::window_glass::WindowLook;
 use nemo_core::catalog::{AlbumSummary, ArtistSummary, PlaylistSummary};
+use nemo_core::opt_in::OptInInfo;
 use nemo_core::track::{Track, TrackId};
 use std::sync::Arc;
 use std::time::Instant;
@@ -153,6 +154,10 @@ pub struct UiOptions {
     pub on_restart: Option<RestartHandler>,
     /// Called once with the see-through window (see [`WindowHandler`]).
     pub on_window_ready: Option<WindowHandler>,
+    /// What the SoundCloud switch sends, to which hosts, and its risk (soundcloud-account spec).
+    /// The app fills it from the SoundCloud crate, so the UI never knows the service by name.
+    /// The SoundCloud page and the setup card offer no switch when this is `None`.
+    pub soundcloud_info: Option<OptInInfo>,
 }
 
 impl std::fmt::Debug for UiOptions {
@@ -171,6 +176,7 @@ impl std::fmt::Debug for UiOptions {
             .field("on_add_music_folder", &self.on_add_music_folder.is_some())
             .field("on_restart", &self.on_restart.is_some())
             .field("on_window_ready", &self.on_window_ready.is_some())
+            .field("soundcloud_info", &self.soundcloud_info.map(|i| i.version))
             .finish()
     }
 }
@@ -191,6 +197,7 @@ impl Default for UiOptions {
             on_add_music_folder: None,
             on_restart: None,
             on_window_ready: None,
+            soundcloud_info: None,
         }
     }
 }

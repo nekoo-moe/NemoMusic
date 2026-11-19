@@ -73,6 +73,7 @@ fn to_catalog(e: ClientError) -> CatalogError {
         ClientError::SessionEnded => {
             CatalogError::Unavailable("Sign in to SoundCloud again".to_owned())
         }
+        ClientError::Off => CatalogError::Unavailable("SoundCloud is switched off".to_owned()),
         ClientError::NoClientId => {
             CatalogError::Unavailable("SoundCloud changed its web app".to_owned())
         }

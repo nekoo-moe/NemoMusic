@@ -3,7 +3,7 @@
 //! made, no host contacted and no SoundCloud entry shown.
 
 use std::collections::BTreeMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, PoisonError};
 
 use nemo_core::catalog::Catalog;
 use nemo_core::secret_store::SecretStore;
@@ -19,6 +19,29 @@ use tokio::runtime::Handle;
 use crate::config::OptInChoice;
 use crate::opt_in_gate::build_if_open;
 use crate::paths::AppPaths;
+
+/// Where the running SoundCloud client is kept, so the settings can switch it off at once (ADR
+/// 0004, opt-in rule 6). Shared between the settings callback and the service start-up.
+#[derive(Clone, Default)]
+pub struct ClientSlot(Arc<Mutex<Option<Arc<ScClient>>>>);
+
+impl ClientSlot {
+    fn set(&self, client: Arc<ScClient>) {
+        *self.0.lock().unwrap_or_else(PoisonError::into_inner) = Some(client);
+    }
+
+    /// Switch the client on or off, if it was built. Nothing happens before the services start.
+    pub fn apply(&self, open: bool) {
+        let client = self
+            .0
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
+        if let Some(client) = client {
+            client.set_enabled(open);
+        }
+    }
+}
 
 /// The services of one SoundCloud client.
 pub struct SoundcloudParts {
@@ -87,6 +110,7 @@ pub fn wire(
     store: Option<Arc<dyn SecretStore>>,
     paths: &AppPaths,
     files: Arc<dyn StreamOpener>,
+    slot: &ClientSlot,
 ) -> Wired {
     let Some(parts) = build(choices, handle, || real_http(handle)) else {
         return Wired {
@@ -96,6 +120,7 @@ pub fn wire(
             opener: files,
         };
     };
+    slot.set(Arc::clone(&parts.client));
     Wired {
         account: build_account(&parts, store, paths, handle),
         opener: Arc::new(RoutingOpener::new(files, Arc::new(parts.opener.clone()))),

@@ -33,6 +33,9 @@ impl App {
     /// then close this window through iced, which releases the audio device. When the new copy
     /// did not start, say so in one sentence and keep running. Nothing else restarts the app.
     pub(super) fn restart(&mut self) -> Task<Message> {
+        if self.sc_restart_offered() && !self.restart_offered() {
+            return self.sc_restart();
+        }
         let Some(start) = self.on_restart.clone().filter(|_| self.restart_offered()) else {
             return Task::none();
         };
