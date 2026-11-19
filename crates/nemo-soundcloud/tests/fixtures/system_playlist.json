@@ -1,0 +1,38 @@
+{
+ "kind": "system-playlist",
+ "id": "soundcloud:system-playlists:trending-by-genre:trap",
+ "urn": "soundcloud:system-playlists:trending-by-genre:trap",
+ "permalink": "trending-by-genre:trap",
+ "title": "Fixture Trap",
+ "short_title": "Fixture Trap",
+ "description": "Trending tracks in a fixture genre",
+ "short_description": "Trending",
+ "calculated_artwork_url": "https://i1.sndcdn.com/artworks-000000000023-fixtur-large.jpg",
+ "artwork_url": null,
+ "is_public": true,
+ "user": {
+  "id": 7200005,
+  "username": "Fixture Artist 2",
+  "avatar_url": "https://i1.sndcdn.com/avatars-000000000002-fixtur-large.jpg"
+ },
+ "tracks": [
+  {
+   "id": 7200020,
+   "kind": "track",
+   "monetization_model": "NOT_APPLICABLE",
+   "policy": "ALLOW"
+  },
+  {
+   "id": 7200021,
+   "kind": "track",
+   "monetization_model": "NOT_APPLICABLE",
+   "policy": "SNIP"
+  },
+  {
+   "id": 7200022,
+   "kind": "track",
+   "monetization_model": "NOT_APPLICABLE",
+   "policy": "ALLOW"
+  }
+ ]
+}

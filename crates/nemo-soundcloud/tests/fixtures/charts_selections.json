@@ -1,0 +1,92 @@
+{
+ "next_href": null,
+ "query_urn": null,
+ "collection": [
+  {
+   "kind": "selection",
+   "urn": "soundcloud:selections:music-charts-us",
+   "title": "Fixture Charts US",
+   "items": {
+    "collection": [
+     {
+      "kind": "playlist",
+      "id": 7200014,
+      "title": "Fixture Chart 14",
+      "artwork_url": "https://i1.sndcdn.com/artworks-0000000000014-fixtur-large.jpg",
+      "user": {
+       "id": 7200015,
+       "username": "Fixture Artist 7",
+       "avatar_url": "https://i1.sndcdn.com/avatars-000000000007-fixtur-large.jpg"
+      },
+      "is_album": false,
+      "set_type": "",
+      "release_date": null,
+      "display_date": "2023-11-01T08:43:25Z",
+      "track_count": 50
+     },
+     {
+      "kind": "playlist",
+      "id": 7200016,
+      "title": "Fixture Chart 16",
+      "artwork_url": "https://i1.sndcdn.com/artworks-0000000000016-fixtur-large.jpg",
+      "user": {
+       "id": 7200015,
+       "username": "Fixture Artist 7",
+       "avatar_url": "https://i1.sndcdn.com/avatars-000000000007-fixtur-large.jpg"
+      },
+      "is_album": false,
+      "set_type": "",
+      "release_date": null,
+      "display_date": "2023-10-28T13:35:11Z",
+      "track_count": 50
+     }
+    ],
+    "next_href": null,
+    "query_urn": null
+   }
+  },
+  {
+   "kind": "selection",
+   "urn": "soundcloud:selections:music-charts-uk",
+   "title": "Fixture Charts UK",
+   "items": {
+    "collection": [
+     {
+      "kind": "playlist",
+      "id": 7200017,
+      "title": "Fixture Chart 17",
+      "artwork_url": "https://i1.sndcdn.com/artworks-0000000000017-fixtur-large.jpg",
+      "user": {
+       "id": 7200018,
+       "username": "Fixture Artist 8",
+       "avatar_url": "https://i1.sndcdn.com/avatars-000000000008-fixtur-large.jpg"
+      },
+      "is_album": false,
+      "set_type": "",
+      "release_date": null,
+      "display_date": "2023-11-01T08:44:11Z",
+      "track_count": 50
+     },
+     {
+      "kind": "playlist",
+      "id": 7200019,
+      "title": "Fixture Chart 19",
+      "artwork_url": "https://i1.sndcdn.com/artworks-0000000000019-fixtur-large.jpg",
+      "user": {
+       "id": 7200018,
+       "username": "Fixture Artist 8",
+       "avatar_url": "https://i1.sndcdn.com/avatars-000000000008-fixtur-large.jpg"
+      },
+      "is_album": false,
+      "set_type": "",
+      "release_date": null,
+      "display_date": "2023-10-28T13:36:54Z",
+      "track_count": 50
+     }
+    ],
+    "next_href": null,
+    "query_urn": null
+   }
+  }
+ ]
+}

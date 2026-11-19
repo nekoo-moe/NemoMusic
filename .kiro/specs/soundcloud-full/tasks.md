@@ -84,22 +84,22 @@ Waves: 1 = native client and playback (agent H, PRs 1 to 3 of 2026-11-19); 2 to 
   - Checks: fixtures for each list; `design.md` checklist with screenshots; keyboard and reduced-motion checks.
   - Steering: `design.md` section (labelled).
 
-- [ ] 10. Home, mixes, charts and radio (next agent)
-  - Crate and files: `nemo-soundcloud` (`home.rs`), `nemo-ui`.
-  - Does: `mixed-selections`, `system-playlists/<urn>`, `charts` (the anonymous `charts` call answered 404 on 2026-11-19; read the web app's request first), related-track radio.
+- [x] 10. Home, mixes, charts and radio: the reads (the screens belong to the UI wave)
+  - Crate and files: `nemo-soundcloud` (`home.rs`, `model.rs`, hooks in `catalog.rs`).
+  - Does: `Catalog::home`, `home_feed`, `explore`; mixes, the chart and a radio as playlist pages (`sc:system:<tail>`, `sc:chart:trending:all-music`, `sc:station:<id>`); `SoundcloudCatalog::radio`. The anonymous `charts` call answered 404 for `kind=top` and for genres other than all music; `kind=trending` with all music works, so that is what is read.
   - _Requirements: 23, 28_
-  - Depends on: soundcloud-full#9
+  - Depends on: soundcloud-full#6
   - Wave: 3
-  - Checks: fixtures; screenshots.
+  - Checks: fixture tests (rows kept as titled, empty and unknown entries dropped, system playlists as playlists with their own page ids, order of a chart, one failing half of the charts page, ids filled in batches, page ids that cannot leave the path, errors plain), `tests/live.rs` against the real service (home 5 rows and 68 items, 30 chart songs, a mix of 49 tracks, a radio of 50 tracks, 11 requests).
   - Steering: none
 
-- [ ] 11. HLS seek by segment (needed first: a seek on a SoundCloud track fails today), then the `yt-dlp` fallback (next agent)
-  - Crate and files: `nemo-soundcloud` (`hls.rs`), `nemo-audio` (`stream_decoder.rs` only if the decoder must reopen at a segment), `nemo-ytm` (fallback resolver, task 8 and 9 of `soundcloud`).
-  - Does: criterion 17; restart the fetch at the segment of the target time (`EXTINF` sums) and let the decoder's accurate-seek skip trim the rest; the fallback resolves through `yt-dlp` only when the native lookup fails.
+- [x] 11. HLS seek by segment
+  - Crate and files: `nemo-core` (`services.rs`: `Reopen`, `ByteSource::reopener`), `nemo-audio` (`stream_decoder.rs`: `seek_by_reopening`, `RESTART_PRIME`), `nemo-soundcloud` (`hls.rs`: `HlsReopen`, `hls/playlist.rs`: `segment_at`).
+  - Does: criterion 17. A seek reopens the stream at the segment before the time, probes it and drops the audio up to the time; the container length stays the playlist's.
   - _Requirements: 17_
   - Depends on: soundcloud-full#6
   - Wave: 3
-  - Checks: loopback seek test; `bit_exact`; counting-allocator test.
+  - Checks: against a recorded eight-second AAC tone with steps (`tests/fixtures/hls-sweep/`) the samples after a seek equal an unbroken decode to 1e-4 at eleven times (segment starts, either side of boundaries, the start, near the end); only the target segment is fetched; a seek past the end ends the stream; the decoder test over a counter WAV checks the frame number after each seek; `bit_exact`, `rt_no_alloc`.
   - Steering: none
 
 - [ ] 12. Account writes (next agent)
@@ -109,6 +109,24 @@ Waves: 1 = native client and playback (agent H, PRs 1 to 3 of 2026-11-19); 2 to 
   - Depends on: soundcloud-full#9
   - Wave: 4
   - Checks: fake-HTTP tests for the request method, path and body; undo on refusal; needs the owner for a real-account check.
+  - Steering: none
+
+- [x] 13. Cold start tuning
+  - Crate and files: `nemo-soundcloud` (`opener.rs`, `stream.rs`, `client.rs`, `examples/latency.rs`), `nemo-app` (`soundcloud.rs`).
+  - Does: media connection opened ahead (HEAD of the media host root, once the client id is known and while a listener works, at most every 45 s), `http2` for both clients, playlists kept 150 s for replays (3 streams), one look-up per page at a time, hints wait for a listener's call, the next two entries warmed (the player's `WARM_AHEAD`).
+  - _Requirements: 14, 15_
+  - Depends on: soundcloud-full#6
+  - Wave: 3
+  - Checks: fake-HTTP tests for the order of calls (click before hint), the activity callback, one look-up for a click and a hint, the media connection opened once per window; loopback tests for the kept playlist and the slot limit; the latency example (cold and warm runs).
+  - Steering: `tech.md` SoundCloud row names `http2`.
+
+- [x] 14. `yt-dlp` fallback behind the native resolver
+  - Crate and files: `nemo-ytm` (`url_resolver.rs`, a `run_text` split in `ytdlp.rs`), `nemo-app` (`soundcloud/fallback.rs`, `backend.rs`), `nemo-soundcloud` (`stream.rs`: an unreadable web app is `Parse`).
+  - Does: criterion 33; on by default, because it only runs when the native lookup fails to read SoundCloud's answer and `yt-dlp` is installed (the YouTube side already installs it).
+  - _Requirements: 33_
+  - Depends on: soundcloud-full#6
+  - Wave: 3
+  - Checks: answer-parser tests over invented `yt-dlp` answers (ranking, file over HLS, encrypted and preview, foreign hosts, no secrets in errors), argument-list test (no shell text, address after `--`), chain tests (never asked after a refusal, a limit or a network failure; native error reported when both fail), the gate test with the chain wired.
   - Steering: none
 
 ## Definition of Done

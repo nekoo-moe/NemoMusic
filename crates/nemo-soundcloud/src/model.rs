@@ -94,6 +94,35 @@ pub struct ScUser {
     pub description: Option<String>,
 }
 
+/// A system playlist: a mix SoundCloud makes (trending by genre, personalised mixes). Its tracks
+/// come as ids and are filled by `/tracks?ids=`.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ScSystemPlaylist {
+    /// `soundcloud:system-playlists:<tail>`.
+    pub urn: String,
+    pub title: Option<String>,
+    pub artwork_url: Option<String>,
+    pub calculated_artwork_url: Option<String>,
+    pub user: Option<ScUserRef>,
+    #[serde(default)]
+    pub tracks: Vec<Value>,
+}
+
+/// A titled row of the home page or of the chart page.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ScSelection {
+    pub title: Option<String>,
+    #[serde(default)]
+    pub items: ScSelectionItems,
+}
+
+/// The entries of a selection, as raw values (read one by one).
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct ScSelectionItems {
+    #[serde(default)]
+    pub collection: Vec<Value>,
+}
+
 /// One item of a list.
 #[derive(Debug, Clone)]
 pub enum Item {

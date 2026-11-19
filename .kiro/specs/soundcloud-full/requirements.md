@@ -35,7 +35,7 @@ Playback
 14. WHEN the track's transcodings are already known (from a search, page or list) and the connection is warm, THE SYSTEM SHALL start audio within 0.5 s of the click. The stages (stream lookup, playlist, first segment, decode) are measured by an `#[ignore]` example and reported, not promised on every network.
 15. WHEN a SoundCloud track plays and the queue has a next SoundCloud track, THE SYSTEM SHALL look up that track's stream and fetch its first segment ahead of time, one track ahead and no further.
 16. WHEN a stream address stops working (HTTP 403 or 410), THE SYSTEM SHALL look it up again once, then show the plain reason. Addresses are kept in memory only until their signed expiry.
-17. WHEN the chosen stream is HLS, THE SYSTEM SHALL play it through the same output path and support seeking by segment (wave 3). Until then THE SYSTEM SHALL show the seek bar as not seekable for that track.
+17. WHEN the chosen stream is HLS, THE SYSTEM SHALL play it through the same output path and, WHEN the listener seeks, start at the segment that holds the time and drop the audio before it, fetching only the segments from there on.
 18. IF SoundCloud serves a track only encrypted (`cbc-encrypted-hls` or `ctr-encrypted-hls`), THEN THE SYSTEM SHALL say the track cannot play here and SHALL NOT try to bypass the protection.
 19. IF SoundCloud serves only a preview (policy `SNIP`, snipped transcodings), THEN THE SYSTEM SHALL mark it "Preview", play or skip only the preview and SHALL NOT look for another source of the full track.
 20. IF a track is private, removed, blocked in the region or fails to resolve, THEN THE SYSTEM SHALL show a plain reason on the track and go on to the next queue item. IF the network is down, THEN THE SYSTEM SHALL show an offline message on SoundCloud screens only.
@@ -50,8 +50,9 @@ Account library (signed in)
 25. WHEN the user likes or unlikes a track, THE SYSTEM SHALL change it on the account, show the new state at once and undo it with a plain message if SoundCloud refuses.
 26. WHEN the user follows or unfollows an artist, THE SYSTEM SHALL do the same.
 27. WHEN the user creates, renames, deletes or edits one of their own SoundCloud playlists, or adds or removes a track, THE SYSTEM SHALL write the change to the account and refresh that playlist.
-28. WHILE signed in, THE SYSTEM SHALL show the SoundCloud home (the mixes and selections SoundCloud offers) and the charts, fetched when the home opens.
+28. WHEN the SoundCloud home or its charts page opens, THE SYSTEM SHALL show the rows SoundCloud offers (selections and mixes; signed in it also holds the account's own) and the trending chart, fetched then and not in the background. A mix, a chart and a track's radio open as playlist pages.
 29. WHERE the user turned on "Add plays to my SoundCloud history" (off by default), THE SYSTEM SHALL add each SoundCloud track played to the account history once, and SHALL NOT send any other play or analytics event.
+33. IF the native lookup cannot read SoundCloud's answer (the web app changed), THEN THE SYSTEM SHALL ask `yt-dlp` once for the stream of that track, when `yt-dlp` is installed, over the same SoundCloud hosts and with no credential. THE SYSTEM SHALL NOT ask `yt-dlp` after a refusal, an encrypted-only or preview-only answer, a block, a rate limit or a network failure.
 
 Interface
 30. WHEN a user uses the keyboard only, THE SYSTEM SHALL reach search, results, pages, the sign-in button and the SoundCloud settings with a visible focus.

@@ -2,10 +2,11 @@
 //! blocks, so a stream is never decoded as a whole. Supports seeking by time.
 
 use std::io;
+use std::sync::Arc;
 use std::time::Duration;
 
 use nemo_core::audio::{AudioFormat, Codec};
-use nemo_core::services::ByteSource;
+use nemo_core::services::{ByteSource, Reopen};
 use symphonia::core::codecs::audio::AudioDecoder;
 use symphonia::core::errors::Error as SymphoniaError;
 use symphonia::core::formats::probe::Hint;
@@ -37,7 +38,16 @@ pub struct StreamDecoder {
     info: SourceInfo,
     /// Frames still to drop after an accurate seek landed before the requested time.
     skip_frames: u64,
+    /// How to open the stream again at a time, when its source cannot seek bytes (HLS).
+    reopen: Option<Arc<dyn Reopen>>,
+    /// The extension hint the stream was opened with, for the probe after a reopen.
+    extension: Option<String>,
 }
+
+/// Audio a decoder needs before its output is right after it starts in the middle of a stream
+/// (one AAC frame of overlap, an MP3 frame pair of bit reservoir). A seek by reopening starts
+/// this much earlier and drops it, so the first audible frame is the requested one.
+pub const RESTART_PRIME: Duration = Duration::from_millis(55);
 
 impl StreamDecoder {
     /// Probe the container and prepare the decoder. `extension` is a hint only (`"m4a"`).
@@ -50,6 +60,18 @@ impl StreamDecoder {
     pub fn open(source: Box<dyn ByteSource>, extension: Option<&str>) -> Result<Self, DecodeError> {
         // Asked before the source moves into the adapter.
         let duration_hint = source.duration_hint();
+        let reopen = source.reopener();
+        let mut opened = Self::probe(source, extension)?;
+        if let Some(hint) = duration_hint {
+            opened.info.duration = Some(hint);
+        }
+        opened.reopen = reopen;
+        opened.extension = extension.map(str::to_owned);
+        Ok(opened)
+    }
+
+    /// Probe `source` and build the reader and decoder.
+    fn probe(source: Box<dyn ByteSource>, extension: Option<&str>) -> Result<Self, DecodeError> {
         let mss = MediaSourceStream::new(
             Box::new(MediaAdapter::new(source)),
             MediaSourceStreamOptions::default(),
@@ -92,7 +114,7 @@ impl StreamDecoder {
         let info = SourceInfo {
             codec: codec_from_id(params.codec),
             format,
-            duration: duration_hint.or_else(|| track_duration(track, sample_rate)),
+            duration: track_duration(track, sample_rate),
         };
         let decoder = crate::codecs::make_decoder(params)?;
         Ok(Self {
@@ -102,6 +124,8 @@ impl StreamDecoder {
             decoder,
             info,
             skip_frames: 0,
+            reopen: None,
+            extension: None,
         })
     }
 
@@ -166,6 +190,9 @@ impl StreamDecoder {
     /// # Errors
     /// [`DecodeError`] when the container cannot seek there.
     pub fn seek(&mut self, to: Duration) -> Result<(), DecodeError> {
+        if let Some(reopen) = self.reopen.clone() {
+            return self.seek_by_reopening(reopen.as_ref(), to);
+        }
         let time = Time::try_from_nanos_u128(to.as_nanos()).unwrap_or(Time::MAX);
         let seeked = self.reader.seek(
             SeekMode::Accurate,
@@ -176,6 +203,34 @@ impl StreamDecoder {
         )?;
         self.decoder.reset();
         self.skip_frames = self.lead_in_frames(seeked.actual_ts, seeked.required_ts);
+        Ok(())
+    }
+
+    /// Seek a stream that cannot seek bytes: open it again at the unit before `to`, probe it,
+    /// and drop the audio up to `to`. The new unit starts [`RESTART_PRIME`] early, so the
+    /// decoder has its overlap before the first frame that is kept; at the very start of the
+    /// stream nothing is needed and the stream is opened from its beginning.
+    fn seek_by_reopening(&mut self, reopen: &dyn Reopen, to: Duration) -> Result<(), DecodeError> {
+        let (source, start) = reopen
+            .open_at(to.saturating_sub(RESTART_PRIME))
+            .map_err(DecodeError::Open)?;
+        let fresh = Self::probe(source, self.extension.as_deref())?;
+        if fresh.info.format.sample_rate != self.info.format.sample_rate
+            || fresh.info.format.channels != self.info.format.channels
+        {
+            return Err(DecodeError::UnsupportedLayout("format after a reopen"));
+        }
+        let rate = f64::from(self.info.format.sample_rate);
+        let lead = to.saturating_sub(start).as_secs_f64() * rate;
+        self.reader = fresh.reader;
+        self.decoder = fresh.decoder;
+        self.track_id = fresh.track_id;
+        self.time_base = fresh.time_base;
+        // Rounding to the nearest frame is the intent; the value is small and positive.
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        {
+            self.skip_frames = lead.round() as u64;
+        }
         Ok(())
     }
 

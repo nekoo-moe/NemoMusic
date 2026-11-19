@@ -14,11 +14,17 @@ use nemo_soundcloud::{
     AccountFiles, OPT_IN, ReqwestHttp, ScAccount, ScClient, ScHttp, ScStreamOpener, SessionCaches,
     SignInWindow, SoundcloudCatalog, streams,
 };
+use nemo_ytm::url_resolver::YtDlpUrlResolver;
+use nemo_ytm::ytdlp::YtDlpResolver;
 use tokio::runtime::Handle;
 
 use crate::config::OptInChoice;
 use crate::opt_in_gate::build_if_open;
 use crate::paths::AppPaths;
+
+mod fallback;
+
+pub use fallback::FallbackResolver;
 
 /// Where the running SoundCloud client is kept, so the settings can switch it off at once (ADR
 /// 0004, opt-in rule 6). Shared between the settings callback and the service start-up.
@@ -58,30 +64,40 @@ pub struct SoundcloudParts {
 }
 
 /// Build the services when the gate is open. `http` makes the HTTP layer; it is not called while
-/// the gate is closed. The client id is looked up in the background, so the first play does not
-/// wait for it.
+/// the gate is closed. The client id is looked up in the background, then the media client is
+/// built and the media connection opened, so the first play does not wait for them.
+///
+/// `ytdlp` is asked only when the native lookup cannot read SoundCloud's answer; see
+/// [`FallbackResolver`].
 pub fn build(
     choices: &BTreeMap<String, OptInChoice>,
     handle: &Handle,
     http: impl FnOnce() -> Option<Arc<dyn ScHttp>>,
+    ytdlp: Option<Arc<dyn UrlResolver>>,
 ) -> Option<SoundcloudParts> {
     build_if_open(choices, &OPT_IN, || {
         let client = Arc::new(ScClient::new(http()?));
-        let warm = Arc::clone(&client);
-        handle.spawn(async move {
-            // A failure here only means the id is looked up at the first request instead.
-            let _ = warm.warm_up().await;
-        });
         let (resolver, opener) = streams(Arc::clone(&client), handle.clone());
         let caches = SessionCaches::new(Arc::clone(&client), resolver.clone());
-        let early = opener.clone();
-        // Builds the media client (loads the system certificates) before the first play.
-        handle.spawn_blocking(move || {
-            let _ = early.warm_up();
+        let (warm, early) = (Arc::clone(&client), opener.clone());
+        handle.spawn(async move {
+            // The client id first. Only once it is known, the media client is built (it loads
+            // the system certificates) and the connection to the media host is opened, so the
+            // first play pays for neither. A failure only means the first request does the work.
+            if warm.warm_up().await.is_ok() {
+                let _ = tokio::task::spawn_blocking(move || {
+                    let _ = early.warm_up();
+                    early.preconnect();
+                })
+                .await;
+            }
         });
         Some(SoundcloudParts {
             catalog: Arc::new(SoundcloudCatalog::new(Arc::clone(&client))),
-            resolver: Arc::new(resolver),
+            resolver: match ytdlp {
+                Some(ytdlp) => Arc::new(FallbackResolver::new(Arc::new(resolver), ytdlp)),
+                None => Arc::new(resolver),
+            },
             opener,
             client,
             caches,
@@ -90,48 +106,35 @@ pub fn build(
     .flatten()
 }
 
-/// What the app takes from SoundCloud, all absent while the gate is closed.
-pub struct Wired {
-    /// Search and pages, for `Backend.soundcloud`.
-    pub catalog: Option<Arc<dyn Catalog>>,
-    /// The account, for `Backend.soundcloud_account`.
-    pub account: Option<Arc<dyn SourceAccount>>,
-    /// Page address to stream, for the player.
-    pub resolver: Option<Arc<dyn UrlResolver>>,
-    /// The player's opener: `files` alone, or SoundCloud's HLS reader in front of it.
-    pub opener: Arc<dyn StreamOpener>,
-}
-
-/// Build everything of SoundCloud when the gate is open (see [`build`]), with the account when a
-/// credential `store` exists. `files` opens every stream that is not SoundCloud's HLS.
-pub fn wire(
+/// The SoundCloud services of the app: the real HTTP layer, and `yt-dlp` (the program the YouTube
+/// resolver uses) behind the native resolver. `None` while the gate is closed.
+pub fn for_app(
     choices: &BTreeMap<String, OptInChoice>,
     handle: &Handle,
+    ytdlp: &YtDlpResolver,
+) -> Option<SoundcloudParts> {
+    let page_ytdlp: Arc<dyn UrlResolver> = Arc::new(YtDlpUrlResolver::new(ytdlp.clone()));
+    build(choices, handle, || real_http(handle), Some(page_ytdlp))
+}
+
+/// The SoundCloud account (when SoundCloud runs): the client goes into `slot` so the settings can
+/// switch it off, and the account is built with the credential `store`. `None` without
+/// SoundCloud or without a credential store, so no sign-in is offered and no token is kept
+/// anywhere.
+pub fn account_for(
+    sc: Option<&SoundcloudParts>,
     store: Option<Arc<dyn SecretStore>>,
     paths: &AppPaths,
-    files: Arc<dyn StreamOpener>,
+    handle: &Handle,
     slot: &ClientSlot,
-) -> Wired {
-    let Some(parts) = build(choices, handle, || real_http(handle)) else {
-        return Wired {
-            catalog: None,
-            account: None,
-            resolver: None,
-            opener: files,
-        };
-    };
+) -> Option<Arc<dyn SourceAccount>> {
+    let parts = sc?;
     slot.set(Arc::clone(&parts.client));
-    Wired {
-        account: build_account(&parts, store, paths, handle),
-        opener: Arc::new(RoutingOpener::new(files, Arc::new(parts.opener.clone()))),
-        resolver: Some(Arc::clone(&parts.resolver)),
-        catalog: Some(parts.catalog),
-    }
+    build_account(parts, store, paths, handle)
 }
 
 /// The SoundCloud account: sign-in window, token in the credential `store`, sign-out that also
 /// drops the session's caches. The window is this same executable started again (`main`).
-/// `None` without a credential store, so no sign-in is offered and no token is kept anywhere.
 pub fn build_account(
     parts: &SoundcloudParts,
     store: Option<Arc<dyn SecretStore>>,
@@ -157,6 +160,14 @@ pub fn build_account(
     );
     account.register_wipe(Arc::new(parts.caches.clone()));
     Some(Arc::new(account))
+}
+
+/// The player's opener: SoundCloud HLS streams go to their reader, everything else to `files`.
+pub fn opener(files: Arc<dyn StreamOpener>, sc: Option<&SoundcloudParts>) -> Arc<dyn StreamOpener> {
+    match sc {
+        Some(parts) => Arc::new(RoutingOpener::new(files, Arc::new(parts.opener.clone()))),
+        None => files,
+    }
 }
 
 /// The real HTTP layer, or `None` (logged) when the TLS backend cannot start.

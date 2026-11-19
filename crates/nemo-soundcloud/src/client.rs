@@ -6,7 +6,7 @@
 //! 403 makes the client look the id up again once. Nothing here logs an address, an id or a
 //! response body; errors are fixed texts (`soundcloud-full` criteria 4 and 6).
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
@@ -119,11 +119,39 @@ pub struct ScClient {
     blocked_until: Mutex<Option<Instant>>,
     /// What the catalog learned about tracks, for the stream lookup.
     records: TrackRecords,
+    /// Calls a listener is waiting for. Background calls (warming the next tracks) wait until
+    /// there is none, so a click is never queued behind a hint.
+    interactive: AtomicUsize,
+    /// Told when a listener's call starts (the stream reader uses it to keep its connection
+    /// to the media host open).
+    activity: Mutex<Option<Activity>>,
     /// The session token of the signed-in account, sent to the API host only.
     auth: Auth,
     /// Cleared when the user switches SoundCloud off: every later request fails at once.
     enabled: AtomicBool,
 }
+
+/// A callback for the start of a listener's call.
+pub type Activity = Arc<dyn Fn() + Send + Sync>;
+
+/// Counts a listener's call while it is pending.
+struct Pending<'a>(&'a AtomicUsize);
+
+impl<'a> Pending<'a> {
+    fn new(counter: &'a AtomicUsize) -> Self {
+        counter.fetch_add(1, Ordering::SeqCst);
+        Self(counter)
+    }
+}
+
+impl Drop for Pending<'_> {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
+/// How often a background call looks again while a listener's call is pending.
+const BACKGROUND_POLL: Duration = Duration::from_millis(20);
 
 impl std::fmt::Debug for ScClient {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -149,6 +177,8 @@ impl ScClient {
             gate: tokio::sync::Mutex::new(None),
             blocked_until: Mutex::new(None),
             records: TrackRecords::default(),
+            interactive: AtomicUsize::new(0),
+            activity: Mutex::new(None),
             auth: Auth::default(),
             enabled: AtomicBool::new(true),
         }
@@ -164,6 +194,12 @@ impl ScClient {
     #[must_use]
     pub fn is_enabled(&self) -> bool {
         self.enabled.load(Ordering::SeqCst)
+    }
+
+    /// Whether `url` is an address on the API host. Only such addresses are followed (`next_href`).
+    #[must_use]
+    pub fn is_api_url(&self, url: &str) -> bool {
+        self.api_path(url).is_ok()
     }
 
     /// The session token slot. The account sets it after a sign-in and clears it on sign-out.
@@ -187,13 +223,52 @@ impl ScClient {
         self.client_id().await.map(|_| ())
     }
 
-    /// `GET <api><path>?<params>&client_id=…` and the body of a 200 answer. While signed in the
-    /// call carries the session token; a rejected session ends here (see [`ScClient::get_as`]).
+    /// `GET <api><path>?<params>&client_id=…` and the body of a 200 answer.
     ///
     /// # Errors
     /// [`ClientError`] for a 429 ([`ClientError::RateLimited`], also while the backoff lasts), a
-    /// 404 or 410, a refusal, a network failure, a missing client id or an ended session.
+    /// 404 or 410, a refusal, a network failure or a missing client id.
     pub async fn get(&self, path: &str, params: &[(&str, &str)]) -> Result<Vec<u8>, ClientError> {
+        let _pending = Pending::new(&self.interactive);
+        self.notify_activity();
+        self.fetch(path, params).await
+    }
+
+    /// Like [`ScClient::get`] for a hint nobody waits for (warming the next track): it starts
+    /// only when no listener's call is pending.
+    ///
+    /// # Errors
+    /// As [`ScClient::get`].
+    pub async fn get_background(
+        &self,
+        path: &str,
+        params: &[(&str, &str)],
+    ) -> Result<Vec<u8>, ClientError> {
+        while self.interactive.load(Ordering::SeqCst) > 0 {
+            tokio::time::sleep(BACKGROUND_POLL).await;
+        }
+        self.fetch(path, params).await
+    }
+
+    /// Set the callback told when a listener's call starts.
+    pub fn set_activity(&self, activity: Activity) {
+        *self.activity.lock().unwrap_or_else(PoisonError::into_inner) = Some(activity);
+    }
+
+    fn notify_activity(&self) {
+        let hook = self
+            .activity
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
+        if let Some(hook) = hook {
+            hook();
+        }
+    }
+
+    /// The call with the session token, when signed in. A rejected session ends here (see
+    /// [`ScClient::get_as`]).
+    async fn fetch(&self, path: &str, params: &[(&str, &str)]) -> Result<Vec<u8>, ClientError> {
         let session = self.auth.current();
         let token = session.as_ref().map(|(token, _)| token);
         let result = self.get_as(path, params, token).await;
@@ -246,11 +321,27 @@ impl ScClient {
         url: &str,
         params: &[(&str, &str)],
     ) -> Result<Vec<u8>, ClientError> {
-        let path = url
-            .strip_prefix(self.endpoints.api.as_str())
-            .filter(|rest| rest.starts_with('/'))
-            .ok_or(ClientError::Refused)?;
+        let path = self.api_path(url)?;
         self.get(path, params).await
+    }
+
+    /// [`ScClient::get_api_url`] for a hint nobody waits for.
+    ///
+    /// # Errors
+    /// As [`ScClient::get_api_url`].
+    pub async fn get_api_url_background(
+        &self,
+        url: &str,
+        params: &[(&str, &str)],
+    ) -> Result<Vec<u8>, ClientError> {
+        let path = self.api_path(url)?;
+        self.get_background(path, params).await
+    }
+
+    fn api_path<'a>(&self, url: &'a str) -> Result<&'a str, ClientError> {
+        url.strip_prefix(self.endpoints.api.as_str())
+            .filter(|rest| rest.starts_with('/'))
+            .ok_or(ClientError::Refused)
     }
 
     fn api_url(
