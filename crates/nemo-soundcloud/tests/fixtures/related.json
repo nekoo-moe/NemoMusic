@@ -1,0 +1,120 @@
+{
+ "collection": [
+  {
+   "kind": "track",
+   "id": 7000003,
+   "title": "Café Ünïcode ♪ 夜",
+   "duration": 149753,
+   "full_duration": 149706,
+   "artwork_url": "https://i1.sndcdn.com/artworks-000000000003-fixtur-large.jpg",
+   "permalink_url": "https://soundcloud.com/fixture-artist-2/fixture-track-3",
+   "user": {
+    "id": 7000004,
+    "username": "Fixture Artist 2",
+    "avatar_url": "https://i1.sndcdn.com/avatars-000000000002-fixtur-large.jpg"
+   },
+   "release_date": null,
+   "display_date": "2026-05-21T14:22:31Z",
+   "policy": "ALLOW",
+   "monetization_model": "NOT_APPLICABLE",
+   "streamable": true,
+   "state": "finished",
+   "track_authorization": "fixture-authorization",
+   "publisher_metadata": {
+    "artist": "Fixture Publisher 3",
+    "album_title": null
+   },
+   "media": {
+    "transcodings": [
+     {
+      "preset": "aac_160k",
+      "duration": 149753,
+      "snipped": false,
+      "format": {
+       "protocol": "hls",
+       "mime_type": "audio/mp4; codecs=\"mp4a.40.2\""
+      },
+      "quality": "sq",
+      "is_legacy_transcoding": false,
+      "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:7000003/00000000-0000-4000-8000-000003000000/stream/hls"
+     },
+     {
+      "preset": "aac_96k",
+      "duration": 149753,
+      "snipped": false,
+      "format": {
+       "protocol": "hls",
+       "mime_type": "audio/mp4; codecs=\"mp4a.40.2\""
+      },
+      "quality": "lq",
+      "is_legacy_transcoding": false,
+      "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:7000003/00000000-0000-4000-8000-000003000001/stream/hls"
+     },
+     {
+      "preset": "abr_sq",
+      "duration": 149753,
+      "snipped": false,
+      "format": {
+       "protocol": "hls",
+       "mime_type": "audio/mpegurl"
+      },
+      "quality": "sq",
+      "is_legacy_transcoding": false,
+      "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:7000003/00000000-0000-4000-8000-000003000002/stream/hls"
+     }
+    ]
+   }
+  },
+  {
+   "kind": "track",
+   "id": 7000005,
+   "title": "Fixture Track 5",
+   "duration": 894146,
+   "full_duration": 894146,
+   "artwork_url": "https://i1.sndcdn.com/artworks-000000000005-fixtur-large.jpg",
+   "permalink_url": "https://soundcloud.com/fixture-artist-3/fixture-track-5",
+   "user": {
+    "id": 7000006,
+    "username": "Fixture Artist 3",
+    "avatar_url": "https://i1.sndcdn.com/avatars-000000000003-fixtur-large.jpg"
+   },
+   "release_date": null,
+   "display_date": "2011-08-15T05:01:44Z",
+   "policy": "ALLOW",
+   "monetization_model": "NOT_APPLICABLE",
+   "streamable": true,
+   "state": "finished",
+   "track_authorization": "fixture-authorization",
+   "media": {
+    "transcodings": [
+     {
+      "preset": "mp3_0_0",
+      "duration": 894146,
+      "snipped": false,
+      "format": {
+       "protocol": "hls",
+       "mime_type": "audio/mpeg"
+      },
+      "quality": "sq",
+      "is_legacy_transcoding": true,
+      "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:7000005/00000000-0000-4000-8000-000005000000/stream/hls"
+     },
+     {
+      "preset": "mp3_0_0",
+      "duration": 894146,
+      "snipped": false,
+      "format": {
+       "protocol": "progressive",
+       "mime_type": "audio/mpeg"
+      },
+      "quality": "sq",
+      "is_legacy_transcoding": true,
+      "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:7000005/00000000-0000-4000-8000-000005000001/stream/progressive"
+     }
+    ]
+   }
+  }
+ ],
+ "next_href": null,
+ "variant": "fixture"
+}

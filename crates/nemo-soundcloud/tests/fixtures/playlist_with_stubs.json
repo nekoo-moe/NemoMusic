@@ -1,0 +1,166 @@
+{
+ "kind": "playlist",
+ "id": 7000022,
+ "title": "Fixture Playlist With Stubs",
+ "artwork_url": null,
+ "user": {
+  "id": 7000011,
+  "username": "Fixture Artist 6",
+  "avatar_url": "https://i1.sndcdn.com/avatars-000000000006-fixtur-large.jpg"
+ },
+ "is_album": false,
+ "set_type": null,
+ "release_date": null,
+ "display_date": "2026-03-01T10:00:00Z",
+ "track_count": 5,
+ "tracks": [
+  {
+   "kind": "track",
+   "id": 7000001,
+   "title": "Fixture Track 1",
+   "duration": 124112,
+   "full_duration": 124108,
+   "artwork_url": "https://i1.sndcdn.com/artworks-000000000001-fixtur-large.jpg",
+   "permalink_url": "https://soundcloud.com/fixture-artist-1/fixture-track-1",
+   "user": {
+    "id": 7000002,
+    "username": "Fixture Artist 1",
+    "avatar_url": "https://i1.sndcdn.com/avatars-000000000001-fixtur-large.jpg"
+   },
+   "release_date": null,
+   "display_date": "2022-01-14T00:35:55Z",
+   "policy": "ALLOW",
+   "monetization_model": "NOT_APPLICABLE",
+   "streamable": true,
+   "state": "finished",
+   "track_authorization": "fixture-authorization",
+   "publisher_metadata": {
+    "artist": "Fixture Publisher 1",
+    "album_title": null
+   },
+   "media": {
+    "transcodings": [
+     {
+      "preset": "aac_160k",
+      "duration": 124112,
+      "snipped": false,
+      "format": {
+       "protocol": "hls",
+       "mime_type": "audio/mp4; codecs=\"mp4a.40.2\""
+      },
+      "quality": "sq",
+      "is_legacy_transcoding": false,
+      "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:7000001/00000000-0000-4000-8000-000001000000/stream/hls"
+     },
+     {
+      "preset": "aac_96k",
+      "duration": 124112,
+      "snipped": false,
+      "format": {
+       "protocol": "hls",
+       "mime_type": "audio/mp4; codecs=\"mp4a.40.2\""
+      },
+      "quality": "lq",
+      "is_legacy_transcoding": false,
+      "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:7000001/00000000-0000-4000-8000-000001000001/stream/hls"
+     },
+     {
+      "preset": "abr_sq",
+      "duration": 124112,
+      "snipped": false,
+      "format": {
+       "protocol": "hls",
+       "mime_type": "audio/mpegurl"
+      },
+      "quality": "sq",
+      "is_legacy_transcoding": false,
+      "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:7000001/00000000-0000-4000-8000-000001000002/stream/hls"
+     }
+    ]
+   }
+  },
+  {
+   "kind": "track",
+   "id": 7000003,
+   "title": "Fixture Track 3",
+   "duration": 149753,
+   "full_duration": 149706,
+   "artwork_url": "https://i1.sndcdn.com/artworks-000000000003-fixtur-large.jpg",
+   "permalink_url": "https://soundcloud.com/fixture-artist-2/fixture-track-3",
+   "user": {
+    "id": 7000004,
+    "username": "Fixture Artist 2",
+    "avatar_url": "https://i1.sndcdn.com/avatars-000000000002-fixtur-large.jpg"
+   },
+   "release_date": null,
+   "display_date": "2026-05-21T14:22:31Z",
+   "policy": "ALLOW",
+   "monetization_model": "NOT_APPLICABLE",
+   "streamable": true,
+   "state": "finished",
+   "track_authorization": "fixture-authorization",
+   "publisher_metadata": {
+    "artist": "Fixture Publisher 3",
+    "album_title": null
+   },
+   "media": {
+    "transcodings": [
+     {
+      "preset": "aac_160k",
+      "duration": 149753,
+      "snipped": false,
+      "format": {
+       "protocol": "hls",
+       "mime_type": "audio/mp4; codecs=\"mp4a.40.2\""
+      },
+      "quality": "sq",
+      "is_legacy_transcoding": false,
+      "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:7000003/00000000-0000-4000-8000-000003000000/stream/hls"
+     },
+     {
+      "preset": "aac_96k",
+      "duration": 149753,
+      "snipped": false,
+      "format": {
+       "protocol": "hls",
+       "mime_type": "audio/mp4; codecs=\"mp4a.40.2\""
+      },
+      "quality": "lq",
+      "is_legacy_transcoding": false,
+      "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:7000003/00000000-0000-4000-8000-000003000001/stream/hls"
+     },
+     {
+      "preset": "abr_sq",
+      "duration": 149753,
+      "snipped": false,
+      "format": {
+       "protocol": "hls",
+       "mime_type": "audio/mpegurl"
+      },
+      "quality": "sq",
+      "is_legacy_transcoding": false,
+      "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:7000003/00000000-0000-4000-8000-000003000002/stream/hls"
+     }
+    ]
+   }
+  },
+  {
+   "id": 7000023,
+   "kind": "track",
+   "monetization_model": "NOT_APPLICABLE",
+   "policy": "ALLOW"
+  },
+  {
+   "id": 7000024,
+   "kind": "track",
+   "monetization_model": "NOT_APPLICABLE",
+   "policy": "ALLOW"
+  },
+  {
+   "id": 7000025,
+   "kind": "track",
+   "monetization_model": "NOT_APPLICABLE",
+   "policy": "ALLOW"
+  }
+ ]
+}
