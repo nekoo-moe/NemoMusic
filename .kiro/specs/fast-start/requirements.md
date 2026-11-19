@@ -21,6 +21,7 @@ A song starts to play quickly after the click on Play, and the next song of the 
 7. WHEN the audio code changes, THE SYSTEM SHALL keep the output samples bit-identical (`bit_exact` and `rt_no_alloc` pass) and SHALL allocate and lock nothing in the audio callback.
 8. WHEN the measuring example runs (development only, real network, `NEMO_PROBE_QUERY` or `NEMO_PROBE_IDS`), THE SYSTEM SHALL print the stage times of each song and never a URL or an id.
 9. WHEN the native path answers that one video cannot be played (the bot check, an unplayable video), THE SYSTEM SHALL use the fallback for that video and SHALL NOT count the answer as a failed request; the native path rests for 2 minutes only after 5 such refusals in a row, and for 10 minutes after 2 failed requests in a row (an HTTP error, a timeout, an unreadable answer), as before.
+10. WHEN the platform is Linux `x86_64` and `unzip` is on `PATH`, THE SYSTEM SHALL install the onedir `yt-dlp_linux.zip` (checksum verified as before) instead of the one-file build; without `unzip` it keeps the one-file build.
 
 ## Out of Scope
 
@@ -33,4 +34,3 @@ A song starts to play quickly after the click on Play, and the next song of the 
 
 - Warm the first song on hover or on selection of a row: needs a call from the UI crate to the resolver (`warm`). Not done here; owner decides.
 - Open the output device while the stream resolves (hides the device open time). Needs the sample rate before the probe; not done without a measured device-open time (the Codespace has no audio device).
-- Linux: yt-dlp `yt-dlp_linux.zip` (onedir) instead of the one-file build. See the design, Risks and Alternatives; `tech.md` would change its Linux sentence.

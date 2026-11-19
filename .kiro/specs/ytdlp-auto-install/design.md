@@ -26,12 +26,15 @@ pub fn managed_dir() -> Option<PathBuf>;
 
 // nemo-ytm/src/ytdlp_install.rs
 pub const LINUX_ASSET: &str = "yt-dlp_linux";
+pub const LINUX_ZIP_ASSET: &str = "yt-dlp_linux.zip"; // fast-start
+pub fn install_linux_onedir(target_dir: &Path) -> Result<PathBuf, InstallError>; // unpacks with `unzip`
+pub fn unzip_on_path() -> bool;
 pub const SUMS: &str = "SHA2-256SUMS";
 pub fn install_onefile(target_dir: &Path) -> Result<PathBuf, InstallError>;
 
 // nemo-ytm/src/ytdlp/managed.rs
 pub const CHECK_INTERVAL: Duration; // 24 h
-pub enum Build { WindowsOnedir, LinuxOnefile }
+pub enum Build { WindowsOnedir, LinuxOnefile, LinuxOnedir } // LinuxOnedir when `unzip` is on PATH (fast-start)
 pub struct ManagedYtDlp { /* dir, build */ }
 pub struct Startup<'a> { pub auto_install: bool, pub user_set: bool, pub found: Option<&'a Path> }
 pub enum Plan { Leave, Install, CheckForUpdate }

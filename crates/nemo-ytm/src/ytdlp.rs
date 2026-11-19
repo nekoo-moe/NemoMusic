@@ -26,7 +26,9 @@ use tokio::runtime::Handle;
 
 use crate::task::AbortOnDrop;
 use crate::timing;
-pub use crate::ytdlp_install::{InstallError, install_onedir, install_onefile};
+pub use crate::ytdlp_install::{
+    InstallError, install_linux_onedir, install_onedir, install_onefile, unzip_on_path,
+};
 
 mod locate;
 pub mod managed;

@@ -3,7 +3,9 @@
 //! Windows x64: the "onedir" build (`yt-dlp_win.zip`). The one-file `yt-dlp.exe` (winget,
 //! `PyInstaller`) unpacks itself into a temp folder on every run, about 4 s on the owner's
 //! laptop (perf-notes.md). The onedir build is the same program already unpacked, so a run
-//! starts at once. Linux `x86_64`: the one-file `yt-dlp_linux` build.
+//! starts at once. Linux `x86_64`: the same onedir build as `yt-dlp_linux.zip`, unpacked with
+//! the system `unzip` (no zip crate is approved); without `unzip` the one-file `yt-dlp_linux`
+//! build, which unpacks itself on every run (about 0.9 s here, 2026-11-19).
 //!
 //! Every install downloads `SHA2-256SUMS` and the asset from the latest GitHub release, checks
 //! the asset's SHA-256 against the list, and only then puts it in place (a staging folder or a
@@ -25,6 +27,8 @@ use crate::http::{USER_AGENT, https_redirects};
 pub const ASSET: &str = "yt-dlp_win.zip";
 /// Release asset with the one-file build for 64-bit (`x86_64`) Linux.
 pub const LINUX_ASSET: &str = "yt-dlp_linux";
+/// Release asset with the onedir build for 64-bit (`x86_64`) Linux.
+pub const LINUX_ZIP_ASSET: &str = "yt-dlp_linux.zip";
 /// The release's SHA-256 list.
 pub const SUMS: &str = "SHA2-256SUMS";
 /// Base of the latest-release download links.
@@ -107,16 +111,16 @@ fn download(
     Ok(bytes)
 }
 
-/// The folder in `root` (or `root` itself, or one level down) that holds `yt-dlp.exe`.
-fn program_root(root: &Path) -> Option<PathBuf> {
-    if root.join("yt-dlp.exe").is_file() {
+/// The folder in `root` (or `root` itself, or one level down) that holds the file `program`.
+fn program_root(root: &Path, program: &str) -> Option<PathBuf> {
+    if root.join(program).is_file() {
         return Some(root.to_path_buf());
     }
     std::fs::read_dir(root)
         .ok()?
         .filter_map(Result::ok)
         .map(|e| e.path())
-        .find(|p| p.join("yt-dlp.exe").is_file())
+        .find(|p| p.join(program).is_file())
 }
 
 fn tar_program() -> PathBuf {
@@ -188,6 +192,26 @@ pub fn install_onefile(target_dir: &Path) -> Result<PathBuf, InstallError> {
     install_with(target_dir, LINUX_ASSET, place_onefile)
 }
 
+/// Download, verify and unpack the Linux onedir build so that `target_dir/yt-dlp` and its
+/// `_internal` folder exist. Needs `unzip` ([`unzip_on_path`]). Returns the path of the program.
+/// Blocks; call it from a worker thread.
+///
+/// # Errors
+/// [`InstallError`] when a download fails, the checksum does not match, `unzip` is missing or
+/// fails, or a file operation fails.
+pub fn install_linux_onedir(target_dir: &Path) -> Result<PathBuf, InstallError> {
+    install_with(target_dir, LINUX_ZIP_ASSET, unpack_linux_onedir)
+}
+
+/// True when a program named `unzip` is in a folder of `PATH` (the Linux onedir install needs it).
+#[must_use]
+pub fn unzip_on_path() -> bool {
+    std::env::var_os("PATH")
+        .into_iter()
+        .flat_map(|path| std::env::split_paths(&path).collect::<Vec<_>>())
+        .any(|dir| dir.join("unzip").is_file())
+}
+
 type Place = fn(&Path, &[u8]) -> Result<PathBuf, InstallError>;
 
 fn install_with(target_dir: &Path, asset: &str, place: Place) -> Result<PathBuf, InstallError> {
@@ -225,29 +249,108 @@ pub(crate) fn place_onefile(target_dir: &Path, bytes: &[u8]) -> Result<PathBuf, 
 /// Unpack the verified onedir zip with the Windows `tar.exe` into a staging folder, then swap
 /// it into `target_dir`.
 pub(crate) fn unpack_onedir(target_dir: &Path, zip: &[u8]) -> Result<PathBuf, InstallError> {
+    let tar = |zip_path: &Path, staging: &Path| {
+        Command::new(tar_program())
+            .arg("-xf")
+            .arg(zip_path)
+            .arg("-C")
+            .arg(staging)
+            .status()
+            .map_err(|e| InstallError::Unpack(format!("tar.exe: {}", e.kind())))
+    };
+    let names = Names {
+        partial: "yt-dlp_win.zip.partial",
+        in_zip: "yt-dlp.exe",
+        installed: "yt-dlp.exe",
+    };
+    unpack_zip(target_dir, zip, &names, &tar)
+}
+
+/// Unpack the verified Linux onedir zip with `unzip` into a staging folder, then swap it into
+/// `target_dir` and mark the program executable.
+pub(crate) fn unpack_linux_onedir(target_dir: &Path, zip: &[u8]) -> Result<PathBuf, InstallError> {
+    let unzip = |zip_path: &Path, staging: &Path| {
+        Command::new("unzip")
+            .arg("-q")
+            .arg("-o")
+            .arg(zip_path)
+            .arg("-d")
+            .arg(staging)
+            .status()
+            .map_err(|e| InstallError::Unpack(format!("unzip: {}", e.kind())))
+    };
+    // The zip holds `yt-dlp_linux` and `_internal/`; the app looks for `yt-dlp` (the PyInstaller
+    // bootloader finds `_internal` next to the executable whatever its name).
+    let names = Names {
+        partial: "yt-dlp_linux.zip.partial",
+        in_zip: "yt-dlp_linux",
+        installed: "yt-dlp",
+    };
+    let program = unpack_zip(target_dir, zip, &names, &unzip)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o755))
+            .map_err(io_err("mark executable"))?;
+    }
+    Ok(program)
+}
+
+/// Runs the extractor: `(zip file, staging folder)` to its exit status.
+type Extract<'a> = &'a dyn Fn(&Path, &Path) -> Result<std::process::ExitStatus, InstallError>;
+
+/// File names of one onedir archive.
+struct Names {
+    /// Where the archive is written while it is unpacked.
+    partial: &'static str,
+    /// The program's name inside the archive.
+    in_zip: &'static str,
+    /// The program's name in the installed folder.
+    installed: &'static str,
+}
+
+/// Write `zip` next to `target_dir`, extract it into a staging folder, find the folder that
+/// holds the program, and swap it into `target_dir` (the old install is kept until the new one
+/// is in place). Returns the installed program's path.
+fn unpack_zip(
+    target_dir: &Path,
+    zip: &[u8],
+    names: &Names,
+    extract: Extract<'_>,
+) -> Result<PathBuf, InstallError> {
     let parent = target_dir
         .parent()
         .ok_or_else(|| InstallError::Io("target has no parent folder".to_owned()))?;
     std::fs::create_dir_all(parent).map_err(io_err("create folder"))?;
-    let zip_path = parent.join("yt-dlp_win.zip.partial");
+    let zip_path = parent.join(names.partial);
     let staging = parent.join("yt-dlp.staging");
     let _ = std::fs::remove_dir_all(&staging);
     std::fs::create_dir_all(&staging).map_err(io_err("create staging folder"))?;
     std::fs::write(&zip_path, zip).map_err(io_err("write archive"))?;
-    let status = Command::new(tar_program())
-        .arg("-xf")
-        .arg(&zip_path)
-        .arg("-C")
-        .arg(&staging)
-        .status()
-        .map_err(|e| InstallError::Unpack(format!("tar.exe: {}", e.kind())))?;
+    let status = extract(&zip_path, &staging);
     let _ = std::fs::remove_file(&zip_path);
-    if !status.success() {
-        let _ = std::fs::remove_dir_all(&staging);
-        return Err(InstallError::Unpack("tar.exe reported an error".to_owned()));
-    }
-    let root = program_root(&staging)
-        .ok_or_else(|| InstallError::Unpack("no yt-dlp.exe in the archive".to_owned()))?;
+    let root = match status {
+        Ok(status) if status.success() => program_root(&staging, names.in_zip)
+            .ok_or_else(|| InstallError::Unpack(format!("no {} in the archive", names.in_zip))),
+        Ok(_) => Err(InstallError::Unpack(
+            "the extractor reported an error".to_owned(),
+        )),
+        Err(e) => Err(e),
+    };
+    let root = root.and_then(|root| {
+        if names.in_zip != names.installed {
+            std::fs::rename(root.join(names.in_zip), root.join(names.installed))
+                .map_err(io_err("rename the program"))?;
+        }
+        Ok(root)
+    });
+    let root = match root {
+        Ok(root) => root,
+        Err(e) => {
+            let _ = std::fs::remove_dir_all(&staging);
+            return Err(e);
+        }
+    };
 
     let old = parent.join("yt-dlp.old");
     let _ = std::fs::remove_dir_all(&old);
@@ -262,83 +365,8 @@ pub(crate) fn unpack_onedir(target_dir: &Path, zip: &[u8]) -> Result<PathBuf, In
     }
     let _ = std::fs::remove_dir_all(&old);
     let _ = std::fs::remove_dir_all(&staging);
-    Ok(target_dir.join("yt-dlp.exe"))
+    Ok(target_dir.join(names.installed))
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    const HASH: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-
-    #[test]
-    fn the_checksum_line_of_the_asset_is_found() {
-        let list = format!(
-            "{}  yt-dlp\n{HASH}  yt-dlp_win.zip\n{}  yt-dlp_win_x86.zip\n",
-            "f".repeat(64),
-            "e".repeat(64)
-        );
-        assert_eq!(checksum_for(&list, ASSET).as_deref(), Some(HASH));
-        let starred = format!("{}  *yt-dlp_win.zip\r\n", HASH.to_ascii_uppercase());
-        assert_eq!(checksum_for(&starred, ASSET).as_deref(), Some(HASH));
-        assert_eq!(checksum_for("abc  yt-dlp_win.zip", ASSET), None);
-        assert_eq!(checksum_for(&format!("{HASH}  other.zip"), ASSET), None);
-        assert_eq!(checksum_for("", ASSET), None);
-    }
-
-    #[test]
-    fn sha256_of_a_known_text() {
-        assert_eq!(
-            sha256_hex(b"abc"),
-            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
-        );
-    }
-
-    #[test]
-    fn a_wrong_hash_is_refused() {
-        let good = sha256_hex(b"abc");
-        assert_eq!(verify(b"abc", &good), Ok(()));
-        assert_eq!(verify(b"abd", &good), Err(InstallError::ChecksumMismatch));
-        let list = format!("{good}  {LINUX_ASSET}\n");
-        assert_eq!(checksum_for(&list, LINUX_ASSET), Some(good));
-        assert_eq!(checksum_for(&list, ASSET), None);
-    }
-
-    #[test]
-    fn the_one_file_build_lands_through_a_temp_file() {
-        let base = std::env::temp_dir().join(format!("nemo-onefile-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&base);
-        let dir = base.join("yt-dlp");
-        let program = place_onefile(&dir, b"#!/bin/sh\n").expect("placed");
-        assert_eq!(program, dir.join("yt-dlp"));
-        assert_eq!(std::fs::read(&program).expect("read"), b"#!/bin/sh\n");
-        assert!(!dir.join("yt-dlp.partial").exists());
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let mode = std::fs::metadata(&program)
-                .expect("meta")
-                .permissions()
-                .mode();
-            assert_eq!(mode & 0o777, 0o755);
-        }
-        // A second install replaces the first.
-        place_onefile(&dir, b"v2").expect("replaced");
-        assert_eq!(std::fs::read(&program).expect("read"), b"v2");
-        let _ = std::fs::remove_dir_all(&base);
-    }
-
-    #[test]
-    fn the_program_folder_is_found_at_the_root_or_one_level_down() {
-        let base = std::env::temp_dir().join(format!("nemo-onedir-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&base);
-        let nested = base.join("yt-dlp_win");
-        std::fs::create_dir_all(&nested).expect("dirs");
-        assert_eq!(program_root(&base), None);
-        std::fs::write(nested.join("yt-dlp.exe"), b"x").expect("file");
-        assert_eq!(program_root(&base), Some(nested.clone()));
-        std::fs::write(base.join("yt-dlp.exe"), b"x").expect("file");
-        assert_eq!(program_root(&base), Some(base.clone()));
-        let _ = std::fs::remove_dir_all(&base);
-    }
-}
+mod tests;

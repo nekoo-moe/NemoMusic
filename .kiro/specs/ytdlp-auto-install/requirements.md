@@ -18,7 +18,7 @@ YouTube playback works on a fresh Windows x64 or Linux x86_64 machine without in
 ## Acceptance Criteria
 
 1. WHEN the app starts with `yt_dlp_auto_install` on, no `yt_dlp_path` set and the app-managed copy missing (whether or not another yt-dlp is on `PATH` or from winget), THE SYSTEM SHALL install the app-managed copy on a background worker thread, never on the UI or audio thread, and SHALL NOT delay startup.
-2. WHEN the platform is Windows x64, THE SYSTEM SHALL install the onedir `yt-dlp_win.zip`; WHEN it is Linux x86_64, THE SYSTEM SHALL install the one-file `yt-dlp_linux` to `<data>/NemoMusic/bin/yt-dlp/yt-dlp` through a temp file and a rename, mode 0o755.
+2. WHEN the platform is Windows x64, THE SYSTEM SHALL install the onedir `yt-dlp_win.zip`; WHEN it is Linux x86_64 and `unzip` is on `PATH`, THE SYSTEM SHALL install the onedir `yt-dlp_linux.zip` into `<data>/NemoMusic/bin/yt-dlp/` (program `yt-dlp`, with its `_internal` folder, mode 0o755, swapped in as a whole); WHEN `unzip` is missing, THE SYSTEM SHALL install the one-file `yt-dlp_linux` to `<data>/NemoMusic/bin/yt-dlp/yt-dlp` through a temp file and a rename, mode 0o755 (owner, 2026-11-19; fast-start spec: the one-file build unpacks itself on every run, 0.9 s against 0.4 s for `--version` on the Codespace).
 3. WHEN the platform is any other, THE SYSTEM SHALL install nothing and log one warning.
 4. WHEN a downloaded asset does not match its line in `SHA2-256SUMS`, THE SYSTEM SHALL discard it and keep what was there.
 5. WHEN an install succeeds, THE SYSTEM SHALL use the new copy for the next YouTube resolve without an app restart.

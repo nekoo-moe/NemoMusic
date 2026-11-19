@@ -112,6 +112,8 @@ fn the_program_path_follows_the_build() {
     let windows = ManagedYtDlp::new(dir.clone(), Build::WindowsOnedir);
     assert_eq!(windows.program(), dir.join("yt-dlp.exe"));
     assert_eq!(Build::LinuxOnefile.asset(), "yt-dlp_linux");
+    assert_eq!(Build::LinuxOnedir.asset(), "yt-dlp_linux.zip");
+    assert_eq!(Build::LinuxOnedir.program_name(), "yt-dlp");
     assert_eq!(Build::WindowsOnedir.asset(), "yt-dlp_win.zip");
 }
 
@@ -120,7 +122,12 @@ fn the_platform_build_and_folder_match_the_lookup() {
     let expected = if cfg!(all(windows, target_arch = "x86_64")) {
         Some(Build::WindowsOnedir)
     } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        Some(Build::LinuxOnefile)
+        // The onedir zip needs `unzip`; without it the one-file build.
+        Some(if unzip_on_path() {
+            Build::LinuxOnedir
+        } else {
+            Build::LinuxOnefile
+        })
     } else {
         None
     };
