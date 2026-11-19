@@ -46,6 +46,7 @@ pub(super) fn sleep_without_blocking(ms: u64) -> impl std::future::Future<Output
 /// Run a job to completion.
 pub async fn run_job(job: Job, backend: Backend) -> Message {
     match job {
+        Job::PickFolder(picker) => Message::FolderPicked(picker.pick().await),
         Job::HomeFeed => Message::HomeFeed(
             backend
                 .catalog

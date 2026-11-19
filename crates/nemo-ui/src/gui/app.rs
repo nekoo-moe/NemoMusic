@@ -71,7 +71,8 @@ pub use model::{
     HomePhase, HomeState, LibFilter, ListSource, NpTab, SettingsSection,
 };
 pub use option::{
-    AccountLibrary, CreateMsg, RestartHandler, SleepState, UiHooks, UiOptions, WindowHandler,
+    AccountLibrary, CreateMsg, FolderPicker, PickFuture, RestartHandler, SleepState, UiHooks,
+    UiOptions, WindowHandler,
 };
 
 /// Widget id of the search box.
@@ -161,7 +162,7 @@ pub struct App {
     pub(crate) readout: bool,
     pub(crate) music_folders: Vec<String>,
     pub(crate) on_settings: Option<Arc<dyn Fn(UiSettings) + Send + Sync>>,
-    on_add_music_folder: Option<Arc<dyn Fn() + Send + Sync>>,
+    on_add_music_folder: Option<FolderPicker>,
     /// The parent's restart hook, and whether it already started a new copy.
     pub(crate) on_restart: Option<RestartHandler>,
     pub(crate) restarting: bool,
