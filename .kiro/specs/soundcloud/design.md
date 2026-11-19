@@ -1,3 +1,5 @@
+> Partly replaced (owner, 2026-11-19; soundcloud-full): `nemo-soundcloud` now owns an HTTP client and the stream lookup, and `yt-dlp` is a later fallback. The Overview sentence "It never starts a process or opens a socket itself", the Data Flow of search and play, and the HLS-in-`nemo-ytm` plan are replaced by `.kiro/specs/soundcloud-full/design.md`. `UrlResolver`, `rank_formats`, `Transport`, `MediaUrl` and `Origin::SoundCloud` are reused unchanged.
+
 ## Overview
 
 SoundCloud is a second catalog next to YouTube Music. Public tracks only, no sign-in, all through `yt-dlp` (owner, 2026-11-14). A new crate `nemo-soundcloud` turns `yt-dlp` metadata into the catalog types the UI already shows. It never starts a process or opens a socket itself: it calls the `UrlResolver` trait in `nemo-core`, which `nemo-ytm` implements with its existing `yt-dlp` code (`ytdlp.rs`). Downloads and video will use the same trait.

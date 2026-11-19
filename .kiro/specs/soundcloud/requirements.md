@@ -1,3 +1,5 @@
+> Partly replaced (owner, 2026-11-19; soundcloud-full): criteria 21 (no sign-in) and 24 (only through `yt-dlp`) no longer hold. SoundCloud now has a native client, login and an account library; see `.kiro/specs/soundcloud-full/` and ADR 0005. Criteria 1 to 20 and 22 stay; the format ranking (22) applies to the native client's transcodings. Open Question 2 (the `yt-dlp` spike) is answered by the probes recorded in the new spec.
+
 ## Goal
 
 The user searches SoundCloud next to YouTube Music, opens track, playlist and user pages, plays them, and mixes SoundCloud tracks with YouTube songs in one queue. SoundCloud is a second source with the same calm player. Its audio is lossy and the badge says so. The app states the Terms of Service risk in the README and in the SoundCloud settings. Tracks that SoundCloud serves only as a preview to non-subscribers stay previews.

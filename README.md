@@ -31,7 +31,7 @@ Being built (feature wave, approved specs in `.kiro/specs/`):
 - Ten-band equalizer, AutoEq profiles, delay, reverb and crossfade, all off by default (DSP code merged, UI next)
 - ReplayGain and loudness scan for local files, off by default (merged, UI next)
 - Offline cache: save songs, albums and playlists, plus capped smart downloads
-- SoundCloud public tracks
+- SoundCloud as a second source: search, fast playback, then your account (likes, playlists, following, history), opt-in
 - Search all of YouTube, channels, live stations, comments and dislikes
 - Several accounts, preferred audio language, Premium quality (opt-in)
 - Own synced lyrics editor, romanization, lyrics translation (opt-in AI)
@@ -42,6 +42,9 @@ Being built (feature wave, approved specs in `.kiro/specs/`):
 
 > [!WARNING]
 > NemoMusic is not made, approved or supported by Google or YouTube. It uses YouTube Music without an official API, which may break the YouTube Terms of Service. Your account could be limited, and playback can break without notice.
+
+> [!WARNING]
+> SoundCloud is not an official integration either. NemoMusic uses the same web calls as soundcloud.com, without an official API key. SoundCloud may block this, may restrict your account if you sign in, and its terms may not allow it. When you sign in, a token for your SoundCloud session is kept in your computer's credential store and is sent only to SoundCloud. Plays here may not count in artists' SoundCloud statistics. SoundCloud audio is lossy (AAC or MP3); NemoMusic never calls it lossless. SoundCloud is off by default.
 
 ## What "lossless" means here
 
@@ -77,6 +80,11 @@ These are the only hosts NemoMusic contacts. Adding a host needs owner approval.
 | `sponsor.ajay.app` | SponsorBlock segments (only a 4-character hash prefix is sent) | Only when SponsorBlock is on |
 | `ws.audioscrobbler.com` | Last.fm API: now playing and scrobbles (title, artist, album, play time), over HTTPS only | Only when Last.fm is on |
 | `accounts.google.com`, `*.gstatic.com` | Google sign-in page | Only while you sign in |
+| `soundcloud.com` | The home page, to find the web app's client id; the sign-in page while you sign in | Only when SoundCloud is on |
+| `api-v2.soundcloud.com` | Search, track, playlist and artist pages, stream lookup, and your account (likes, playlists, following, history) when signed in | Only when SoundCloud is on |
+| `a-v2.sndcdn.com` | The web app's script that holds the client id | Only when SoundCloud is on |
+| `i1.sndcdn.com` | Cover art and avatars | Only when SoundCloud is on |
+| `playback.media-streaming.soundcloud.cloud`, `*.sndcdn.com` | The audio stream itself (HLS segments, previews, older MP3 files) | Only when a SoundCloud track plays |
 | `github.com`, `release-assets.githubusercontent.com` | Download the official [yt-dlp](https://github.com/yt-dlp/yt-dlp) release and its SHA-256 list | Only to install or update the app's own yt-dlp (automatic install on, no `yt_dlp_path` set); at most one update check a day |
 
 ## Build and run

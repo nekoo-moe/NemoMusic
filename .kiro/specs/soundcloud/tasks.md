@@ -1,3 +1,5 @@
+> Replaced in part (owner, 2026-11-19; soundcloud-full): tasks 1 to 6 are done and stay. Tasks 7 to 20 are superseded by `.kiro/specs/soundcloud-full/tasks.md` (native client, HLS reader in `nemo-soundcloud`, opt-in version 2, UI). Tasks 8 and 9 (the `yt-dlp` resolver) return as the fallback in soundcloud-full task 11; the rest are not to be started.
+
 ## Tasks
 
 Cross-spec ids written `<spec>#?` name the task in that spec that adds the ADR 0004 Decision 4 row given in brackets; the number is filled in once that spec's `tasks.md` is committed.
