@@ -6,6 +6,7 @@
 - [ ] 2. Reuse the opened next song on Next, and warm only the next entry; tests with fakes; bit-exact and no-alloc tests. _Requirements: 4, 5, 7_
 - [ ] 3. Start yt-dlp beside a native request that is slow (1.5 s); the first good answer wins and the other is cancelled; a dropped yt-dlp resolve kills its process. _Requirements: 2, 6_
 - [ ] 4. (If time allows, owner decides) Linux onedir build for yt-dlp. _Requirements: 1_
+- [ ] 5. A refused video is not a failed request: the native path rests after 5 refusals in a row for 2 minutes (was: 2 in a row for 10 minutes); failed requests still rest it as before. _Requirements: 9_
 
 ## Definition of Done
 
