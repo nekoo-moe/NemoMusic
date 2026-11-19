@@ -51,6 +51,9 @@ mod option;
 mod query;
 mod refresh;
 mod setup;
+mod skeleton;
+#[cfg(test)]
+mod skeleton_tests;
 mod subscribe;
 mod surfaces;
 mod sync;
@@ -62,7 +65,7 @@ pub use art::{
 };
 pub use job::{art_key, run_job};
 pub use message::{AccountBundle, CoverBuilt, ExploreMsg, Job, Message, RefreshData};
-pub use micro::{ART_FADE_MS, Micro, NAV_ENTRIES, SKELETON_PHASE};
+pub use micro::{ART_FADE_MS, Micro, NAV_ENTRIES};
 pub use model::{
     AccountMsg, AccountUi, CompactTab, DetailData, DetailKey, DetailKind, DetailState, HomeFilter,
     HomePhase, HomeState, LibFilter, ListSource, NpTab, SettingsSection,
@@ -138,8 +141,8 @@ pub struct App {
     pub(crate) settings_section: SettingsSection,
     pub(crate) rows_limit: usize,
     pub(crate) spin: f32,
-    /// Where the highlight of a loading skeleton rests ([`SKELETON_PHASE`]): it never moves.
-    pub(crate) shimmer: f32,
+    /// Timing of the skeleton frames and the one shimmer clock (skeleton-loading spec).
+    pub(crate) skeletons: crate::skeleton::Skeletons,
     /// Tab and sidebar pills, the like heart, the title fade and picture fades.
     pub(crate) micro: Micro,
     /// Progress (0 to 1) of the setup flow's step transition.
@@ -291,7 +294,7 @@ impl App {
             settings_section: SettingsSection::default(),
             rows_limit: ROWS_STEP,
             spin: 0.0,
-            shimmer: SKELETON_PHASE,
+            skeletons: crate::skeleton::Skeletons::default(),
             micro: Micro::default(),
             setup_anim: crate::motion::Spring::tuned(1.0, 700.0, 1.0),
             setup_seen: None,

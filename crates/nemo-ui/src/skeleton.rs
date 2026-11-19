@@ -218,17 +218,29 @@ impl Skeletons {
         self.gates.iter().any(Gate::visible)
     }
 
+    /// The route changed: a page skeleton that waited or showed for the page before is dropped
+    /// at once, never held for the next page. The sidebar list does not follow the route.
+    pub fn leave_page(&mut self) {
+        for r in Region::ALL {
+            if r != Region::Sidebar {
+                self.gates[r.index()] = Gate::default();
+            }
+        }
+    }
+
+    /// Draw every region that waits as a skeleton now, without the delay (headless snapshots).
+    pub fn skip_waits(&mut self) {
+        for g in &mut self.gates {
+            if g.stage == Stage::Waiting {
+                g.stage = Stage::Shown { wanted: true };
+                g.ms = 0.0;
+            }
+        }
+    }
+
     /// Jump to the loop position `t` (headless snapshots).
     pub fn seek(&mut self, t: f32) {
         self.ms = t.rem_euclid(1.0) * SHIMMER_MS;
-    }
-
-    /// Show `region` as a skeleton right now, without the wait (headless snapshots).
-    pub fn force(&mut self, region: Region) {
-        self.gates[region.index()] = Gate {
-            stage: Stage::Shown { wanted: true },
-            ms: HOLD_MS,
-        };
     }
 }
 

@@ -275,6 +275,9 @@ pub struct Scenario {
     pub sleep: bool,
     /// Show the page of the route as still loading (skeleton).
     pub loading_detail: bool,
+    /// Draw the skeletons that are wanted now (past the 150 ms wait), with the shimmer band this
+    /// far into its sweep (0 to 1; needs `full_motion` to show the band).
+    pub skeleton_phase: Option<f32>,
     /// Open the Sort menu of the album or playlist page of the route.
     pub sort_menu: bool,
     /// Pick this lyrics provider in the switcher (index into the candidates).
@@ -362,6 +365,7 @@ impl Default for Scenario {
             mini: false,
             sleep: false,
             loading_detail: false,
+            skeleton_phase: None,
             sort_menu: false,
             lyrics_pick: None,
             shared_output: false,
@@ -548,7 +552,6 @@ pub fn build_app(backend: &Backend, scenario: &Scenario) -> App {
         && let Some(key) = super::app::DetailKey::of(&scenario.route)
     {
         app.details.insert(key, super::app::DetailState::Loading);
-        app.shimmer = 0.45;
     }
     if scenario.glass_switched_on {
         run(
@@ -559,6 +562,11 @@ pub fn build_app(backend: &Backend, scenario: &Scenario) -> App {
         );
     }
     app.finish_animations();
+    if let Some(phase) = scenario.skeleton_phase {
+        // Past the 150 ms wait, this far into the shimmer sweep.
+        app.skeletons.skip_waits();
+        app.skeletons.seek(phase);
+    }
     if let Some((next, ms)) = scenario.bloom {
         run(
             &mut app,
