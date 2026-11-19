@@ -70,3 +70,50 @@ async fn search_pages_and_related_work_on_the_real_service() {
     }
     println!("total: {} ms", began.elapsed().as_millis());
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[ignore = "contacts the real SoundCloud; run by hand"]
+async fn home_charts_mixes_and_radio_work_on_the_real_service() {
+    use nemo_core::catalog::FeedItem;
+    use nemo_soundcloud::home::Page;
+
+    let http = ReqwestHttp::new(tokio::runtime::Handle::current()).expect("client");
+    let client = Arc::new(ScClient::new(Arc::new(http)));
+    if let Err(e) = client.warm_up().await {
+        println!("no client id ({e}); nothing more to check");
+        return;
+    }
+    let catalog = SoundcloudCatalog::new(client);
+    let home = catalog.home_feed().await.expect("home");
+    println!(
+        "home: {} rows, {} items",
+        home.shelves.len(),
+        home.shelves.iter().map(|s| s.items.len()).sum::<usize>()
+    );
+    assert!(!home.shelves.is_empty());
+    let explore = catalog.explore().await.expect("charts");
+    println!(
+        "charts: {} chart rows ({} songs), {} playlist rows",
+        explore.charts.len(),
+        explore.charts.first().map_or(0, |c| c.items.len()),
+        explore.shelves.len()
+    );
+    // A mix from the home page, and the radio of its first track.
+    let mix = home
+        .shelves
+        .iter()
+        .flat_map(|s| &s.items)
+        .find_map(|item| match item {
+            FeedItem::Playlist(p) if Page::parse(&p.id).is_some() => Some(p.id.clone()),
+            _ => None,
+        });
+    if let Some(id) = mix {
+        let page = catalog.playlist(&id).await.expect("mix page");
+        println!("mix page: {} tracks", page.tracks.len());
+        if let Some(first) = page.tracks.first() {
+            let radio = catalog.radio(&first.id).await.expect("radio");
+            println!("radio: {} tracks", radio.len());
+            assert!(!radio.is_empty());
+        }
+    }
+}

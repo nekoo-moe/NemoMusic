@@ -1,0 +1,214 @@
+{
+ "collection": [
+  {
+   "kind": "selection",
+   "urn": "soundcloud:selections:fixture-playlists",
+   "title": "Fixture Selection One",
+   "description": null,
+   "style": null,
+   "tracking_feature_name": "fixture",
+   "query_urn": null,
+   "last_updated": null,
+   "items": {
+    "collection": [
+     {
+      "kind": "playlist",
+      "id": 7200001,
+      "title": "Fixture Playlist 1",
+      "artwork_url": "https://i1.sndcdn.com/artworks-000000000001-fixtur-large.jpg",
+      "user": {
+       "id": 7200002,
+       "username": "Fixture Artist 1",
+       "avatar_url": "https://i1.sndcdn.com/avatars-000000000001-fixtur-large.jpg"
+      },
+      "is_album": false,
+      "set_type": "",
+      "release_date": null,
+      "display_date": "2025-03-20T19:34:46Z",
+      "track_count": 48
+     },
+     {
+      "kind": "playlist",
+      "id": 7200003,
+      "title": "Fixture Playlist 3",
+      "artwork_url": "https://i1.sndcdn.com/artworks-000000000003-fixtur-large.jpg",
+      "user": {
+       "id": 7200002,
+       "username": "Fixture Artist 1",
+       "avatar_url": "https://i1.sndcdn.com/avatars-000000000001-fixtur-large.jpg"
+      },
+      "is_album": false,
+      "set_type": "",
+      "release_date": null,
+      "display_date": "2024-02-22T13:56:01Z",
+      "track_count": 50
+     },
+     {
+      "kind": "playlist",
+      "id": 7200004,
+      "title": "Fixture Playlist 4",
+      "artwork_url": "https://i1.sndcdn.com/artworks-000000000004-fixtur-large.jpg",
+      "user": {
+       "id": 7200002,
+       "username": "Fixture Artist 1",
+       "avatar_url": "https://i1.sndcdn.com/avatars-000000000001-fixtur-large.jpg"
+      },
+      "is_album": false,
+      "set_type": "",
+      "release_date": null,
+      "display_date": "2024-02-22T13:55:59Z",
+      "track_count": 49
+     }
+    ],
+    "next_href": null,
+    "query_urn": null
+   }
+  },
+  {
+   "kind": "selection",
+   "urn": "soundcloud:selections:fixture-systems",
+   "title": "Fixture Trending By Genre",
+   "description": null,
+   "style": null,
+   "tracking_feature_name": "fixture",
+   "query_urn": null,
+   "last_updated": null,
+   "items": {
+    "collection": [
+     {
+      "kind": "system-playlist",
+      "id": "soundcloud:system-playlists:trending-by-genre:trap",
+      "urn": "soundcloud:system-playlists:trending-by-genre:trap",
+      "permalink": "trending-by-genre:trap",
+      "title": "Fixture Trap",
+      "short_title": "Fixture Trap",
+      "description": "Trending tracks in a fixture genre",
+      "short_description": "Trending",
+      "calculated_artwork_url": "https://i1.sndcdn.com/artworks-000000000005-fixtur-large.jpg",
+      "artwork_url": null,
+      "is_public": true,
+      "user": {
+       "id": 7200005,
+       "username": "Fixture Artist 2",
+       "avatar_url": "https://i1.sndcdn.com/avatars-000000000002-fixtur-large.jpg"
+      },
+      "tracks": []
+     },
+     {
+      "kind": "system-playlist",
+      "id": "soundcloud:system-playlists:trending-by-genre:ambient",
+      "urn": "soundcloud:system-playlists:trending-by-genre:ambient",
+      "permalink": "trending-by-genre:ambient",
+      "title": "Fixture Ambient",
+      "short_title": "Fixture Ambient",
+      "description": "Trending tracks in a fixture genre",
+      "short_description": "Trending",
+      "calculated_artwork_url": "https://i1.sndcdn.com/artworks-000000000006-fixtur-large.jpg",
+      "artwork_url": null,
+      "is_public": true,
+      "user": {
+       "id": 7200005,
+       "username": "Fixture Artist 2",
+       "avatar_url": "https://i1.sndcdn.com/avatars-000000000002-fixtur-large.jpg"
+      },
+      "tracks": []
+     }
+    ],
+    "next_href": null,
+    "query_urn": null
+   }
+  },
+  {
+   "kind": "selection",
+   "urn": "soundcloud:selections:fixture-empty",
+   "title": "Fixture Empty",
+   "items": {
+    "collection": [],
+    "next_href": null,
+    "query_urn": null
+   }
+  },
+  {
+   "kind": "selection",
+   "urn": "soundcloud:selections:fixture-mixed",
+   "title": "Fixture Mixed Kinds",
+   "items": {
+    "collection": [
+     {
+      "kind": "track",
+      "id": 7200006,
+      "title": "Fixture Track 6",
+      "duration": 202433,
+      "full_duration": 202423,
+      "artwork_url": "https://i1.sndcdn.com/artworks-000000000006-fixtur-large.jpg",
+      "permalink_url": "https://soundcloud.com/fixture-artist-3/fixture-track-6",
+      "user": {
+       "id": 7200007,
+       "username": "Fixture Artist 3",
+       "avatar_url": "https://i1.sndcdn.com/avatars-000000000003-fixtur-large.jpg"
+      },
+      "policy": "ALLOW",
+      "monetization_model": "NOT_APPLICABLE",
+      "streamable": null,
+      "state": null,
+      "track_authorization": "fixture-authorization",
+      "media": {
+       "transcodings": [
+        {
+         "preset": "aac_160k",
+         "duration": 202433,
+         "snipped": false,
+         "format": {
+          "protocol": "hls",
+          "mime_type": "audio/mp4; codecs=\"mp4a.40.2\""
+         },
+         "quality": "sq",
+         "is_legacy_transcoding": false,
+         "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:7200006/00000000-0000-4000-8000-000006000000/stream/hls"
+        },
+        {
+         "preset": "aac_96k",
+         "duration": 202433,
+         "snipped": false,
+         "format": {
+          "protocol": "hls",
+          "mime_type": "audio/mp4; codecs=\"mp4a.40.2\""
+         },
+         "quality": "lq",
+         "is_legacy_transcoding": false,
+         "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:7200006/00000000-0000-4000-8000-000006000001/stream/hls"
+        },
+        {
+         "preset": "abr_sq",
+         "duration": 202433,
+         "snipped": false,
+         "format": {
+          "protocol": "hls",
+          "mime_type": "audio/mpegurl"
+         },
+         "quality": "sq",
+         "is_legacy_transcoding": false,
+         "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:7200006/00000000-0000-4000-8000-000006000002/stream/hls"
+        }
+       ]
+      }
+     },
+     {
+      "kind": "user",
+      "id": 7200007,
+      "username": "Fixture Artist 3",
+      "avatar_url": "https://i1.sndcdn.com/avatars-000000000099-fixtur-large.jpg"
+     },
+     {
+      "kind": "mystery",
+      "id": 1
+     }
+    ],
+    "next_href": null,
+    "query_urn": null
+   }
+  }
+ ],
+ "next_href": null,
+ "query_urn": "soundcloud:selections:fixture"
+}
