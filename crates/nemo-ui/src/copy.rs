@@ -84,10 +84,12 @@ pub const SONG_COLOUR_LABEL: &str = "Match colours to the playing song";
 /// Helper text of the song colours switch.
 pub const SONG_COLOUR_HELPER: &str =
     "The whole window takes its colours from the cover of the song that plays.";
-/// Label of the heartbeat switch.
-pub const HEARTBEAT_LABEL: &str = "Gentle heartbeat";
-/// Helper text of the heartbeat switch.
-pub const HEARTBEAT_HELPER: &str = "A slow, soft pulse in the background while a song plays.";
+/// Label of the breathing switch (the stored setting is still called the heartbeat; owner,
+/// 2026-11-19: the background now breathes slowly instead of pulsing).
+pub const HEARTBEAT_LABEL: &str = "Gentle breathing";
+/// Helper text of the breathing switch.
+pub const HEARTBEAT_HELPER: &str =
+    "A slow, soft breathing of the background colours while a song plays.";
 
 /// Intro of the Privacy section.
 pub const PRIVACY_INTRO: &str = "NemoMusic runs entirely on your computer. The project runs no server and collects no telemetry. These are the only hosts it contacts:";
@@ -314,10 +316,10 @@ mod tests {
             SONG_COLOUR_HELPER,
             "The whole window takes its colours from the cover of the song that plays."
         );
-        assert_eq!(HEARTBEAT_LABEL, "Gentle heartbeat");
+        assert_eq!(HEARTBEAT_LABEL, "Gentle breathing");
         assert_eq!(
             HEARTBEAT_HELPER,
-            "A slow, soft pulse in the background while a song plays."
+            "A slow, soft breathing of the background colours while a song plays."
         );
     }
 

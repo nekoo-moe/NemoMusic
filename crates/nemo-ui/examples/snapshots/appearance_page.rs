@@ -1,6 +1,6 @@
 //! Shots of the rebuilt Appearance page (appearance-glass). Each mode is drawn twice at 200%
 //! scale (the renderer fixes the scale at 2): at 960 x 600, the smallest window, and as the whole
-//! page in one tall window, since the page scrolls inside its pane. Two more show the heartbeat
+//! page in one tall window, since the page scrolls inside its pane. Two more show the breathing switch
 //! greyed out and Window glass overridden by Reduce transparency, and the page with the window
 //! glass clear over the mock wallpaper.
 
@@ -23,7 +23,7 @@ const TALL: (u32, u32) = (960, 2100);
 
 fn scenario(size: (u32, u32), settings: UiSettings) -> Scenario {
     Scenario {
-        // Motion on, so the heartbeat switch shows usable; the overridden shot turns it off.
+        // Motion on, so the breathing switch shows usable; the overridden shot turns it off.
         full_motion: true,
         route: Route::Settings,
         section: SettingsSection::Appearance,

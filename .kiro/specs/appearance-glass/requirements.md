@@ -1,6 +1,6 @@
 ## Goal
 
-The Appearance page of Settings is rebuilt in Material 3 Expressive: a live preview of the window at the top, then grouped cards with a title, a one-line helper and controls on one right edge. It lists every look setting, including the song colours and the gentle heartbeat. A new setting, Window glass, makes the app window itself see-through, so the desktop and other windows show through the gaps and edges while the panes stay readable. Blur behind the window is the desktop compositor's job; NemoMusic does not draw it.
+The Appearance page of Settings is rebuilt in Material 3 Expressive: a live preview of the window at the top, then grouped cards with a title, a one-line helper and controls on one right edge. It lists every look setting, including the song colours and the gentle breathing. A new setting, Window glass, makes the app window itself see-through, so the desktop and other windows show through the gaps and edges while the panes stay readable. Blur behind the window is the desktop compositor's job; NemoMusic does not draw it.
 
 Owner request, 2026-11-19: "Rebuild the whole Appearance setting, add the new options we made, such as the lively background. Also add a transparent glass background for me: frosted glass that you can see through to other apps, the coolest way." Owner approval: the request itself (common brief, 2026-11-19).
 
@@ -16,9 +16,9 @@ Owner request, 2026-11-19: "Rebuild the whole Appearance setting, add the new op
 
 ### Appearance page
 1. THE SYSTEM SHALL show at the top of Appearance a live preview of the window (sidebar, a pane, the player bar and the accent), drawn from tokens with no image assets, and SHALL redraw it at once when any choice on the page changes.
-2. THE SYSTEM SHALL group the settings in cards, each with a title, a one-line helper and aligned controls: Background (Match colours to the playing song, Gentle heartbeat), Surface, Colour theme, Accent intensity, Corners, Now Playing style, Glass (player bar material), Window glass, Motion and accessibility (Reduce motion, Reduce transparency).
+2. THE SYSTEM SHALL group the settings in cards, each with a title, a one-line helper and aligned controls: Background (Match colours to the playing song, Gentle breathing), Surface, Colour theme, Accent intensity, Corners, Now Playing style, Glass (player bar material), Window glass, Motion and accessibility (Reduce motion, Reduce transparency).
 3. THE SYSTEM SHALL show every switch with the text `On` or `Off`.
-4. WHEN Match colours to the playing song is off or Reduce motion is on (the setting or the OS preference), THE SYSTEM SHALL show Gentle heartbeat greyed out and ignore presses on it.
+4. WHEN Match colours to the playing song is off or Reduce motion is on (the setting or the OS preference), THE SYSTEM SHALL show Gentle breathing greyed out and ignore presses on it.
 5. THE SYSTEM SHALL keep every existing setting, its change message, its default and its stored value. Old config files load unchanged.
 6. THE SYSTEM SHALL align the controls on one right edge, give every target at least 32 px and a focus ring, and work at 960 x 600 and at 200% scale. The page scrolls inside its pane.
 7. THE SYSTEM SHALL describe the Glass (player bar) row honestly and SHALL NOT say a feature "is not built yet".
@@ -39,10 +39,12 @@ Owner request, 2026-11-19: "Rebuild the whole Appearance setting, add the new op
 
 - Blur behind the window drawn by NemoMusic. On Windows, acrylic or mica blur would need the crate `window-vibrancy` (MIT or Apache-2.0), which `tech.md` does not list; it is not added.
 - Changing the window at run time from solid to see-through (the window is created once).
-- Changes to the drift, the heartbeat, the colour mesh and the player bar material (another spec, `living-backdrop` and `player-bar-redesign`).
+- Changes to the drift, the breathing of the colours, the colour mesh and the player bar material (another spec, `living-backdrop` and `player-bar-redesign`).
 - Audio, lyrics rendering and the startup flow.
 
 ## Open Questions
 
-1. Does the owner want Windows acrylic or mica blur? It needs `window-vibrancy`, a new dependency.
-2. Should the full-screen Now Playing also become see-through? It stays solid here because its text sits straight on the backdrop.
+Decided by the author of this spec (owner, 2026-11-19: decide open points and finish):
+1. Windows acrylic or mica blur: not added. It needs the crate `window-vibrancy` (MIT or Apache-2.0), which `tech.md` does not list; adding it is the owner's call. Clear glass works on Windows 11 with a compositor that gives the window an alpha channel; blur does not.
+2. The full-screen Now Playing stays solid, because its lyrics sit straight on the backdrop with no pane.
+3. The player bar, menus and sheets stay solid, as `design.md` section 6 requires for text-bearing floating surfaces.
