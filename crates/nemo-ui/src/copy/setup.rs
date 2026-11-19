@@ -7,9 +7,14 @@ pub const WELCOME_TITLE: &str = "Welcome to NemoMusic";
 /// What NemoMusic is, and that it runs on this computer (`product.md`, Local only).
 pub const WELCOME: [&str; 3] = [
     "NemoMusic plays music from YouTube Music and from the files on this computer, with the lyrics shown as they are sung.",
-    "It runs on this computer. There is no server of ours: your sign-in, library and history stay here.",
-    "A few choices follow: the look, where your music comes from, and playback. It takes about a minute. You can skip it and change everything later in Settings.",
+    "Your sign-in, library and history stay on this computer. There is no server of ours.",
+    "A few choices follow: the look, where your music comes from, and playback. Skip any time and change everything later in Settings.",
 ];
+
+/// Welcome: title of the fact that NemoMusic runs on this computer.
+pub const WELCOME_LOCAL_TITLE: &str = "Runs on this computer";
+/// Welcome: title of the fact about how long the setup takes.
+pub const WELCOME_TIME_TITLE: &str = "About a minute";
 
 /// Title of the look step.
 pub const LOOK_TITLE: &str = "Choose a look";
