@@ -93,13 +93,13 @@ Waves: 1 = native client and playback (agent H, PRs 1 to 3 of 2026-11-19); 2 to 
   - Checks: fixtures; screenshots.
   - Steering: none
 
-- [ ] 11. HLS seek by segment (needed first: a seek on a SoundCloud track fails today), then the `yt-dlp` fallback (next agent)
-  - Crate and files: `nemo-soundcloud` (`hls.rs`), `nemo-audio` (`stream_decoder.rs` only if the decoder must reopen at a segment), `nemo-ytm` (fallback resolver, task 8 and 9 of `soundcloud`).
-  - Does: criterion 17; restart the fetch at the segment of the target time (`EXTINF` sums) and let the decoder's accurate-seek skip trim the rest; the fallback resolves through `yt-dlp` only when the native lookup fails.
+- [x] 11. HLS seek by segment
+  - Crate and files: `nemo-core` (`services.rs`: `Reopen`, `ByteSource::reopener`), `nemo-audio` (`stream_decoder.rs`: `seek_by_reopening`, `RESTART_PRIME`), `nemo-soundcloud` (`hls.rs`: `HlsReopen`, `hls/playlist.rs`: `segment_at`).
+  - Does: criterion 17. A seek reopens the stream at the segment before the time, probes it and drops the audio up to the time; the container length stays the playlist's.
   - _Requirements: 17_
   - Depends on: soundcloud-full#6
   - Wave: 3
-  - Checks: loopback seek test; `bit_exact`; counting-allocator test.
+  - Checks: against a recorded eight-second AAC tone with steps (`tests/fixtures/hls-sweep/`) the samples after a seek equal an unbroken decode to 1e-4 at eleven times (segment starts, either side of boundaries, the start, near the end); only the target segment is fetched; a seek past the end ends the stream; the decoder test over a counter WAV checks the frame number after each seek; `bit_exact`, `rt_no_alloc`.
   - Steering: none
 
 - [ ] 12. Account writes (next agent)
