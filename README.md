@@ -69,7 +69,7 @@ These are the only hosts NemoMusic contacts. Adding a host needs owner approval.
 | Host | Why | When |
 |---|---|---|
 | `music.youtube.com` | Search, browse, timed lyrics | Always (YouTube Music features) |
-| `www.youtube.com` | Stream lookup by `yt-dlp` | When a YouTube track plays |
+| `www.youtube.com` | Stream lookup by `yt-dlp` and by the in-app resolver (the `player` request, `iframe_api`, and the player script of about 2.7 MB, kept for hours) | When a YouTube track plays |
 | `*.googlevideo.com` | The audio stream itself | When a YouTube track plays |
 | `i.ytimg.com`, `*.ggpht.com`, `*.googleusercontent.com` | Cover art and artist pictures | When covers are shown |
 | `lrclib.net` | Synced lyrics (line timing) | When lyrics are shown |
