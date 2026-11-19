@@ -22,6 +22,7 @@ mod notice;
 mod panel;
 mod reveal;
 mod sources;
+mod stepper;
 mod steps;
 
 /// Window width from which the brand panel and the vertical stepper show.
