@@ -44,6 +44,7 @@ pub mod search;
 pub mod settings;
 pub mod setup;
 pub mod signal;
+pub mod skeleton;
 pub mod splash;
 pub mod state;
 pub mod theme;
