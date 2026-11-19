@@ -18,7 +18,12 @@ pub struct MergedCatalog {
     local: Arc<dyn Catalog>,
     remote: Arc<dyn Catalog>,
     local_prefix: &'static str,
+    /// Told about each Home feed that loads (the start-up resolve-ahead).
+    home_hint: Option<HomeHint>,
 }
+
+/// What is told about a loaded Home feed. It must not block.
+pub type HomeHint = Arc<dyn Fn(&HomeFeed) + Send + Sync>;
 
 impl MergedCatalog {
     /// `local_prefix` marks ids that belong to the local catalog (for example `local-album:`).
@@ -31,7 +36,15 @@ impl MergedCatalog {
             local,
             remote,
             local_prefix,
+            home_hint: None,
         }
+    }
+
+    /// Call `hint` with every Home feed that loads.
+    #[must_use]
+    pub fn with_home_hint(mut self, hint: HomeHint) -> Self {
+        self.home_hint = Some(hint);
+        self
     }
 
     fn owner(&self, id: &BrowseId) -> &dyn Catalog {
@@ -118,7 +131,13 @@ impl Catalog for MergedCatalog {
     }
 
     fn home_feed(&self) -> BoxFuture<'_, Result<HomeFeed, CatalogError>> {
-        self.remote.home_feed()
+        Box::pin(async move {
+            let feed = self.remote.home_feed().await;
+            if let (Ok(feed), Some(hint)) = (&feed, &self.home_hint) {
+                hint(feed);
+            }
+            feed
+        })
     }
 
     fn library_playlists(&self) -> BoxFuture<'_, Result<Vec<PlaylistSummary>, CatalogError>> {

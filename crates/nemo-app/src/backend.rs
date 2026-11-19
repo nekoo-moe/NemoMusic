@@ -39,6 +39,7 @@ use crate::config::{Settings, StoredDevice};
 use crate::merged::MergedCatalog;
 use crate::paths::AppPaths;
 use crate::play_hub::{self, PlayHub};
+use crate::start_warm::{LastPlayed, StartupWarm, WarmSlot};
 use crate::ui_bridge::SettingsMsg;
 
 /// Starting a service failed. The message is user-safe.
@@ -59,6 +60,10 @@ pub struct Services {
     pub backend: Backend,
     /// The `yt-dlp` resolver of the play path, kept for the start-up warm-up.
     pub ytdlp: YtDlpResolver,
+    /// The streams kept between runs; the last played song is read from it at start-up.
+    pub streams: Arc<StreamStore>,
+    /// The start-up resolve-ahead budget (the last played song, the first songs of Home).
+    pub start_warm: Arc<StartupWarm>,
     /// The local library, rescanned on a worker thread.
     pub local: LocalCatalog,
 }
@@ -97,7 +102,12 @@ impl Startup {
         if let Ok(mut slot) = self.library.lock() {
             *slot = Some(services.local.clone());
         }
-        match play_hub::spawn(Arc::clone(&services.backend.player), play_observers()) {
+        // The song that played last is resolved ahead now, before Home brings its own hints.
+        services.start_warm.hint(services.streams.last_played());
+        match play_hub::spawn(
+            Arc::clone(&services.backend.player),
+            play_observers(&services.streams),
+        ) {
             Ok(hub) => {
                 if let Ok(mut slot) = self.hub.lock() {
                     *slot = Some(hub);
@@ -144,11 +154,19 @@ pub fn build(
     report(StartStep::CredentialStore);
     // Signed out: the anonymous catalog. Signed in: the account's session, switched live.
     let remote = AccountCatalog::new(Arc::new(YtmCatalog::new(handle.clone())), account_slot);
+    // The first songs of Home are resolved ahead once the resolver exists (start_warm).
+    let warm_slot = WarmSlot::default();
+    let home_slot = Arc::clone(&warm_slot);
     let catalog = MergedCatalog::new(
         Arc::new(local.clone()),
         Arc::new(remote),
         LOCAL_ALBUM_PREFIX,
-    );
+    )
+    .with_home_hint(Arc::new(move |feed| {
+        if let Some(warm) = home_slot.get() {
+            warm.hint_home(feed);
+        }
+    }));
 
     let user_set = settings.yt_dlp_path.is_some();
     let program = settings.yt_dlp_path.clone().or_else(locate_yt_dlp);
@@ -173,8 +191,11 @@ pub fn build(
         ytdlp.clone(),
         supported_stream_codecs(),
         handle,
-        Some(streams),
+        Some(Arc::clone(&streams)),
     );
+    let start_warm = StartupWarm::new(Arc::clone(&resolver));
+    // Already set only if `build` ran twice on one slot, which it does not.
+    let _ = warm_slot.set(Arc::clone(&start_warm));
 
     let segments: Option<Arc<dyn SegmentSource>> = match ReqwestHttp::new(handle.clone()) {
         Ok(http) => Some(Arc::new(SponsorBlockSource::new(http))),
@@ -218,6 +239,8 @@ pub fn build(
 
     Ok(Services {
         ytdlp,
+        streams,
+        start_warm,
         backend: Backend {
             catalog: Arc::new(catalog),
             player,
@@ -321,8 +344,8 @@ fn sign_out_steps(
 
 /// The one place where services that watch playback register as play observers (integrations,
 /// listening stats). The play hub hands each of them every play event.
-pub fn play_observers() -> Vec<Arc<dyn PlayObserver>> {
-    Vec::new()
+pub fn play_observers(streams: &Arc<StreamStore>) -> Vec<Arc<dyn PlayObserver>> {
+    vec![Arc::new(LastPlayed(Arc::clone(streams)))]
 }
 
 /// Rescan the local library on its own thread so the window opens at once.

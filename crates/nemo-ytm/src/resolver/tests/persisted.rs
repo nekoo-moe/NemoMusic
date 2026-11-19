@@ -167,3 +167,41 @@ fn nothing_the_cache_logs_names_an_address_or_an_id() {
     }
     let _ = std::fs::remove_dir_all(file.parent().expect("folder")); // Cleanup only.
 }
+
+#[test]
+fn hints_are_resolved_one_at_a_time_and_a_little_apart() {
+    let rt = rt();
+    let inner = Counting::new(Some(Duration::from_hours(6)), false);
+    let cache = CachedResolver::new(inner.clone(), rt.handle().clone());
+    let (a, b, c) = (vid("aaaaaaaaaaa"), vid("bbbbbbbbbbb"), vid("ccccccccccc"));
+    let began = std::time::Instant::now();
+    for video in [&a, &b, &c] {
+        cache.warm(video);
+    }
+    std::thread::sleep(Duration::from_millis(60));
+    assert_eq!(inner.calls(), 1, "the second hint waits for the first");
+    while cache.len() < 3 || inner.calls() < 3 {
+        assert!(
+            began.elapsed() < Duration::from_secs(5),
+            "all three were resolved"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(
+        began.elapsed() >= WARM_PAUSE * 2,
+        "a pause after each hint: {:?}",
+        began.elapsed()
+    );
+}
+
+#[test]
+fn a_song_asked_for_while_it_is_hinted_shares_the_running_resolve() {
+    let rt = rt();
+    let inner = Counting::new(Some(Duration::from_hours(6)), false);
+    let cache = CachedResolver::new(inner.clone(), rt.handle().clone());
+    let v = vid("abcdefghijk");
+    cache.warm(&v);
+    std::thread::sleep(Duration::from_millis(5));
+    assert!(rt.block_on(cache.resolve(&v)).is_ok());
+    assert_eq!(inner.calls(), 1);
+}

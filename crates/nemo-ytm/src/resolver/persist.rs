@@ -64,6 +64,9 @@ struct StoredTrack {
 struct File {
     version: u32,
     streams: HashMap<String, Stored>,
+    /// The video that played last (for the start-up warm-up).
+    #[serde(default)]
+    last_played: Option<String>,
 }
 
 fn codec_name(codec: Codec) -> &'static str {
@@ -173,6 +176,7 @@ impl Stored {
 pub struct StreamStore {
     path: PathBuf,
     entries: Mutex<HashMap<String, Stored>>,
+    last_played: Mutex<Option<String>>,
     /// Held while the file is written, so two writes never mix.
     writing: Mutex<()>,
 }
@@ -183,16 +187,18 @@ impl StreamStore {
     #[must_use]
     pub fn open(path: PathBuf) -> Self {
         let now = SystemTime::now();
-        let mut entries = std::fs::read_to_string(&path)
+        let file = std::fs::read_to_string(&path)
             .ok()
             .and_then(|text| serde_json::from_str::<File>(&text).ok())
             .filter(|file| file.version == VERSION)
-            .map(|file| file.streams)
             .unwrap_or_default();
+        let last_played = file.last_played.filter(|id| VideoId::parse(id).is_ok());
+        let mut entries = file.streams;
         entries.retain(|id, stored| VideoId::parse(id).is_ok() && stored.usable(now));
         Self {
             path,
             entries: Mutex::new(entries),
+            last_played: Mutex::new(last_played),
             writing: Mutex::new(()),
         }
     }
@@ -225,6 +231,36 @@ impl StreamStore {
         }
         entries.insert(video.as_str().to_owned(), stored);
         true
+    }
+
+    /// The video that played last, as an earlier run recorded it.
+    #[must_use]
+    pub fn last_played(&self) -> Option<VideoId> {
+        let id = self
+            .last_played
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()?;
+        VideoId::parse(&id).ok()
+    }
+
+    /// Record that `video` played, and write the file when that changed the record. Called on
+    /// a play, never on a hint.
+    pub fn set_last_played(&self, video: &VideoId) {
+        let changed = {
+            let mut last = self
+                .last_played
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            let changed = last.as_deref() != Some(video.as_str());
+            if changed {
+                *last = Some(video.as_str().to_owned());
+            }
+            changed
+        };
+        if changed {
+            self.flush();
+        }
     }
 
     /// Drop the entry of `video` (its address was refused or could not be opened).
@@ -264,9 +300,15 @@ impl StreamStore {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .clone();
+        let last_played = self
+            .last_played
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
         let file = File {
             version: VERSION,
             streams,
+            last_played,
         };
         if write_private(&self.path, &file).is_err() {
             tracing::warn!("the stream cache file could not be written");
@@ -285,6 +327,10 @@ impl StreamStore {
             entries.clear();
             n
         };
+        *self
+            .last_played
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = None;
         match std::fs::remove_file(&self.path) {
             Ok(()) => Ok(dropped.max(1)),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(dropped),

@@ -14,7 +14,9 @@
 //! one that refuses every video after 100 ms (what a bot check looks like), so the yt-dlp
 //! fallback is measured; `--no-warm-up` leaves out the start-up warm-up the app runs one second
 //! after its services are up; `--no-stream-cache` leaves out the file of kept streams
-//! (`cache/streams.json` in the data folder), so every run resolves. `NEMO_PROBE_IDS` replaces the positional ids. The
+//! (`cache/streams.json` in the data folder), so every run resolves; `--no-hint-last` leaves
+//! out the start-up resolve of the song that played last (the example records it after each
+//! click, as the app does). `NEMO_PROBE_IDS` replaces the positional ids. The
 //! first id is the cold song; the others play after it, as warm comparisons.
 //!
 //! The data folder is `$XDG_DATA_HOME/NemoMusic` (the same as the app): an empty folder is the
@@ -197,6 +199,7 @@ struct Args {
     native_refuses: bool,
     warm_up: bool,
     stream_cache: bool,
+    hint_last: bool,
 }
 
 fn parse_args() -> Args {
@@ -209,6 +212,7 @@ fn parse_args() -> Args {
         native_refuses: false,
         warm_up: true,
         stream_cache: true,
+        hint_last: true,
     };
     let mut it = std::env::args().skip(1);
     while let Some(arg) = it.next() {
@@ -222,6 +226,7 @@ fn parse_args() -> Args {
             "--native-refuses" => args.native_refuses = true,
             "--no-warm-up" => args.warm_up = false,
             "--no-stream-cache" => args.stream_cache = false,
+            "--no-hint-last" => args.hint_last = false,
             "--user-ytdlp" => args.user_ytdlp = it.next().map(PathBuf::from),
             list => args
                 .ids
@@ -301,7 +306,11 @@ fn build_player(
     handle: &tokio::runtime::Handle,
     args: &Args,
     first: &FirstSample,
-) -> (Arc<dyn PlayerControl>, Option<WarmUp>) {
+) -> (
+    Arc<dyn PlayerControl>,
+    Option<WarmUp>,
+    Option<Arc<StreamStore>>,
+) {
     let began = Instant::now();
     open_account(clock, handle, &SessionSlot::default());
     let catalog_began = Instant::now();
@@ -335,15 +344,23 @@ fn build_player(
     let resolver = if args.native_refuses {
         let chain = FallbackResolver::new(Arc::new(Refuses), Arc::new(ytdlp));
         let cached = CachedResolver::new(Arc::new(chain), handle.clone());
-        let cached = match (store, HttpUrlCheck::new()) {
+        let cached = match (store.clone(), HttpUrlCheck::new()) {
             (Some(store), Ok(check)) => cached.with_persisted(store, Arc::new(check)),
             _ => cached,
         };
         Arc::new(cached) as Arc<dyn StreamResolver>
     } else {
-        persisted_chain(ytdlp, supported_stream_codecs(), handle, store)
+        persisted_chain(ytdlp, supported_stream_codecs(), handle, store.clone())
     };
     clock.say("resolver chain built", Some(chain_began));
+    // The app hints the song that played last as soon as the services are up.
+    if let (true, Some(video)) = (
+        args.hint_last,
+        store.as_ref().and_then(|store| store.last_played()),
+    ) {
+        resolver.warm(&video);
+        clock.say("start-up hint: the last played song", None);
+    }
 
     let segments: Option<Arc<dyn nemo_core::segment::SegmentSource>> =
         ReqwestHttp::new(handle.clone())
@@ -370,7 +387,7 @@ fn build_player(
     });
     player.send(PlayerCommand::SetSkipSegments(true));
     clock.say("backend ready (the splash would end here)", Some(began));
-    (player, warm)
+    (player, warm, store)
 }
 
 /// Click on Play for `video` and wait for the first non-zero sample. Prints the time from the
@@ -424,7 +441,7 @@ fn main() {
     };
     clock.say("runtime built", Some(began));
     let first = FirstSample::default();
-    let (player, _warm) = build_player(clock, runtime.handle(), &args, &first);
+    let (player, _warm, store) = build_player(clock, runtime.handle(), &args, &first);
     if let Some(query) = &args.query {
         let began = Instant::now();
         let found = runtime
@@ -443,6 +460,9 @@ fn main() {
             std::thread::sleep(Duration::from_secs(5)); // human-paced
         }
         click(clock, &player, &first, video);
+        if let Some(store) = &store {
+            store.set_last_played(video);
+        }
     }
     std::thread::sleep(Duration::from_secs(1));
     player.send(PlayerCommand::Stop);
