@@ -561,7 +561,7 @@ pub fn persisted_chain(
     allowed: &[Codec],
     handle: &Handle,
     store: Option<Arc<StreamStore>>,
-) -> Arc<CachedResolver> {
+) -> Arc<dyn StreamResolver> {
     persisted_chain_with(ytdlp, allowed, handle, store, None)
 }
 
@@ -575,7 +575,7 @@ pub fn persisted_chain_with(
     handle: &Handle,
     store: Option<Arc<StreamStore>>,
     cipher: Option<Arc<CipherResolver>>,
-) -> Arc<CachedResolver> {
+) -> Arc<dyn StreamResolver> {
     let ytdlp: Arc<dyn StreamResolver> = Arc::new(ytdlp);
     let second: Arc<dyn StreamResolver> = match cipher {
         Some(cipher) => Arc::new(FallbackResolver::new(cipher, ytdlp)),

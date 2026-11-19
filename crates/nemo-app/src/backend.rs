@@ -17,7 +17,7 @@ use nemo_core::player::PlayerCommand;
 use nemo_core::segment::SegmentSource;
 use nemo_core::services::{Backend, StreamOpener};
 use nemo_core::stats::NoStats;
-use nemo_core::stream::StreamRequest;
+use nemo_core::stream::{StreamRequest, StreamResolver};
 use nemo_library::catalog::LOCAL_ALBUM_PREFIX;
 use nemo_library::{LocalCatalog, LocalLibrary};
 use nemo_lyrics::LyricsHub;
@@ -25,9 +25,10 @@ use nemo_ui::StepReporter;
 use nemo_ui::splash::StartStep;
 use nemo_ytm::account::{AccountCatalog, AccountConfig, GoogleAccount, SessionSlot};
 use nemo_ytm::catalog::YtmCatalog;
+use nemo_ytm::cipher::CipherResolver;
 use nemo_ytm::images::ImageCache;
 use nemo_ytm::offline::{OfflineCache, SystemClock};
-use nemo_ytm::resolver::{StreamStore, persisted_chain};
+use nemo_ytm::resolver::{StreamStore, persisted_chain_with};
 use nemo_ytm::session::YtmSessionBackend;
 use nemo_ytm::sponsorblock::{ReqwestHttp, SponsorBlockSource};
 use nemo_ytm::stream::HttpStreamOpener;
@@ -63,6 +64,8 @@ pub struct Services {
     pub ytdlp: YtDlpResolver,
     /// The streams kept between runs; the last played song is read from it at start-up.
     pub streams: Arc<StreamStore>,
+    /// The in-process resolver, prepared in the background when an earlier run left a player.
+    pub cipher: Option<Arc<CipherResolver>>,
     /// The start-up resolve-ahead budget (the last played song, the first songs of Home).
     pub start_warm: Arc<StartupWarm>,
     /// The local library, rescanned on a worker thread.
@@ -119,6 +122,11 @@ impl Startup {
             }
         }
         crate::ui_bridge::spawn_output_watcher(&services.backend.player, self.saver);
+        // A player kept by an earlier run is made ready now, so the first song that the native
+        // request refuses is solved in process.
+        if let Some(cipher) = &services.cipher {
+            cipher.warm_from_file(&self.handle);
+        }
         // After the first frame (this runs behind the splash): the HTTP client of the stream
         // opener and one `yt-dlp --version`, so the first song does not pay for them.
         let warm = WarmUp::start(
@@ -199,17 +207,8 @@ pub fn build(
         ytdlp.program_slot(),
     );
     // Cache -> native player request -> yt-dlp (fast arguments, then the full extraction).
-    let cipher = build_cipher(paths, handle);
-    let resolver = persisted_chain_with(
-        ytdlp.clone(),
-        supported_stream_codecs(),
-        handle,
-        Some(Arc::clone(&streams)),
-        cipher.clone(),
-    );
-    let start_warm = StartupWarm::new(Arc::clone(&resolver));
-    // Already set only if `build` ran twice on one slot, which it does not.
-    let _ = warm_slot.set(Arc::clone(&start_warm));
+    let (resolver, cipher) = build_resolver(paths, handle, &ytdlp, &streams);
+    let start_warm = start_warm_budget(&resolver, &warm_slot);
 
     let segments = sponsorblock_source(handle);
 
@@ -257,6 +256,7 @@ pub fn build(
     Ok(Services {
         ytdlp,
         streams,
+        cipher,
         start_warm,
         backend: Backend {
             catalog: Arc::new(catalog),
@@ -275,6 +275,49 @@ pub fn build(
         },
         local,
     })
+}
+
+/// The start-up resolve-ahead budget for `resolver`, also handed to the Home catalog through
+/// `slot`.
+fn start_warm_budget(resolver: &Arc<dyn StreamResolver>, slot: &WarmSlot) -> Arc<StartupWarm> {
+    let budget = StartupWarm::new(Arc::clone(resolver));
+    // Already set only if `build` ran twice on one slot, which it does not.
+    let _ = slot.set(Arc::clone(&budget));
+    budget
+}
+
+/// The resolver chain of the play path: cache, native request, in-process resolver, `yt-dlp`.
+fn build_resolver(
+    paths: &AppPaths,
+    handle: &Handle,
+    ytdlp: &YtDlpResolver,
+    streams: &Arc<StreamStore>,
+) -> (Arc<dyn StreamResolver>, Option<Arc<CipherResolver>>) {
+    let cipher = build_cipher(paths, handle);
+    let chain = persisted_chain_with(
+        ytdlp.clone(),
+        supported_stream_codecs(),
+        handle,
+        Some(Arc::clone(streams)),
+        cipher.clone(),
+    );
+    (chain, cipher)
+}
+
+/// The in-process resolver (the `tv` client and the embedded solver) between the native request
+/// and `yt-dlp`, or `None` when its engine thread or HTTP client cannot start.
+fn build_cipher(paths: &AppPaths, handle: &Handle) -> Option<Arc<CipherResolver>> {
+    match CipherResolver::new(
+        handle,
+        Some(paths.player.clone()),
+        supported_stream_codecs(),
+    ) {
+        Ok(cipher) => Some(cipher),
+        Err(err) => {
+            tracing::warn!(error = %err, "the in-process resolver is off; yt-dlp is the fallback");
+            None
+        }
+    }
 }
 
 /// The saved player settings, sent once after the player starts: volume, SponsorBlock, and the
