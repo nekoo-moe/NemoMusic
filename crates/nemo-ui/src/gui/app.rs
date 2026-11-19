@@ -51,6 +51,9 @@ mod option;
 mod query;
 mod refresh;
 mod setup;
+mod skeleton;
+#[cfg(test)]
+mod skeleton_tests;
 mod subscribe;
 mod surfaces;
 mod sync;
@@ -62,12 +65,14 @@ pub use art::{
 };
 pub use job::{art_key, run_job};
 pub use message::{AccountBundle, CoverBuilt, ExploreMsg, Job, Message, RefreshData};
-pub use micro::{ART_FADE_MS, Micro, NAV_ENTRIES, SKELETON_PHASE};
+pub use micro::{ART_FADE_MS, Micro, NAV_ENTRIES};
 pub use model::{
     AccountMsg, AccountUi, CompactTab, DetailData, DetailKey, DetailKind, DetailState, HomeFilter,
     HomePhase, HomeState, LibFilter, ListSource, NpTab, SettingsSection,
 };
-pub use option::{AccountLibrary, CreateMsg, SleepState, UiHooks, UiOptions};
+pub use option::{
+    AccountLibrary, CreateMsg, RestartHandler, SleepState, UiHooks, UiOptions, WindowHandler,
+};
 pub use setup::SLIDE_PX;
 
 /// Widget id of the search box.
@@ -136,8 +141,8 @@ pub struct App {
     pub(crate) settings_section: SettingsSection,
     pub(crate) rows_limit: usize,
     pub(crate) spin: f32,
-    /// Where the highlight of a loading skeleton rests ([`SKELETON_PHASE`]): it never moves.
-    pub(crate) shimmer: f32,
+    /// Timing of the skeleton frames and the one shimmer clock (skeleton-loading spec).
+    pub(crate) skeletons: crate::skeleton::Skeletons,
     /// Tab and sidebar pills, the like heart, the title fade and picture fades.
     pub(crate) micro: Micro,
     /// Progress (0 to 1) of the setup flow's step transition.
@@ -158,6 +163,9 @@ pub struct App {
     pub(crate) music_folders: Vec<String>,
     pub(crate) on_settings: Option<Arc<dyn Fn(UiSettings) + Send + Sync>>,
     on_add_music_folder: Option<Arc<dyn Fn() + Send + Sync>>,
+    /// The parent's restart hook, and whether it already started a new copy.
+    pub(crate) on_restart: Option<RestartHandler>,
+    pub(crate) restarting: bool,
     focus_search: bool,
     last_route: Route,
     last_frame: Option<Instant>,
@@ -286,7 +294,7 @@ impl App {
             settings_section: SettingsSection::default(),
             rows_limit: ROWS_STEP,
             spin: 0.0,
-            shimmer: SKELETON_PHASE,
+            skeletons: crate::skeleton::Skeletons::default(),
             micro: Micro::default(),
             setup_anim: crate::motion::Spring::tuned(1.0, 700.0, 1.0),
             setup_seen: None,
@@ -313,6 +321,8 @@ impl App {
             music_folders: options.music_folders.clone(),
             on_settings: options.on_settings.clone(),
             on_add_music_folder: options.on_add_music_folder.clone(),
+            on_restart: options.on_restart.clone(),
+            restarting: false,
             focus_search: false,
             last_route: options.start_route.clone(),
             last_frame: None,

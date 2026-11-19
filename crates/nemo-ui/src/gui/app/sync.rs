@@ -77,7 +77,8 @@ impl App {
                     .any(|(x, w)| !x.is_settled() || !w.is_settled())
                 || !self.queue_anim.is_settled()
                 || !self.setup_anim.is_settled()
-                || !self.surfaces.settled())
+                || !self.surfaces.settled()
+                || self.skeletons.needs_frames(self.ui.reduced_motion))
     }
 
     /// Point every animation at the state it should show. Cheap; runs after every update.
@@ -165,6 +166,7 @@ impl App {
             self.np_tab = NpTab::Lyrics;
         }
         self.sync_micro();
+        self.sync_skeletons();
         let reduced = self.ui.reduced_motion;
         fx::set_reduced_motion(reduced);
         fx::set_focus_color(style::col(self.ui.accent.current().primary));

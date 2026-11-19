@@ -79,34 +79,6 @@ fn reduced_motion_needs_no_frames_for_the_same_change() {
     assert!(!app.needs_frames(), "reduced motion jumps: no frames");
 }
 
-/// A page of a local album that is still loading (a skeleton), entered with motion on.
-fn loading_page_app() -> App {
-    let mut app = idle_app();
-    let id = nemo_core::catalog::BrowseId(format!("{}x", crate::home::LOCAL_ALBUM_PREFIX));
-    let route = crate::route::Route::Album(id);
-    let key = super::DetailKey::of(&route).expect("a detail route");
-    app.details.insert(key, super::DetailState::Loading);
-    let _ = app.update_core(Message::Ui(Event::Go(route)));
-    app
-}
-
-#[test]
-fn a_loading_skeleton_is_still_and_asks_for_no_frames_once_faded_in() {
-    let mut app = loading_page_app();
-    assert!(app.detail_loading(), "the skeleton is on screen");
-    assert!(app.needs_frames(), "the page fade runs first");
-    let n = frames_until_idle(&mut app);
-    assert!(n > 1 && n <= 30, "{n} frames");
-    assert!(app.detail_loading(), "still loading, still drawn");
-    assert!(!app.needs_frames(), "a still skeleton draws no frames");
-    let phase = app.shimmer;
-    app.on_frame(Instant::now());
-    assert!(
-        (app.shimmer - phase).abs() < 1e-6,
-        "the highlight never moves"
-    );
-}
-
 #[test]
 fn a_tab_change_slides_the_pill_then_stops_asking() {
     let mut app = idle_app();

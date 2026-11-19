@@ -161,6 +161,8 @@ pub enum Message {
     },
     /// The user wants to add a music folder.
     AddFolder,
+    /// The `Restart now` pill of the Window glass card (bar-material spec).
+    Restart,
     /// Header content chip (All, Music, Videos, Podcasts).
     ContentFilter(ContentFilter),
     /// Library tab.

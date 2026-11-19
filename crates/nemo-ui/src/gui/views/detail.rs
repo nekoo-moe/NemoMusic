@@ -3,7 +3,7 @@
 //! Play and Shuffle, then its songs and albums (`ui-reference.md` section 4). Pressing a row plays
 //! it with the whole list as the queue.
 
-use iced::widget::{Space, column, container, row};
+use iced::widget::{Space, column, row};
 use iced::{Alignment, Element, Length};
 use nemo_core::catalog::{AlbumDetail, ArtistDetail, PlaylistDetail};
 use nemo_core::track::{Artwork, Track};
@@ -14,12 +14,13 @@ use super::super::app::{
 use super::super::assets::Icon;
 use super::super::style::{col, fit, gap, label};
 use super::kit::{
-    Card, RowCtx, art, card_grid, filled_button, page, paragraph, section_title, status,
-    tonal_button, track_list, vspace,
+    Card, RowCtx, Skeleton, art, blank, card_grid, filled_button, page, paragraph, section_title,
+    status, swap, tonal_button, track_list, vspace,
 };
 use crate::format;
 use crate::layout;
 use crate::route::Route;
+use crate::skeleton::Region;
 use crate::state::Event;
 use crate::theme::{color, type_scale};
 
@@ -51,11 +52,25 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
         );
     }
     let collection_page = !matches!(key.kind, DetailKind::Artist);
-    let body: Element<'_, Message> = match app.details.get(&key) {
-        None | Some(DetailState::Loading) if collection_page => {
-            return collection::skeleton(app, grid.content);
-        }
-        None | Some(DetailState::Loading) => skeleton_page(app, grid),
+    swap(
+        app,
+        Region::Detail,
+        || loaded(app, &key, grid),
+        |sk| {
+            if collection_page {
+                collection::skeleton(app, sk, grid.content)
+            } else {
+                page(grid.content, skeleton_page(sk, grid))
+            }
+        },
+    )
+}
+
+/// The page as the state says: nothing yet, the failure, or the data.
+fn loaded<'a>(app: &'a App, key: &DetailKey, grid: layout::Grid) -> Element<'a, Message> {
+    let body: Element<'_, Message> = match app.details.get(key) {
+        // Wanted, but the skeleton waits 150 ms so a quick answer never flashes it.
+        None | Some(DetailState::Loading) => blank(),
         Some(DetailState::Failed(e)) => status(
             Icon::Info,
             "This page did not load",
@@ -63,9 +78,9 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
             Some(("Try again", Message::RetryDetail(key.clone()))),
         ),
         Some(DetailState::Ready(data)) => match data.as_ref() {
-            DetailData::Album(a) => return album(app, &key, a, grid),
-            DetailData::Artist(a) => artist(app, &key, a, grid),
-            DetailData::Playlist(p) => return playlist(app, &key, p, grid),
+            DetailData::Album(a) => return album(app, key, a, grid),
+            DetailData::Artist(a) => artist(app, key, a, grid),
+            DetailData::Playlist(p) => return playlist(app, key, p, grid),
         },
     };
     page(grid.content, body)
@@ -268,91 +283,40 @@ fn artist<'a>(
     c.into()
 }
 
-/// A shimmering block: a soft highlight sweeps across a tonal rectangle.
-pub fn skeleton_block<'a>(
-    width: Length,
-    height: f32,
-    radius: f32,
-    phase: f32,
-) -> Element<'a, Message> {
-    let base = col(color::surface_container_high());
-    let glow = col(color::surface_container_highest());
-    // The highlight centre moves from -0.3 to 1.3 across the block.
-    let c = -0.3 + 1.6 * phase;
-    let stop = |x: f32| x.clamp(0.0, 1.0);
-    let grad = iced::gradient::Linear::new(iced::Radians(std::f32::consts::FRAC_PI_2))
-        .add_stop(0.0, base)
-        .add_stop(stop(c - 0.25), base)
-        .add_stop(stop(c), glow)
-        .add_stop(stop(c + 0.25), base)
-        .add_stop(1.0, base);
-    container(Space::new())
-        .width(width)
-        .height(Length::Fixed(height))
-        .style(move |_| container::Style {
-            background: Some(iced::Background::Gradient(grad.into())),
-            border: iced::Border {
-                radius: radius.into(),
-                ..iced::Border::default()
-            },
-            ..container::Style::default()
-        })
-        .into()
-}
-
-/// The page while it loads: the hero and track rows as shimmering blocks, shown at once.
-fn skeleton_page(app: &App, grid: layout::Grid) -> Element<'_, Message> {
-    let p = app.shimmer;
+/// The artist page while it loads: the hero and track rows as blocks.
+fn skeleton_page<'a>(sk: Skeleton, grid: layout::Grid) -> Element<'a, Message> {
     // Content widths are small exact numbers.
     #[allow(clippy::cast_precision_loss)]
     let content_w = grid.content as f32;
     let hero_px = if content_w >= 960.0 { 320.0 } else { 240.0 };
     let text_w = (content_w - hero_px - gap::XXL).max(240.0);
-    let r = crate::theme::shape::lg();
     let info = column![
-        skeleton_block(Length::Fixed(80.0), 14.0, 7.0, p),
-        vspace(gap::MD),
-        skeleton_block(Length::Fixed(text_w * 0.8), 40.0, 8.0, p),
-        vspace(gap::MD),
-        skeleton_block(Length::Fixed(text_w * 0.4), 18.0, 9.0, p),
+        sk.line(80.0, type_scale::LABEL_SM),
         vspace(gap::SM),
-        skeleton_block(Length::Fixed(text_w * 0.3), 14.0, 7.0, p),
+        sk.line(text_w * 0.8, type_scale::DISPLAY_MD),
+        vspace(gap::SM),
+        sk.line(text_w * 0.4, type_scale::TITLE_SM),
+        vspace(gap::XS),
+        sk.line(text_w * 0.3, type_scale::BODY_MD),
         vspace(gap::LG),
         row![
-            skeleton_block(Length::Fixed(120.0), 48.0, crate::theme::shape::FULL, p),
+            sk.block(Length::Fixed(120.0), 48.0, crate::theme::shape::FULL),
             Space::new().width(gap::MD),
-            skeleton_block(Length::Fixed(120.0), 48.0, crate::theme::shape::FULL, p),
+            sk.block(Length::Fixed(120.0), 48.0, crate::theme::shape::FULL),
         ],
     ]
     .width(Length::Fixed(text_w));
     let mut c = column![
         row![
-            skeleton_block(Length::Fixed(hero_px), hero_px, r, p),
+            sk.block(Length::Fixed(hero_px), hero_px, crate::theme::shape::lg()),
             Space::new().width(gap::XXL),
             info
         ]
         .align_y(Alignment::End),
         vspace(gap::XL),
     ];
-    for i in 0..7_u8 {
-        c = c.push(
-            row![
-                skeleton_block(Length::Fixed(44.0), 44.0, crate::theme::shape::sm(), p),
-                Space::new().width(gap::MD),
-                column![
-                    skeleton_block(
-                        Length::Fixed(content_w * (0.32 + 0.04 * f32::from(i % 3))),
-                        14.0,
-                        7.0,
-                        p
-                    ),
-                    vspace(gap::XS),
-                    skeleton_block(Length::Fixed(content_w * 0.18), 11.0, 6.0, p),
-                ],
-            ]
-            .align_y(Alignment::Center)
-            .height(Length::Fixed(56.0)),
-        );
+    for i in 0..7_usize {
+        c = c.push(sk.row(content_w, i));
     }
     c.into()
 }

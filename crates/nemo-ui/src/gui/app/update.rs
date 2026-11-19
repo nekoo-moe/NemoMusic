@@ -173,6 +173,7 @@ impl App {
         self.anim.step(dt);
         self.surfaces.advance(dt);
         self.micro.advance(dt);
+        self.skeletons.advance(dt, self.ui.reduced_motion);
         self.scheme_fade.advance(dt);
         self.bg_fade.advance(dt);
         for (sx, sw) in &mut self.chip_pills {
@@ -330,6 +331,9 @@ impl App {
             } else {
                 iced::widget::operation::focus_next()
             };
+        }
+        if matches!(message, Message::Restart) {
+            return self.restart();
         }
         let before = (self.mini, self.fullscreen);
         let copy = match &message {

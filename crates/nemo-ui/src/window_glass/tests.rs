@@ -186,3 +186,18 @@ fn the_floor_is_what_keeps_the_contrast() {
             > contrast_ratio(n.on_surface_variant, at_old)
     );
 }
+
+#[test]
+fn the_blur_tint_is_the_theme_base_as_strong_as_the_opacity() {
+    let base = Rgba::from_rgb_hex(0x0E_0F12);
+    let look = |opacity| WindowLook {
+        dark: true,
+        base,
+        opacity,
+    };
+    assert_eq!(look(80).tint(), (0x0E, 0x0F, 0x12, 204));
+    assert_eq!(look(40).tint().3, 102);
+    assert_eq!(look(95).tint().3, 242);
+    assert_eq!(look(5).tint(), look(40).tint(), "limited like the setting");
+    assert_eq!(look(200).tint(), look(95).tint());
+}

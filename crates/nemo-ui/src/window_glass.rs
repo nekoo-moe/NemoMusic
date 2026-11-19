@@ -126,5 +126,30 @@ impl WindowGlass {
     }
 }
 
+/// What the parent needs to put a blur behind the see-through window (bar-material spec): the
+/// look of the theme and the opacity chosen. NemoMusic draws no blur itself; on Windows the
+/// parent asks the system for one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WindowLook {
+    /// The theme is dark (dark and AMOLED), so the system material should be dark too.
+    pub dark: bool,
+    /// `surface` of the theme, the base of the tint.
+    pub base: crate::theme::Rgba,
+    /// The `Window glass` opacity in percent.
+    pub opacity: u8,
+}
+
+impl WindowLook {
+    /// The tint as red, green, blue and alpha: the base colour, as strong as the opacity setting
+    /// (a lower opacity lets more of the blurred desktop through).
+    #[must_use]
+    pub fn tint(self) -> (u8, u8, u8, u8) {
+        let alpha = self
+            .base
+            .with_alpha(f32::from(clamp_opacity(self.opacity)) / 100.0);
+        (self.base.r, self.base.g, self.base.b, alpha.a)
+    }
+}
+
 #[cfg(test)]
 mod tests;
