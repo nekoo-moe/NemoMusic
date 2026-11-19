@@ -14,7 +14,7 @@ use std::io::ErrorKind;
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use nemo_core::BoxFuture;
 use nemo_core::audio::Codec;
@@ -24,6 +24,7 @@ use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tokio::runtime::Handle;
 
+use crate::timing;
 pub use crate::ytdlp_install::{InstallError, install_onedir, install_onefile};
 
 mod locate;
@@ -233,13 +234,19 @@ impl Job {
     /// Fast arguments first, the full extraction when they fail.
     async fn run(self, video: VideoId) -> Result<ResolvedStream, StreamError> {
         if self.fast {
-            match Self::timed(self.run_with(fast_args(&video))).await {
+            let began = Instant::now();
+            let answer = Self::timed(self.run_with(fast_args(&video))).await;
+            timing::stage("yt-dlp fast run", began, answer.is_ok());
+            match answer {
                 Err(StreamError::ResolverMissing) => return Err(StreamError::ResolverMissing),
                 Ok(stream) => return Ok(stream),
                 Err(e) => tracing::debug!(error = %e, "fast yt-dlp run failed, retrying"),
             }
         }
-        Self::timed(self.run_with(args(&video))).await
+        let began = Instant::now();
+        let answer = Self::timed(self.run_with(args(&video))).await;
+        timing::stage("yt-dlp full run", began, answer.is_ok());
+        answer
     }
 
     async fn timed(

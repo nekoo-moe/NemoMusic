@@ -8,6 +8,9 @@ use nemo_core::stream::Transport;
 
 use super::*;
 
+/// Part of every fake stream URL and video id: it must never reach a log line.
+const SECRET: &str = "SECRETURL";
+
 struct Counting {
     calls: AtomicUsize,
     expires_in: Option<Duration>,
@@ -54,7 +57,7 @@ impl StreamResolver for Counting {
                 return Err(StreamError::NotAvailable);
             }
             Ok(ResolvedStream {
-                url: Secret::new("https://x.invalid/a".to_owned()),
+                url: Secret::new(format!("https://x.invalid/{SECRET}")),
                 info: StreamInfo {
                     origin: Origin::YoutubeMusic,
                     codec: Codec::Aac,
@@ -290,4 +293,39 @@ fn the_default_request_hits_the_same_entry_as_resolve() {
     });
     assert_eq!(inner.calls(), 1);
     assert_eq!(cache.len(), 1);
+}
+
+#[test]
+fn no_url_and_no_id_reach_a_log_line_on_any_path() {
+    // A current-thread runtime runs the spawned resolves on this thread, where the capture is.
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_time()
+        .build()
+        .expect("runtime");
+    let lines = crate::timing::capture::lines_of(|| {
+        let bad = Counting::new(Some(Duration::from_hours(1)), true);
+        let good = Counting::new(Some(Duration::from_hours(1)), false);
+        let chain: Arc<dyn StreamResolver> = Arc::new(FallbackResolver::new(bad, good));
+        let cache = CachedResolver::new(chain, rt.handle().clone());
+        let v = vid("abcdefghijk");
+        rt.block_on(async {
+            assert!(
+                cache.resolve(&v).await.is_ok(),
+                "a miss: native, then yt-dlp"
+            );
+            assert!(cache.resolve(&v).await.is_ok(), "a hit");
+            cache.warm(&vid("bbbbbbbbbbb"));
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        });
+        cache.stream_failed(&v);
+    });
+    assert!(
+        lines.iter().any(|l| l.contains("resolve native")),
+        "the stage lines are there: {lines:?}"
+    );
+    for line in &lines {
+        for secret in [SECRET, "abcdefghijk", "bbbbbbbbbbb", "x.invalid"] {
+            assert!(!line.contains(secret), "{line}");
+        }
+    }
 }

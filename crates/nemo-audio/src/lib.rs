@@ -47,4 +47,5 @@ mod control_tick;
 mod cpal_sink;
 mod feeder;
 mod prepare;
+mod timing;
 mod units;
