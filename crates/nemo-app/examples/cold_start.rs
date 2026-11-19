@@ -13,7 +13,8 @@
 //! PATH` uses a program as the settings do; `--native-refuses` replaces the native request with
 //! one that refuses every video after 100 ms (what a bot check looks like), so the yt-dlp
 //! fallback is measured; `--no-warm-up` leaves out the start-up warm-up the app runs one second
-//! after its services are up. `NEMO_PROBE_IDS` replaces the positional ids. The
+//! after its services are up; `--no-stream-cache` leaves out the file of kept streams
+//! (`cache/streams.json` in the data folder), so every run resolves. `NEMO_PROBE_IDS` replaces the positional ids. The
 //! first id is the cold song; the others play after it, as warm comparisons.
 //!
 //! The data folder is `$XDG_DATA_HOME/NemoMusic` (the same as the app): an empty folder is the
@@ -46,7 +47,9 @@ use nemo_core::stream::{ResolvedStream, StreamError, StreamRequest, StreamResolv
 use nemo_core::track::{Artwork, Track, TrackId, VideoId};
 use nemo_ytm::account::{AccountConfig, GoogleAccount, SessionSlot};
 use nemo_ytm::catalog::YtmCatalog;
-use nemo_ytm::resolver::{CachedResolver, FallbackResolver, default_chain};
+use nemo_ytm::resolver::{
+    CachedResolver, FallbackResolver, HttpUrlCheck, StreamStore, persisted_chain,
+};
 use nemo_ytm::session::YtmSessionBackend;
 use nemo_ytm::sponsorblock::{ReqwestHttp, SponsorBlockSource};
 use nemo_ytm::stream::HttpStreamOpener;
@@ -181,6 +184,10 @@ impl AudioSink for NullSink {
 }
 
 /// The options of this run.
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "one switch per command line flag"
+)]
 struct Args {
     ids: Vec<VideoId>,
     query: Option<String>,
@@ -189,6 +196,7 @@ struct Args {
     user_ytdlp: Option<PathBuf>,
     native_refuses: bool,
     warm_up: bool,
+    stream_cache: bool,
 }
 
 fn parse_args() -> Args {
@@ -200,6 +208,7 @@ fn parse_args() -> Args {
         user_ytdlp: None,
         native_refuses: false,
         warm_up: true,
+        stream_cache: true,
     };
     let mut it = std::env::args().skip(1);
     while let Some(arg) = it.next() {
@@ -212,6 +221,7 @@ fn parse_args() -> Args {
             "--no-install" => args.auto_install = false,
             "--native-refuses" => args.native_refuses = true,
             "--no-warm-up" => args.warm_up = false,
+            "--no-stream-cache" => args.stream_cache = false,
             "--user-ytdlp" => args.user_ytdlp = it.next().map(PathBuf::from),
             list => args
                 .ids
@@ -317,11 +327,21 @@ fn build_player(
         ytdlp.program_slot(),
     );
     let chain_began = Instant::now();
+    let store = args.stream_cache.then(|| {
+        Arc::new(StreamStore::open(
+            data_root().join("cache").join("streams.json"),
+        ))
+    });
     let resolver = if args.native_refuses {
         let chain = FallbackResolver::new(Arc::new(Refuses), Arc::new(ytdlp));
-        Arc::new(CachedResolver::new(Arc::new(chain), handle.clone())) as Arc<dyn StreamResolver>
+        let cached = CachedResolver::new(Arc::new(chain), handle.clone());
+        let cached = match (store, HttpUrlCheck::new()) {
+            (Some(store), Ok(check)) => cached.with_persisted(store, Arc::new(check)),
+            _ => cached,
+        };
+        Arc::new(cached) as Arc<dyn StreamResolver>
     } else {
-        default_chain(ytdlp, supported_stream_codecs(), handle)
+        persisted_chain(ytdlp, supported_stream_codecs(), handle, store)
     };
     clock.say("resolver chain built", Some(chain_began));
 

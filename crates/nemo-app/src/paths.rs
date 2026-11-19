@@ -35,6 +35,9 @@ pub struct AppPaths {
     /// the cover files for the OS media session. The integrations crate creates it, not
     /// [`AppPaths::create_all`].
     pub integrations: PathBuf,
+    /// The file of resolved streams kept between runs (`cache/streams.json`, mode 0600 on
+    /// Unix). The resolver creates it; sign-out deletes it.
+    pub streams: PathBuf,
 }
 
 /// No data directory could be found for this user.
@@ -59,6 +62,7 @@ impl AppPaths {
             account: root.join("account"),
             offline: root.join("offline"),
             integrations: root.join("integrations"),
+            streams: root.join("cache").join("streams.json"),
             root,
         }
     }
@@ -127,6 +131,7 @@ mod tests {
             &p.account,
             &p.offline,
             &p.integrations,
+            &p.streams,
         ] {
             assert!(dir.starts_with(root), "{}", dir.display());
         }
