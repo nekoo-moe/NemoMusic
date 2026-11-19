@@ -38,6 +38,9 @@ pub struct AppPaths {
     /// The file of resolved streams kept between runs (`cache/streams.json`, mode 0600 on
     /// Unix). The resolver creates it; sign-out deletes it.
     pub streams: PathBuf,
+    /// The prepared YouTube player script of the in-process resolver (`cache/player.json`,
+    /// about 4 MB, mode 0600 on Unix). It is public data; the cache wipe may delete it.
+    pub player: PathBuf,
 }
 
 /// No data directory could be found for this user.
@@ -63,6 +66,7 @@ impl AppPaths {
             offline: root.join("offline"),
             integrations: root.join("integrations"),
             streams: root.join("cache").join("streams.json"),
+            player: root.join("cache").join("player.json"),
             root,
         }
     }
@@ -132,6 +136,7 @@ mod tests {
             &p.offline,
             &p.integrations,
             &p.streams,
+            &p.player,
         ] {
             assert!(dir.starts_with(root), "{}", dir.display());
         }

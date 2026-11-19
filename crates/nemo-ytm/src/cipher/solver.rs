@@ -1,8 +1,8 @@
-//! The JavaScript side: the `yt-dlp` EJS solver scripts in an embedded QuickJS.
+//! The JavaScript side: the `yt-dlp` EJS solver scripts in an embedded `QuickJS`.
 //!
 //! The scripts are `yt.solver.lib.min.js` (meriyah and astring, a JavaScript parser and printer)
 //! and `yt.solver.core.min.js` (version 0.8.0, Unlicense, from
-//! `github.com/yt-dlp/ejs`). The way to run them is the one `yt-dlp` uses with the QuickJS
+//! `github.com/yt-dlp/ejs`). The way to run them is the one `yt-dlp` uses with the `QuickJS`
 //! command (`yt_dlp/extractor/youtube/jsc/_builtin/ejs.py`): evaluate `lib`, copy its exports
 //! to the global object, evaluate `core`, call `jsc(input)`.
 //!

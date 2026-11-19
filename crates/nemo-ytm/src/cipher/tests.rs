@@ -12,7 +12,7 @@ use super::player::{player_id_in, sts_in};
 
 #[test]
 fn the_player_id_is_read_from_iframe_api_like_yt_dlp_does() {
-    let text = r#"var scriptUrl = 'https:\/\/www.youtube.com\/s\/player\/983e9c18\/www-widgetapi.vflset\/www-widgetapi.js';"#;
+    let text = r"var scriptUrl = 'https:\/\/www.youtube.com\/s\/player\/983e9c18\/www-widgetapi.vflset\/www-widgetapi.js';";
     assert_eq!(player_id_in(text).as_deref(), Some("983e9c18"));
     assert_eq!(
         player_id_in("player/ABCDEF12/x").as_deref(),

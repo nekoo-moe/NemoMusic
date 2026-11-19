@@ -27,15 +27,15 @@ fn pre<'a>(id: &'a str, text: &'a str) -> Script<'a> {
 #[test]
 fn the_functions_of_a_player_answer_n_and_signature_challenges() {
     let solver = JsSolver::start().expect("worker");
-    let solved = solver
+    let answer = solver
         .solve(
             pre("aaaaaaaa", FAKE_PLAYER),
             &asked(&["abc"], &["xyz"]),
             limit(),
         )
         .expect("solved");
-    assert_eq!(solved.n.get("abc").map(String::as_str), Some("n-ABC"));
-    assert_eq!(solved.sig.get("xyz").map(String::as_str), Some("zyx"));
+    assert_eq!(answer.n.get("abc").map(String::as_str), Some("n-ABC"));
+    assert_eq!(answer.sig.get("xyz").map(String::as_str), Some("zyx"));
 }
 
 #[test]

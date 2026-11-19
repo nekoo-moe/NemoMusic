@@ -187,11 +187,13 @@ pub fn build(
         ytdlp.program_slot(),
     );
     // Cache -> native player request -> yt-dlp (fast arguments, then the full extraction).
-    let resolver = persisted_chain(
+    let cipher = build_cipher(paths, handle);
+    let resolver = persisted_chain_with(
         ytdlp.clone(),
         supported_stream_codecs(),
         handle,
         Some(Arc::clone(&streams)),
+        cipher.clone(),
     );
     let start_warm = StartupWarm::new(Arc::clone(&resolver));
     // Already set only if `build` ran twice on one slot, which it does not.

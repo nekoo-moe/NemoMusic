@@ -76,14 +76,13 @@ fn candidate(entry: &Value, ciphers: bool) -> Option<Candidate> {
     if entry.get("drmFamilies").is_some() {
         return None;
     }
-    let (url, cipher) = match entry.get("url").and_then(Value::as_str) {
-        Some(url) if is_https(url) => (url.to_owned(), None),
-        Some(_) => return None,
-        None if ciphers => {
-            let (url, cipher) = cipher_parts(entry)?;
-            (url, Some(cipher))
-        }
-        None => return None,
+    let (url, cipher) = if let Some(url) = entry.get("url").and_then(Value::as_str) {
+        is_https(url).then_some((url.to_owned(), None))?
+    } else if ciphers {
+        let (url, cipher) = cipher_parts(entry)?;
+        (url, Some(cipher))
+    } else {
+        return None;
     };
     // Prefer the plain track: skip "stable volume" (DRC) and non-default dubbed tracks.
     if entry.get("isDrc").and_then(Value::as_bool) == Some(true)

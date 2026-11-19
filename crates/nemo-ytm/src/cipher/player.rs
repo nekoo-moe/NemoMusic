@@ -258,7 +258,7 @@ impl PlayerStore {
         if let Some(info) = self.fresh() {
             return Ok(info);
         }
-        if let Some(info) = self.from_file() {
+        if let Some(info) = self.read_file() {
             return Ok(info);
         }
         let id = match self.source.latest_id().await {
@@ -273,19 +273,19 @@ impl PlayerStore {
         }
         let script = self.source.script(&id).await?;
         let sts = sts_in(&script).ok_or_else(|| StreamError::Parse("no timestamp".to_owned()))?;
-        let solver = Arc::clone(&self.solver);
+        let engine = Arc::clone(&self.solver);
         let named = id.clone();
-        let solved = tokio::task::spawn_blocking(move || {
+        let done = tokio::task::spawn_blocking(move || {
             let whole = Script::Whole {
                 id: &named,
                 text: &script,
             };
-            solver.solve(whole, &Challenges::default(), PREPARE_LIMIT)
+            engine.solve(whole, &Challenges::default(), PREPARE_LIMIT)
         })
         .await
         .map_err(|_| StreamError::Network("solver task ended".to_owned()))?
         .map_err(|e| StreamError::Parse(e.to_string()))?;
-        let preprocessed = solved
+        let preprocessed = done
             .preprocessed
             .ok_or_else(|| StreamError::Parse("no preprocessed script".to_owned()))?;
         let info = PlayerInfo {
@@ -304,7 +304,7 @@ impl PlayerStore {
     }
 
     /// The player of the cache file, when it was confirmed current within the check interval.
-    fn from_file(&self) -> Option<PlayerInfo> {
+    fn read_file(&self) -> Option<PlayerInfo> {
         let text = std::fs::read_to_string(self.file.as_ref()?).ok()?;
         let file: CacheFile = serde_json::from_str(&text).ok()?;
         let age = SystemTime::now()

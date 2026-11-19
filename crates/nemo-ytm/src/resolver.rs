@@ -29,6 +29,7 @@ use nemo_core::track::VideoId;
 use tokio::runtime::Handle;
 use tokio::sync::OnceCell;
 
+use crate::cipher::CipherResolver;
 use crate::innertube::{ANDROID_VR, ClientProfile, InnertubeResolver, VISIONOS};
 use crate::timing;
 use crate::ytdlp::YtDlpResolver;
@@ -560,16 +561,35 @@ pub fn persisted_chain(
     allowed: &[Codec],
     handle: &Handle,
     store: Option<Arc<StreamStore>>,
-) -> Arc<dyn StreamResolver> {
+) -> Arc<CachedResolver> {
+    persisted_chain_with(ytdlp, allowed, handle, store, None)
+}
+
+/// [`persisted_chain`] with the in-process tier (cold-start spec): the order is the cache, the
+/// plain native request, `cipher` (the `tv` client and the embedded solver), `yt-dlp`. Without a
+/// `cipher` it is the chain of [`persisted_chain`].
+#[must_use]
+pub fn persisted_chain_with(
+    ytdlp: YtDlpResolver,
+    allowed: &[Codec],
+    handle: &Handle,
+    store: Option<Arc<StreamStore>>,
+    cipher: Option<Arc<CipherResolver>>,
+) -> Arc<CachedResolver> {
+    let ytdlp: Arc<dyn StreamResolver> = Arc::new(ytdlp);
+    let second: Arc<dyn StreamResolver> = match cipher {
+        Some(cipher) => Arc::new(FallbackResolver::new(cipher, ytdlp)),
+        None => ytdlp,
+    };
     let inner: Arc<dyn StreamResolver> =
         match InnertubeResolver::new(handle.clone(), NATIVE_PROFILES) {
             Ok(native) => Arc::new(FallbackResolver::new(
                 Arc::new(native.with_allowed_codecs(allowed)),
-                Arc::new(ytdlp),
+                second,
             )),
             Err(e) => {
                 tracing::warn!(error = %e, "native resolver disabled");
-                Arc::new(ytdlp)
+                second
             }
         };
     let cached = CachedResolver::new(inner, handle.clone());

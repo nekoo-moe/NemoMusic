@@ -2,12 +2,12 @@
 //!
 //! Some `player` clients answer with ciphered stream addresses: a `signatureCipher` whose
 //! signature, and an `n` parameter, are computed by functions inside YouTube's player script.
-//! `yt-dlp` runs them in a subprocess. This module runs them in the app instead, as SimpMusic and
-//! Metrolist do, so a song the plain native request refuses can still be resolved without
+//! `yt-dlp` runs them in a subprocess. This module runs them in the app instead, as `SimpMusic` and
+//! `Metrolist` do, so a song the plain native request refuses can still be resolved without
 //! starting `yt-dlp` (about 2 s here):
 //!
 //! - [`JsSolver`] runs the `yt-dlp` EJS solver scripts (Unlicense, vendored in `assets/ejs`) in an
-//!   embedded QuickJS on one dedicated thread, with a memory limit and a time limit.
+//!   embedded `QuickJS` on one dedicated thread, with a memory limit and a time limit.
 //! - [`PlayerStore`] finds the current player script (`iframe_api`, re-checked every 6 hours),
 //!   downloads it once and keeps what the solver preprocessed from it, with its signature
 //!   timestamp, in memory and in a private file.
