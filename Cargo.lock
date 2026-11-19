@@ -3652,6 +3652,7 @@ dependencies = [
  "nemo-lyrics",
  "nemo-secrets",
  "nemo-signin",
+ "nemo-soundcloud",
  "nemo-ui",
  "nemo-ytm",
  "rfd",

@@ -14,7 +14,7 @@ use nemo_core::integrations::NoIntegrations;
 use nemo_core::notify::NoNotifier;
 use nemo_core::player::PlayerCommand;
 use nemo_core::segment::SegmentSource;
-use nemo_core::services::Backend;
+use nemo_core::services::{Backend, StreamOpener};
 use nemo_core::stats::NoStats;
 use nemo_core::stream::StreamRequest;
 use nemo_library::catalog::LOCAL_ALBUM_PREFIX;
@@ -37,6 +37,7 @@ use crate::config::{Settings, StoredDevice};
 use crate::merged::MergedCatalog;
 use crate::paths::AppPaths;
 use crate::play_hub::{self, PlayHub};
+use crate::soundcloud::{self, RoutingOpener};
 use crate::ui_bridge::SettingsMsg;
 
 /// Starting a service failed. The message is user-safe.
@@ -157,6 +158,14 @@ pub fn build(
         }
     };
 
+    // SoundCloud exists only when the switch is on and the notice confirmed (soundcloud-full).
+    let sc = soundcloud::build(&settings.opt_ins, handle, || soundcloud::real_http(handle));
+    let files: Arc<dyn StreamOpener> = Arc::new(HttpStreamOpener::default());
+    let opener: Arc<dyn StreamOpener> = match &sc {
+        Some(parts) => Arc::new(RoutingOpener::new(files, Arc::new(parts.opener.clone()))),
+        None => files,
+    };
+
     let player = Player::spawn(PlayerDeps {
         resolver,
         // Automatic language, no Premium, no codec hint until the account settings build it.
@@ -165,8 +174,8 @@ pub fn build(
         local: None,
         // No offline cache wired yet (offline-cache): every song streams.
         offline: None,
-        url_resolver: None,
-        opener: Arc::new(HttpStreamOpener::default()),
+        url_resolver: sc.as_ref().map(|parts| Arc::clone(&parts.resolver)),
+        opener,
         segments,
         // The shared-mode factory opens by ID through `DeviceSinkFactory` (output-devices task 7).
         sink_factory: Arc::new(DeviceSinkFactory::new(OutputSelection {
@@ -199,7 +208,7 @@ pub fn build(
             account,
             integrations: Arc::new(NoIntegrations),
             notifier: Arc::new(NoNotifier),
-            soundcloud: None,
+            soundcloud: sc.map(|parts| parts.catalog),
             stats: Arc::new(NoStats),
             comments: None,
             ratings: None,
