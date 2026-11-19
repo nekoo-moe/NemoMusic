@@ -14,6 +14,8 @@ mod backdrop;
 mod feature;
 #[path = "snapshots/font_compare.rs"]
 mod font_compare;
+#[path = "snapshots/glass.rs"]
+mod glass;
 #[path = "snapshots/lyrics_polish.rs"]
 mod lyrics_polish;
 #[path = "snapshots/lyrics_rebuild.rs"]
@@ -121,6 +123,10 @@ fn main() {
         std::process::exit(1);
     }
     if let Err(e) = startup::render(&only, &out_dir) {
+        eprintln!("{e}");
+        std::process::exit(1);
+    }
+    if let Err(e) = glass::render(&only, &out_dir) {
         eprintln!("{e}");
         std::process::exit(1);
     }

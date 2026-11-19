@@ -48,6 +48,7 @@ pub(crate) fn boot_app(backend: Backend, options: &UiOptions) -> (App, iced::Tas
 pub fn run(backend: Backend, options: UiOptions) -> iced::Result {
     let (width, height) = options.window_size;
     let maximized = options.maximized;
+    let transparent = options.settings.window_glass;
     let min = crate::theme::layout::MIN_WINDOW;
     iced::application(
         move || {
@@ -60,6 +61,7 @@ pub fn run(backend: Backend, options: UiOptions) -> iced::Result {
     .title(App::title)
     .subscription(App::subscription)
     .theme(App::theme)
+    .style(App::style)
     .font(assets::FONT_REGULAR)
     .font(assets::FONT_MEDIUM)
     .font(assets::FONT_SEMIBOLD)
@@ -71,6 +73,7 @@ pub fn run(backend: Backend, options: UiOptions) -> iced::Result {
         size: iced::Size::new(width, height),
         min_size: Some(iced::Size::new(min.0, min.1)),
         maximized,
+        transparent,
         ..iced::window::Settings::default()
     })
     .run()

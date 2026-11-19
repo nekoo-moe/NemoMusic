@@ -41,6 +41,17 @@ pub fn window_inputs(app: &App) -> Inputs {
     }
 }
 
+/// Alpha of the window backdrop fills: 1 unless the window glass is clear (appearance-glass
+/// spec). The full-screen Now Playing stays solid, its lyrics sit straight on the backdrop.
+fn glass_alpha(app: &App) -> f32 {
+    if app.window_is_clear() {
+        app.window_glass()
+            .backdrop_alpha(matches!(app.ui.route(), Route::NowPlaying))
+    } else {
+        1.0
+    }
+}
+
 /// `true` while the window backdrop moves: song colours on with a cover, and every stop rule
 /// of [`Mode`] allows it. The app asks for frames for as long as this holds
 /// (`App::needs_frames`), so the backdrop never depends on a timer of its own.
@@ -64,12 +75,21 @@ pub fn window_field(app: &App) -> Element<'_, Message> {
         return flat_cover_field(app, cover);
     }
     let (under, layers) = window_layers(app, cover);
+    // Window glass (appearance-glass spec): every fill of the backdrop at the window opacity.
+    let glass = glass_alpha(app);
+    let layers = layers
+        .into_iter()
+        .map(|l| Layer {
+            opacity: l.opacity * glass,
+            ..l
+        })
+        .collect();
     let s = &app.ui.settings;
     let beat = s.song_heartbeat && s.heartbeat_available(app.ui.reduced_motion);
-    let field = Field::new(under, layers, inputs)
+    let field = Field::new(under.with_alpha(glass), layers, inputs)
         .heartbeat(beat)
         .preview(app.backdrop_preview_ms);
-    stack![Element::from(field), vignette()]
+    stack![Element::from(field), vignette(glass)]
         .width(Length::Fill)
         .height(Length::Fill)
         .into()
@@ -111,6 +131,7 @@ fn flat_cover_field<'a>(app: &App, cover: &CoverView) -> Element<'a, Message> {
     let base = app.ui.settings.base;
     let fade = app.anim.cover();
     let prev = app.prev_cover.as_ref().filter(|_| fade < 0.999);
+    let glass = glass_alpha(app);
     let mid = STOPS / 2;
     let now = cover.canvas.stops(base)[mid];
     let flat = prev.map_or(now, |p| {
@@ -120,19 +141,19 @@ fn flat_cover_field<'a>(app: &App, cover: &CoverView) -> Element<'a, Message> {
         .width(Length::Fill)
         .height(Length::Fill)
         .style(move |_| container::Style {
-            background: Some(col(flat).into()),
+            background: Some(col(flat.with_alpha(glass)).into()),
             ..container::Style::default()
         })
         .into()
 }
 
 /// A darkening toward the bottom of the window.
-fn vignette<'a>() -> Element<'a, Message> {
+fn vignette<'a>(glass: f32) -> Element<'a, Message> {
     let base = color::surface_container_lowest();
     let g = iced::gradient::Linear::new(iced::Radians(DOWN))
         .add_stop(0.0, iced::Color::TRANSPARENT)
-        .add_stop(0.4, col(base.with_alpha(VIGNETTE_MID_ALPHA)))
-        .add_stop(1.0, col(base.with_alpha(VIGNETTE_ALPHA)));
+        .add_stop(0.4, col(base.with_alpha(VIGNETTE_MID_ALPHA * glass)))
+        .add_stop(1.0, col(base.with_alpha(VIGNETTE_ALPHA * glass)));
     container(Space::new())
         .width(Length::Fill)
         .height(Length::Fill)
@@ -147,11 +168,12 @@ fn vignette<'a>() -> Element<'a, Message> {
 /// grey for Dynamic), cross-faded by `scheme::BgFade`.
 fn flat_field(app: &App) -> Element<'_, Message> {
     let flat = app.bg_fade.current()[1];
+    let glass = glass_alpha(app);
     container(Space::new())
         .width(Length::Fill)
         .height(Length::Fill)
         .style(move |_| container::Style {
-            background: Some(col(flat).into()),
+            background: Some(col(flat.with_alpha(glass)).into()),
             ..container::Style::default()
         })
         .into()
@@ -185,7 +207,7 @@ pub fn pane_background(app: &App) -> Background {
         let top = accent.primary_container.with_alpha(0.50).over(base);
         return vertical_gradient(
             col(top.with_alpha(0.9)),
-            col(base.with_alpha(crate::scheme::PANE_ALPHA)),
+            col(base.with_alpha(crate::scheme::pane_alpha())),
         );
     };
     let mut g = iced::gradient::Linear::new(iced::Radians(DOWN));

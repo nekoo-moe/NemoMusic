@@ -2,6 +2,8 @@
 //! seed), how strong the accent is and how round the corners are. Pure data and maths; the GUI
 //! applies it. Every palette keeps text contrast at 4.5:1 or better on its surfaces (tests below).
 
+use std::sync::atomic::{AtomicU32, Ordering};
+
 use crate::palette::{MAX_CHROMA, Oklch, Palette, Seed, build_palette_on, mix_rgb, oklch_to_rgb};
 use crate::theme::{Neutrals, Rgba};
 
@@ -146,6 +148,22 @@ pub fn page_glow(seed: Option<Seed>, base: BaseMode) -> [Rgba; 2] {
 /// and let the colour and the drift of the song show through (0.74 before the living-backdrop
 /// spec).
 pub const PANE_ALPHA: f32 = 0.66;
+
+/// The pane alpha views draw with now, as `f32` bits: [`PANE_ALPHA`], or at least the glass
+/// floor while the window is see-through (appearance-glass spec). A process-wide slot like the
+/// active neutrals, set on the UI thread at start and after every settings change.
+static PANE_ALPHA_NOW: AtomicU32 = AtomicU32::new(PANE_ALPHA.to_bits());
+
+/// Alpha of the panes over the window backdrop now.
+#[must_use]
+pub fn pane_alpha() -> f32 {
+    f32::from_bits(PANE_ALPHA_NOW.load(Ordering::Relaxed))
+}
+
+/// Make `alpha` (0 to 1) the alpha every pane draws with.
+pub fn set_pane_alpha(alpha: f32) {
+    PANE_ALPHA_NOW.store(alpha.clamp(0.0, 1.0).to_bits(), Ordering::Relaxed);
+}
 
 /// The three colours of the window background for a seed (a cover, a page or a theme). Dark,
 /// low chroma, and darker toward the corner opposite the light source. Without a seed the field

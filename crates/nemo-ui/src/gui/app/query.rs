@@ -66,6 +66,20 @@ impl App {
         style::theme()
     }
 
+    /// iced `style`: the window colour, transparent while the window glass is clear.
+    #[must_use]
+    pub fn style(&self, theme: &iced::Theme) -> iced::theme::Style {
+        let base = iced::theme::Base::base(theme);
+        if self.window_is_clear() {
+            iced::theme::Style {
+                background_color: iced::Color::TRANSPARENT,
+                ..base
+            }
+        } else {
+            base
+        }
+    }
+
     /// The accent palette to draw now (mid cross-fade it is a mix).
     #[must_use]
     pub fn accent(&self) -> Palette {

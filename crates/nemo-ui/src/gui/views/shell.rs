@@ -130,7 +130,7 @@ fn center_pane(app: &App, center_w: u32, _w: u32, h: u32) -> Element<'_, Message
     pane_surface(
         column![top_bar(app, center_w), page],
         Length::Fill,
-        col(color::surface_container().with_alpha(crate::scheme::PANE_ALPHA)).into(),
+        col(color::surface_container().with_alpha(crate::scheme::pane_alpha())).into(),
     )
     .into()
 }

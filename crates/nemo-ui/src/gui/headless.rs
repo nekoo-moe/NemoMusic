@@ -5,6 +5,7 @@
 //! creates the renderer (this crate forbids `unsafe`, so it cannot set the variable itself).
 
 pub mod cost;
+pub mod glass;
 
 use std::path::{Path, PathBuf};
 
