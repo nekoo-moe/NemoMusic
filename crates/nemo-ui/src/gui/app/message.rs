@@ -161,6 +161,8 @@ pub enum Message {
     },
     /// The user wants to add a music folder.
     AddFolder,
+    /// The `Restart now` pill of the Window glass card (bar-material spec).
+    Restart,
     /// The folder dialog closed: the chosen folder, or `None` when it was cancelled.
     FolderPicked(Option<String>),
     /// Header content chip (All, Music, Videos, Podcasts).

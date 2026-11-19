@@ -30,3 +30,7 @@ nemo-ui = { workspace = true, features = ["gui"] }
 # portal (`gtk3` cannot be used: rfd 0.18 needs gtk-sys 0.19 and wry already links gtk-sys 0.18,
 # and Cargo allows one `links = "gtk-3"` package); Windows uses its own native dialog.
 rfd = { version = "=0.18.0", default-features = false, features = ["xdg-portal"] }
+
+# Mica or acrylic blur behind the see-through window (Windows only; tech.md, Window blur).
+[target.'cfg(windows)'.dependencies]
+window-vibrancy = "=0.8.1"

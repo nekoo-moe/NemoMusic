@@ -15,9 +15,6 @@ use crate::theme::motion::SLOW_MS;
 pub const ART_FADE_MS: f32 = 150.0;
 /// Pictures that may fade at once; later arrivals just appear.
 const ART_FADES_MAX: usize = 64;
-/// Where the highlight of a loading skeleton rests: it does not move (`design.md` section 8
-/// allows no loops).
-pub const SKELETON_PHASE: f32 = 0.45;
 /// The sidebar entries that carry the sliding pill, top to bottom.
 pub const NAV_ENTRIES: [NavEntry; 4] = [
     NavEntry::Home,

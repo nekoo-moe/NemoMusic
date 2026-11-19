@@ -44,14 +44,18 @@ pub mod search;
 pub mod settings;
 pub mod setup;
 pub mod signal;
+pub mod skeleton;
 pub mod splash;
 pub mod state;
 pub mod theme;
 pub mod window_glass;
 
 pub use settings::{AnimatedCoverSettings, GlassTier, NowPlayingStyle, UiSettings};
+pub use window_glass::WindowLook;
 
 #[cfg(feature = "gui")]
 pub mod gui;
 #[cfg(feature = "gui")]
-pub use gui::{StartFn, StepReporter, UiOptions, run, run_with_startup};
+pub use gui::{
+    RestartHandler, StartFn, StepReporter, UiOptions, WindowHandler, run, run_with_startup,
+};
