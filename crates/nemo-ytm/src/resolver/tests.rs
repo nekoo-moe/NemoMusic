@@ -26,6 +26,8 @@ struct Counting {
     calls: AtomicUsize,
     expires_in: Option<Duration>,
     fail: bool,
+    /// A failing resolve fails as a request (an HTTP error), not as a refused video.
+    request_error: bool,
     delay: Duration,
     failed: AtomicUsize,
     /// Resolves that were dropped before they answered.
@@ -40,6 +42,7 @@ impl Counting {
             calls: AtomicUsize::new(0),
             expires_in,
             fail,
+            request_error: false,
             delay: Duration::from_millis(20),
             failed: AtomicUsize::new(0),
             cancelled: AtomicUsize::new(0),
@@ -52,11 +55,19 @@ impl Counting {
             calls: AtomicUsize::new(0),
             expires_in: Some(Duration::from_hours(1)),
             fail,
+            request_error: false,
             delay,
             failed: AtomicUsize::new(0),
             cancelled: AtomicUsize::new(0),
             seen: Mutex::default(),
         })
+    }
+    /// A resolver whose every answer is a failed request.
+    fn failing_requests() -> Arc<Self> {
+        let mut me = Arc::try_unwrap(Self::new(Some(Duration::from_hours(1)), true))
+            .unwrap_or_else(|_| unreachable!("just built"));
+        me.request_error = true;
+        Arc::new(me)
     }
     fn calls(&self) -> usize {
         self.calls.load(Ordering::SeqCst)
@@ -82,7 +93,11 @@ impl StreamResolver for Counting {
             tokio::time::sleep(self.delay).await;
             unfinished.1 = false;
             if self.fail {
-                return Err(StreamError::NotAvailable);
+                return Err(if self.request_error {
+                    StreamError::Network("HTTP 429".to_owned())
+                } else {
+                    StreamError::NotAvailable
+                });
             }
             Ok(ResolvedStream {
                 url: Secret::new(format!("https://x.invalid/{SECRET}")),
@@ -180,9 +195,9 @@ fn the_cache_stays_bounded() {
 }
 
 #[test]
-fn repeated_primary_refusals_pause_the_primary() {
+fn repeated_failed_requests_rest_the_primary() {
     let rt = rt();
-    let bad = Counting::new(Some(Duration::from_hours(1)), true);
+    let bad = Counting::failing_requests();
     let good = Counting::new(Some(Duration::from_hours(1)), false);
     let chain = FallbackResolver::new(bad.clone(), good.clone());
     for id in ["aaaaaaaaaaa", "bbbbbbbbbbb", "ccccccccccc"] {
@@ -463,3 +478,5 @@ fn when_both_fail_the_error_is_the_fallbacks_and_a_fast_primary_starts_no_race()
     assert!(timed(&rt, &chain, &v).0.is_ok());
     assert_eq!(idle.calls(), 0);
 }
+
+mod refusals;
