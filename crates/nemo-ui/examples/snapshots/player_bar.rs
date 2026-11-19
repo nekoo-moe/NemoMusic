@@ -9,6 +9,7 @@ use nemo_ui::gui::headless::{Scenario, build_app, render_png, render_png_pointer
 use nemo_ui::layout::bar::{PADDING, ZONE_GAP, width, zones};
 use nemo_ui::mock::mock_backend;
 use nemo_ui::scheme::BaseMode;
+use nemo_ui::settings::GlassTier;
 
 /// Logical px kept from the bottom of the window: the capsule, its margin and the shadow.
 const STRIP: u32 = 124;
@@ -79,7 +80,7 @@ fn shots() -> Vec<Shot> {
     off.settings.reduce_transparency = true;
     let mut repeat_one = scenario(wide, 0);
     repeat_one.repeat = nemo_core::player::RepeatMode::One;
-    vec![
+    let mut out = vec![
         strip("player-bar-playing-1280", scenario(wide, 0)),
         strip("player-bar-paused-1280", paused),
         strip("player-bar-buffering-1280", buffering),
@@ -104,7 +105,34 @@ fn shots() -> Vec<Shot> {
         pointed("player-bar-seek-drag-1280", scenario(wide, 0), 0.553, true),
         window("player-bar-window-1280x800", scenario(wide, 0)),
         window("player-bar-window-960x600", scenario((960, 600), 0)),
-    ]
+    ];
+    out.extend(glass_shots());
+    out
+}
+
+/// The glass capsule over three backdrops (backdrop-calm spec): a dark red cover (album 8), a
+/// yellow-green one (album 6) and the red one in light mode; tier Low (glass) and Off (opaque),
+/// at 1280 and 960 px wide.
+fn glass_shots() -> Vec<Shot> {
+    let mut out = Vec::new();
+    for (stem, track, base) in [
+        ("red", 32, BaseMode::Dark),
+        ("yellow", 24, BaseMode::Dark),
+        ("light", 32, BaseMode::Light),
+    ] {
+        for (tier_stem, tier) in [("low", GlassTier::Low), ("off", GlassTier::Off)] {
+            for size in [(1280, 800), (960, 600)] {
+                let mut s = with_base(scenario(size, track), base);
+                s.settings.glass_tier = tier;
+                // A handful of names for the run of one example: leaking them is harmless.
+                let name: &'static str = Box::leak(
+                    format!("bar-glass-{stem}-{tier_stem}-{}", size.0).into_boxed_str(),
+                );
+                out.push(strip(name, s));
+            }
+        }
+    }
+    out
 }
 
 /// Render the capsule shots named in `only` (all when empty) into `out_dir`.

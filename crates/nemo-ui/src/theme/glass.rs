@@ -30,8 +30,16 @@ pub const SHADOW_OFFSET_Y: f32 = 8.0;
 pub const SHADOW_BLUR: f32 = 24.0;
 /// Shadow color (`#00000052`).
 pub const SHADOW: Rgba = Rgba::from_rgba_hex(0x0000_0052);
-/// Share of the cover tint over the capsule's tonal fill (tier Low).
-pub const BAR_TINT_ALPHA: f32 = 0.18;
+/// Mean opacity of the capsule's glass fill: `surface-container` over the window backdrop
+/// (owner, 2026-11-19; backdrop-calm). Allowed range 0.40 to 0.55; text keeps 4.5:1 (tests).
+pub const BAR_FILL_ALPHA: f32 = 0.52;
+/// The glass is this much more opaque at the top edge and less opaque at the bottom edge, around
+/// [`BAR_FILL_ALPHA`]: a light inner gradient.
+pub const BAR_FILL_SLOPE: f32 = 0.03;
+/// White share mixed into the top of the glass fill, so a flat backdrop still reads as glass.
+pub const BAR_LIFT: f32 = 0.06;
+/// Opacity of the 1 px `outline-variant` edge of the glass capsule.
+pub const BAR_OUTLINE_ALPHA: f32 = 0.60;
 /// Shadow offset y in px of a tonal surface that floats (elevation level 3, `design.md` section 5).
 pub const ELEVATED_OFFSET_Y: f32 = 4.0;
 /// Shadow blur in px of a tonal surface that floats.
