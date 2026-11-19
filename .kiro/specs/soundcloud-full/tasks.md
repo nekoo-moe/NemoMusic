@@ -111,6 +111,15 @@ Waves: 1 = native client and playback (agent H, PRs 1 to 3 of 2026-11-19); 2 to 
   - Checks: fake-HTTP tests for the request method, path and body; undo on refusal; needs the owner for a real-account check.
   - Steering: none
 
+- [x] 13. Cold start tuning
+  - Crate and files: `nemo-soundcloud` (`opener.rs`, `stream.rs`, `client.rs`, `examples/latency.rs`), `nemo-app` (`soundcloud.rs`).
+  - Does: media connection opened ahead (HEAD of the media host root, once the client id is known and while a listener works, at most every 45 s), `http2` for both clients, playlists kept 150 s for replays (3 streams), one look-up per page at a time, hints wait for a listener's call, the next two entries warmed (the player's `WARM_AHEAD`).
+  - _Requirements: 14, 15_
+  - Depends on: soundcloud-full#6
+  - Wave: 3
+  - Checks: fake-HTTP tests for the order of calls (click before hint), the activity callback, one look-up for a click and a hint, the media connection opened once per window; loopback tests for the kept playlist and the slot limit; the latency example (cold and warm runs).
+  - Steering: `tech.md` SoundCloud row names `http2`.
+
 ## Definition of Done
 
 Every task meets [section 4 of workflow.md](../../steering/workflow.md#4-definition-of-done). For this spec also:
