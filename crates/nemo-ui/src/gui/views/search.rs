@@ -3,7 +3,7 @@
 //! result sections in the order YouTube Music ranked them, or one kind in full for a chip
 //! (search-like-ytm). Enter plays the top song.
 
-use iced::widget::{Space, column, container, stack, text_input};
+use iced::widget::{Space, column, container, row, stack, text_input};
 use iced::{Alignment, Border, Element, Length, Padding};
 
 use super::super::app::{App, Message, SEARCH_ID};
@@ -30,15 +30,15 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
     let content_w = grid.content as f32;
     let search = &app.ui.search;
 
-    let mut c = column![
-        page_title("Search"),
-        vspace(gap::LG),
-        query_box(app, content_w)
-    ]
-    .width(Length::Fill);
+    let mut title = row![page_title("Search")].align_y(Alignment::Center);
+    // While SoundCloud is on, the same two chips as the Library choose the service searched.
+    if let Some(switch) = super::library::source_switch(app) {
+        title = title.push(Space::new().width(gap::LG)).push(switch);
+    }
+    let mut c = column![title, vspace(gap::LG), query_box(app, content_w)].width(Length::Fill);
     c = c.push(vspace(gap::XL));
 
-    if !app.ui.youtube_enabled() {
+    if !app.ui.youtube_enabled() && !app.search_is_soundcloud() {
         c = c.push(status(
             Icon::Info,
             "YouTube Music is waiting",
@@ -52,7 +52,11 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
         c = c.push(status(
             Icon::Search,
             "Find something to play",
-            "Search songs, albums, artists and playlists. Press Enter to play the top song.",
+            if app.search_is_soundcloud() {
+                "Search SoundCloud tracks, albums, artists and playlists. Press Enter to play the top track."
+            } else {
+                "Search songs, albums, artists and playlists. Press Enter to play the top song."
+            },
             None,
         ));
         return page(grid.content, c);

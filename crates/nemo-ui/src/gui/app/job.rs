@@ -181,6 +181,32 @@ pub async fn run_job(job: Job, backend: Backend) -> Message {
             Message::Sc(ScMsg::SignedIn(sc_sign_in(&backend, Some(token)).await))
         }
         Job::ScSignOut => Message::Sc(ScMsg::SignedOut(sc_sign_out(&backend).await)),
+        Job::ScSearch(query) => {
+            let result = match &backend.soundcloud {
+                Some(c) => c
+                    .search(&query)
+                    .await
+                    .map(Arc::new)
+                    .map_err(|e| e.to_string()),
+                None => Err(SC_NOT_RUNNING.to_owned()),
+            };
+            Message::SearchDone { query, result }
+        }
+        Job::ScSearchKind { query, kind } => {
+            let result = match &backend.soundcloud {
+                Some(c) => c
+                    .search_kind(&query, kind)
+                    .await
+                    .map(Arc::new)
+                    .map_err(|e| e.to_string()),
+                None => Err(SC_NOT_RUNNING.to_owned()),
+            };
+            Message::Ui(Event::SearchFilterDone {
+                query,
+                kind,
+                result,
+            })
+        }
         Job::ScLibrary { generation } => Message::Sc(ScMsg::LibraryLoaded {
             generation,
             result: sc_library(&backend).await.map(Arc::new),
@@ -442,3 +468,6 @@ fn detail_catalog<'a>(
         _ => &backend.catalog,
     }
 }
+
+/// What a SoundCloud search says when the app built no SoundCloud (the switch was turned off).
+const SC_NOT_RUNNING: &str = "SoundCloud is not running.";

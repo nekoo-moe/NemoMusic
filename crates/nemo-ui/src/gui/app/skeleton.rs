@@ -51,7 +51,7 @@ impl App {
     /// not pending.
     pub(crate) fn search_pending(&self) -> bool {
         let s = &self.ui.search;
-        self.ui.youtube_enabled()
+        (self.ui.youtube_enabled() || self.search_is_soundcloud())
             && !s.query().is_empty()
             && match s.filter {
                 None => s.results.is_none() && s.error.is_none(),

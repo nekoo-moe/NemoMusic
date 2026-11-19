@@ -103,6 +103,7 @@ fn scenarios() -> Vec<Shot> {
     song_colour::shots(&mut out);
     soundcloud_account::shots(&mut out);
     soundcloud_account::library_shots(&mut out);
+    soundcloud_account::search_shots(&mut out);
     skeleton::shots(&mut out);
     out.extend(wave_lyrics::shots());
     out.extend(syllable_motion::shots());

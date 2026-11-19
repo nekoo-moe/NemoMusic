@@ -150,10 +150,13 @@ async fn each_filter_uses_its_own_path_and_videos_are_not_offered() {
             "/search/playlists_without_albums"
         ]
     );
-    assert!(matches!(
-        catalog.search_kind("a", SearchKind::Videos).await,
-        Err(CatalogError::Unavailable(_))
-    ));
+    // SoundCloud has no videos or channels: the chip answers empty, with no request.
+    let before = fake.urls().len();
+    for kind in [SearchKind::Videos, SearchKind::Channels] {
+        let empty = catalog.search_kind("a", kind).await.expect("empty answer");
+        assert!(empty.songs.is_empty() && empty.artists.is_empty());
+    }
+    assert_eq!(fake.urls().len(), before);
 }
 
 #[tokio::test]
