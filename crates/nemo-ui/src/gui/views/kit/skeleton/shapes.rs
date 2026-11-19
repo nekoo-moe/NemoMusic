@@ -14,6 +14,9 @@ use crate::theme::{shape, type_scale};
 
 /// Height of a chip.
 pub const CHIP_H: f32 = 32.0;
+/// Height of a row of the sidebar library list, and its cover.
+pub const LIST_ITEM_H: f32 = 64.0;
+const LIST_ART: f32 = 48.0;
 /// Art of the Home hero banner, and its padding.
 const HERO_ART: f32 = 176.0;
 /// Height of the Home hero banner.
@@ -77,6 +80,33 @@ impl Skeleton {
             all = all.push(line);
         }
         all.into()
+    }
+
+    /// A row of the sidebar library list, `width` wide and [`LIST_ITEM_H`] high: a 48 px cover and
+    /// two lines.
+    #[must_use]
+    pub fn list_item<'a>(self, width: f32) -> Element<'a, Message> {
+        let text_w = (width - LIST_ART - gap::MD - 2.0 * gap::SM).max(40.0);
+        container(
+            row![
+                self.block(
+                    Length::Fixed(LIST_ART),
+                    LIST_ART,
+                    ArtShape::Thumb.radius(LIST_ART)
+                ),
+                Space::new().width(gap::MD),
+                column![
+                    self.line(text_w * 0.7, type_scale::BODY_MD),
+                    self.line(text_w * 0.45, type_scale::BODY_SM),
+                ],
+            ]
+            .align_y(Alignment::Center),
+        )
+        .width(Length::Fixed(width))
+        .height(Length::Fixed(LIST_ITEM_H))
+        .padding(Padding::from([0.0, gap::SM]))
+        .align_y(Alignment::Center)
+        .into()
     }
 
     /// A section title of `width` px (`title-lg`) with the gap under it, like `shelf_header`.

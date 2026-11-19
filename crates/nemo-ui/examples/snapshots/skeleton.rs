@@ -57,6 +57,25 @@ fn pages(out: &mut Vec<Shot>) {
             ));
         }
     }
+    // The account library: the Library page and, from the wide window, the sidebar list.
+    for size in SIZES {
+        for (stem, base) in [("dark", BaseMode::Dark), ("light", BaseMode::Light)] {
+            for (page, route) in [
+                ("library", Route::Library),
+                ("sidebar", Route::Search(String::new())),
+            ] {
+                let mut s = shot(
+                    named(&format!("skeleton-{page}-{stem}"), size),
+                    Scenario {
+                        pending: Some(Pending::Library),
+                        ..waiting(route, size, base)
+                    },
+                );
+                s.signed_in = true;
+                out.push(s);
+            }
+        }
+    }
     let size = (1366, 697);
     out.push(shot(
         named("skeleton-search-albums-dark", size),

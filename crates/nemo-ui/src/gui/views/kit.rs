@@ -196,7 +196,7 @@ mod track;
 pub use action::{filled_button, text_button, tonal_button};
 pub use card::{Card, card_grid, card_view, play_badge, shelf_header};
 pub use chip::{CHIP_GAP, CHIP_SIDE, chip, chip_geometry, chip_padded, chip_width, sliding_chips};
-pub use skeleton::{Skeleton, blank, swap};
+pub use skeleton::{LIST_ITEM_H, Skeleton, blank, swap};
 pub use track::{RowCtx, eq_bars, quick_pick, track_list, track_row};
 
 /// A calm status block: glyph, title, detail and an optional action. Never red.

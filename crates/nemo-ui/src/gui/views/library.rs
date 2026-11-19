@@ -11,15 +11,19 @@ use iced::{Alignment, Color, Element, Length, Padding};
 use super::super::app::{AccountMsg, App, CreateMsg, ListSource, Message};
 use super::super::assets::Icon;
 use super::super::style::{animated, col, gap, icon, icon_button, label, label_w, tip};
-use super::kit::{page, page_title, section_title, text_button, tile, tonal_button, vspace};
+use super::kit::{
+    blank, page, page_title, section_title, swap, text_button, tile, tonal_button, vspace,
+};
 use crate::explore::{LibLayout, LibTab, sort_by_key};
 use crate::format;
 use crate::layout;
+use crate::skeleton::Region;
 use crate::theme::{color, shape, type_scale};
 
 mod collection;
 mod list;
 mod section;
+mod skeleton;
 
 use collection::{account_data, album_coll, local_tracks, sorted};
 use list::{collections, song_block};
@@ -31,14 +35,29 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
     // Content widths are small exact numbers.
     #[allow(clippy::cast_precision_loss)]
     let content_w = grid.content as f32;
-    let mut c = column![
+    let c = column![
         header(app, content_w),
         vspace(gap::MD),
-        tabs(app, content_w)
+        tabs(app, content_w),
+        vspace(gap::LG),
+        swap(
+            app,
+            Region::Library,
+            || tab_body(app, grid, content_w),
+            |sk| skeleton::view(sk, app.lib_tab, grid, content_w),
+        ),
     ]
-    .width(Length::Fill)
-    .push(vspace(gap::LG));
+    .width(Length::Fill);
+    page(grid.content, c)
+}
 
+/// What the open tab shows.
+fn tab_body<'a>(app: &'a App, grid: layout::Grid, content_w: f32) -> Element<'a, Message> {
+    // Wanted, but the skeleton waits 150 ms so a quick answer never flashes it.
+    if app.library_pending() {
+        return blank();
+    }
+    let mut c = column![].width(Length::Fill);
     let data = account_data(app);
     let signed_in = app.signed_in();
     match app.lib_tab {
@@ -51,11 +70,12 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
                 if any {
                     c = c.push(account_overview(app, &data, grid, content_w));
                 } else {
-                    c = c.push(note(
-                        app,
-                        "Your account library is loading or has nothing saved yet.",
-                        None,
-                    ));
+                    let line = if app.library_failed {
+                        "Could not load your library. Press Refresh (F5) to try again."
+                    } else {
+                        "Nothing saved in your account yet."
+                    };
+                    c = c.push(note(app, line, None));
                 }
             } else {
                 c = c.push(sign_in_note(app, content_w));
@@ -130,7 +150,7 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
             c = c.push(local_section(app, grid, content_w, 3, usize::MAX));
         }
     }
-    page(grid.content, c)
+    c.into()
 }
 
 /// Title row with the Create playlist button.

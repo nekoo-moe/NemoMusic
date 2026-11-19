@@ -2,9 +2,13 @@
 //! region: loading, nothing cached, and on screen. [`crate::skeleton`] holds the timing.
 
 use super::App;
-use crate::explore::ContentFilter;
+use crate::explore::{ContentFilter, LibTab};
+use crate::layout;
 use crate::route::Route;
 use crate::skeleton::Region;
+
+/// Narrowest sidebar that shows the library list (below it only icons show).
+const SIDEBAR_WIDE: u32 = 200;
 
 impl App {
     /// Tell each skeleton gate whether its region wants a skeleton now. Cheap; runs after every
@@ -26,6 +30,11 @@ impl App {
                 Region::Explore,
                 matches!(route, Route::Explore) && self.explore_pending(),
             ),
+            (
+                Region::Library,
+                matches!(route, Route::Library) && self.library_pending(),
+            ),
+            (Region::Sidebar, self.sidebar_pending()),
         ];
         for (region, wanted) in wants {
             self.skeletons.set(region, wanted, reduced);
@@ -64,6 +73,35 @@ impl App {
             )
             && (self.home.phase != super::model::HomePhase::Done || self.refresh.busy())
             && !self.home_cached()
+    }
+
+    /// The account library is on its way: signed in, none on screen (not even the Home shelves
+    /// that stand in for it), and no failure. A signed-out account has nothing to load; a
+    /// failure and an empty library have their own sentences.
+    pub(crate) fn library_loading(&self) -> bool {
+        self.signed_in() && !self.library_failed && self.account_lists().is_none()
+    }
+
+    /// The open Library tab waits for the account library with nothing of its own to show
+    /// (local files are cached data: the Local tab never waits, Albums shows local albums).
+    pub(crate) fn library_pending(&self) -> bool {
+        self.library_loading()
+            && match self.lib_tab {
+                LibTab::Local => false,
+                LibTab::Albums => self.local_albums.is_empty(),
+                _ => true,
+            }
+    }
+
+    /// The sidebar list waits for the account library and has no rows (local albums would be
+    /// rows) while the list is on screen: wide sidebar, not full screen, not the mini player.
+    pub(crate) fn sidebar_pending(&self) -> bool {
+        self.library_loading()
+            && self.local_albums.is_empty()
+            && !self.mini
+            && !self.fullscreen
+            && !matches!(self.ui.route(), Route::NowPlaying)
+            && layout::left_width(self.window_px().0) >= SIDEBAR_WIDE
     }
 
     /// Explore has no answer yet and has not failed.

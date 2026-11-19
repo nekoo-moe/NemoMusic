@@ -15,6 +15,8 @@ pub enum Pending {
     Home,
     /// Explore: no answer yet, the first load runs.
     Explore,
+    /// The account library (Library page and sidebar list): signed in, not loaded yet.
+    Library,
 }
 
 impl Pending {
@@ -34,6 +36,12 @@ impl Pending {
                 app.home.phase = HomePhase::Loading;
                 app.daily_sections.clear();
                 app.ui.recent.clear();
+                app.local_albums.clear();
+            }
+            Self::Library => {
+                app.account_library = None;
+                app.library_failed = false;
+                app.home.shelves.clear();
                 app.local_albums.clear();
             }
             Self::Explore => {

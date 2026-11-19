@@ -23,6 +23,11 @@ use crate::theme::{TextStyle, color, shape, type_scale};
 use super::ROW_H;
 
 mod shapes;
+pub use shapes::LIST_ITEM_H;
+#[cfg(test)]
+pub(crate) mod measure;
+#[cfg(test)]
+mod tests;
 
 /// Alpha of a block: `surface-container-high` over the pane.
 const BASE_ALPHA: f32 = 0.8;
@@ -82,6 +87,18 @@ impl Skeleton {
         }
     }
 
+    /// A look at full opacity without the band, for tests and measurements.
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn still() -> Self {
+        Self {
+            phase: 0.0,
+            opacity: 1.0,
+            animate: false,
+            inset: false,
+        }
+    }
+
     /// A rounded block `width` wide (any length) and `height` px high with corner `radius`.
     #[must_use]
     pub fn block<'a, M: 'a>(self, width: Length, height: f32, radius: f32) -> Element<'a, M> {
@@ -135,13 +152,6 @@ impl Skeleton {
         .height(Length::Fixed(ROW_H))
         .align_y(Alignment::Center)
         .into()
-    }
-
-    /// Opacity of the look, for tests.
-    #[cfg(test)]
-    #[must_use]
-    pub fn opacity(self) -> f32 {
-        self.opacity
     }
 }
 
