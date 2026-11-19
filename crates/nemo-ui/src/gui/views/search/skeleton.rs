@@ -58,3 +58,34 @@ pub(super) fn view<'a>(
         Some(SearchKind::Channels) => column![].into(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use iced::Length;
+    use iced::widget::container;
+    use nemo_core::catalog::TopResult;
+
+    use super::super::top::top_card;
+    use crate::gui::headless::{Scenario, build_app};
+    use crate::gui::views::kit::{Skeleton, size_of};
+    use crate::mock::{mock_backend, track};
+
+    #[test]
+    #[ignore = "builds a headless renderer: run with ICED_TEST_BACKEND=tiny-skia"]
+    fn the_skeleton_top_result_is_as_big_as_the_top_result_card() {
+        let app = build_app(&mock_backend(), &Scenario::default());
+        let top = TopResult::Song(track(0));
+        for width in [560.0_f32, 677.0, 1000.0] {
+            let real = size_of(
+                container(top_card(&app, &top, width))
+                    .width(Length::Fixed(width))
+                    .into(),
+            );
+            let sk = size_of(Skeleton::still().top_result(width));
+            assert!(
+                (sk.width - real.width).abs() < 0.51 && (sk.height - real.height).abs() < 0.51,
+                "{width}: skeleton {sk:?} against real {real:?}"
+            );
+        }
+    }
+}

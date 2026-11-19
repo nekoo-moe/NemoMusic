@@ -42,3 +42,38 @@ pub(super) fn view<'a>(app: &App, sk: Skeleton, grid: layout::Grid) -> Element<'
     }
     page(grid.content, c)
 }
+
+#[cfg(test)]
+mod tests {
+    use iced::Element;
+    use iced::widget::column;
+
+    use super::super::hero::greeting;
+    use crate::gui::app::Message;
+    use crate::gui::headless::{Scenario, build_app};
+    use crate::gui::style::gap;
+    use crate::gui::views::kit::{Skeleton, size_of, vspace};
+    use crate::mock::mock_backend;
+    use crate::theme::type_scale;
+
+    #[test]
+    #[ignore = "builds a headless renderer: run with ICED_TEST_BACKEND=tiny-skia"]
+    fn the_skeleton_hero_block_is_as_big_as_the_greeting_and_banner() {
+        let app = build_app(&mock_backend(), &Scenario::default());
+        for width in [677.0_f32, 1000.0, 1200.0] {
+            let real = size_of(greeting(&app, width));
+            let sk: Element<'_, Message> = column![
+                Skeleton::still().line(120.0, type_scale::HEADLINE_MD),
+                vspace(gap::MD),
+                Skeleton::still().hero(width),
+                vspace(gap::XL),
+            ]
+            .into();
+            let sk = size_of(sk);
+            assert!(
+                (sk.height - real.height).abs() < 0.51 && (sk.width - width).abs() < 0.51,
+                "{width}: skeleton {sk:?} against real {real:?}"
+            );
+        }
+    }
+}

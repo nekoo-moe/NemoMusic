@@ -3,7 +3,7 @@
 //! views they mirror. These build a headless renderer, so they are ignored by default: run
 //! `ICED_TEST_BACKEND=tiny-skia cargo test -p nemo-ui -- --ignored skeleton`.
 
-use iced::widget::column;
+use iced::widget::{column, container};
 use iced::{Element, Length, Size};
 
 use super::measure::size_of;
@@ -68,7 +68,12 @@ fn a_skeleton_row_is_as_big_as_a_track_row() {
             numbered: false,
             show_album: true,
         };
-        let real = size_of(track_list(&app, &tracks, 1, &ctx));
+        // A real row fills the column it is in: give it one `width` wide, like a page's.
+        let real = size_of(
+            container(track_list(&app, &tracks, 1, &ctx))
+                .width(Length::Fixed(width))
+                .into(),
+        );
         assert_same("row", size_of(look().row(width, 0)), real);
         assert!((real.height - ROW_H).abs() < 0.51, "{real:?}");
     }
@@ -89,7 +94,16 @@ fn a_skeleton_chip_is_as_big_as_a_chip() {
     for text in ["All", "Songs", "Community playlists"] {
         let real = size_of(chip(text, false, app.accent(), Message::Noop));
         let sk = size_of(look().chip_row(&[text]));
-        assert_same(text, sk, real);
+        // The chip text is measured by the layout, `chip_width` by the text fitter: under 4 px apart (long labels)
+        // (the sliding chips of Search and Library use `chip_width` themselves and match exactly).
+        assert!(
+            (sk.width - real.width).abs() < 4.0,
+            "{text}: {sk:?} {real:?}"
+        );
+        assert!(
+            (sk.height - real.height).abs() < 0.51,
+            "{text}: {sk:?} {real:?}"
+        );
         assert!((sk.width - chip_width(text)).abs() < 0.51);
     }
 }

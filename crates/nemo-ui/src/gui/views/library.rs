@@ -52,7 +52,7 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
 }
 
 /// What the open tab shows.
-fn tab_body<'a>(app: &'a App, grid: layout::Grid, content_w: f32) -> Element<'a, Message> {
+fn tab_body(app: &App, grid: layout::Grid, content_w: f32) -> Element<'_, Message> {
     // Wanted, but the skeleton waits 150 ms so a quick answer never flashes it.
     if app.library_pending() {
         return blank();
