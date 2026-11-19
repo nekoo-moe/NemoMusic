@@ -97,6 +97,10 @@ pub async fn run_job(job: Job, backend: Backend) -> Message {
                 result,
             })
         }
+        Job::HoverDelay(generation) => {
+            sleep_without_blocking(super::hint::HOVER_HINT_MS).await;
+            Message::HoverDue(generation)
+        }
         Job::Debounce(seq) => {
             sleep_without_blocking(DEBOUNCE_MS).await;
             Message::Ui(Event::SearchDebounced(seq))

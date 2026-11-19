@@ -257,6 +257,9 @@ impl App {
                     start: index,
                 })
             }
+            Message::HoverTarget(_) | Message::HoverDue(_) | Message::PointerDown => {
+                self.handle_hint(message)
+            }
             Message::Shuffle(source) => {
                 let mut tracks = self.tracks_of(&source);
                 shuffle(&mut tracks);
