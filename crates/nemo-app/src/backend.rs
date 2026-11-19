@@ -15,7 +15,7 @@ use nemo_core::integrations::NoIntegrations;
 use nemo_core::notify::NoNotifier;
 use nemo_core::player::PlayerCommand;
 use nemo_core::segment::SegmentSource;
-use nemo_core::services::{Backend, StreamOpener};
+use nemo_core::services::Backend;
 use nemo_core::stats::NoStats;
 use nemo_core::stream::StreamRequest;
 use nemo_library::catalog::LOCAL_ALBUM_PREFIX;
@@ -39,7 +39,7 @@ use crate::config::{Settings, StoredDevice};
 use crate::merged::MergedCatalog;
 use crate::paths::AppPaths;
 use crate::play_hub::{self, PlayHub};
-use crate::soundcloud::{self, RoutingOpener};
+use crate::soundcloud;
 use crate::start_warm::{LastPlayed, StartupWarm, WarmSlot};
 use crate::ui_bridge::SettingsMsg;
 
@@ -212,12 +212,8 @@ pub fn build(
     let segments = sponsorblock_source(handle);
 
     // SoundCloud exists only when the switch is on and the notice confirmed (soundcloud-full).
-    let sc = soundcloud::build(&settings.opt_ins, handle, || soundcloud::real_http(handle));
-    let files: Arc<dyn StreamOpener> = Arc::new(HttpStreamOpener::default());
-    let opener: Arc<dyn StreamOpener> = match &sc {
-        Some(parts) => Arc::new(RoutingOpener::new(files, Arc::new(parts.opener.clone()))),
-        None => files,
-    };
+    let sc = soundcloud::for_app(&settings.opt_ins, handle, &ytdlp);
+    let opener = soundcloud::opener(Arc::new(HttpStreamOpener::default()), sc.as_ref());
 
     let player = Player::spawn(PlayerDeps {
         resolver,

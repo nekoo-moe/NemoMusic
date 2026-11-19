@@ -120,6 +120,15 @@ Waves: 1 = native client and playback (agent H, PRs 1 to 3 of 2026-11-19); 2 to 
   - Checks: fake-HTTP tests for the order of calls (click before hint), the activity callback, one look-up for a click and a hint, the media connection opened once per window; loopback tests for the kept playlist and the slot limit; the latency example (cold and warm runs).
   - Steering: `tech.md` SoundCloud row names `http2`.
 
+- [x] 14. `yt-dlp` fallback behind the native resolver
+  - Crate and files: `nemo-ytm` (`url_resolver.rs`, a `run_text` split in `ytdlp.rs`), `nemo-app` (`soundcloud/fallback.rs`, `backend.rs`), `nemo-soundcloud` (`stream.rs`: an unreadable web app is `Parse`).
+  - Does: criterion 33; on by default, because it only runs when the native lookup fails to read SoundCloud's answer and `yt-dlp` is installed (the YouTube side already installs it).
+  - _Requirements: 33_
+  - Depends on: soundcloud-full#6
+  - Wave: 3
+  - Checks: answer-parser tests over invented `yt-dlp` answers (ranking, file over HLS, encrypted and preview, foreign hosts, no secrets in errors), argument-list test (no shell text, address after `--`), chain tests (never asked after a refusal, a limit or a network failure; native error reported when both fail), the gate test with the chain wired.
+  - Steering: none
+
 ## Definition of Done
 
 Every task meets [section 4 of workflow.md](../../steering/workflow.md#4-definition-of-done). For this spec also:
