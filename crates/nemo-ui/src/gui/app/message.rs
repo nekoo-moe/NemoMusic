@@ -113,6 +113,13 @@ pub enum Message {
         /// Row.
         index: usize,
     },
+    /// The pointer entered (`Some`: the message that plays it) or left the play target of a song
+    /// (cold-start spec: resolve ahead of the click).
+    HoverTarget(Option<Box<Message>>),
+    /// The hover delay of this generation ended.
+    HoverDue(u64),
+    /// The left mouse button went down somewhere in the window.
+    PointerDown,
     /// Play a list shuffled.
     Shuffle(ListSource),
     /// Open the Sort menu of an album or playlist page, or close it (`None`).
@@ -305,6 +312,8 @@ pub struct CoverBuilt {
 pub enum Job {
     /// Open the folder dialog and wait for the person's choice.
     PickFolder(super::FolderPicker),
+    /// Wait out the hover delay of a play target.
+    HoverDelay(u64),
     /// Ask the catalog for a home feed.
     HomeFeed,
     /// Run seed search number `n` for Home.

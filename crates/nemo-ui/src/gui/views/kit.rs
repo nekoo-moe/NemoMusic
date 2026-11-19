@@ -194,7 +194,7 @@ mod skeleton;
 mod track;
 
 pub use action::{filled_button, text_button, tonal_button};
-pub use card::{Card, card_grid, card_view, play_badge, shelf_header};
+pub use card::{Card, card_grid, card_view, hint_on_hover, play_badge, shelf_header};
 pub use chip::{CHIP_GAP, CHIP_SIDE, chip, chip_geometry, chip_padded, chip_width, sliding_chips};
 #[cfg(test)]
 pub(crate) use skeleton::measure::size_of;

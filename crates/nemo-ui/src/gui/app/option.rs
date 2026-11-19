@@ -24,6 +24,11 @@ pub struct UiHooks {
     /// Local time zone offset to UTC in minutes (for the daily sections and the greeting; the
     /// app knows the zone, this crate has no time library). 0 means UTC.
     pub utc_offset_minutes: i32,
+    /// Resolve ahead of the click (cold-start spec): called with `Some(video)` when the pointer
+    /// has rested on the play target of one song for about 150 ms or went down on it, and with
+    /// `None` when the pointer leaves it again (cancel). One song at a time, never a list. Must
+    /// not block.
+    pub on_hint_song: Option<Arc<dyn Fn(Option<nemo_core::track::VideoId>) + Send + Sync>>,
 }
 
 impl std::fmt::Debug for UiHooks {
@@ -32,6 +37,7 @@ impl std::fmt::Debug for UiHooks {
             .field("on_create_playlist", &self.on_create_playlist.is_some())
             .field("on_set_speed", &self.on_set_speed.is_some())
             .field("utc_offset_minutes", &self.utc_offset_minutes)
+            .field("on_hint_song", &self.on_hint_song.is_some())
             .finish()
     }
 }

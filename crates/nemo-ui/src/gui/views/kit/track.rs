@@ -5,7 +5,7 @@ use iced::{Alignment, Background, Border, Color, Element, Length, Padding};
 use nemo_core::audio::Origin;
 use nemo_core::track::Track;
 
-use super::{QUICK_H, ROW_H, art, pane_bg, play_badge, text_button, vspace};
+use super::{QUICK_H, ROW_H, art, hint_on_hover, pane_bg, play_badge, text_button, vspace};
 use crate::gui::app::{App, ArtShape, ListSource, Message};
 use crate::gui::assets::Icon;
 use crate::gui::fx::{BadgeAnchor, entrance, fx};
@@ -182,7 +182,13 @@ pub fn track_row<'a>(
                 index,
             },
         ));
-    let host = mouse_area(host).on_right_press(Message::Ui(Event::OpenMenu(track.clone())));
+    let host = hint_on_hover(
+        mouse_area(host).on_right_press(Message::Ui(Event::OpenMenu(track.clone()))),
+        Message::PlayAt {
+            source: ctx.source.clone(),
+            index,
+        },
+    );
     row![
         host,
         tip(
@@ -254,6 +260,7 @@ pub fn quick_pick<'a>(
         source: source.clone(),
         index,
     });
+    let source3 = source.clone();
     let source2 = source;
     let idle = if current {
         col(color::surface_container_high())
@@ -272,7 +279,13 @@ pub fn quick_pick<'a>(
                 index,
             },
         ));
-    let host = mouse_area(host).on_right_press(Message::Ui(Event::OpenMenu(track.clone())));
+    let host = hint_on_hover(
+        mouse_area(host).on_right_press(Message::Ui(Event::OpenMenu(track.clone()))),
+        Message::PlayAt {
+            source: source3,
+            index,
+        },
+    );
     entrance(host, app.anim.reveal(stagger), pane_bg())
 }
 

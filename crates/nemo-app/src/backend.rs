@@ -17,7 +17,7 @@ use nemo_core::player::PlayerCommand;
 use nemo_core::segment::SegmentSource;
 use nemo_core::services::Backend;
 use nemo_core::stats::NoStats;
-use nemo_core::stream::StreamRequest;
+use nemo_core::stream::{StreamRequest, StreamResolver};
 use nemo_library::catalog::LOCAL_ALBUM_PREFIX;
 use nemo_library::{LocalCatalog, LocalLibrary};
 use nemo_lyrics::LyricsHub;
@@ -27,7 +27,7 @@ use nemo_ytm::account::{AccountCatalog, AccountConfig, GoogleAccount, SessionSlo
 use nemo_ytm::catalog::YtmCatalog;
 use nemo_ytm::images::ImageCache;
 use nemo_ytm::offline::{OfflineCache, SystemClock};
-use nemo_ytm::resolver::{StreamStore, persisted_chain};
+use nemo_ytm::resolver::{CachedResolver, StreamStore, persisted_chain};
 use nemo_ytm::session::YtmSessionBackend;
 use nemo_ytm::sponsorblock::{ReqwestHttp, SponsorBlockSource};
 use nemo_ytm::stream::HttpStreamOpener;
@@ -36,6 +36,7 @@ use nemo_ytm::ytdlp::{YtDlpResolver, locate_yt_dlp, managed};
 use tokio::runtime::Handle;
 
 use crate::config::{Settings, StoredDevice};
+use crate::hover_hint::{HintSlot, HoverHint};
 use crate::merged::MergedCatalog;
 use crate::paths::AppPaths;
 use crate::play_hub::{self, PlayHub};
@@ -62,6 +63,8 @@ pub struct Services {
     pub ytdlp: YtDlpResolver,
     /// The streams kept between runs; the last played song is read from it at start-up.
     pub streams: Arc<StreamStore>,
+    /// The cache in front of the resolvers, for the pointer hint.
+    pub cache: Arc<CachedResolver>,
     /// The start-up resolve-ahead budget (the last played song, the first songs of Home).
     pub start_warm: Arc<StartupWarm>,
     /// The local library, rescanned on a worker thread.
@@ -84,6 +87,8 @@ pub struct Startup {
     pub library: crate::folder_picker::LibrarySlot,
     /// Where the start-up warm-up goes, so `main` can end it after the window closes.
     pub warm: Arc<Mutex<Option<WarmUp>>>,
+    /// Where the pointer hint goes, once the resolver exists.
+    pub hint: HintSlot,
 }
 
 /// How long after the services are up the warm-up starts: the first frame is long drawn by then.
@@ -102,6 +107,8 @@ impl Startup {
         if let Ok(mut slot) = self.library.lock() {
             *slot = Some(services.local.clone());
         }
+        // The UI can now hint the song the pointer rests on.
+        let _ = self.hint.set(HoverHint::new(Arc::clone(&services.cache)));
         // The song that played last is resolved ahead now, before Home brings its own hints.
         services.start_warm.hint(services.streams.last_played());
         match play_hub::spawn(
@@ -193,9 +200,8 @@ pub fn build(
         handle,
         Some(Arc::clone(&streams)),
     );
-    let start_warm = StartupWarm::new(Arc::clone(&resolver));
-    // Already set only if `build` ran twice on one slot, which it does not.
-    let _ = warm_slot.set(Arc::clone(&start_warm));
+    let cache = Arc::clone(&resolver);
+    let start_warm = start_warm_budget(&resolver, &warm_slot);
 
     let segments: Option<Arc<dyn SegmentSource>> = match ReqwestHttp::new(handle.clone()) {
         Ok(http) => Some(Arc::new(SponsorBlockSource::new(http))),
@@ -240,6 +246,7 @@ pub fn build(
     Ok(Services {
         ytdlp,
         streams,
+        cache,
         start_warm,
         backend: Backend {
             catalog: Arc::new(catalog),
@@ -258,6 +265,16 @@ pub fn build(
         },
         local,
     })
+}
+
+/// The start-up resolve-ahead budget for `resolver`, also handed to the Home catalog through
+/// `slot`.
+fn start_warm_budget(resolver: &Arc<CachedResolver>, slot: &WarmSlot) -> Arc<StartupWarm> {
+    let as_resolver: Arc<dyn StreamResolver> = resolver.clone();
+    let budget = StartupWarm::new(as_resolver);
+    // Already set only if `build` ran twice on one slot, which it does not.
+    let _ = slot.set(Arc::clone(&budget));
+    budget
 }
 
 /// The saved player settings, sent once after the player starts: volume, SponsorBlock, and the

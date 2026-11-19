@@ -7,6 +7,7 @@ mod backend;
 mod blur;
 mod config;
 mod folder_picker;
+mod hover_hint;
 mod logging;
 mod merged;
 mod opt_in_gate;
@@ -64,6 +65,9 @@ fn main() {
     options.on_add_music_folder = Some(folder_picker::native(saver.clone(), Arc::clone(&library)));
     let hub = Arc::new(Mutex::new(None));
     let warm = Arc::new(Mutex::new(None));
+    // The UI tells the hint which song the pointer rests on; it exists once the services do.
+    let hint: hover_hint::HintSlot = Arc::default();
+    options.hooks.on_hint_song = Some(hover_hint::hook(Arc::clone(&hint)));
     let startup = backend::Startup {
         paths,
         settings,
@@ -72,6 +76,7 @@ fn main() {
         hub: Arc::clone(&hub),
         library,
         warm: Arc::clone(&warm),
+        hint,
     };
     if let Err(err) =
         nemo_ui::run_with_startup(Box::new(move |report| startup.run(report)), options)

@@ -351,6 +351,7 @@ fn build_player(
         Arc::new(cached) as Arc<dyn StreamResolver>
     } else {
         persisted_chain(ytdlp, supported_stream_codecs(), handle, store.clone())
+            as Arc<dyn StreamResolver>
     };
     clock.say("resolver chain built", Some(chain_began));
     // The app hints the song that played last as soon as the services are up.
