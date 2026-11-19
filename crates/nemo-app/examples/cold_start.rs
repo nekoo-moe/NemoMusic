@@ -12,7 +12,8 @@
 //! first screen; default 0); `--no-install` switches the yt-dlp auto install off; `--user-ytdlp
 //! PATH` uses a program as the settings do; `--native-refuses` replaces the native request with
 //! one that refuses every video after 100 ms (what a bot check looks like), so the yt-dlp
-//! fallback is measured. `NEMO_PROBE_IDS` replaces the positional ids. The
+//! fallback is measured; `--no-warm-up` leaves out the start-up warm-up the app runs one second
+//! after its services are up. `NEMO_PROBE_IDS` replaces the positional ids. The
 //! first id is the cold song; the others play after it, as warm comparisons.
 //!
 //! The data folder is `$XDG_DATA_HOME/NemoMusic` (the same as the app): an empty folder is the
@@ -49,6 +50,7 @@ use nemo_ytm::resolver::{CachedResolver, FallbackResolver, default_chain};
 use nemo_ytm::session::YtmSessionBackend;
 use nemo_ytm::sponsorblock::{ReqwestHttp, SponsorBlockSource};
 use nemo_ytm::stream::HttpStreamOpener;
+use nemo_ytm::warmup::WarmUp;
 use nemo_ytm::ytdlp::{YtDlpResolver, locate_yt_dlp, managed};
 use tracing::field::{Field, Visit};
 use tracing::span::{Attributes, Id, Record};
@@ -186,6 +188,7 @@ struct Args {
     auto_install: bool,
     user_ytdlp: Option<PathBuf>,
     native_refuses: bool,
+    warm_up: bool,
 }
 
 fn parse_args() -> Args {
@@ -196,6 +199,7 @@ fn parse_args() -> Args {
         auto_install: true,
         user_ytdlp: None,
         native_refuses: false,
+        warm_up: true,
     };
     let mut it = std::env::args().skip(1);
     while let Some(arg) = it.next() {
@@ -207,6 +211,7 @@ fn parse_args() -> Args {
             }
             "--no-install" => args.auto_install = false,
             "--native-refuses" => args.native_refuses = true,
+            "--no-warm-up" => args.warm_up = false,
             "--user-ytdlp" => args.user_ytdlp = it.next().map(PathBuf::from),
             list => args
                 .ids
@@ -286,7 +291,7 @@ fn build_player(
     handle: &tokio::runtime::Handle,
     args: &Args,
     first: &FirstSample,
-) -> Arc<dyn PlayerControl> {
+) -> (Arc<dyn PlayerControl>, Option<WarmUp>) {
     let began = Instant::now();
     open_account(clock, handle, &SessionSlot::default());
     let catalog_began = Instant::now();
@@ -304,6 +309,7 @@ fn build_player(
         .map_or_else(YtDlpResolver::new, YtDlpResolver::with_program)
         .with_allowed_codecs(supported_stream_codecs())
         .with_handle(handle.clone());
+    let warm_ytdlp = ytdlp.clone();
     managed::start_in_background(
         args.auto_install,
         args.user_ytdlp.is_some(),
@@ -323,6 +329,14 @@ fn build_player(
         ReqwestHttp::new(handle.clone())
             .ok()
             .map(|http| Arc::new(SponsorBlockSource::new(http)) as _);
+    let warm = args.warm_up.then(|| {
+        WarmUp::start(
+            handle,
+            warm_ytdlp,
+            HttpStreamOpener::new(),
+            Duration::from_secs(1),
+        )
+    });
     let player = Player::spawn(PlayerDeps {
         resolver,
         request: StreamRequest::default(),
@@ -336,7 +350,7 @@ fn build_player(
     });
     player.send(PlayerCommand::SetSkipSegments(true));
     clock.say("backend ready (the splash would end here)", Some(began));
-    player
+    (player, warm)
 }
 
 /// Click on Play for `video` and wait for the first non-zero sample. Prints the time from the
@@ -390,7 +404,7 @@ fn main() {
     };
     clock.say("runtime built", Some(began));
     let first = FirstSample::default();
-    let player = build_player(clock, runtime.handle(), &args, &first);
+    let (player, _warm) = build_player(clock, runtime.handle(), &args, &first);
     if let Some(query) = &args.query {
         let began = Instant::now();
         let found = runtime

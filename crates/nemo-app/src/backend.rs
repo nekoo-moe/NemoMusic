@@ -3,6 +3,7 @@
 use std::path::PathBuf;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use nemo_audio::decoder::supported_stream_codecs;
 use nemo_audio::player::{Player, PlayerDeps};
@@ -30,6 +31,7 @@ use nemo_ytm::resolver::default_chain;
 use nemo_ytm::session::YtmSessionBackend;
 use nemo_ytm::sponsorblock::{ReqwestHttp, SponsorBlockSource};
 use nemo_ytm::stream::HttpStreamOpener;
+use nemo_ytm::warmup::WarmUp;
 use nemo_ytm::ytdlp::{YtDlpResolver, locate_yt_dlp, managed};
 use tokio::runtime::Handle;
 
@@ -55,6 +57,8 @@ fn fail(service: &'static str) -> impl FnOnce(String) -> StartError {
 pub struct Services {
     /// The UI-facing services.
     pub backend: Backend,
+    /// The `yt-dlp` resolver of the play path, kept for the start-up warm-up.
+    pub ytdlp: YtDlpResolver,
     /// The local library, rescanned on a worker thread.
     pub local: LocalCatalog,
 }
@@ -73,7 +77,12 @@ pub struct Startup {
     pub hub: Arc<Mutex<Option<PlayHub>>>,
     /// Where the running library goes, so the folder dialog can add a folder to it.
     pub library: crate::folder_picker::LibrarySlot,
+    /// Where the start-up warm-up goes, so `main` can end it after the window closes.
+    pub warm: Arc<Mutex<Option<WarmUp>>>,
 }
+
+/// How long after the services are up the warm-up starts: the first frame is long drawn by then.
+const WARM_UP_PAUSE: Duration = Duration::from_secs(1);
 
 impl Startup {
     /// Open the services behind the first frame, reporting each real step. The library scan, the
@@ -99,6 +108,17 @@ impl Startup {
             }
         }
         crate::ui_bridge::spawn_output_watcher(&services.backend.player, self.saver);
+        // After the first frame (this runs behind the splash): the HTTP client of the stream
+        // opener and one `yt-dlp --version`, so the first song does not pay for them.
+        let warm = WarmUp::start(
+            &self.handle,
+            services.ytdlp,
+            HttpStreamOpener::new(),
+            WARM_UP_PAUSE,
+        );
+        if let Ok(mut slot) = self.warm.lock() {
+            *slot = Some(warm);
+        }
         Ok(services.backend)
     }
 }
@@ -147,7 +167,7 @@ pub fn build(
         ytdlp.program_slot(),
     );
     // Cache -> native player request -> yt-dlp (fast arguments, then the full extraction).
-    let resolver = default_chain(ytdlp, supported_stream_codecs(), handle);
+    let resolver = default_chain(ytdlp.clone(), supported_stream_codecs(), handle);
 
     let segments: Option<Arc<dyn SegmentSource>> = match ReqwestHttp::new(handle.clone()) {
         Ok(http) => Some(Arc::new(SponsorBlockSource::new(http))),
@@ -190,6 +210,7 @@ pub fn build(
         .map_err(|e| fail("covers")(e.to_string()))?;
 
     Ok(Services {
+        ytdlp,
         backend: Backend {
             catalog: Arc::new(catalog),
             player,

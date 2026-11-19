@@ -139,6 +139,8 @@ pub struct YtDlpResolver {
 #[derive(Debug, Clone)]
 struct Job {
     program: PathBuf,
+    /// Where the installer hands over a program while the app has none.
+    installed: ProgramSlot,
     allowed: Option<Vec<Codec>>,
     fast: bool,
     /// The preferred audio language (BCP 47); `None` plays the original track.
@@ -204,6 +206,7 @@ impl YtDlpResolver {
     fn job(&self) -> Job {
         Job {
             program: self.installed.get().unwrap_or(&self.program).clone(),
+            installed: self.installed.clone(),
             allowed: self.allowed.clone(),
             fast: self.fast,
             language: None,
@@ -234,11 +237,24 @@ async fn read_stderr(mut stderr: tokio::process::ChildStderr) -> String {
 }
 
 impl Job {
-    /// Fast arguments first, the full extraction when they fail.
-    async fn run(self, video: VideoId) -> Result<ResolvedStream, StreamError> {
+    /// Fast arguments first, the full extraction when they fail. When there is no program and
+    /// the installer is still running, wait for it (at most [`managed::INSTALL_WAIT`]) and run
+    /// again with what it installed, so a click on the first day does not fail.
+    async fn run(mut self, video: VideoId) -> Result<ResolvedStream, StreamError> {
+        let first = self.attempt(&video).await;
+        if matches!(first, Err(StreamError::ResolverMissing))
+            && let Some(program) = managed::wait_for_install(&self.installed).await
+        {
+            self.program = program;
+            return self.attempt(&video).await;
+        }
+        first
+    }
+
+    async fn attempt(&self, video: &VideoId) -> Result<ResolvedStream, StreamError> {
         if self.fast {
             let began = Instant::now();
-            let answer = Self::timed(self.run_with(fast_args(&video))).await;
+            let answer = Self::timed(self.run_with(fast_args(video))).await;
             timing::stage("yt-dlp fast run", began, answer.is_ok());
             match answer {
                 Err(StreamError::ResolverMissing) => return Err(StreamError::ResolverMissing),
@@ -247,7 +263,7 @@ impl Job {
             }
         }
         let began = Instant::now();
-        let answer = Self::timed(self.run_with(args(&video))).await;
+        let answer = Self::timed(self.run_with(args(video))).await;
         timing::stage("yt-dlp full run", began, answer.is_ok());
         answer
     }
@@ -311,6 +327,36 @@ impl Job {
         }
         let text = std::str::from_utf8(&out).map_err(|_| parse_err("output is not UTF-8"))?;
         parse_for(text, self.allowed.as_deref(), self.language.as_deref())
+    }
+}
+
+/// How long the warm-up run of [`YtDlpResolver::warm_up`] may take.
+pub const WARM_UP_TIMEOUT: Duration = Duration::from_secs(15);
+
+impl YtDlpResolver {
+    /// Run `yt-dlp --version` once, so the program's files are in the disk cache (and, on
+    /// Windows, scanned) before the first resolve (cold-start spec). It asks the network for
+    /// nothing. Returns whether the program ran and exited well. The child dies with the
+    /// future (`kill_on_drop`).
+    pub async fn warm_up(&self) -> bool {
+        let mut command = Command::new(self.program());
+        command
+            .args(["--ignore-config", "--version"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .kill_on_drop(true);
+        #[cfg(windows)]
+        command.creation_flags(CREATE_NO_WINDOW);
+        let began = Instant::now();
+        let ok = match crate::child::spawn(&mut command).await {
+            Ok(mut child) => tokio::time::timeout(WARM_UP_TIMEOUT, child.wait())
+                .await
+                .is_ok_and(|status| status.is_ok_and(|s| s.success())),
+            Err(_) => false,
+        };
+        timing::stage("yt-dlp warm-up", began, ok);
+        ok
     }
 }
 

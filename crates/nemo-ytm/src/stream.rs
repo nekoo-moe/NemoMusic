@@ -15,6 +15,7 @@
 
 use std::fmt;
 use std::io::{self, Read, Seek, SeekFrom};
+use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
 use nemo_core::services::{ByteSource, StreamOpener};
@@ -162,6 +163,20 @@ fn build_client(https_only: bool) -> Result<Client, StreamError> {
         .map_err(|_| StreamError::Network("could not build the HTTP client".to_owned()))
 }
 
+/// The one client every song is read with (cold-start spec): building it costs about 40 ms, and
+/// a pooled connection to the media host saves the TLS handshake of the next song. The app
+/// builds it before the first click ([`HttpStreamOpener::prepare`]). A failed build is not kept.
+fn shared_client(https_only: bool) -> Result<Client, StreamError> {
+    static HTTPS: OnceLock<Client> = OnceLock::new();
+    static ANY: OnceLock<Client> = OnceLock::new();
+    let slot = if https_only { &HTTPS } else { &ANY };
+    if let Some(client) = slot.get() {
+        return Ok(client.clone());
+    }
+    let built = build_client(https_only)?;
+    Ok(slot.get_or_init(|| built).clone())
+}
+
 impl HttpStream {
     /// Open `url` and fetch the first window, which also tells the total size.
     fn open(url: &str, https_only: bool) -> Result<Self, StreamError> {
@@ -169,7 +184,7 @@ impl HttpStream {
             return Err(StreamError::Network("stream URL is not HTTPS".to_owned()));
         }
         let building = Instant::now();
-        let client = build_client(https_only)?;
+        let client = shared_client(https_only)?;
         timing::stage("http client build", building, true);
         let mut stream = Self {
             client,
@@ -358,6 +373,14 @@ impl HttpStreamOpener {
     #[must_use]
     pub const fn new() -> Self {
         Self { https_only: true }
+    }
+
+    /// Build the HTTP client the next [`open`](StreamOpener::open) uses, so the first song
+    /// does not pay for it. Cheap when it exists already; may take about 40 ms otherwise, so
+    /// call it from a background thread. Returns `false` when the client cannot be built.
+    #[must_use]
+    pub fn prepare(&self) -> bool {
+        shared_client(self.https_only).is_ok()
     }
 
     /// Test constructor: lets the loopback test server (plain HTTP) through.
