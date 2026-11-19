@@ -8,6 +8,8 @@
 //! Images are 2x scale (2732 x 1394 for a 1366 x 697 window). Pass names as arguments to render
 //! only those (for example `home-1366x697`). Set `NEMO_SNAPSHOT_DIR` to write somewhere else.
 
+#[path = "snapshots/appearance_page.rs"]
+mod appearance_page;
 #[path = "snapshots/backdrop.rs"]
 mod backdrop;
 #[path = "snapshots/feature.rs"]
@@ -123,6 +125,10 @@ fn main() {
         std::process::exit(1);
     }
     if let Err(e) = startup::render(&only, &out_dir) {
+        eprintln!("{e}");
+        std::process::exit(1);
+    }
+    if let Err(e) = appearance_page::render(&only, &out_dir) {
         eprintln!("{e}");
         std::process::exit(1);
     }

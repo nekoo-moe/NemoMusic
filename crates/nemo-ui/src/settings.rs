@@ -166,7 +166,7 @@ pub enum SettingChange {
     NowPlayingStyle(NowPlayingStyle),
     /// Match the window colours to the playing song.
     SongColourTheme(bool),
-    /// Gentle heartbeat of the background.
+    /// Gentle breathing of the background (stored as the heartbeat).
     SongHeartbeat(bool),
     /// See-through window switch.
     WindowGlass(bool),
