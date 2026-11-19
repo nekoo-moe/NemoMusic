@@ -10,7 +10,9 @@
 //! Options: `--query "words"` runs one catalog search first, as the Home screen does before a
 //! click; `--wait-secs N` waits N seconds between the start and the click (the splash and the
 //! first screen; default 0); `--no-install` switches the yt-dlp auto install off; `--user-ytdlp
-//! PATH` uses a program as the settings do. `NEMO_PROBE_IDS` replaces the positional ids. The
+//! PATH` uses a program as the settings do; `--native-refuses` replaces the native request with
+//! one that refuses every video after 100 ms (what a bot check looks like), so the yt-dlp
+//! fallback is measured. `NEMO_PROBE_IDS` replaces the positional ids. The
 //! first id is the cold song; the others play after it, as warm comparisons.
 //!
 //! The data folder is `$XDG_DATA_HOME/NemoMusic` (the same as the app): an empty folder is the
@@ -33,16 +35,17 @@ use std::time::{Duration, Instant};
 use nemo_audio::decoder::supported_stream_codecs;
 use nemo_audio::player::{Player, PlayerDeps};
 use nemo_audio::sink::{AudioSink, RenderCallback, SinkError, SinkFactory};
+use nemo_core::BoxFuture;
 use nemo_core::account::AccountService;
 use nemo_core::audio::{AudioFormat, Origin, OutputInfo, OutputMode};
 use nemo_core::catalog::Catalog;
 use nemo_core::player::{PlayState, PlayerCommand};
 use nemo_core::services::PlayerControl;
-use nemo_core::stream::StreamRequest;
+use nemo_core::stream::{ResolvedStream, StreamError, StreamRequest, StreamResolver};
 use nemo_core::track::{Artwork, Track, TrackId, VideoId};
 use nemo_ytm::account::{AccountConfig, GoogleAccount, SessionSlot};
 use nemo_ytm::catalog::YtmCatalog;
-use nemo_ytm::resolver::default_chain;
+use nemo_ytm::resolver::{CachedResolver, FallbackResolver, default_chain};
 use nemo_ytm::session::YtmSessionBackend;
 use nemo_ytm::sponsorblock::{ReqwestHttp, SponsorBlockSource};
 use nemo_ytm::stream::HttpStreamOpener;
@@ -52,7 +55,7 @@ use tracing::span::{Attributes, Id, Record};
 use tracing::{Event, Level, Metadata, Subscriber};
 
 /// Longest wait for the first sample of one song.
-const GIVE_UP: Duration = Duration::from_secs(40);
+const GIVE_UP: Duration = Duration::from_secs(12);
 
 /// Time since the process (the example's `main`) started.
 #[derive(Clone, Copy)]
@@ -60,7 +63,9 @@ struct Clock(Instant);
 
 impl Clock {
     fn say(self, label: &str, since: Option<Instant>) {
-        let took = since.map_or_else(String::new, |s| format!("  ({} ms)", s.elapsed().as_millis()));
+        let took = since.map_or_else(String::new, |s| {
+            format!("  ({} ms)", s.elapsed().as_millis())
+        });
         println!("{:>7} ms  {label}{took}", self.0.elapsed().as_millis());
     }
 }
@@ -90,10 +95,26 @@ impl Subscriber for Stages {
         let mut fields = Fields(String::new());
         event.record(&mut fields);
         let text = fields.0.replace(" message=\"start stage\"", "");
-        self.0.say(&format!("    {}{text}", event.metadata().target()), None);
+        self.0
+            .say(&format!("    {}{text}", event.metadata().target()), None);
     }
     fn enter(&self, _: &Id) {}
     fn exit(&self, _: &Id) {}
+}
+
+/// A native request that always answers "not available" after 100 ms, like a bot check does.
+struct Refuses;
+
+impl StreamResolver for Refuses {
+    fn resolve<'a>(
+        &'a self,
+        _video: &'a VideoId,
+    ) -> BoxFuture<'a, Result<ResolvedStream, StreamError>> {
+        Box::pin(async {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            Err(StreamError::NotAvailable)
+        })
+    }
 }
 
 /// When the null sink saw its first non-zero sample.
@@ -164,6 +185,7 @@ struct Args {
     wait: Duration,
     auto_install: bool,
     user_ytdlp: Option<PathBuf>,
+    native_refuses: bool,
 }
 
 fn parse_args() -> Args {
@@ -173,6 +195,7 @@ fn parse_args() -> Args {
         wait: Duration::ZERO,
         auto_install: true,
         user_ytdlp: None,
+        native_refuses: false,
     };
     let mut it = std::env::args().skip(1);
     while let Some(arg) = it.next() {
@@ -183,13 +206,19 @@ fn parse_args() -> Args {
                 args.wait = Duration::from_secs(secs);
             }
             "--no-install" => args.auto_install = false,
+            "--native-refuses" => args.native_refuses = true,
             "--user-ytdlp" => args.user_ytdlp = it.next().map(PathBuf::from),
-            list => args.ids.extend(list.split(',').filter_map(|s| VideoId::parse(s).ok())),
+            list => args
+                .ids
+                .extend(list.split(',').filter_map(|s| VideoId::parse(s).ok())),
         }
     }
     if args.ids.is_empty() {
         let env = std::env::var("NEMO_PROBE_IDS").unwrap_or_default();
-        args.ids = env.split(',').filter_map(|s| VideoId::parse(s).ok()).collect();
+        args.ids = env
+            .split(',')
+            .filter_map(|s| VideoId::parse(s).ok())
+            .collect();
     }
     args
 }
@@ -282,7 +311,12 @@ fn build_player(
         ytdlp.program_slot(),
     );
     let chain_began = Instant::now();
-    let resolver = default_chain(ytdlp, supported_stream_codecs(), handle);
+    let resolver = if args.native_refuses {
+        let chain = FallbackResolver::new(Arc::new(Refuses), Arc::new(ytdlp));
+        Arc::new(CachedResolver::new(Arc::new(chain), handle.clone())) as Arc<dyn StreamResolver>
+    } else {
+        default_chain(ytdlp, supported_stream_codecs(), handle)
+    };
     clock.say("resolver chain built", Some(chain_began));
 
     let segments: Option<Arc<dyn nemo_core::segment::SegmentSource>> =
@@ -321,7 +355,10 @@ fn click(clock: Clock, player: &Arc<dyn PlayerControl>, first: &FirstSample, vid
         }
         if clicked.elapsed() > GIVE_UP {
             let state = player.snapshot().state;
-            clock.say(&format!("NO SAMPLE after {GIVE_UP:?} (state {state:?})"), None);
+            clock.say(
+                &format!("NO SAMPLE after {GIVE_UP:?} (state {state:?})"),
+                None,
+            );
             return;
         }
         std::thread::sleep(Duration::from_millis(5));
@@ -359,7 +396,10 @@ fn main() {
         let found = runtime
             .block_on(YtmCatalog::new(runtime.handle().clone()).search(query))
             .map(|r| r.songs.len());
-        clock.say(&format!("search (Home stand-in): {found:?} songs"), Some(began));
+        clock.say(
+            &format!("search (Home stand-in): {found:?} songs"),
+            Some(began),
+        );
     }
     if !args.wait.is_zero() {
         std::thread::sleep(args.wait);
