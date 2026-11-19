@@ -8,7 +8,8 @@ use iced::widget::image::Handle;
 use nemo_ui::gui::app::Message;
 use nemo_ui::gui::headless::render_view_png;
 use nemo_ui::gui::views::splash::{SplashLook, view};
-use nemo_ui::scheme::{AccentIntensity, BaseMode, ThemeChoice, accent_palette};
+use nemo_ui::scheme::{BaseMode, accent_palette};
+use nemo_ui::settings::UiSettings;
 use nemo_ui::splash::intro::{BLOOM_PEAK, BLOOM_PX, bloom_rgba};
 use nemo_ui::splash::{Splash, StartStep};
 use nemo_ui::theme::color;
@@ -190,12 +191,9 @@ pub(super) fn render(only: &[String], out_dir: &Path) -> Result<(), String> {
             }
         };
         let status = splash.status(now);
-        let accent = accent_palette(
-            ThemeChoice::Dynamic,
-            shot.base,
-            AccentIntensity::Standard,
-            None,
-        );
+        // The accent of a fresh install: the default theme and intensity of the settings.
+        let defaults = UiSettings::default();
+        let accent = accent_palette(defaults.theme, shot.base, defaults.accent_intensity, None);
         let bloom = Handle::from_rgba(BLOOM_PX, BLOOM_PX, bloom_rgba(accent.primary, BLOOM_PEAK));
         let look = SplashLook {
             fraction: splash.fraction(),
