@@ -19,10 +19,12 @@ use super::glass::wallpaper;
 /// The smallest window.
 const SMALL: (u32, u32) = (960, 600);
 /// A window tall enough for the whole page.
-const TALL: (u32, u32) = (960, 1900);
+const TALL: (u32, u32) = (960, 2100);
 
 fn scenario(size: (u32, u32), settings: UiSettings) -> Scenario {
     Scenario {
+        // Motion on, so the heartbeat switch shows usable; the overridden shot turns it off.
+        full_motion: true,
         route: Route::Settings,
         section: SettingsSection::Appearance,
         size,
@@ -66,6 +68,7 @@ pub fn render(only: &[String], out_dir: &Path) -> Result<(), String> {
             UiSettings {
                 window_glass: true,
                 reduce_transparency: true,
+                reduce_motion: true,
                 song_colour_theme: false,
                 ..UiSettings::default()
             },

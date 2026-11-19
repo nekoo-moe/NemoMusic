@@ -194,13 +194,13 @@ pub(super) fn aside<'a>(
     }
 }
 
-/// A card on `surface-container` with `rows` inside, `width` px wide.
+/// A card on `surface-container-high` with `rows` inside, `width` px wide.
 pub(super) fn card(width: f32, rows: Vec<Element<'_, Message>>) -> Element<'_, Message> {
     container(column(rows).spacing(gap::MD))
         .width(Length::Fixed(width))
         .padding(Padding::from(CARD_PAD))
         .style(|_| container::Style {
-            background: Some(col(color::surface_container()).into()),
+            background: Some(col(color::surface_container_high()).into()),
             border: iced::Border {
                 radius: shape::lg().into(),
                 ..iced::Border::default()

@@ -229,7 +229,7 @@ fn backdrop(app: &App, alpha: f32) -> Background {
 /// The stand-in desktop behind a see-through window: a gradient and two discs.
 fn desktop<'a>(accent: &Palette) -> Element<'a, Message> {
     let g = iced::gradient::Linear::new(iced::Radians(DOWN * 0.75))
-        .add_stop(0.0, col(accent.primary_container))
+        .add_stop(0.0, col(accent.primary))
         .add_stop(1.0, col(accent.tertiary));
     let disc = |size: f32, c: Rgba, x: f32, y: f32| {
         container(block(

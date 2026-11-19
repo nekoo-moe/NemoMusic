@@ -20,6 +20,8 @@ use crate::window_glass::GlassState;
 
 mod controls;
 mod preview;
+#[cfg(test)]
+mod tests;
 
 use controls::{
     CARD_PAD, SwitchMode, aside, card, control_card, head, opacity_slider, segmented_width, switch,
@@ -49,7 +51,7 @@ fn theme_swatches(app: &App, inner: f32) -> Element<'_, Message> {
                         border: iced::Border {
                             radius: shape::FULL.into(),
                             width: 2.0,
-                            color: col(color::surface_container_high()),
+                            color: col(color::surface_container_highest()),
                         },
                         ..container::Style::default()
                     })
@@ -88,7 +90,7 @@ fn theme_swatches(app: &App, inner: f32) -> Element<'_, Message> {
                 .on_press(Message::Ui(Event::Setting(SettingChange::Theme(*choice))));
             line = line.push(
                 crate::gui::fx::fx(btn.style(button_outlined(
-                    col(color::surface_container_high()),
+                    col(color::surface_container_highest()),
                     outline,
                     shape::md(),
                 )))
