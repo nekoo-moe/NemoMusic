@@ -10,8 +10,9 @@ use std::sync::Arc;
 
 use nemo_core::BoxFuture;
 use nemo_core::catalog::{
-    AlbumDetail, ArtistDetail, BrowseId, Catalog, CatalogError, Explore, HomeFeed, PlaylistDetail,
-    SearchKind, SearchResults, Shelf,
+    AlbumDetail, AlbumSummary, ArtistDetail, ArtistSummary, BrowseId, Catalog, CatalogError,
+    Explore, HistorySection, HomeFeed, PlaylistDetail, PlaylistSummary, SearchKind, SearchResults,
+    Shelf,
 };
 use nemo_core::track::{MediaUrl, Track, TrackId};
 use serde_json::Value;
@@ -222,6 +223,20 @@ impl SoundcloudCatalog {
     }
 
     pub(crate) async fn fill_stubs(&self, slots: Vec<Slot>) -> Result<Vec<Track>, CatalogError> {
+        Ok(self
+            .fill_slots(slots)
+            .await?
+            .into_iter()
+            .flatten()
+            .collect())
+    }
+
+    /// Like [`Self::fill_stubs`], with `None` where a stub could not be filled, so the order and the
+    /// count of `slots` are kept.
+    pub(crate) async fn fill_slots(
+        &self,
+        slots: Vec<Slot>,
+    ) -> Result<Vec<Option<Track>>, CatalogError> {
         let stubs: Vec<u64> = slots
             .iter()
             .filter_map(|s| {
@@ -255,7 +270,7 @@ impl SoundcloudCatalog {
         }
         Ok(slots
             .into_iter()
-            .filter_map(|slot| match slot {
+            .map(|slot| match slot {
                 Slot::Full(track) => Some(*track),
                 Slot::Stub(id) => filled.remove(&id),
             })
@@ -359,6 +374,36 @@ impl Catalog for SoundcloudCatalog {
         Box::pin(self.playlist_page(id))
     }
 
+    fn liked_songs(&self) -> BoxFuture<'_, Result<Vec<Track>, CatalogError>> {
+        Box::pin(self.all_likes())
+    }
+
+    fn library_playlists(&self) -> BoxFuture<'_, Result<Vec<PlaylistSummary>, CatalogError>> {
+        Box::pin(async {
+            let lib = self.all_library().await?;
+            Ok(lib
+                .playlists
+                .into_iter()
+                .chain(lib.liked_playlists)
+                .collect())
+        })
+    }
+
+    fn library_albums(&self) -> BoxFuture<'_, Result<Vec<AlbumSummary>, CatalogError>> {
+        Box::pin(async {
+            let lib = self.all_library().await?;
+            Ok(lib.albums.into_iter().chain(lib.liked_albums).collect())
+        })
+    }
+
+    fn library_artists(&self) -> BoxFuture<'_, Result<Vec<ArtistSummary>, CatalogError>> {
+        Box::pin(self.all_followings())
+    }
+
+    fn history(&self) -> BoxFuture<'_, Result<Vec<HistorySection>, CatalogError>> {
+        Box::pin(self.all_history())
+    }
+
     fn home(&self) -> BoxFuture<'_, Result<Vec<Shelf>, CatalogError>> {
         Box::pin(self.home_shelves())
     }
@@ -390,6 +435,9 @@ impl Catalog for SoundcloudCatalog {
         Box::pin(self.search_path(path, query))
     }
 }
+
+mod library;
+pub use library::{Library, MAX_PAGES, NextHref, Page, Played, sections};
 
 #[cfg(test)]
 mod tests;

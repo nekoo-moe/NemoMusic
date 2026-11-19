@@ -1,0 +1,58 @@
+{
+ "collection": [
+  {
+   "created_at": "2026-11-08T10:00:00Z",
+   "kind": "like",
+   "track": {
+    "kind": "track",
+    "id": 7000005,
+    "title": "Fixture Track 5",
+    "duration": 894146,
+    "full_duration": 894146,
+    "artwork_url": "https://i1.sndcdn.com/artworks-000000000005-fixtur-large.jpg",
+    "permalink_url": "https://soundcloud.com/fixture-artist-3/fixture-track-5",
+    "user": {
+     "id": 7000006,
+     "username": "Fixture Artist 3",
+     "avatar_url": "https://i1.sndcdn.com/avatars-000000000003-fixtur-large.jpg"
+    },
+    "release_date": null,
+    "display_date": "2011-08-15T05:01:44Z",
+    "policy": "ALLOW",
+    "monetization_model": "NOT_APPLICABLE",
+    "streamable": true,
+    "state": "finished",
+    "track_authorization": "fixture-authorization",
+    "media": {
+     "transcodings": [
+      {
+       "preset": "mp3_0_0",
+       "duration": 894146,
+       "snipped": false,
+       "format": {
+        "protocol": "hls",
+        "mime_type": "audio/mpeg"
+       },
+       "quality": "sq",
+       "is_legacy_transcoding": true,
+       "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:7000005/00000000-0000-4000-8000-000005000000/stream/hls"
+      },
+      {
+       "preset": "mp3_0_0",
+       "duration": 894146,
+       "snipped": false,
+       "format": {
+        "protocol": "progressive",
+        "mime_type": "audio/mpeg"
+       },
+       "quality": "sq",
+       "is_legacy_transcoding": true,
+       "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:7000005/00000000-0000-4000-8000-000005000001/stream/progressive"
+      }
+     ]
+    }
+   }
+  }
+ ],
+ "next_href": null
+}

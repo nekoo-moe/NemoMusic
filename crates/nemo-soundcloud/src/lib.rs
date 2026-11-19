@@ -39,7 +39,7 @@ mod test_server;
 
 pub use account::{AccountFiles, ScAccount, TOKEN_KEY};
 pub use auth::Auth;
-pub use catalog::{Link, SoundcloudCatalog};
+pub use catalog::{Library, Link, NextHref, Page, Played, SoundcloudCatalog};
 pub use client::{ClientError, Endpoints, Pacing, ScClient};
 pub use hosts::HOSTS;
 pub use http::{ReqwestHttp, ScHttp};

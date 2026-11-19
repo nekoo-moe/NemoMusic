@@ -5,6 +5,7 @@
 //! `Authorization: OAuth <token>` to the API host (criterion 9) and never printed: [`Secret`]
 //! shows `[redacted]` in `Debug`, and nothing here logs.
 
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use nemo_core::secret::Secret;
@@ -24,6 +25,8 @@ struct State {
 pub struct Auth {
     state: Mutex<State>,
     hook: Mutex<Option<RejectedHook>>,
+    /// The id of the signed-in user, for the account's own list calls; 0 for nobody.
+    user: AtomicU64,
 }
 
 impl std::fmt::Debug for Auth {
@@ -42,11 +45,25 @@ impl Auth {
         state.epoch += 1;
     }
 
-    /// Stop sending a token.
+    /// Stop sending a token, and forget whose it was.
     pub fn clear(&self) {
         let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
         state.token = None;
         state.epoch += 1;
+        self.user.store(0, Ordering::SeqCst);
+    }
+
+    /// Remember whose token is set (`None` for nobody). The account sets it after `GET /me`.
+    pub fn set_user(&self, id: Option<u64>) {
+        self.user.store(id.unwrap_or(0), Ordering::SeqCst);
+    }
+
+    /// The id of the signed-in user, while a token is set.
+    #[must_use]
+    pub fn user_id(&self) -> Option<u64> {
+        let signed_in = self.is_signed_in();
+        let id = self.user.load(Ordering::SeqCst);
+        (signed_in && id != 0).then_some(id)
     }
 
     /// The token now and its epoch, if one is set.
@@ -80,6 +97,7 @@ impl Auth {
             if current {
                 state.token = None;
                 state.epoch += 1;
+                self.user.store(0, Ordering::SeqCst);
             }
             current
         };
@@ -133,6 +151,23 @@ mod tests {
         auth.reject(old);
         assert!(auth.is_signed_in());
         assert_eq!(count.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn the_user_id_exists_only_while_a_token_is_set() {
+        let auth = Auth::default();
+        auth.set_user(Some(7_000_001));
+        assert_eq!(auth.user_id(), None, "no token");
+        auth.set(Secret::new("token-one".to_owned()));
+        assert_eq!(auth.user_id(), Some(7_000_001));
+        let (_, epoch) = auth.current().expect("token");
+        auth.reject(epoch);
+        assert_eq!(auth.user_id(), None, "a rejected session forgets the user");
+        auth.set(Secret::new("token-two".to_owned()));
+        assert_eq!(auth.user_id(), None);
+        auth.set_user(Some(7_000_002));
+        auth.clear();
+        assert_eq!(auth.user_id(), None);
     }
 
     #[test]

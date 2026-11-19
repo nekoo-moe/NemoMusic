@@ -115,6 +115,7 @@ impl Shared {
 
     fn set_user(&self, id: Option<u64>) {
         *self.user.lock().unwrap_or_else(PoisonError::into_inner) = id;
+        self.client.auth().set_user(id);
     }
 
     /// Write the cached header. When it cannot be written the session still works and the next

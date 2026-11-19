@@ -1,0 +1,162 @@
+{
+ "collection": [
+  {
+   "created_at": "2026-11-10T10:00:00Z",
+   "type": "playlist",
+   "playlist": {
+    "kind": "playlist",
+    "id": 7000101,
+    "title": "Fixture Own Playlist",
+    "artwork_url": null,
+    "user": {
+     "id": 7000011,
+     "username": "Fixture Artist 6",
+     "avatar_url": "https://i1.sndcdn.com/avatars-000000000006-fixtur-large.jpg"
+    },
+    "is_album": false,
+    "set_type": null,
+    "release_date": null,
+    "display_date": "2026-03-01T10:00:00Z",
+    "track_count": 5,
+    "permalink_url": "https://soundcloud.com/fixture-artist-6/sets/fixture-1"
+   }
+  },
+  {
+   "created_at": "2026-11-09T10:00:00Z",
+   "type": "playlist-like",
+   "playlist": {
+    "kind": "playlist",
+    "id": 7000102,
+    "title": "Fixture Liked Playlist",
+    "artwork_url": null,
+    "user": {
+     "id": 7000011,
+     "username": "Fixture Artist 6",
+     "avatar_url": "https://i1.sndcdn.com/avatars-000000000006-fixtur-large.jpg"
+    },
+    "is_album": false,
+    "set_type": null,
+    "release_date": null,
+    "display_date": "2026-03-01T10:00:00Z",
+    "track_count": 5,
+    "permalink_url": "https://soundcloud.com/fixture-artist-6/sets/fixture-2"
+   }
+  },
+  {
+   "created_at": "2026-11-08T10:00:00Z",
+   "type": "playlist",
+   "playlist": {
+    "kind": "playlist",
+    "id": 7000103,
+    "title": "Fixture Own Album",
+    "artwork_url": null,
+    "user": {
+     "id": 7000011,
+     "username": "Fixture Artist 6",
+     "avatar_url": "https://i1.sndcdn.com/avatars-000000000006-fixtur-large.jpg"
+    },
+    "is_album": true,
+    "set_type": "album",
+    "release_date": null,
+    "display_date": "2026-03-01T10:00:00Z",
+    "track_count": 5,
+    "permalink_url": "https://soundcloud.com/fixture-artist-6/sets/fixture-3"
+   }
+  },
+  {
+   "created_at": "2026-11-07T10:00:00Z",
+   "type": "playlist-like",
+   "playlist": {
+    "kind": "playlist",
+    "id": 7000104,
+    "title": "Fixture Liked Album",
+    "artwork_url": null,
+    "user": {
+     "id": 7000011,
+     "username": "Fixture Artist 6",
+     "avatar_url": "https://i1.sndcdn.com/avatars-000000000006-fixtur-large.jpg"
+    },
+    "is_album": true,
+    "set_type": "album",
+    "release_date": null,
+    "display_date": "2026-03-01T10:00:00Z",
+    "track_count": 5,
+    "permalink_url": "https://soundcloud.com/fixture-artist-6/sets/fixture-4"
+   }
+  },
+  {
+   "created_at": "2026-11-06T10:00:00Z",
+   "type": "track-like",
+   "track": {
+    "kind": "track",
+    "id": 7000007,
+    "title": "Fixture Track 7",
+    "duration": 30000,
+    "full_duration": 175700,
+    "artwork_url": "https://i1.sndcdn.com/artworks-000000000007-fixtur-large.jpg",
+    "permalink_url": "https://soundcloud.com/fixture-artist-4/fixture-track-7",
+    "user": {
+     "id": 7000008,
+     "username": "Fixture Artist 4",
+     "avatar_url": "https://i1.sndcdn.com/avatars-000000000004-fixtur-large.jpg"
+    },
+    "release_date": "2025-08-08T00:00:00Z",
+    "display_date": "2025-08-08T04:00:00Z",
+    "policy": "SNIP",
+    "monetization_model": "NOT_APPLICABLE",
+    "streamable": true,
+    "state": "finished",
+    "track_authorization": "fixture-authorization",
+    "publisher_metadata": {
+     "artist": "Fixture Publisher 7",
+     "album_title": null
+    },
+    "media": {
+     "transcodings": [
+      {
+       "preset": "mp3_1_0",
+       "duration": 30000,
+       "snipped": true,
+       "format": {
+        "protocol": "hls",
+        "mime_type": "audio/mpeg"
+       },
+       "quality": "sq",
+       "is_legacy_transcoding": true,
+       "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:7000007/00000000-0000-4000-8000-000007000000/stream/hls"
+      },
+      {
+       "preset": "mp3_1_0",
+       "duration": 30000,
+       "snipped": true,
+       "format": {
+        "protocol": "progressive",
+        "mime_type": "audio/mpeg"
+       },
+       "quality": "sq",
+       "is_legacy_transcoding": true,
+       "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:7000007/00000000-0000-4000-8000-000007000001/stream/progressive"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "created_at": "2026-11-05T10:00:00Z",
+   "type": "system-playlist-like",
+   "system_playlist": {
+    "kind": "system-playlist",
+    "id": "soundcloud:system-playlists:fixture",
+    "title": "Fixture Mix"
+   }
+  },
+  {
+   "created_at": "2026-11-04T10:00:00Z",
+   "type": "unknown-kind",
+   "something": {
+    "kind": "thing"
+   }
+  }
+ ],
+ "next_href": null
+}
