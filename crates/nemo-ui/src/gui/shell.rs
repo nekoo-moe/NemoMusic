@@ -18,6 +18,7 @@ use crate::motion::Spring;
 use crate::scheme::accent_palette;
 use crate::splash::{Splash, StartStep};
 use crate::theme::{color, shape};
+use crate::window_glass::WindowLook;
 
 /// Reports a finished start-up step to the splash. Cheap and callable from any thread.
 pub type StepReporter<'a> = &'a (dyn Fn(StartStep) + Send + Sync);
@@ -143,7 +144,30 @@ impl Shell {
         self.stage = Stage::Running(Box::new(app));
         self.splash
             .finish(StartStep::FirstScreen, self.elapsed_ms());
-        task.map(ShellMessage::App)
+        Task::batch([task.map(ShellMessage::App), self.window_look_task()])
+    }
+
+    /// Hand the window to the parent's `on_window_ready` hook, once, when the window was created
+    /// see-through and Reduce transparency is off (bar-material spec). Nothing otherwise.
+    fn window_look_task(&self) -> Task<ShellMessage> {
+        let s = &self.options.settings;
+        let Some(hook) = self.options.on_window_ready.clone() else {
+            return Task::none();
+        };
+        if !s.window_glass || s.reduce_transparency {
+            return Task::none();
+        }
+        let look = WindowLook {
+            dark: !s.base.is_light(),
+            base: s.base.neutrals().surface,
+            opacity: s.window_glass_opacity,
+        };
+        window::oldest()
+            .and_then(move |id| {
+                let hook = hook.clone();
+                window::run(id, move |w| hook(w, look))
+            })
+            .discard()
     }
 
     fn on_frame(&mut self, now: Instant) {

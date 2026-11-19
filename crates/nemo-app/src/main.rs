@@ -3,6 +3,8 @@
 #![windows_subsystem = "windows"]
 
 mod backend;
+#[cfg(windows)]
+mod blur;
 mod config;
 mod logging;
 mod merged;

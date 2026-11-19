@@ -38,8 +38,8 @@ pub const OPACITY_TITLE: &str = "Opacity";
 /// Helper of the opacity row.
 pub const OPACITY_HELPER: &str =
     "How much of the window background shows. Lower lets more through.";
-/// What blur needs: the compositor does it, NemoMusic draws none.
-pub const WINDOW_GLASS_BLUR: &str = "Frosted blur needs a compositor that blurs transparent windows, for example KDE with the Blur effect and Force blur for this window. Other desktops show clear glass without blur.";
+/// What blur needs: built in on Windows, the compositor elsewhere. NemoMusic draws none.
+pub const WINDOW_GLASS_BLUR: &str = "On Windows the blur is built in. On KDE it needs the Blur effect of the compositor, with Force blur for this window. Other desktops show clear glass without blur.";
 /// Title of the Motion and accessibility card.
 pub const MOTION_TITLE: &str = "Motion and accessibility";
 /// Helper of the Reduce motion switch.
@@ -60,5 +60,6 @@ mod tests {
         assert!(RESTART_HELPER.len() < 60 && RESTART_FAILED.contains("could not restart"));
         assert!(WINDOW_GLASS_BLUR.contains("compositor"));
         assert!(WINDOW_GLASS_BLUR.contains("Force blur"));
+        assert!(WINDOW_GLASS_BLUR.contains("Windows"));
     }
 }

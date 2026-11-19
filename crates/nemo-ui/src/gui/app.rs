@@ -67,7 +67,9 @@ pub use model::{
     AccountMsg, AccountUi, CompactTab, DetailData, DetailKey, DetailKind, DetailState, HomeFilter,
     HomePhase, HomeState, LibFilter, ListSource, NpTab, SettingsSection,
 };
-pub use option::{AccountLibrary, CreateMsg, RestartHandler, SleepState, UiHooks, UiOptions};
+pub use option::{
+    AccountLibrary, CreateMsg, RestartHandler, SleepState, UiHooks, UiOptions, WindowHandler,
+};
 pub use setup::SLIDE_PX;
 
 /// Widget id of the search box.

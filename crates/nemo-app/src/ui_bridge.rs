@@ -153,6 +153,8 @@ pub fn options(settings: Settings, root: PathBuf) -> (UiOptions, Sender<Settings
         // No folder picker yet: folders are edited in settings.json (see README).
         on_add_music_folder: None,
         on_restart: Some(crate::restart::handler(saver.clone())),
+        #[cfg(windows)]
+        on_window_ready: Some(crate::blur::handler()),
         maximized: true,
         // One switch: the OS preference here, OR the user's Settings toggle (the UI joins them).
         reduced_motion: crate::os_motion::reduce_motion(),

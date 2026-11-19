@@ -18,7 +18,7 @@ pub mod textfit;
 pub mod views;
 pub mod widgets;
 
-pub use app::{AccountLibrary, App, RestartHandler, UiHooks, UiOptions};
+pub use app::{AccountLibrary, App, RestartHandler, UiHooks, UiOptions, WindowHandler};
 pub use shell::{StartFn, StepReporter, run_with_startup};
 
 use nemo_core::services::Backend;
