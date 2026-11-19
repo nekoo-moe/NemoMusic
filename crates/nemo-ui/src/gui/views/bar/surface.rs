@@ -191,11 +191,11 @@ mod tests {
     /// Check both inks over the glass over `back`, with and without the shadow the CPU renderer
     /// also draws under the fill.
     fn check(n: &Neutrals, back: Rgba, what: &str) {
-        let black = Rgba::from_rgb_hex(0x00_0000);
+        let shadow_colour = Rgba::from_rgb_hex(0x00_0000);
         for v in [0.0, VIGNETTE_MID_ALPHA, VIGNETTE_ALPHA] {
             let seen = n.lowest.with_alpha(v).over(back);
             for shade in [0.0, glass::SHADOW.alpha()] {
-                let behind = black.with_alpha(shade).over(seen);
+                let behind = shadow_colour.with_alpha(shade).over(seen);
                 for fill in glass_stops(n.container) {
                     let f = fill.over(behind);
                     for (ink, name) in [
