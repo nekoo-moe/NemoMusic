@@ -11,10 +11,16 @@ use nemo_core::url_resolver::UrlResolver;
 use nemo_soundcloud::{
     OPT_IN, ReqwestHttp, ScClient, ScHttp, ScStreamOpener, SoundcloudCatalog, streams,
 };
+use nemo_ytm::url_resolver::YtDlpUrlResolver;
+use nemo_ytm::ytdlp::YtDlpResolver;
 use tokio::runtime::Handle;
 
 use crate::config::OptInChoice;
 use crate::opt_in_gate::build_if_open;
+
+mod fallback;
+
+pub use fallback::FallbackResolver;
 
 /// The services of one SoundCloud client.
 pub struct SoundcloudParts {
@@ -29,10 +35,14 @@ pub struct SoundcloudParts {
 /// Build the services when the gate is open. `http` makes the HTTP layer; it is not called while
 /// the gate is closed. The client id is looked up in the background, then the media client is
 /// built and the media connection opened, so the first play does not wait for them.
+///
+/// `ytdlp` is asked only when the native lookup cannot read SoundCloud's answer; see
+/// [`FallbackResolver`].
 pub fn build(
     choices: &BTreeMap<String, OptInChoice>,
     handle: &Handle,
     http: impl FnOnce() -> Option<Arc<dyn ScHttp>>,
+    ytdlp: Option<Arc<dyn UrlResolver>>,
 ) -> Option<SoundcloudParts> {
     build_if_open(choices, &OPT_IN, || {
         let client = Arc::new(ScClient::new(http()?));
@@ -52,11 +62,33 @@ pub fn build(
         });
         Some(SoundcloudParts {
             catalog: Arc::new(SoundcloudCatalog::new(client)),
-            resolver: Arc::new(resolver),
+            resolver: match ytdlp {
+                Some(ytdlp) => Arc::new(FallbackResolver::new(Arc::new(resolver), ytdlp)),
+                None => Arc::new(resolver),
+            },
             opener,
         })
     })
     .flatten()
+}
+
+/// The SoundCloud services of the app: the real HTTP layer, and `yt-dlp` (the program the YouTube
+/// resolver uses) behind the native resolver. `None` while the gate is closed.
+pub fn for_app(
+    choices: &BTreeMap<String, OptInChoice>,
+    handle: &Handle,
+    ytdlp: &YtDlpResolver,
+) -> Option<SoundcloudParts> {
+    let page_ytdlp: Arc<dyn UrlResolver> = Arc::new(YtDlpUrlResolver::new(ytdlp.clone()));
+    build(choices, handle, || real_http(handle), Some(page_ytdlp))
+}
+
+/// The player's opener: SoundCloud HLS streams go to their reader, everything else to `files`.
+pub fn opener(files: Arc<dyn StreamOpener>, sc: Option<&SoundcloudParts>) -> Arc<dyn StreamOpener> {
+    match sc {
+        Some(parts) => Arc::new(RoutingOpener::new(files, Arc::new(parts.opener.clone()))),
+        None => files,
+    }
 }
 
 /// The real HTTP layer, or `None` (logged) when the TLS backend cannot start.

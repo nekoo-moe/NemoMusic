@@ -76,6 +76,8 @@ pub trait SourceAccount: Send + Sync {
 
 `UrlResolver::resolve` takes the track page URL as `MediaUrl`, as the `soundcloud` spec fixed. `list` answers `NotAvailable` for the native resolver (the catalog lists). `Catalog` methods that SoundCloud does not have (`podcast`, `channel`, `live_streams`, `explore`, `mood_playlists`) keep their default "not available" answers.
 
+Fallback (task 14). `nemo-ytm::url_resolver::YtDlpUrlResolver` implements `UrlResolver::resolve` by running `yt-dlp --ignore-config --no-warnings --no-playlist -J -- <page>` (anonymous, one process, the program and installed-copy slot of the YouTube resolver, 20 s timeout) and ranking the formats it lists with `rank_formats`; an address must be https on a SoundCloud host. `nemo-app` chains it behind the native resolver (`FallbackResolver`) and asks it only when the native error is `StreamError::Parse` (an answer the client cannot read, or no client id in the web app). A `NotAvailable` (encrypted only, blocked, removed, nothing playable), a preview, a rate limit and a network failure keep their own answer, so the fallback is not a way around them. When both fail, the native error is reported. `yt-dlp` contacts the same hosts; no new host. It follows the same switch: nothing runs while SoundCloud is off.
+
 ## Error Handling
 
 - No new `StreamError` or `CatalogError` variant. Encrypted-only and region-blocked (`policy: BLOCK`) tracks map to `NotAvailable` with the plain text "cannot play here"; private and removed tracks (404) to `NotFound`; 429 to `RateLimited`; offline and timeouts to `Network` with fixed texts (never the URL or the body).

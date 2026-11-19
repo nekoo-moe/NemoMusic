@@ -362,3 +362,26 @@ async fn the_streams_hook_opens_the_media_connection_once_while_a_listener_works
         "never through the API layer"
     );
 }
+
+#[test]
+fn a_web_app_the_client_cannot_read_is_the_one_answer_the_fallback_takes() {
+    assert!(matches!(
+        stream_error(ClientError::NoClientId),
+        StreamError::Parse(_)
+    ));
+    assert!(matches!(
+        stream_error(ClientError::Parse),
+        StreamError::Parse(_)
+    ));
+    // A refusal, a missing track, a limit and a network failure are not.
+    for refused in [ClientError::Refused, ClientError::NotFound] {
+        assert_eq!(stream_error(refused), StreamError::NotAvailable);
+    }
+    for failed in [
+        ClientError::RateLimited,
+        ClientError::Network,
+        ClientError::Timeout,
+    ] {
+        assert!(matches!(stream_error(failed), StreamError::Network(_)));
+    }
+}

@@ -104,9 +104,8 @@ fn stream_error(e: ClientError) -> StreamError {
             StreamError::Network("could not reach SoundCloud".to_owned())
         }
         ClientError::Parse => StreamError::Parse("unexpected answer from SoundCloud".to_owned()),
-        ClientError::NoClientId => {
-            StreamError::Network("SoundCloud changed its web app".to_owned())
-        }
+        // The web app is not what the client reads: the one answer the `yt-dlp` fallback may take.
+        ClientError::NoClientId => StreamError::Parse("SoundCloud changed its web app".to_owned()),
     }
 }
 
