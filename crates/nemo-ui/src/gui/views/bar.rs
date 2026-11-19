@@ -24,6 +24,7 @@ mod right;
 mod seek;
 mod surface;
 
+pub(crate) use surface::fill as capsule_fill;
 pub use control::{like_button, play_button, repeat_button, transport};
 pub use cover::cover_art;
 
@@ -70,7 +71,7 @@ pub fn view(app: &App, width: f32) -> Element<'_, Message> {
     .padding(Padding::from([0.0, px(zones::PADDING)]))
     .width(Length::Fixed(bar))
     .height(Length::Fixed(px(PLAYER_BAR_HEIGHT)));
-    let capsule = stack![surface::body(app, bar), content, surface::glint(app, bar)]
+    let capsule = stack![surface::body(app, bar), content]
         .width(Length::Fixed(bar))
         .height(Length::Fixed(px(PLAYER_BAR_HEIGHT)));
     container(capsule)
