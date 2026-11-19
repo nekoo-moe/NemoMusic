@@ -180,6 +180,8 @@ struct CacheFile {
 
 struct State {
     current: Option<(PlayerInfo, Instant)>,
+    /// A stream built from this player was refused: read the player id again before trusting it.
+    must_check: bool,
     refreshed: Option<Instant>,
 }
 
@@ -210,6 +212,7 @@ impl PlayerStore {
             file,
             state: Mutex::new(State {
                 current: None,
+                must_check: false,
                 refreshed: None,
             }),
             gate: tokio::sync::Mutex::new(()),
@@ -244,7 +247,7 @@ impl PlayerStore {
         state
             .current
             .as_ref()
-            .filter(|(_, checked)| checked.elapsed() < PLAYER_CHECK_EVERY)
+            .filter(|(_, checked)| !state.must_check && checked.elapsed() < PLAYER_CHECK_EVERY)
             .map(|(info, _)| info.clone())
     }
 
@@ -258,7 +261,10 @@ impl PlayerStore {
         if let Some(info) = self.fresh() {
             return Ok(info);
         }
-        if let Some(info) = self.read_file() {
+        // A refused address means the id is read again, whatever the file says.
+        if !self.must_check()
+            && let Some(info) = self.read_file()
+        {
             return Ok(info);
         }
         let id = match self.source.latest_id().await {
@@ -301,6 +307,14 @@ impl PlayerStore {
     fn remember(&self, info: PlayerInfo) {
         let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
         state.current = Some((info, Instant::now()));
+        state.must_check = false;
+    }
+
+    fn must_check(&self) -> bool {
+        self.state
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .must_check
     }
 
     /// The player of the cache file, when it was confirmed current within the check interval.
@@ -346,10 +360,10 @@ impl PlayerStore {
         }
     }
 
-    /// A stream built from this player could not be opened: the table may be stale. The kept
-    /// player and its file are dropped, so the next [`get`](Self::get) reads `iframe_api` again
-    /// and prepares what it names. At most once in ten minutes, so a video that is simply
-    /// refused cannot make a download per click.
+    /// A stream built from this player could not be opened (a CDN 403): the table may be stale.
+    /// The next [`get`](Self::get) reads the current player id again, and prepares the new
+    /// player when the id changed; the same id keeps the player it has (a refused address is
+    /// often the address's own fault, not the script's). At most once in ten minutes.
     pub fn refresh(&self) {
         let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
         if state
@@ -359,7 +373,23 @@ impl PlayerStore {
             return;
         }
         state.refreshed = Some(Instant::now());
+        state.must_check = true;
+    }
+
+    /// The solver could not use this player (no function found, the script failed): drop it and
+    /// its file, so the next [`get`](Self::get) downloads and prepares the player again. At most
+    /// once in ten minutes, so a script the solver cannot read does not cause a download per click.
+    pub fn rebuild(&self) {
+        let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+        if state
+            .refreshed
+            .is_some_and(|at| at.elapsed() < REFRESH_EVERY)
+        {
+            return;
+        }
+        state.refreshed = Some(Instant::now());
         state.current = None;
+        state.must_check = false;
         drop(state);
         if let Some(path) = &self.file {
             // Already gone is the same as deleted.
@@ -371,6 +401,7 @@ impl PlayerStore {
     pub fn wipe(&self) {
         let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
         state.current = None;
+        state.must_check = false;
         state.refreshed = None;
         drop(state);
         if let Some(path) = &self.file {

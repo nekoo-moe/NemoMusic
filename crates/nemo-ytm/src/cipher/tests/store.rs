@@ -186,7 +186,7 @@ fn a_player_that_cannot_be_confirmed_is_still_used() {
 }
 
 #[test]
-fn a_refresh_drops_the_player_so_the_next_get_reads_the_id_again_once_in_ten_minutes() {
+fn a_refused_address_makes_the_next_get_read_the_player_id_again() {
     let rt = rt();
     let path = file("refresh");
     let (source, solver) = (
@@ -195,18 +195,64 @@ fn a_refresh_drops_the_player_so_the_next_get_reads_the_id_again_once_in_ten_min
     );
     let store = store(&rt, &source, &solver, Some(path.clone()));
     assert!(rt.block_on(store.get()).is_ok());
-    source.set_id("bbbbbbbb");
+    // The same player: its id is asked again, nothing is downloaded or solved again.
     store.refresh();
-    assert!(!path.exists(), "the file of the stale table is gone");
-    let info = rt.block_on(store.get()).expect("new player");
-    assert_eq!(info.id, "bbbbbbbb");
-    assert_eq!(source.ids.load(Ordering::SeqCst), 2);
-    source.set_id("cccccccc");
+    assert_eq!(rt.block_on(store.get()).expect("kept").id, "aaaaaaaa");
+    assert_eq!(
+        (
+            source.ids.load(Ordering::SeqCst),
+            source.scripts.load(Ordering::SeqCst)
+        ),
+        (2, 1)
+    );
+    // The player changed behind it: the stale table is replaced (after the ten minutes).
+    source.set_id("bbbbbbbb");
     store.refresh();
     assert_eq!(
         rt.block_on(store.get()).expect("kept").id,
-        "bbbbbbbb",
-        "a second refresh within ten minutes changes nothing"
+        "aaaaaaaa",
+        "ten minutes have not passed"
+    );
+    let _ = std::fs::remove_dir_all(path.parent().expect("folder")); // Cleanup only.
+}
+
+#[test]
+fn a_new_player_id_after_a_refusal_downloads_the_new_player() {
+    let rt = rt();
+    let (source, solver) = (
+        FakeSource::new("aaaaaaaa", Duration::ZERO),
+        Arc::new(FakeSolver::default()),
+    );
+    let store = store(&rt, &source, &solver, None);
+    assert!(rt.block_on(store.get()).is_ok());
+    source.set_id("bbbbbbbb");
+    store.refresh();
+    assert_eq!(rt.block_on(store.get()).expect("new").id, "bbbbbbbb");
+    assert_eq!(source.scripts.load(Ordering::SeqCst), 2);
+}
+
+#[test]
+fn a_rebuild_drops_the_player_and_its_file_once_in_ten_minutes() {
+    let rt = rt();
+    let path = file("rebuild");
+    let (source, solver) = (
+        FakeSource::new("aaaaaaaa", Duration::ZERO),
+        Arc::new(FakeSolver::default()),
+    );
+    let store = store(&rt, &source, &solver, Some(path.clone()));
+    assert!(rt.block_on(store.get()).is_ok());
+    store.rebuild();
+    assert!(!path.exists(), "the file of the unusable player is gone");
+    assert!(rt.block_on(store.get()).is_ok());
+    assert_eq!(
+        source.scripts.load(Ordering::SeqCst),
+        2,
+        "downloaded and prepared again"
+    );
+    store.rebuild();
+    assert!(
+        path.exists(),
+        "a second rebuild within ten minutes changes nothing"
     );
     let _ = std::fs::remove_dir_all(path.parent().expect("folder")); // Cleanup only.
 }

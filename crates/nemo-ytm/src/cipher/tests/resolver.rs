@@ -205,10 +205,11 @@ fn a_refused_address_refreshes_the_player_table() {
         2,
         "and the new player was downloaded"
     );
+    assert_eq!(p.source.id_asked_for_script().as_deref(), Some("bbbbbbbb"));
 }
 
 #[test]
-fn a_solver_that_cannot_find_its_functions_refreshes_the_table_too() {
+fn a_solver_that_cannot_find_its_functions_rebuilds_the_player() {
     let rt = rt();
     let p = parts(&rt, ANSWER);
     assert!(rt.block_on(p.resolver.resolve(&vid())).is_ok());

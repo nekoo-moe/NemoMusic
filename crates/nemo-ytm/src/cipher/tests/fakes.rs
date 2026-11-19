@@ -19,6 +19,8 @@ pub struct FakeSource {
     pub scripts: AtomicUsize,
     pub fail_ids: AtomicBool,
     pub delay: Duration,
+    /// The id of the last script that was asked for.
+    pub last_script: Mutex<Option<String>>,
 }
 
 impl FakeSource {
@@ -29,7 +31,15 @@ impl FakeSource {
             scripts: AtomicUsize::new(0),
             fail_ids: AtomicBool::new(false),
             delay,
+            last_script: Mutex::new(None),
         })
+    }
+
+    pub fn id_asked_for_script(&self) -> Option<String> {
+        self.last_script
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
     }
 
     pub fn set_id(&self, id: &str) {
@@ -56,6 +66,10 @@ impl PlayerSource for FakeSource {
     fn script<'a>(&'a self, id: &'a str) -> BoxFuture<'a, Result<String, StreamError>> {
         Box::pin(async move {
             self.scripts.fetch_add(1, Ordering::SeqCst);
+            *self
+                .last_script
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner) = Some(id.to_owned());
             tokio::time::sleep(self.delay).await;
             Ok(format!("var a={{signatureTimestamp:20522}}; /* {id} */"))
         })

@@ -108,6 +108,22 @@ pub const TV: ClientProfile = ClientProfile {
     android_sdk: None,
 };
 
+/// The `tv_samsung` client (yt-dlp `_base.py`, same date): the `tv` client as a Samsung Tizen TV
+/// sends it. Also no PO token in yt-dlp's table; it answered with ciphered formats where `tv`
+/// answered "The page needs to be reloaded" (measured 2026-11-19, same machine, with yt-dlp).
+pub const TV_SAMSUNG: ClientProfile = ClientProfile {
+    label: "tv_samsung",
+    name: "TVHTML5",
+    version: "5.20260707",
+    header_id: 7,
+    user_agent: "Mozilla/5.0 (SMART-TV; Linux; Tizen 2.4.0) AppleWebKit/538.1 (KHTML, like Gecko) Version/2.4.0 TV Safari/538.1",
+    device_make: "Samsung",
+    device_model: "UKS9800",
+    os_name: "Tizen",
+    os_version: "2.4.0",
+    android_sdk: None,
+};
+
 /// The JSON body of a player request.
 #[must_use]
 pub fn player_body(profile: &ClientProfile, video: &VideoId) -> Value {

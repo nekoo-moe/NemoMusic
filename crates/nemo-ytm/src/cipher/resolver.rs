@@ -19,7 +19,7 @@ use tokio::runtime::Handle;
 use super::player::{HttpPlayerSource, PlayerInfo, PlayerStore};
 use super::solver::{ChallengeSolver, Challenges, JsSolver, Script, SolveError, Solved};
 use crate::http::InitError;
-use crate::innertube::{TV, Visitor, parse_player_ciphered, send};
+use crate::innertube::{ClientProfile, TV, TV_SAMSUNG, Visitor, parse_player_ciphered, send};
 use crate::timing;
 
 /// Time limit of a solve against an already preprocessed player.
@@ -35,7 +35,10 @@ pub trait PlayerRequest: Send + Sync {
     ) -> BoxFuture<'a, Result<String, StreamError>>;
 }
 
-/// The real request: the `tv` client over HTTPS, no cookie, no PO token.
+/// The clients asked, in order: the first answer that says the video is playable is used.
+const PROFILES: &[ClientProfile] = &[TV, TV_SAMSUNG];
+
+/// The real request: the `tv` clients over HTTPS, no cookie, no PO token.
 #[derive(Debug, Clone)]
 pub struct TvRequest {
     client: reqwest::Client,
@@ -62,6 +65,34 @@ impl TvRequest {
     }
 }
 
+impl TvRequest {
+    async fn ask_as(
+        &self,
+        profile: &ClientProfile,
+        video: &VideoId,
+        sts: u32,
+    ) -> Result<String, StreamError> {
+        let (mut text, retry) =
+            send(&self.client, profile, video, &self.visitor, Some(sts)).await?;
+        if retry {
+            // The first answer refused and gave visitor data: ask once more with it.
+            text = send(&self.client, profile, video, &self.visitor, Some(sts))
+                .await?
+                .0;
+        }
+        Ok(text)
+    }
+}
+
+/// `true` when the answer says the video is playable for the client.
+fn playable(text: &str) -> bool {
+    serde_json::from_str::<serde_json::Value>(text).is_ok_and(|root| {
+        root.pointer("/playabilityStatus/status")
+            .and_then(serde_json::Value::as_str)
+            == Some("OK")
+    })
+}
+
 impl PlayerRequest for TvRequest {
     fn ask<'a>(
         &'a self,
@@ -69,15 +100,16 @@ impl PlayerRequest for TvRequest {
         sts: u32,
     ) -> BoxFuture<'a, Result<String, StreamError>> {
         Box::pin(async move {
-            let (mut text, retry) =
-                send(&self.client, &TV, video, &self.visitor, Some(sts)).await?;
-            if retry {
-                // The first answer refused and gave visitor data: ask once more with it.
-                text = send(&self.client, &TV, video, &self.visitor, Some(sts))
-                    .await?
-                    .0;
+            let mut last = Err(StreamError::NotAvailable);
+            for profile in PROFILES {
+                let asked = self.ask_as(profile, video, sts).await;
+                if asked.as_deref().is_ok_and(playable) {
+                    return asked;
+                }
+                tracing::debug!(client = profile.label, "player request not playable");
+                last = asked;
             }
-            Ok(text)
+            last
         })
     }
 }
@@ -192,8 +224,8 @@ impl CipherResolver {
         match solved {
             Ok(solved) => pending.finish(&solved),
             Err(e) => {
-                // The table may be stale: read the current player id again next time.
-                self.store.refresh();
+                // The solver cannot use this player: prepare it again, once in a while.
+                self.store.rebuild();
                 Err(e)
             }
         }
