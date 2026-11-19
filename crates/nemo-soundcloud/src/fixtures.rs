@@ -16,6 +16,12 @@ pub const USER_TRACKS: &str = include_str!("../tests/fixtures/user_tracks.json")
 pub const USER_ALBUMS: &str = include_str!("../tests/fixtures/user_albums.json");
 pub const RELATED: &str = include_str!("../tests/fixtures/related.json");
 pub const ME: &str = include_str!("../tests/fixtures/me.json");
+pub const HOME: &str = include_str!("../tests/fixtures/home.json");
+pub const CHARTS_TRENDING: &str = include_str!("../tests/fixtures/charts_trending.json");
+pub const CHARTS_SELECTIONS: &str = include_str!("../tests/fixtures/charts_selections.json");
+pub const SYSTEM_PLAYLIST: &str = include_str!("../tests/fixtures/system_playlist.json");
+pub const SYSTEM_TRACKS_BATCH: &str = include_str!("../tests/fixtures/system_tracks_batch.json");
+pub const STATION: &str = include_str!("../tests/fixtures/station.json");
 pub const LIKES: &str = include_str!("../tests/fixtures/likes.json");
 pub const LIKES_PAGE2: &str = include_str!("../tests/fixtures/likes_page2.json");
 pub const LIBRARY_ALL: &str = include_str!("../tests/fixtures/library_all.json");
@@ -23,7 +29,7 @@ pub const FOLLOWINGS: &str = include_str!("../tests/fixtures/followings.json");
 pub const HISTORY: &str = include_str!("../tests/fixtures/history.json");
 pub const FEED: &str = include_str!("../tests/fixtures/feed.json");
 
-const ALL: [&str; 17] = [
+const ALL: [&str; 23] = [
     TRACK_HLS,
     SEARCH_TRACKS,
     SEARCH_MIXED,
@@ -35,6 +41,12 @@ const ALL: [&str; 17] = [
     USER_ALBUMS,
     RELATED,
     ME,
+    HOME,
+    CHARTS_TRENDING,
+    CHARTS_SELECTIONS,
+    SYSTEM_PLAYLIST,
+    SYSTEM_TRACKS_BATCH,
+    STATION,
     LIKES,
     LIKES_PAGE2,
     LIBRARY_ALL,

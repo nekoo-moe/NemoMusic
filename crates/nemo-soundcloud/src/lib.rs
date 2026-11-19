@@ -18,6 +18,7 @@ pub mod catalog;
 pub mod client;
 pub mod client_id;
 pub mod hls;
+pub mod home;
 pub mod hosts;
 pub mod http;
 mod map;

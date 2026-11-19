@@ -213,6 +213,21 @@ impl YtDlpResolver {
         }
     }
 
+    /// Run `yt-dlp` with `arguments` (never a shell string) and return its standard output. For
+    /// pages that are not YouTube videos ([`crate::url_resolver::YtDlpUrlResolver`]). A program
+    /// that is missing while the installer still runs is waited for, as for a video.
+    pub(crate) async fn run_json(&self, arguments: Vec<OsString>) -> Result<String, StreamError> {
+        let mut job = self.job();
+        let first = Job::timed_text(job.run_text(arguments.clone())).await;
+        if matches!(first, Err(StreamError::ResolverMissing))
+            && let Some(program) = managed::wait_for_install(&job.installed).await
+        {
+            job.program = program;
+            return Job::timed_text(job.run_text(arguments)).await;
+        }
+        first
+    }
+
     fn job_for(&self, video: &VideoId) -> Job {
         let mut job = self.job();
         job.fast = job.fast
@@ -276,7 +291,22 @@ impl Job {
             .unwrap_or_else(|_| Err(StreamError::Network("resolver timed out".to_owned())))
     }
 
+    async fn timed_text(
+        run: impl Future<Output = Result<String, StreamError>>,
+    ) -> Result<String, StreamError> {
+        tokio::time::timeout(RESOLVE_TIMEOUT, run)
+            .await
+            .unwrap_or_else(|_| Err(StreamError::Network("resolver timed out".to_owned())))
+    }
+
     async fn run_with(&self, arguments: Vec<OsString>) -> Result<ResolvedStream, StreamError> {
+        let text = self.run_text(arguments).await?;
+        parse_for(&text, self.allowed.as_deref(), self.language.as_deref())
+    }
+
+    /// Run the program with `arguments` and return its standard output as text. Nothing about
+    /// the stream is read here, so other sites can use the same runner ([`YtDlpResolver::run_json`]).
+    async fn run_text(&self, arguments: Vec<OsString>) -> Result<String, StreamError> {
         let mut command = Command::new(&self.program);
         command
             .args(arguments)
@@ -325,8 +355,7 @@ impl Job {
         if out.len() as u64 > MAX_OUTPUT_BYTES {
             return Err(parse_err("resolver output too large"));
         }
-        let text = std::str::from_utf8(&out).map_err(|_| parse_err("output is not UTF-8"))?;
-        parse_for(text, self.allowed.as_deref(), self.language.as_deref())
+        String::from_utf8(out).map_err(|_| parse_err("output is not UTF-8"))
     }
 }
 

@@ -293,3 +293,95 @@ fn the_resolver_lists_nothing_and_reports_the_native_client() {
         Err(StreamError::NotAvailable)
     );
 }
+
+#[tokio::test]
+async fn a_click_and_a_warm_hint_for_the_same_track_make_one_lookup() {
+    let (catalog, resolver, fake) =
+        setup(|_| answer("https://cf-preview-media.sndcdn.com/a.128.mp3"));
+    let tracks = songs(&catalog).await;
+    // The third fixture track is an old upload with a progressive file: nothing to prefetch.
+    let page = tracks[2].source_url.clone().expect("page");
+    resolver.warm(&page);
+    let wanted = policy();
+    let (one, two) = tokio::join!(
+        resolver.resolve(&page, &wanted),
+        resolver.resolve(&page, &wanted)
+    );
+    assert_eq!(one.expect("first"), two.expect("second"));
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    assert_eq!(lookups(&fake).len(), 1, "one look-up for three callers");
+}
+
+#[tokio::test]
+async fn the_streams_hook_opens_the_media_connection_once_while_a_listener_works() {
+    let server =
+        crate::test_server::TestServer::start(|_, _| crate::test_server::Response::new(403, ""));
+    let (fake, client) = {
+        let fake = Arc::new(FakeHttp::new(|url, _| {
+            if url == "https://soundcloud.com/" {
+                ok(r#"<script src="https://a-v2.sndcdn.com/assets/1-a.js"></script>"#)
+            } else if url.starts_with("https://a-v2.sndcdn.com/") {
+                ok(format!("client_id:\"{ID}\""))
+            } else {
+                ok("{}")
+            }
+        }));
+        let client = Arc::new(ScClient::with(
+            Arc::clone(&fake) as Arc<dyn ScHttp>,
+            Endpoints::production(),
+            pacing(),
+        ));
+        (fake, client)
+    };
+    let shared = Arc::new(Shared::with_preconnect(
+        Rules::loopback(),
+        server.url("/media-root"),
+    ));
+    let (_resolver, _opener) =
+        crate::stream::streams_with(Arc::clone(&client), Handle::current(), shared);
+    client.get("/search", &[]).await.expect("a search");
+    client.get("/tracks/1", &[]).await.expect("a page");
+    client
+        .get_background("/tracks/2", &[])
+        .await
+        .expect("a hint");
+    for _ in 0..100 {
+        if !server.paths().is_empty() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    assert_eq!(
+        server.paths(),
+        ["/media-root"],
+        "one connection opened ahead, not one per call"
+    );
+    assert!(
+        fake.urls().iter().all(|u| !u.contains("media-root")),
+        "never through the API layer"
+    );
+}
+
+#[test]
+fn a_web_app_the_client_cannot_read_is_the_one_answer_the_fallback_takes() {
+    assert!(matches!(
+        stream_error(ClientError::NoClientId),
+        StreamError::Parse(_)
+    ));
+    assert!(matches!(
+        stream_error(ClientError::Parse),
+        StreamError::Parse(_)
+    ));
+    // A refusal, a missing track, a limit and a network failure are not.
+    for refused in [ClientError::Refused, ClientError::NotFound] {
+        assert_eq!(stream_error(refused), StreamError::NotAvailable);
+    }
+    for failed in [
+        ClientError::RateLimited,
+        ClientError::Network,
+        ClientError::Timeout,
+    ] {
+        assert!(matches!(stream_error(failed), StreamError::Network(_)));
+    }
+}

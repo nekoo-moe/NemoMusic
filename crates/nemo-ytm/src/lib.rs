@@ -36,6 +36,7 @@ pub mod sponsorblock;
 pub mod stream;
 pub(crate) mod task;
 pub(crate) mod timing;
+pub mod url_resolver;
 pub mod warmup;
 pub mod web_search;
 pub mod ytdlp;

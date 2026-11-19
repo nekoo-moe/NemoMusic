@@ -11,6 +11,7 @@ use nemo_core::audio::{Codec, Origin, StreamInfo};
 use nemo_core::secret::Secret;
 use nemo_core::services::ByteSource;
 use nemo_core::stream::{ResolvedStream, StreamError, Transport};
+use nemo_core::url_resolver::UrlResolver;
 use nemo_soundcloud::http::{ScAnswer, ScHttpError, ScRequest};
 
 use super::*;
@@ -49,10 +50,15 @@ async fn run(choices: &BTreeMap<String, OptInChoice>) -> (bool, Vec<String>) {
     let host = Arc::new(CountingHost::default());
     let asked = Arc::new(AtomicUsize::new(0));
     let (counter, shared) = (Arc::clone(&asked), Arc::clone(&host));
-    let parts = build(choices, &Handle::current(), move || {
-        counter.fetch_add(1, Ordering::SeqCst);
-        Some(shared as Arc<dyn ScHttp>)
-    });
+    let parts = build(
+        choices,
+        &Handle::current(),
+        move || {
+            counter.fetch_add(1, Ordering::SeqCst);
+            Some(shared as Arc<dyn ScHttp>)
+        },
+        None,
+    );
     let began = Instant::now();
     // A started client looks up the client id in the background; give it time to ask.
     while parts.is_some()
@@ -97,7 +103,12 @@ async fn an_open_gate_builds_the_services_and_asks_for_the_home_page_first() {
 
 #[tokio::test]
 async fn no_http_layer_means_no_services() {
-    let parts = build(&choice(true, OPT_IN.version), &Handle::current(), || None);
+    let parts = build(
+        &choice(true, OPT_IN.version),
+        &Handle::current(),
+        || None,
+        None,
+    );
     assert!(parts.is_none());
 }
 
@@ -165,6 +176,35 @@ fn the_switch_is_in_the_gate_list_so_its_hosts_are_checked_against_the_readme() 
     );
 }
 
+#[tokio::test]
+async fn with_yt_dlp_behind_it_the_resolver_is_still_the_native_one_and_the_gate_still_holds() {
+    let ytdlp: Arc<dyn UrlResolver> = Arc::new(nemo_ytm::url_resolver::YtDlpUrlResolver::new(
+        nemo_ytm::ytdlp::YtDlpResolver::with_program("nemo-no-such-yt-dlp-xyz"),
+    ));
+    let host = Arc::new(CountingHost::default());
+    let closed = build(
+        &choice(true, 0),
+        &Handle::current(),
+        || Some(Arc::clone(&host) as Arc<dyn ScHttp>),
+        Some(Arc::clone(&ytdlp)),
+    );
+    assert!(
+        closed.is_none(),
+        "an unconfirmed switch builds nothing, fallback or not"
+    );
+    let open = build(
+        &choice(true, OPT_IN.version),
+        &Handle::current(),
+        || Some(Arc::clone(&host) as Arc<dyn ScHttp>),
+        Some(ytdlp),
+    )
+    .expect("built");
+    assert!(matches!(
+        open.resolver.state(),
+        nemo_core::url_resolver::ResolverState::Ready { version } if version == "native"
+    ));
+}
+
 /// Parts built with a counting host, so a test can see whether the account asks for anything.
 fn open_parts() -> (SoundcloudParts, Arc<CountingHost>) {
     let host = Arc::new(CountingHost::default());
@@ -173,6 +213,7 @@ fn open_parts() -> (SoundcloudParts, Arc<CountingHost>) {
         &choice(true, OPT_IN.version),
         &Handle::current(),
         move || Some(shared as Arc<dyn ScHttp>),
+        None,
     )
     .expect("open gate");
     (parts, host)
@@ -237,21 +278,13 @@ async fn switching_off_in_settings_stops_the_client_at_once_and_on_again_restore
 }
 
 #[test]
-fn the_wire_of_a_closed_gate_has_no_soundcloud_and_keeps_the_plain_opener() {
+fn a_closed_gate_has_no_account_and_leaves_the_slot_empty() {
+    let paths = AppPaths::under(&std::env::temp_dir().join("nemo-app-sc-closed"));
+    let slot = ClientSlot::default();
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
-    let paths = AppPaths::under(&std::env::temp_dir().join("nemo-app-sc-closed"));
-    let files: Arc<dyn StreamOpener> = Arc::new(Named("files"));
-    let wired = wire(
-        &BTreeMap::new(),
-        rt.handle(),
-        None,
-        &paths,
-        Arc::clone(&files),
-        &ClientSlot::default(),
-    );
-    assert!(wired.catalog.is_none() && wired.account.is_none() && wired.resolver.is_none());
-    assert!(Arc::ptr_eq(&wired.opener, &files));
+    assert!(account_for(None, None, &paths, rt.handle(), &slot).is_none());
+    slot.apply(false); // Nothing to switch.
 }

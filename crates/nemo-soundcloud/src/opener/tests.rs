@@ -18,13 +18,15 @@ const KEYED: &str = "#EXTM3U\n#EXT-X-KEY:METHOD=SAMPLE-AES,URI=\"skd://k\"\n#EXT
 #EXTINF:2.0,\ndata000.m4s\n#EXT-X-ENDLIST\n";
 
 fn serve(playlist: &'static str) -> TestServer {
-    TestServer::start(move |path, _| match path {
-        "/hls/out.m3u8" => Response::new(200, playlist),
-        "/hls/init.mp4" => Response::new(200, INIT),
-        "/hls/data000.m4s" => Response::new(200, SEGMENT),
-        "/hls/gone.m3u8" => Response::new(403, ""),
-        _ => Response::new(404, ""),
-    })
+    TestServer::start(
+        move |path, _| match path.split('?').next().unwrap_or(path) {
+            "/hls/out.m3u8" => Response::new(200, playlist),
+            "/hls/init.mp4" => Response::new(200, INIT),
+            "/hls/data000.m4s" => Response::new(200, SEGMENT),
+            "/hls/gone.m3u8" => Response::new(403, ""),
+            _ => Response::new(404, ""),
+        },
+    )
 }
 
 fn stream(url: String, transport: Transport) -> ResolvedStream {
@@ -145,7 +147,7 @@ fn a_prefetched_stream_opens_without_new_requests_for_the_first_bytes() {
     );
     let before = server.paths().len();
     let mut source = o.open(&s).expect("source");
-    assert!(!o.shared().has(&url), "taken once");
+    assert!(o.shared().has(&url), "kept for a replay");
     let mut expected = INIT.to_vec();
     expected.extend_from_slice(SEGMENT);
     assert_eq!(read_all(source.as_mut()), expected);
@@ -157,7 +159,7 @@ fn a_prefetched_stream_opens_without_new_requests_for_the_first_bytes() {
 }
 
 #[test]
-fn a_forgotten_or_stale_prefetch_is_not_used_and_two_slots_are_kept() {
+fn a_forgotten_prefetch_is_not_used_and_one_stream_is_one_slot() {
     let server = serve(PLAYLIST);
     let o = opener();
     let url = server.url("/hls/out.m3u8");
@@ -176,7 +178,27 @@ fn a_forgotten_or_stale_prefetch_is_not_used_and_two_slots_are_kept() {
     assert!(o.shared().has(&url));
     let mut source = o.open(&s).expect("source");
     assert!(!read_all(source.as_mut()).is_empty());
-    assert!(!o.shared().has(&url));
+    assert!(o.shared().has(&url), "still there for a replay");
+}
+
+#[test]
+fn only_the_last_slots_are_kept() {
+    let server = serve(PLAYLIST);
+    let o = opener();
+    let urls: Vec<String> = (0..=SLOTS)
+        .map(|n| server.url(&format!("/hls/out.m3u8?track={n}")))
+        .collect();
+    let paths = server.paths().len();
+    assert_eq!(paths, 0);
+    for url in &urls {
+        o.shared()
+            .prefetch(&stream(url.clone(), hls()))
+            .expect("prefetch");
+    }
+    assert!(!o.shared().has(&urls[0]), "the oldest went");
+    for url in &urls[1..] {
+        assert!(o.shared().has(url));
+    }
 }
 
 #[test]
@@ -193,4 +215,46 @@ fn one_client_is_reused_and_dropping_the_state_inside_a_runtime_is_safe() {
         drop(shared);
     });
     std::thread::sleep(Duration::from_millis(100));
+}
+
+#[test]
+fn a_replay_of_a_stream_needs_no_new_playlist() {
+    let server = serve(PLAYLIST);
+    let o = opener();
+    let address = server.url("/hls/out.m3u8");
+    let mut expected = INIT.to_vec();
+    expected.extend_from_slice(SEGMENT);
+    for _ in 0..2 {
+        let mut source = o.open(&stream(address.clone(), hls())).expect("source");
+        assert_eq!(read_all(source.as_mut()), expected);
+    }
+    let playlists = server
+        .paths()
+        .iter()
+        .filter(|p| p.contains("out.m3u8"))
+        .count();
+    assert_eq!(playlists, 1, "the second open reused the kept playlist");
+    // A kept playlist without a head is not a prefetch.
+    assert!(!o.shared().has(&address));
+}
+
+#[test]
+fn the_connection_to_the_media_host_is_opened_ahead_once_in_a_while() {
+    let server = serve(PLAYLIST);
+    let shared = Shared::with_preconnect(Rules::loopback(), server.url("/media-root"));
+    assert!(shared.preconnect_due(), "the first time it is due");
+    assert!(!shared.preconnect_due(), "and not again at once");
+    shared.preconnect();
+    assert_eq!(
+        server.paths(),
+        ["/media-root"],
+        "one request, to the media host's root"
+    );
+}
+
+#[test]
+fn a_failed_preconnect_is_harmless() {
+    let shared = Shared::with_preconnect(Rules::loopback(), "http://127.0.0.1:1/".to_owned());
+    shared.preconnect();
+    assert!(shared.client().is_ok(), "the client is still usable");
 }

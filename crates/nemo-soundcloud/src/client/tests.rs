@@ -341,6 +341,53 @@ async fn it_works_over_real_http_on_loopback() {
 }
 
 #[tokio::test]
+async fn a_listeners_call_goes_before_a_background_call_that_was_waiting() {
+    let fake = Arc::new(FakeHttp::new(site(ID)).slow(Duration::from_millis(40)));
+    let client = Arc::new(client(&fake, fast()));
+    client.warm_up().await.expect("warm");
+    let first = {
+        let client = Arc::clone(&client);
+        tokio::spawn(async move { client.get("/a", &[]).await })
+    };
+    tokio::time::sleep(Duration::from_millis(10)).await;
+    let hint = {
+        let client = Arc::clone(&client);
+        tokio::spawn(async move { client.get_background("/b", &[]).await })
+    };
+    tokio::time::sleep(Duration::from_millis(10)).await;
+    let click = {
+        let client = Arc::clone(&client);
+        tokio::spawn(async move { client.get("/c", &[]).await })
+    };
+    for call in [first, hint, click] {
+        call.await.expect("task").expect("answer");
+    }
+    let order: Vec<char> = fake
+        .urls()
+        .iter()
+        .filter_map(|u| u.strip_prefix("https://api-v2.soundcloud.com/"))
+        .filter_map(|u| u.chars().next())
+        .collect();
+    assert_eq!(order, ['a', 'c', 'b'], "the click went before the hint");
+}
+
+#[tokio::test]
+async fn the_activity_callback_hears_a_listeners_calls_and_not_hints_or_discovery() {
+    let fake = Arc::new(FakeHttp::new(site(ID)));
+    let client = client(&fake, fast());
+    let heard = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let counter = Arc::clone(&heard);
+    client.set_activity(Arc::new(move || {
+        counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    }));
+    client.warm_up().await.expect("warm");
+    client.get("/a", &[]).await.expect("call");
+    client.get("/b", &[]).await.expect("call");
+    client.get_background("/c", &[]).await.expect("hint");
+    assert_eq!(heard.load(std::sync::atomic::Ordering::SeqCst), 2);
+}
+
+#[tokio::test]
 async fn a_client_switched_off_sends_nothing_and_comes_back_on() {
     let fake = Arc::new(FakeHttp::new(site(ID)));
     let client = client(&fake, fast());
