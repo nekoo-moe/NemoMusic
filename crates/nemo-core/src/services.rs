@@ -35,6 +35,13 @@ pub trait ByteSource: Read + Seek + Send + Sync {
     fn is_seekable(&self) -> bool {
         true
     }
+
+    /// The length of the audio, when the source knows it and the container may not: an HLS stream
+    /// whose init segment states no length (the sum of its segment lengths). `None` leaves the
+    /// length to the container. The decoder prefers a hint over the container's value.
+    fn duration_hint(&self) -> Option<Duration> {
+        None
+    }
 }
 
 /// Opens a resolved stream for reading.

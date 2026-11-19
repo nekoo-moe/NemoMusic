@@ -75,7 +75,7 @@ pub trait ScHttp: Send + Sync {
 }
 
 /// Follow a redirect only when it stays on HTTPS, and never more than [`MAX_REDIRECTS`] times.
-fn https_redirects() -> Policy {
+pub(crate) fn https_redirects() -> Policy {
     Policy::custom(|attempt| {
         if attempt.url().scheme() == "https" && attempt.previous().len() < MAX_REDIRECTS {
             attempt.follow()

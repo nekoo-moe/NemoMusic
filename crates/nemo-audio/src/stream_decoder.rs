@@ -48,6 +48,8 @@ impl StreamDecoder {
     /// [`DecodeError`] when the container is unknown, has no audio track, states no sample
     /// rate or channel count, or uses a codec this build cannot decode.
     pub fn open(source: Box<dyn ByteSource>, extension: Option<&str>) -> Result<Self, DecodeError> {
+        // Asked before the source moves into the adapter.
+        let duration_hint = source.duration_hint();
         let mss = MediaSourceStream::new(
             Box::new(MediaAdapter::new(source)),
             MediaSourceStreamOptions::default(),
@@ -90,7 +92,7 @@ impl StreamDecoder {
         let info = SourceInfo {
             codec: codec_from_id(params.codec),
             format,
-            duration: track_duration(track, sample_rate),
+            duration: duration_hint.or_else(|| track_duration(track, sample_rate)),
         };
         let decoder = crate::codecs::make_decoder(params)?;
         Ok(Self {
