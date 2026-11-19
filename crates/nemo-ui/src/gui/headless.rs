@@ -302,6 +302,9 @@ pub struct Scenario {
     /// Turn the Window glass switch on after the app started solid, so the running window needs
     /// a restart and the `Restart now` pill shows (bar-material spec).
     pub glass_switched_on: bool,
+    /// With `glass_switched_on`: draw the pill this many ms into its entrance. The rest of the
+    /// page stays settled.
+    pub restart_ms: Option<u32>,
 }
 
 /// Which state of the sign-in sheet a snapshot shows.
@@ -371,6 +374,7 @@ impl Default for Scenario {
             bloom: None,
             backdrop_ms: None,
             glass_switched_on: false,
+            restart_ms: None,
         }
     }
 }
@@ -570,6 +574,12 @@ pub fn build_app(backend: &Backend, scenario: &Scenario) -> App {
             app.anim.step(left.min(100) as f32);
             left = left.saturating_sub(100);
         }
+    }
+    if let Some(ms) = scenario.restart_ms {
+        app.surfaces.restart.restart(false);
+        // A few hundred ms at most, exact in f32.
+        #[allow(clippy::cast_precision_loss)]
+        app.surfaces.restart.advance(ms as f32);
     }
     app.backdrop_preview_ms = scenario.backdrop_ms;
     if let Some(ms) = scenario.mid_motion_ms {

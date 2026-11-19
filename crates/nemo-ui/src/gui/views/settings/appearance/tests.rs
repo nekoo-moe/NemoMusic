@@ -27,6 +27,7 @@ fn app_with(settings: UiSettings, glass_switched_on: bool) -> App {
     build_app(
         &mock_backend(),
         &Scenario {
+            size: (960, 2100),
             glass_switched_on,
             route: Route::Settings,
             section: SettingsSection::Appearance,
@@ -124,7 +125,7 @@ fn the_pill_shows_with_its_helper_only_when_the_switch_needs_a_restart() {
     assert!(texts.iter().any(|t| t == words::RESTART_HELPER));
     let pill = focusable
         .iter()
-        .find(|b| (b.height - 40.0).abs() < 0.5)
+        .find(|b| (b.height - 40.0).abs() < 0.5 && b.width > 100.0)
         .expect("a 40 px target");
     assert!(pill.width >= 100.0, "{pill:?}");
     // Nothing changed: no pill. Reduce transparency overrides the switch: no pill.
