@@ -11,7 +11,7 @@ Waves: 1 = native client and playback (agent H, PRs 1 to 3 of 2026-11-19); 2 to 
   - Checks: `cargo fmt --all -- --check`; the `nemo-app` test that compares `HOSTS` with the README egress list is added with task 6 (the hosts of this PR are listed in README but not yet contacted).
   - Steering: as listed, each change labelled `(owner, 2026-11-19; soundcloud-full)`.
 
-- [ ] 2. HTTP layer and client id in `nemo-soundcloud`
+- [x] 2. HTTP layer and client id in `nemo-soundcloud`
   - Crate and files: `nemo-soundcloud` (`http.rs`, `client.rs`, `client_id.rs`, `limiter.rs`, `test_server.rs`), `Cargo.toml` (reqwest =0.13.5, tokio =1.54.1, serde, serde_json, thiserror, tracing).
   - Does: `ScHttp` over `reqwest` (HTTPS only, three redirects, timeouts, body cap, no URL in errors), the 250 ms limiter, 429 backoff, two retries on reads, client id discovery and one refresh on 401 or 403, `next_href` host check.
   - _Requirements: 2, 4, 6_
@@ -20,14 +20,15 @@ Waves: 1 = native client and playback (agent H, PRs 1 to 3 of 2026-11-19); 2 to 
   - Checks: loopback tests (redirect to http refused, 429 with `Retry-After`, 5xx retry, body cap, id regex, refresh once, never twice); `cargo tree -p nemo-soundcloud --edges normal` shows only `nemo-core` among `nemo-*`.
   - Steering: none
 
-- [ ] 3. Typed responses, mapping and catalog reads
+- [x] 3. Typed responses, mapping and catalog reads
   - Crate and files: `nemo-soundcloud` (`model.rs`, `map.rs`, `catalog.rs`, `tests/fixtures/`).
-  - Does: serde structs for track, playlist, user, search page, related; mapping to `Track` (`Origin::SoundCloud`, `source_url`), `PlaylistSummary`/`PlaylistDetail`, `ArtistSummary`/`ArtistDetail`; `search`, `search_kind`, `/resolve`, track, playlist (with `/tracks?ids=` batches), user tracks and playlists, related tracks. `HOSTS` replaced by the probed list.
+  - Does: serde structs (read item by item, so one odd item is skipped, not the page), mapping to `Track` (`Origin::SoundCloud`, `source_url`), `PlaylistSummary`/`PlaylistDetail`, `ArtistSummary`/`ArtistDetail`; `search`, `search_kind`, `/resolve`, track, playlist (with `/tracks?ids=` batches), user tracks and playlists, related tracks. `HOSTS` replaced by the probed list.
   - _Requirements: 21, 22, 23, 6_
   - Depends on: soundcloud-full#2
   - Wave: 1
   - Checks: sanitised fixture tests (mapping, attribution fields kept, stub playlist filled, previews and encrypted tracks flagged), a fixture lint (no `client_id`, token, signature or foreign host).
   - Steering: `tech.md` hosts line if the probe shows another host.
+  - Note: PR 2 reads the first page of every list; paging by `next_href` and the `Catalog` paging call come with task 9. `tests/live.rs` is the hand-run check against the real service (about 13 requests).
 
 - [ ] 4. Stream lookup and ranking
   - Crate and files: `nemo-soundcloud` (`stream.rs`, `resolver.rs`).
