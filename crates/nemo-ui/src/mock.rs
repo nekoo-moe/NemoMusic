@@ -308,6 +308,17 @@ pub fn mock_backend_soundcloud(state: nemo_core::source_account::SourceAccountSt
     }
 }
 
+/// Like [`mock_backend_soundcloud`], for an account with nothing in it.
+#[must_use]
+pub fn mock_backend_soundcloud_empty(
+    state: nemo_core::source_account::SourceAccountState,
+) -> Backend {
+    Backend {
+        soundcloud: Some(Arc::new(catalog::EmptyCatalog)),
+        ..mock_backend_soundcloud(state)
+    }
+}
+
 /// Like [`mock_backend`], but already signed in.
 #[must_use]
 pub fn mock_backend_signed_in() -> Backend {

@@ -101,7 +101,7 @@ impl App {
     }
 
     pub(super) fn pump_loads(&mut self) -> Vec<Job> {
-        let mut jobs = Vec::new();
+        let mut jobs = self.sc_watch();
         if !self.library_requested {
             self.library_requested = true;
             jobs.push(Job::Library);
@@ -122,7 +122,7 @@ impl App {
         }
         if let Some(key) = DetailKey::of(self.ui.route())
             && !self.details.contains_key(&key)
-            && (self.ui.youtube_enabled() || key.is_local())
+            && (self.ui.youtube_enabled() || key.is_local() || key.is_soundcloud())
         {
             self.details.insert(key.clone(), DetailState::Loading);
             jobs.push(Job::Detail(key));

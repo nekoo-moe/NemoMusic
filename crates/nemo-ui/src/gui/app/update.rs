@@ -200,6 +200,7 @@ impl App {
             // A sign-in can end without a message (the saved session checked at start).
             jobs.extend(self.watch_account());
         }
+        jobs.extend(self.sc_watch());
         jobs.extend(self.dispatch(Event::Frame { dt_ms: dt }));
         self.sync_anim();
         if !self.needs_frames() {

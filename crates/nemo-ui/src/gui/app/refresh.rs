@@ -29,19 +29,26 @@ impl App {
 
     /// The Refresh button, `F5` and `Ctrl+R`. A press while a reload runs does nothing.
     pub(super) fn refresh_msg(&mut self) -> Vec<Job> {
+        // SoundCloud reloads beside YouTube Music, but only what the person has on screen.
+        let mut jobs = if self.source.has_soundcloud() {
+            self.sc_reload()
+        } else {
+            Vec::new()
+        };
         if !self.ui.youtube_enabled() {
-            return Vec::new();
+            return jobs;
         }
-        let jobs: Vec<Job> = self
+        let youtube: Vec<Job> = self
             .refresh
             .request()
             .map(Job::Refresh)
             .into_iter()
             .collect();
-        if !jobs.is_empty() {
+        if !youtube.is_empty() {
             // Explore reloads beside it, on its own (real-explore spec).
             self.explore.reload();
         }
+        jobs.extend(youtube);
         jobs
     }
 

@@ -58,6 +58,7 @@ use nemo_core::source_account::SourceAccountState;
 use nemo_ui::gui::headless::{Scenario, build_app, render_png, render_view_png, specimen};
 use nemo_ui::mock::{
     mock_backend, mock_backend_seeded, mock_backend_signed_in, mock_backend_soundcloud,
+    mock_backend_soundcloud_empty,
 };
 
 /// The two window sizes the owner cares about: the maximized 1366 x 768 laptop and full HD.
@@ -70,6 +71,8 @@ struct Shot {
     signed_in: bool,
     /// SoundCloud runs in the backend, with its account in this state.
     soundcloud: Option<SourceAccountState>,
+    /// With `soundcloud`: the account has nothing in it.
+    empty: bool,
     scenario: Scenario,
 }
 
@@ -79,6 +82,7 @@ fn shot(name: String, scenario: Scenario) -> Shot {
         seeded: false,
         signed_in: false,
         soundcloud: None,
+        empty: false,
         scenario,
     }
 }
@@ -98,6 +102,7 @@ fn scenarios() -> Vec<Shot> {
     setup::shots(&mut out);
     song_colour::shots(&mut out);
     soundcloud_account::shots(&mut out);
+    soundcloud_account::library_shots(&mut out);
     skeleton::shots(&mut out);
     out.extend(wave_lyrics::shots());
     out.extend(syllable_motion::shots());
@@ -178,6 +183,7 @@ fn main() {
             continue;
         }
         let backend: Backend = match (s.seeded, s.signed_in, s.soundcloud.clone()) {
+            (_, _, Some(state)) if s.empty => mock_backend_soundcloud_empty(state),
             (_, _, Some(state)) => mock_backend_soundcloud(state),
             (true, _, None) => mock_backend_seeded(),
             (false, true, None) => mock_backend_signed_in(),

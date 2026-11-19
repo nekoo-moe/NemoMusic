@@ -32,7 +32,12 @@ impl App {
             ),
             (
                 Region::Library,
-                matches!(route, Route::Library) && self.library_pending(),
+                matches!(route, Route::Library)
+                    && if self.source == super::model::Source::SoundCloud {
+                        self.sc_library_pending()
+                    } else {
+                        self.library_pending()
+                    },
             ),
             (Region::Sidebar, self.sidebar_pending()),
         ];

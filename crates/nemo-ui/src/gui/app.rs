@@ -51,6 +51,7 @@ mod mute;
 mod option;
 mod query;
 mod refresh;
+mod sc_library;
 mod setup;
 mod skeleton;
 #[cfg(test)]
@@ -70,7 +71,8 @@ pub use message::{AccountBundle, CoverBuilt, ExploreMsg, Job, Message, RefreshDa
 pub use micro::{ART_FADE_MS, Micro, NAV_ENTRIES};
 pub use model::{
     AccountMsg, AccountUi, CompactTab, DetailData, DetailKey, DetailKind, DetailState, HomeFilter,
-    HomePhase, HomeState, LibFilter, ListSource, NpTab, ScMsg, ScUi, SettingsSection,
+    HomePhase, HomeState, LibFilter, ListSource, NpTab, ScLibData, ScLibrary, ScMsg, ScPhase,
+    ScTab, ScUi, SettingsSection, Source,
 };
 pub use option::{
     AccountLibrary, CreateMsg, FolderPicker, PickFuture, RestartHandler, SleepState, UiHooks,
@@ -133,6 +135,12 @@ pub struct App {
     pub(crate) account: AccountUi,
     /// The SoundCloud page and card (soundcloud-account spec).
     pub(crate) sc: ScUi,
+    /// Which service the Library shows.
+    pub(crate) source: Source,
+    /// The open tab of the SoundCloud library.
+    pub(crate) sc_tab: ScTab,
+    /// The SoundCloud library of the signed-in account.
+    pub(crate) sc_lib: ScLibrary,
     /// What the SoundCloud switch shows, from the app; `None` when the app has no SoundCloud.
     pub(crate) soundcloud_info: Option<nemo_core::opt_in::OptInInfo>,
     /// Likes the user changed in this session (over what the Liked songs shelf says).
@@ -159,7 +167,7 @@ pub struct App {
     pub(crate) eq_phase: f32,
     /// Sliding selection pill of chip rows: x and width springs (0: Home, 1: Library tabs, 2:
     /// Search filters).
-    pub(crate) chip_pills: [(crate::motion::Spring, crate::motion::Spring); 3],
+    pub(crate) chip_pills: [(crate::motion::Spring, crate::motion::Spring); 5],
     chip_pills_init: bool,
     /// Queue reorder: the two rows that swapped and the offset spring (1 to 0).
     pub(crate) queue_swap: (usize, usize),
@@ -294,6 +302,9 @@ impl App {
             lib_filter: None,
             account: AccountUi::default(),
             sc: ScUi::default(),
+            source: Source::default(),
+            sc_tab: ScTab::default(),
+            sc_lib: ScLibrary::default(),
             soundcloud_info: options.soundcloud_info,
             likes: HashMap::new(),
             last_line: None,
@@ -310,6 +321,14 @@ impl App {
             setup_seen: None,
             eq_phase: 0.0,
             chip_pills: [
+                (
+                    crate::motion::Spring::tuned(0.0, 1400.0, 1.0),
+                    crate::motion::Spring::tuned(0.0, 1400.0, 1.0),
+                ),
+                (
+                    crate::motion::Spring::tuned(0.0, 1400.0, 1.0),
+                    crate::motion::Spring::tuned(0.0, 1400.0, 1.0),
+                ),
                 (
                     crate::motion::Spring::tuned(0.0, 1400.0, 1.0),
                     crate::motion::Spring::tuned(0.0, 1400.0, 1.0),

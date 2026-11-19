@@ -71,6 +71,9 @@ impl App {
             return Vec::new();
         };
         match msg {
+            ScMsg::Source(_) | ScMsg::Tab(_) | ScMsg::Reload | ScMsg::LibraryLoaded { .. } => {
+                return self.sc_library_msg(msg);
+            }
             ScMsg::Ask => self.sc.confirming = true,
             ScMsg::Cancel => self.sc.confirming = false,
             ScMsg::TurnOn => {

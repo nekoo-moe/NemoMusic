@@ -40,7 +40,7 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
     let Some(key) = DetailKey::of(app.ui.route()) else {
         return page(grid.content, vspace(0.0));
     };
-    if !app.ui.youtube_enabled() && !key.is_local() {
+    if !app.ui.youtube_enabled() && !key.is_local() && !key.is_soundcloud() {
         return page(
             grid.content,
             status(

@@ -3,11 +3,18 @@
 use crate::home;
 use crate::route::Route;
 use nemo_core::account::{AccountError, AccountInfo, SignOutReport};
-use nemo_core::catalog::{AlbumDetail, ArtistDetail, BrowseId, PlaylistDetail, Shelf, ShelfItem};
+use nemo_core::catalog::{
+    AlbumDetail, AlbumSummary, ArtistDetail, ArtistSummary, BrowseId, HistorySection,
+    PlaylistDetail, PlaylistSummary, Shelf, ShelfItem,
+};
 use nemo_core::secret::Secret;
 use nemo_core::source_account::{SourceAccountError, SourceAccountInfo};
+use nemo_core::track::Track;
 use std::hash::Hash;
 use std::sync::Arc;
+
+/// Every SoundCloud page id starts with this (the SoundCloud crate's `BrowseId`s).
+pub const SOUNDCLOUD_ID_PREFIX: &str = "sc:";
 
 /// Progress of the Home shelves.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -71,6 +78,13 @@ impl DetailKey {
     pub fn is_local(&self) -> bool {
         self.kind == DetailKind::Album && self.id.0.starts_with(home::LOCAL_ALBUM_PREFIX)
     }
+
+    /// `true` for the page of a SoundCloud playlist, album or user. It loads from the SoundCloud
+    /// catalog and needs no YouTube Music notice.
+    #[must_use]
+    pub fn is_soundcloud(&self) -> bool {
+        self.id.0.starts_with(SOUNDCLOUD_ID_PREFIX)
+    }
 }
 
 /// A loaded detail page.
@@ -120,6 +134,10 @@ pub enum ListSource {
     Explore(usize),
     /// Songs and videos of shelf number `n` of a mood page.
     Mood(BrowseId, usize),
+    /// The liked tracks of the SoundCloud account.
+    ScLikes,
+    /// The tracks of history section number `n` of the SoundCloud account.
+    ScHistory(usize),
 }
 
 /// Lower area of compact Now Playing.
@@ -333,9 +351,139 @@ impl Default for ScUi {
     }
 }
 
+/// Which service the Library (and later Search) shows (soundcloud-account spec).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Source {
+    /// YouTube Music, local files and everything as before.
+    #[default]
+    YouTube,
+    /// The signed-in SoundCloud library.
+    SoundCloud,
+    /// Both, each in its own group.
+    All,
+}
+
+impl Source {
+    /// The choices in switch order.
+    pub const ALL: [Self; 3] = [Self::YouTube, Self::SoundCloud, Self::All];
+
+    /// The text of the switch.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::YouTube => "YouTube Music",
+            Self::SoundCloud => "SoundCloud",
+            Self::All => "All",
+        }
+    }
+
+    /// `true` when SoundCloud results belong on screen.
+    #[must_use]
+    pub const fn has_soundcloud(self) -> bool {
+        matches!(self, Self::SoundCloud | Self::All)
+    }
+}
+
+/// Tabs of the SoundCloud library.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ScTab {
+    /// Liked tracks.
+    #[default]
+    Likes,
+    /// The user's playlists and the ones they liked.
+    Playlists,
+    /// The user's albums and the ones they liked.
+    Albums,
+    /// Followed artists.
+    Following,
+    /// Play history.
+    History,
+}
+
+impl ScTab {
+    /// The tabs in order.
+    pub const ALL: [Self; 5] = [
+        Self::Likes,
+        Self::Playlists,
+        Self::Albums,
+        Self::Following,
+        Self::History,
+    ];
+
+    /// The chip text.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Likes => "Likes",
+            Self::Playlists => "Playlists",
+            Self::Albums => "Albums",
+            Self::Following => "Following",
+            Self::History => "History",
+        }
+    }
+}
+
+/// What one read of the SoundCloud library brought.
+#[derive(Debug, Clone, Default)]
+pub struct ScLibData {
+    /// Liked tracks.
+    pub likes: Vec<Track>,
+    /// Own playlists, then liked ones.
+    pub playlists: Vec<PlaylistSummary>,
+    /// Own albums, then liked ones.
+    pub albums: Vec<AlbumSummary>,
+    /// Followed artists.
+    pub artists: Vec<ArtistSummary>,
+    /// History by day.
+    pub history: Vec<HistorySection>,
+}
+
+/// Where the SoundCloud library stands.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ScPhase {
+    /// Not asked for yet.
+    #[default]
+    Idle,
+    /// A read is running.
+    Loading,
+    /// The data is in.
+    Done,
+    /// The read failed; `error` says why in plain words.
+    Failed,
+}
+
+/// The SoundCloud library the UI holds. It belongs to one sign-in: another account, or none,
+/// clears it before anything is shown (criterion 12).
+#[derive(Debug, Clone, Default)]
+pub struct ScLibrary {
+    /// Where the read stands.
+    pub phase: ScPhase,
+    /// The data of the last good read.
+    pub data: Arc<ScLibData>,
+    /// Plain-words reason of the last failure.
+    pub error: Option<String>,
+    /// Raised by every clear and every reload, so a late answer is dropped.
+    pub generation: u64,
+    /// Whether the data belongs to a signed-in account.
+    pub owner: bool,
+}
+
 /// Messages of the SoundCloud page and of the SoundCloud card of the setup flow.
 #[derive(Debug, Clone)]
 pub enum ScMsg {
+    /// Choose which service the Library shows.
+    Source(Source),
+    /// Open a tab of the SoundCloud library.
+    Tab(ScTab),
+    /// Read the SoundCloud library again (Retry, Refresh).
+    Reload,
+    /// A library read finished.
+    LibraryLoaded {
+        /// The read it answers; an older one is dropped.
+        generation: u64,
+        /// The data, or the plain-words reason.
+        result: Result<Arc<ScLibData>, String>,
+    },
     /// The switch was turned on: open the panel. The feature stays off.
     Ask,
     /// "Cancel" in the panel.
