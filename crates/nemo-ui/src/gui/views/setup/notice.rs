@@ -19,7 +19,7 @@ use crate::theme::{color, shape, type_scale};
 const BUTTON_H: f32 = 48.0;
 
 pub(super) fn view(app: &App, width: f32) -> Element<'_, Message> {
-    let mut c = column![heading(text::NOTICE_TITLE, None, width), vspace(gap::LG)]
+    let mut c = column![heading(text::NOTICE_TITLE, None, width), vspace(gap::MD)]
         .width(Length::Fixed(width));
     for p in copy::TOS_NOTICE {
         c = c
