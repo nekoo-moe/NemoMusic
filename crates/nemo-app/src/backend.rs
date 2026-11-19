@@ -165,6 +165,7 @@ pub fn build(
         local: None,
         // No offline cache wired yet (offline-cache): every song streams.
         offline: None,
+        url_resolver: None,
         opener: Arc::new(HttpStreamOpener::default()),
         segments,
         // The shared-mode factory opens by ID through `DeviceSinkFactory` (output-devices task 7).

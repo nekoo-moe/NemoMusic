@@ -119,6 +119,7 @@ fn start(slow: &[u32]) -> Rig {
         request: nemo_core::stream::StreamRequest::default(),
         local: None,
         offline: None,
+        url_resolver: None,
         opener: Arc::new(opener),
         segments: None,
         sink_factory: Arc::new(ThreadSinkFactory {

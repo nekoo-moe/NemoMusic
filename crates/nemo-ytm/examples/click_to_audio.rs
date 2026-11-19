@@ -196,6 +196,7 @@ fn main() {
         request: StreamRequest::default(),
         local: None,
         offline: None,
+        url_resolver: None,
         opener: Arc::new(TimedOpener(HttpStreamOpener::new(), Arc::clone(&clock))),
         segments: None,
         sink_factory: Arc::new(CpalSinkFactory::new(None)),

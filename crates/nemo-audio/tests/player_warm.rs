@@ -105,6 +105,7 @@ fn start(refuse: &[u32], request: StreamRequest) -> (Arc<dyn PlayerControl>, Arc
         request,
         local: None,
         offline: None,
+        url_resolver: None,
         opener: Arc::new(opener),
         segments: None,
         sink_factory: Arc::new(ThreadSinkFactory {
