@@ -10,9 +10,9 @@ use nemo_core::catalog::SearchKind;
 
 use super::super::super::app::{App, Message};
 use super::super::super::assets::Icon;
-use super::super::kit::{sliding_chips, status};
+use super::super::kit::{blank, sliding_chips, status};
+use super::no_results;
 use super::section::{self, Frame};
-use super::{no_results, searching};
 use crate::state::Event;
 
 /// The label of a chip.
@@ -66,7 +66,7 @@ pub(super) fn chips(app: &App, picked: Option<SearchKind>) -> Element<'_, Messag
 pub(super) fn filtered<'a>(app: &'a App, kind: SearchKind, frame: &Frame) -> Element<'a, Message> {
     let search = &app.ui.search;
     let Some(answer) = search.filtered_now() else {
-        return searching();
+        return blank();
     };
     match &answer.result {
         Ok(r) if r.count(kind) == 0 => no_results(search.query()),
