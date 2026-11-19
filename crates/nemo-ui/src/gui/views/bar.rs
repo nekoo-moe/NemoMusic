@@ -24,9 +24,9 @@ mod right;
 mod seek;
 mod surface;
 
-pub(crate) use surface::fill as capsule_fill;
 pub use control::{like_button, play_button, repeat_button, transport};
 pub use cover::cover_art;
+pub(crate) use surface::fill as capsule_fill;
 
 /// A layout number in px. Layout numbers are small, exact in f32.
 #[allow(clippy::cast_precision_loss)]
