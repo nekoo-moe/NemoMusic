@@ -451,7 +451,8 @@ impl App {
             Message::SearchFor(q) => self.dispatch(Event::Go(Route::Search(q))),
             Message::Refresh => self.refresh_msg(),
             Message::Refreshed { generation, data } => self.on_refreshed(generation, data),
-            Message::TimerTick | Message::Noop => Vec::new(),
+            // `Restart` is answered in `App::update`, with a task that closes the window.
+            Message::TimerTick | Message::Noop | Message::Restart => Vec::new(),
         }
     }
 

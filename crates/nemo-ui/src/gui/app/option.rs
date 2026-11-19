@@ -7,6 +7,7 @@ use crate::explore::SleepChoice;
 use crate::route::Route;
 use crate::settings::UiSettings;
 use crate::theme::layout as theme_layout;
+use crate::window_glass::WindowLook;
 use nemo_core::catalog::{AlbumSummary, ArtistSummary, PlaylistSummary};
 use nemo_core::track::{Track, TrackId};
 use std::sync::Arc;
@@ -74,6 +75,17 @@ pub enum CreateMsg {
     Confirm,
 }
 
+/// Asks the parent to start a fresh copy of the program with the same arguments, after it made
+/// sure the settings are saved. Returns `true` when the new copy started: the window then closes
+/// itself. Returns `false` when it did not start: the app keeps running. The UI never spawns a
+/// process itself. It may block for a moment (it waits for the settings file).
+pub type RestartHandler = Arc<dyn Fn() -> bool + Send + Sync>;
+
+/// Called once, on the UI thread, with the window just after it opened and the look of the theme,
+/// when the window was created see-through and Reduce transparency is off. The parent may ask the
+/// system for a blur behind it; `nemo-ui` names no platform crate and draws none itself.
+pub type WindowHandler = Arc<dyn Fn(&dyn iced::window::Window, WindowLook) + Send + Sync>;
+
 /// Options for [`run`](super::run).
 #[derive(Clone)]
 pub struct UiOptions {
@@ -102,6 +114,11 @@ pub struct UiOptions {
     /// Called when the user presses "Add folder" in Settings; the app opens its folder picker.
     /// The button is hidden when this is `None`.
     pub on_add_music_folder: Option<Arc<dyn Fn() + Send + Sync>>,
+    /// Called when the user presses `Restart now` on the Window glass card (bar-material spec).
+    /// The pill is hidden when this is `None`.
+    pub on_restart: Option<RestartHandler>,
+    /// Called once with the see-through window (see [`WindowHandler`]).
+    pub on_window_ready: Option<WindowHandler>,
 }
 
 impl std::fmt::Debug for UiOptions {
@@ -118,6 +135,8 @@ impl std::fmt::Debug for UiOptions {
             .field("on_settings", &self.on_settings.is_some())
             .field("music_folders", &self.music_folders)
             .field("on_add_music_folder", &self.on_add_music_folder.is_some())
+            .field("on_restart", &self.on_restart.is_some())
+            .field("on_window_ready", &self.on_window_ready.is_some())
             .finish()
     }
 }
@@ -136,6 +155,8 @@ impl Default for UiOptions {
             on_settings: None,
             music_folders: Vec::new(),
             on_add_music_folder: None,
+            on_restart: None,
+            on_window_ready: None,
         }
     }
 }

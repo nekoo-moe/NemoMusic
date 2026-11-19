@@ -18,6 +18,7 @@ use crate::motion::Spring;
 use crate::scheme::accent_palette;
 use crate::splash::{Splash, StartStep};
 use crate::theme::{color, shape};
+use crate::window_glass::WindowLook;
 
 /// Reports a finished start-up step to the splash. Cheap and callable from any thread.
 pub type StepReporter<'a> = &'a (dyn Fn(StartStep) + Send + Sync);
@@ -143,7 +144,30 @@ impl Shell {
         self.stage = Stage::Running(Box::new(app));
         self.splash
             .finish(StartStep::FirstScreen, self.elapsed_ms());
-        task.map(ShellMessage::App)
+        Task::batch([task.map(ShellMessage::App), self.window_look_task()])
+    }
+
+    /// Hand the window to the parent's `on_window_ready` hook, once, when the window was created
+    /// see-through and Reduce transparency is off (bar-material spec). Nothing otherwise.
+    fn window_look_task(&self) -> Task<ShellMessage> {
+        let s = &self.options.settings;
+        let Some(hook) = self.options.on_window_ready.clone() else {
+            return Task::none();
+        };
+        if !s.window_glass || s.reduce_transparency {
+            return Task::none();
+        }
+        let look = WindowLook {
+            dark: !s.base.is_light(),
+            base: s.base.neutrals().surface,
+            opacity: s.window_glass_opacity,
+        };
+        window::oldest()
+            .and_then(move |id| {
+                let hook = hook.clone();
+                window::run(id, move |w| hook(w, look))
+            })
+            .discard()
     }
 
     fn on_frame(&mut self, now: Instant) {
@@ -297,6 +321,44 @@ mod tests {
 
     fn at(shell: &Shell, ms: u64) -> Instant {
         shell.t0 + Duration::from_millis(ms)
+    }
+
+    /// A shell with the hook wired and these settings. The start function never runs here.
+    fn shell_with_hook(window_glass: bool, reduce_transparency: bool, hooked: bool) -> Shell {
+        let options = UiOptions {
+            settings: crate::settings::UiSettings {
+                reduce_transparency,
+                window_glass,
+                ..crate::settings::UiSettings::default()
+            },
+            on_window_ready: hooked.then(|| Arc::new(|_: &dyn iced::window::Window, _| {}) as _),
+            ..UiOptions::default()
+        };
+        let start: StartFn = Box::new(|_| Err("stopped by the test".to_owned()));
+        Shell::boot(start, options).0
+    }
+
+    #[test]
+    fn the_window_goes_to_the_hook_only_when_it_is_see_through_and_not_reduced() {
+        assert!(
+            shell_with_hook(true, false, true)
+                .window_look_task()
+                .units()
+                > 0
+        );
+        for (glass, reduce, hooked) in [
+            (false, false, true),
+            (true, true, true),
+            (false, true, true),
+            (true, false, false),
+        ] {
+            let task = shell_with_hook(glass, reduce, hooked).window_look_task();
+            assert_eq!(
+                task.units(),
+                0,
+                "glass {glass}, reduce {reduce}, hook {hooked}"
+            );
+        }
     }
 
     #[test]
