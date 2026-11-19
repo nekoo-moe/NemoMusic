@@ -10,11 +10,12 @@ use nemo_core::downloads::OfflineStore;
 use nemo_core::library::{LocalPlayback, LocalTrackLookup};
 use nemo_core::segment::SegmentSource;
 use nemo_core::services::{ByteSource, StreamOpener};
-use nemo_core::stream::{StreamError, StreamRequest, StreamResolver};
-use nemo_core::track::{Track, VideoId};
+use nemo_core::stream::{ResolvedStream, StreamError, StreamRequest, StreamResolver};
+use nemo_core::track::{MediaUrl, Track, VideoId};
+use nemo_core::url_resolver::{FormatPolicy, UrlResolver};
 
 use crate::block_on::block_on;
-use crate::decoder::DecodeError;
+use crate::decoder::{DecodeError, supported_stream_codecs};
 use crate::player::Msg;
 use crate::source::FileSource;
 use crate::stream_decoder::StreamDecoder;
@@ -57,6 +58,9 @@ pub struct PrepareDeps {
     /// Saved songs. Asked before the resolver: a hit plays the cached file with no stream
     /// lookup and no audio request (offline-cache criterion 3).
     pub offline: Option<Arc<dyn OfflineStore>>,
+    /// Pages of other sites (SoundCloud) to streams. Asked on the prepare thread. `None`: such
+    /// tracks do not play.
+    pub url_resolver: Option<Arc<dyn UrlResolver>>,
 }
 
 /// Open `track` on a new thread and report the result to the control thread.
@@ -131,7 +135,7 @@ fn prepare(deps: &PrepareDeps, track: &Track) -> Result<Prepared, String> {
         });
     }
     let Some(video) = &track.video_id else {
-        return Err("this track has no playable source".into());
+        return prepare_page(deps, track);
     };
     if let Some(saved) = deps
         .offline
@@ -162,6 +166,48 @@ fn prepare(deps: &PrepareDeps, track: &Track) -> Result<Prepared, String> {
         }
         Err(e) => return Err(describe(&e)),
     };
+    finish_stream(source, &stream)
+}
+
+/// Open a track that has a page address and no video id (SoundCloud): resolve the page, open the
+/// stream, probe it. A stream that does not open is looked up once more, as for YouTube.
+fn prepare_page(deps: &PrepareDeps, track: &Track) -> Result<Prepared, String> {
+    let (Some(url), Some(resolver)) = (&track.source_url, &deps.url_resolver) else {
+        return Err("this track has no playable source".into());
+    };
+    let policy = FormatPolicy {
+        playable: supported_stream_codecs().to_vec(),
+        allow_hls: true,
+    };
+    let resolve = || block_on(resolver.resolve(url, &policy));
+    let began = Instant::now();
+    let stream = resolve().map_err(|e| describe(&e))?;
+    timing::stage("resolve", began);
+    let opening = Instant::now();
+    let opened = deps.opener.open(&stream);
+    timing::stage("open", opening);
+    match opened {
+        Ok(source) => finish_stream(source, &stream),
+        Err(StreamError::NotAvailable | StreamError::Network(_)) => {
+            retry_page(resolver.as_ref(), url, &resolve, deps.opener.as_ref())
+        }
+        Err(e) => Err(describe(&e)),
+    }
+}
+
+/// The address stopped working: tell the resolver, look the stream up again, open it once more.
+fn retry_page(
+    resolver: &dyn UrlResolver,
+    url: &MediaUrl,
+    resolve: &dyn Fn() -> Result<ResolvedStream, StreamError>,
+    opener: &dyn StreamOpener,
+) -> Result<Prepared, String> {
+    resolver.stream_failed(url);
+    let stream = resolve().map_err(|e| describe(&e))?;
+    let source = opener.open(&stream).map_err(|e| {
+        resolver.stream_failed(url);
+        describe(&e)
+    })?;
     finish_stream(source, &stream)
 }
 
@@ -210,11 +256,8 @@ fn measured_kbps(bytes: Option<u64>, duration: Option<Duration>) -> Option<u32> 
     u32::try_from(kbps).ok()
 }
 
-/// Probe an opened YouTube stream and describe it for the signal path.
-fn finish_stream(
-    source: Box<dyn ByteSource>,
-    stream: &nemo_core::stream::ResolvedStream,
-) -> Result<Prepared, String> {
+/// Probe an opened stream and describe it for the signal path. The origin is the resolver's.
+fn finish_stream(source: Box<dyn ByteSource>, stream: &ResolvedStream) -> Result<Prepared, String> {
     let probing = Instant::now();
     let decoder = StreamDecoder::open(source, None).map_err(|e| describe_decode(&e))?;
     timing::stage("probe", probing);
@@ -225,7 +268,7 @@ fn finish_stream(
         probed.codec
     };
     let info = StreamInfo {
-        origin: Origin::YoutubeMusic,
+        origin: stream.info.origin,
         codec,
         bitrate_kbps: stream.info.bitrate_kbps,
         format: Some(probed.format),

@@ -524,6 +524,7 @@ mod player_callback {
             request: nemo_core::stream::StreamRequest::default(),
             local,
             offline,
+            url_resolver: None,
             opener: Arc::new(FakeOpener {
                 files: std::collections::HashMap::default(),
                 chunk: None,

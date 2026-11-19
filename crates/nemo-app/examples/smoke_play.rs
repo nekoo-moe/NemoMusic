@@ -56,6 +56,7 @@ fn main() {
         request: StreamRequest::default(),
         local: None,
         offline: None,
+        url_resolver: None,
         opener: Arc::new(HttpStreamOpener::default()),
         segments: None,
         sink_factory: Arc::new(CpalSinkFactory::new(None)),

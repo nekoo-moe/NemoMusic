@@ -19,6 +19,7 @@ use serde_json::Value;
 use crate::client::{ClientError, ScClient};
 use crate::map::{self, Kind};
 use crate::model::{Item, ScPlaylist, ScTrack, ScUser, parse_item, parse_list, parse_one};
+use crate::records::{TrackRecord, TrackRecords};
 
 /// Longest query sent, in characters.
 const MAX_QUERY_CHARS: usize = 200;
@@ -75,23 +76,32 @@ fn to_catalog(e: ClientError) -> CatalogError {
     }
 }
 
-fn tracks_of(items: Vec<Value>) -> Vec<Track> {
+/// A full track, and a record of its streams for the stream lookup.
+fn mapped(records: &TrackRecords, raw: &ScTrack) -> Option<Track> {
+    let track = map::track(raw)?;
+    if let (Some(page), Some(record)) = (&track.source_url, TrackRecord::of(raw)) {
+        records.insert(page.as_str(), record);
+    }
+    Some(track)
+}
+
+fn tracks_of(items: Vec<Value>, records: &TrackRecords) -> Vec<Track> {
     items
         .into_iter()
         .filter_map(parse_item)
         .filter_map(|item| match item {
-            Item::Track(t) => map::track(&t),
+            Item::Track(t) => mapped(records, &t),
             _ => None,
         })
         .collect()
 }
 
 /// Sort a mixed list into the result groups. Albums are playlists with `is_album`.
-fn results_of(items: Vec<Value>) -> SearchResults {
+fn results_of(items: Vec<Value>, records: &TrackRecords) -> SearchResults {
     let mut out = SearchResults::default();
     for item in items.into_iter().filter_map(parse_item) {
         match item {
-            Item::Track(t) => out.songs.extend(map::track(&t)),
+            Item::Track(t) => out.songs.extend(mapped(records, &t)),
             Item::User(u) => out.artists.extend(map::artist(&u)),
             Item::Playlist(p) => {
                 let art = first_track_art(&p);
@@ -136,7 +146,10 @@ impl SoundcloudCatalog {
             )
             .await
             .map_err(to_catalog)?;
-        Ok(tracks_of(parse_list(&body).map_err(to_catalog)?))
+        Ok(tracks_of(
+            parse_list(&body).map_err(to_catalog)?,
+            self.client.records(),
+        ))
     }
 
     /// What a soundcloud.com link points at. One request.
@@ -172,7 +185,10 @@ impl SoundcloudCatalog {
             .get(path, &[("q", &query), ("limit", SEARCH_LIMIT)])
             .await
             .map_err(to_catalog)?;
-        Ok(results_of(parse_list(&body).map_err(to_catalog)?))
+        Ok(results_of(
+            parse_list(&body).map_err(to_catalog)?,
+            self.client.records(),
+        ))
     }
 
     /// The playlist object and its tracks in order, stubs filled in batches of [`BATCH`].
@@ -190,7 +206,7 @@ impl SoundcloudCatalog {
         let mut slots = Vec::new();
         for raw in playlist.tracks.iter().take(MAX_PLAYLIST_TRACKS) {
             if let Some(Item::Track(t)) = parse_item(raw.clone()) {
-                match map::track(&t) {
+                match mapped(self.client.records(), &t) {
                     Some(full) => slots.push(Slot::Full(Box::new(full))),
                     None if t.title.is_none() => slots.push(Slot::Stub(t.id)),
                     None => {}
@@ -224,7 +240,10 @@ impl SoundcloudCatalog {
                 .get("/tracks", &[("ids", &ids)])
                 .await
                 .map_err(to_catalog)?;
-            for track in tracks_of(parse_list(&body).map_err(to_catalog)?) {
+            for track in tracks_of(
+                parse_list(&body).map_err(to_catalog)?,
+                self.client.records(),
+            ) {
                 if let Some(id) = map::parse_track_id(&track.id) {
                     filled.insert(id, track);
                 }
@@ -291,8 +310,15 @@ impl SoundcloudCatalog {
             .map_err(to_catalog)?;
         Ok(ArtistDetail {
             summary,
-            top_songs: tracks_of(parse_list(&tracks).map_err(to_catalog)?),
-            albums: results_of(parse_list(&albums).map_err(to_catalog)?).albums,
+            top_songs: tracks_of(
+                parse_list(&tracks).map_err(to_catalog)?,
+                self.client.records(),
+            ),
+            albums: results_of(
+                parse_list(&albums).map_err(to_catalog)?,
+                self.client.records(),
+            )
+            .albums,
             description: user.description.filter(|d| !d.trim().is_empty()),
         })
     }

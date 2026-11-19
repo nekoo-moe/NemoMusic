@@ -134,6 +134,15 @@ pub trait UrlResolver: Send + Sync {
 
     /// Whether the resolver program is usable. Must return at once.
     fn state(&self) -> ResolverState;
+
+    /// Hint: `url` will probably be played soon (the next queue entry). A resolver may look the
+    /// stream up in the background. Must return at once. Default: does nothing.
+    fn warm(&self, _url: &MediaUrl) {}
+
+    /// The stream last returned for `url` could not be opened (for example HTTP 403 on an
+    /// address that has expired). A resolver may drop a cached answer. Must return at once.
+    /// Default: does nothing.
+    fn stream_failed(&self, _url: &MediaUrl) {}
 }
 
 /// Score factor in hundredths: how much better a codec sounds than MP3 at the same bitrate.

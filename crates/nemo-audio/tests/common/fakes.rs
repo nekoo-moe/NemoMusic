@@ -464,6 +464,7 @@ pub fn rig(streams: Vec<(String, Vec<u8>)>, options: RigOptions) -> Rig {
         request: StreamRequest::default(),
         local: options.local,
         offline: options.offline,
+        url_resolver: None,
         opener: Arc::new(FakeOpener {
             files: streams.into_iter().collect(),
             chunk: options.chunk,

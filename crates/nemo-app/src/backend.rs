@@ -15,7 +15,7 @@ use nemo_core::integrations::NoIntegrations;
 use nemo_core::notify::NoNotifier;
 use nemo_core::player::PlayerCommand;
 use nemo_core::segment::SegmentSource;
-use nemo_core::services::Backend;
+use nemo_core::services::{Backend, StreamOpener};
 use nemo_core::stats::NoStats;
 use nemo_core::stream::StreamRequest;
 use nemo_library::catalog::LOCAL_ALBUM_PREFIX;
@@ -39,6 +39,7 @@ use crate::config::{Settings, StoredDevice};
 use crate::merged::MergedCatalog;
 use crate::paths::AppPaths;
 use crate::play_hub::{self, PlayHub};
+use crate::soundcloud::{self, RoutingOpener};
 use crate::start_warm::{LastPlayed, StartupWarm, WarmSlot};
 use crate::ui_bridge::SettingsMsg;
 
@@ -133,6 +134,17 @@ impl Startup {
     }
 }
 
+/// The SponsorBlock source, or `None` (with a warning) when its HTTP client cannot start.
+fn sponsorblock_source(handle: &Handle) -> Option<Arc<dyn SegmentSource>> {
+    match ReqwestHttp::new(handle.clone()) {
+        Ok(http) => Some(Arc::new(SponsorBlockSource::new(http))),
+        Err(err) => {
+            tracing::warn!(error = %err, "SponsorBlock disabled");
+            None
+        }
+    }
+}
+
 /// Wire the services. Must be called inside the tokio runtime that `handle` belongs to stays
 /// alive for the whole app. `report` is told as each step finishes.
 ///
@@ -197,12 +209,14 @@ pub fn build(
     // Already set only if `build` ran twice on one slot, which it does not.
     let _ = warm_slot.set(Arc::clone(&start_warm));
 
-    let segments: Option<Arc<dyn SegmentSource>> = match ReqwestHttp::new(handle.clone()) {
-        Ok(http) => Some(Arc::new(SponsorBlockSource::new(http))),
-        Err(err) => {
-            tracing::warn!(error = %err, "SponsorBlock disabled");
-            None
-        }
+    let segments = sponsorblock_source(handle);
+
+    // SoundCloud exists only when the switch is on and the notice confirmed (soundcloud-full).
+    let sc = soundcloud::build(&settings.opt_ins, handle, || soundcloud::real_http(handle));
+    let files: Arc<dyn StreamOpener> = Arc::new(HttpStreamOpener::default());
+    let opener: Arc<dyn StreamOpener> = match &sc {
+        Some(parts) => Arc::new(RoutingOpener::new(files, Arc::new(parts.opener.clone()))),
+        None => files,
     };
 
     let player = Player::spawn(PlayerDeps {
@@ -213,7 +227,8 @@ pub fn build(
         local: None,
         // No offline cache wired yet (offline-cache): every song streams.
         offline: None,
-        opener: Arc::new(HttpStreamOpener::default()),
+        url_resolver: sc.as_ref().map(|parts| Arc::clone(&parts.resolver)),
+        opener,
         segments,
         // The shared-mode factory opens by ID through `DeviceSinkFactory` (output-devices task 7).
         sink_factory: Arc::new(DeviceSinkFactory::new(OutputSelection {
@@ -249,7 +264,7 @@ pub fn build(
             account,
             integrations: Arc::new(NoIntegrations),
             notifier: Arc::new(NoNotifier),
-            soundcloud: None,
+            soundcloud: sc.map(|parts| parts.catalog),
             stats: Arc::new(NoStats),
             comments: None,
             ratings: None,

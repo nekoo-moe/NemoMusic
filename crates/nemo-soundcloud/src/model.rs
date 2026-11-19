@@ -23,6 +23,31 @@ pub struct ScPublisher {
     pub album_title: Option<String>,
 }
 
+/// How one stream of a track is delivered.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ScFormat {
+    /// `progressive`, `hls`, or an encrypted kind (`cbc-encrypted-hls`, `ctr-encrypted-hls`).
+    pub protocol: String,
+}
+
+/// One stream of a track (`media.transcodings[]`). The address is an API address that answers
+/// with the signed media address when called with the client id.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ScTranscoding {
+    pub url: String,
+    pub preset: String,
+    #[serde(default)]
+    pub snipped: bool,
+    pub format: ScFormat,
+}
+
+/// The streams of a track.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct ScMedia {
+    #[serde(default)]
+    pub transcodings: Vec<ScTranscoding>,
+}
+
 /// A track. A stub (`{id, kind, policy}` inside a playlist) has no `title`.
 #[derive(Debug, Clone, Deserialize)]
 pub struct ScTrack {
@@ -36,6 +61,11 @@ pub struct ScTrack {
     pub permalink_url: Option<String>,
     pub user: Option<ScUserRef>,
     pub publisher_metadata: Option<ScPublisher>,
+    pub media: Option<ScMedia>,
+    /// `ALLOW`, `SNIP` (a preview only), `BLOCK` (not in this region) and others.
+    pub policy: Option<String>,
+    /// Sent with the stream lookup, as the web player does.
+    pub track_authorization: Option<String>,
 }
 
 /// A playlist or an album (`is_album`).
