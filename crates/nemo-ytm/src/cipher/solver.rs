@@ -185,7 +185,7 @@ impl JsSolver {
 
 /// The engine: a runtime with the two scripts loaded, and the deadline its interrupt handler
 /// reads.
-struct Engine {
+pub(super) struct Engine {
     context: Context,
     deadline: Arc<Mutex<Instant>>,
     /// The player whose solver functions are in the engine now.
@@ -212,8 +212,13 @@ const RUN: &str = "(function (requests) { const out = {}; \
 
 impl Engine {
     fn new() -> Result<Self, SolveError> {
+        Self::with_memory(MEMORY_LIMIT)
+    }
+
+    /// An engine that may use `memory` bytes.
+    pub(super) fn with_memory(memory: usize) -> Result<Self, SolveError> {
         let runtime = Runtime::new().map_err(|_| SolveError::Start)?;
-        runtime.set_memory_limit(MEMORY_LIMIT);
+        runtime.set_memory_limit(memory);
         runtime.set_max_stack_size(JS_STACK);
         let deadline = Arc::new(Mutex::new(Instant::now() + SOLVE_TIMEOUT));
         let watched = Arc::clone(&deadline);
@@ -236,7 +241,7 @@ impl Engine {
     }
 
     /// Run `code` with the strings `globals` set, under the job's time limit.
-    fn eval(
+    pub(super) fn eval(
         &self,
         limit: Duration,
         globals: &[(&str, &str)],

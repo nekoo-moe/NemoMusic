@@ -2,6 +2,7 @@
 //! downloads public player scripts (human-paced) and checks the solver against the test vectors
 //! of `yt-dlp/ejs` (`src/yt/solver/test/tests.ts`, Unlicense).
 
+mod fakes;
 mod resolver;
 mod solver;
 mod store;
