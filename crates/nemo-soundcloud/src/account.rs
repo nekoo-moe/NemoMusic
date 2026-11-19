@@ -76,6 +76,9 @@ fn check_error(e: ClientError) -> SourceAccountError {
             SourceAccountError::Network("SoundCloud asked to slow down; try again later".to_owned())
         }
         ClientError::Timeout => SourceAccountError::Network("the request timed out".to_owned()),
+        ClientError::Off => {
+            SourceAccountError::Unavailable("SoundCloud is switched off".to_owned())
+        }
         ClientError::Network | ClientError::NoClientId | ClientError::Parse => {
             SourceAccountError::Network("could not reach SoundCloud".to_owned())
         }

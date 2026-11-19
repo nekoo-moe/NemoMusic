@@ -16,7 +16,7 @@ use nemo_core::notify::NoNotifier;
 use nemo_core::player::PlayerCommand;
 use nemo_core::secret_store::SecretStore;
 use nemo_core::segment::SegmentSource;
-use nemo_core::services::{Backend, StreamOpener};
+use nemo_core::services::Backend;
 use nemo_core::stats::NoStats;
 use nemo_core::stream::{StreamRequest, StreamResolver};
 use nemo_library::catalog::LOCAL_ALBUM_PREFIX;
@@ -221,8 +221,9 @@ pub fn build(
     let segments = sponsorblock_source(handle);
 
     // SoundCloud exists only when the switch is on and the notice confirmed (soundcloud-full).
-    let files: Arc<dyn StreamOpener> = Arc::new(HttpStreamOpener::default());
-    let sc = soundcloud::wire(&settings.opt_ins, handle, store, paths, files);
+    let sc = soundcloud::for_app(&settings.opt_ins, handle, &ytdlp);
+    let opener = soundcloud::opener(Arc::new(HttpStreamOpener::default()), sc.as_ref());
+    let sc_account = soundcloud::account_for(sc.as_ref(), store, paths, handle);
 
     let player = Player::spawn(PlayerDeps {
         resolver,
@@ -232,8 +233,8 @@ pub fn build(
         local: None,
         // No offline cache wired yet (offline-cache): every song streams.
         offline: None,
-        url_resolver: sc.resolver,
-        opener: sc.opener,
+        url_resolver: sc.as_ref().map(|parts| Arc::clone(&parts.resolver)),
+        opener,
         segments,
         // The shared-mode factory opens by ID through `DeviceSinkFactory` (output-devices task 7).
         sink_factory: Arc::new(DeviceSinkFactory::new(OutputSelection {
@@ -270,8 +271,8 @@ pub fn build(
             account,
             integrations: Arc::new(NoIntegrations),
             notifier: Arc::new(NoNotifier),
-            soundcloud: sc.catalog,
-            soundcloud_account: sc.account,
+            soundcloud: sc.map(|parts| parts.catalog),
+            soundcloud_account: sc_account,
             stats: Arc::new(NoStats),
             comments: None,
             ratings: None,

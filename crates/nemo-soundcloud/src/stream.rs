@@ -104,12 +104,12 @@ fn stream_error(e: ClientError) -> StreamError {
             StreamError::Network("could not reach SoundCloud".to_owned())
         }
         ClientError::Parse => StreamError::Parse("unexpected answer from SoundCloud".to_owned()),
-        ClientError::NoClientId => {
-            StreamError::Network("SoundCloud changed its web app".to_owned())
-        }
+        // The web app is not what the client reads: the one answer the `yt-dlp` fallback may take.
+        ClientError::NoClientId => StreamError::Parse("SoundCloud changed its web app".to_owned()),
         ClientError::SessionEnded => {
             StreamError::Network("Sign in to SoundCloud again, then play this".to_owned())
         }
+        ClientError::Off => StreamError::Network("SoundCloud is switched off".to_owned()),
     }
 }
 
@@ -119,6 +119,9 @@ struct Inner {
     cache: Mutex<HashMap<String, (Instant, ResolvedStream)>>,
     warming: Mutex<HashSet<String>>,
     policy: Mutex<FormatPolicy>,
+    /// One look-up per page at a time: a click that arrives while the same track is being warmed
+    /// waits for that look-up and reads its answer.
+    locks: Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>>,
 }
 
 impl Inner {
@@ -129,15 +132,17 @@ impl Inner {
     }
 
     /// The record of `page`: the one the catalog kept, else one `/resolve` call.
-    async fn record(&self, page: &MediaUrl) -> Result<TrackRecord, StreamError> {
+    async fn record(&self, page: &MediaUrl, background: bool) -> Result<TrackRecord, StreamError> {
         if let Some(record) = self.client.records().get(page.as_str()) {
             return Ok(record);
         }
-        let body = self
-            .client
-            .get("/resolve", &[("url", page.as_str())])
-            .await
-            .map_err(stream_error)?;
+        let query = [("url", page.as_str())];
+        let body = if background {
+            self.client.get_background("/resolve", &query).await
+        } else {
+            self.client.get("/resolve", &query).await
+        }
+        .map_err(stream_error)?;
         let value = parse_one(&body).map_err(stream_error)?;
         let Some(Item::Track(track)) = parse_item(value) else {
             return Err(StreamError::NotAvailable);
@@ -147,21 +152,35 @@ impl Inner {
         Ok(record)
     }
 
+    /// The lock of `page`, and the end of the locks nobody holds any more.
+    fn page_lock(&self, page: &str) -> Arc<tokio::sync::Mutex<()>> {
+        let mut locks = self.locks.lock().unwrap_or_else(PoisonError::into_inner);
+        locks.retain(|_, lock| Arc::strong_count(lock) > 1);
+        Arc::clone(locks.entry(page.to_owned()).or_default())
+    }
+
     async fn resolve(
         &self,
         page: &MediaUrl,
         policy: &FormatPolicy,
+        background: bool,
     ) -> Result<ResolvedStream, StreamError> {
         if let Some(hit) = self.cached(page.as_str()) {
             return Ok(hit);
         }
+        let lock = self.page_lock(page.as_str());
+        let _one_at_a_time = lock.lock().await;
+        // Another call may have finished the same look-up while this one waited.
+        if let Some(hit) = self.cached(page.as_str()) {
+            return Ok(hit);
+        }
         *self.policy.lock().unwrap_or_else(PoisonError::into_inner) = policy.clone();
-        let record = self.record(page).await?;
+        let record = self.record(page, background).await?;
         let offers = offers(&record);
         let candidates: Vec<FormatCandidate> = offers.iter().map(|o| o.candidate).collect();
         let pick = rank_formats(&candidates, policy).ok_or(StreamError::NotAvailable)?;
         let offer = offers.get(pick).ok_or(StreamError::NotAvailable)?;
-        let stream = self.look_up(&record, offer).await?;
+        let stream = self.look_up(&record, offer, background).await?;
         self.cache
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
@@ -174,17 +193,23 @@ impl Inner {
         &self,
         record: &TrackRecord,
         offer: &Offer<'_>,
+        background: bool,
     ) -> Result<ResolvedStream, StreamError> {
         let auth = record.authorization.as_ref().map(|a| a.expose().as_str());
         let params: Vec<(&str, &str)> = auth
             .map(|a| ("track_authorization", a))
             .into_iter()
             .collect();
-        let body = self
-            .client
-            .get_api_url(&offer.transcoding.url, &params)
-            .await
-            .map_err(stream_error)?;
+        let body = if background {
+            self.client
+                .get_api_url_background(&offer.transcoding.url, &params)
+                .await
+        } else {
+            self.client
+                .get_api_url(&offer.transcoding.url, &params)
+                .await
+        }
+        .map_err(stream_error)?;
         let answer: LookupAnswer = parse_one(&body).map_err(stream_error)?;
         // The address must be https on a SoundCloud host: it is fetched without the client id.
         MediaUrl::parse(&answer.url, HOSTS)
@@ -218,7 +243,7 @@ impl Inner {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .clone();
-        if let Ok(stream) = self.resolve(&page, &policy).await {
+        if let Ok(stream) = self.resolve(&page, &policy, true).await {
             let shared = Arc::clone(&self.shared);
             // The blocking client must not run on the async threads.
             let _ = tokio::task::spawn_blocking(move || shared.prefetch(&stream)).await;
@@ -260,6 +285,7 @@ impl ScStreamResolver {
                 shared,
                 cache: Mutex::default(),
                 warming: Mutex::default(),
+                locks: Mutex::default(),
                 policy: Mutex::new(FormatPolicy {
                     playable: vec![Codec::Aac, Codec::Mp3, Codec::Opus],
                     allow_hls: true,
@@ -294,7 +320,7 @@ impl UrlResolver for ScStreamResolver {
         url: &'a MediaUrl,
         policy: &'a FormatPolicy,
     ) -> BoxFuture<'a, Result<ResolvedStream, StreamError>> {
-        Box::pin(self.inner.resolve(url, policy))
+        Box::pin(self.inner.resolve(url, policy, false))
     }
 
     /// Searches and pages come from the catalog, not from here.
@@ -344,9 +370,30 @@ impl UrlResolver for ScStreamResolver {
 }
 
 /// The resolver and the opener of one SoundCloud client, sharing the prefetch.
+///
+/// Whenever a listener's call starts (a search, a page, a stream look-up) and the connection to
+/// the media host was not opened ahead in the last 45 s, one background `HEAD` opens it, so the
+/// playlist of the track that is clicked next does not wait for DNS and TLS.
 #[must_use]
 pub fn streams(client: Arc<ScClient>, handle: Handle) -> (ScStreamResolver, ScStreamOpener) {
-    let shared = Arc::new(Shared::new());
+    streams_with(client, handle, Arc::new(Shared::new()))
+}
+
+/// [`streams`] over given shared state (tests use loopback rules).
+#[must_use]
+pub fn streams_with(
+    client: Arc<ScClient>,
+    handle: Handle,
+    shared: Arc<Shared>,
+) -> (ScStreamResolver, ScStreamOpener) {
+    let ahead = Arc::clone(&shared);
+    let runtime = handle.clone();
+    client.set_activity(Arc::new(move || {
+        if ahead.preconnect_due() {
+            let shared = Arc::clone(&ahead);
+            runtime.spawn_blocking(move || shared.preconnect());
+        }
+    }));
     let resolver = ScStreamResolver::new(client, Arc::clone(&shared), handle);
     (resolver, ScStreamOpener::new(shared))
 }

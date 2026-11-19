@@ -10,8 +10,8 @@ use std::sync::Arc;
 
 use nemo_core::BoxFuture;
 use nemo_core::catalog::{
-    AlbumDetail, ArtistDetail, BrowseId, Catalog, CatalogError, PlaylistDetail, SearchKind,
-    SearchResults,
+    AlbumDetail, ArtistDetail, BrowseId, Catalog, CatalogError, Explore, HomeFeed, PlaylistDetail,
+    SearchKind, SearchResults, Shelf,
 };
 use nemo_core::track::{MediaUrl, Track, TrackId};
 use serde_json::Value;
@@ -32,7 +32,7 @@ const RELATED_LIMIT: &str = "20";
 /// Ids a `/tracks?ids=` call may carry.
 const BATCH: usize = 50;
 /// Most tracks read from one playlist: ten batches.
-const MAX_PLAYLIST_TRACKS: usize = 500;
+pub(crate) const MAX_PLAYLIST_TRACKS: usize = 500;
 
 /// What a SoundCloud link points at.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -50,17 +50,17 @@ pub enum Link {
 /// The SoundCloud catalog. Build it only when the switch is on and confirmed.
 #[derive(Debug, Clone)]
 pub struct SoundcloudCatalog {
-    client: Arc<ScClient>,
+    pub(crate) client: Arc<ScClient>,
 }
 
 /// A playlist track slot: a full track, or an id to fill from `/tracks?ids=`.
-enum Slot {
+pub(crate) enum Slot {
     Full(Box<Track>),
     Stub(u64),
 }
 
 /// Plain texts for the user. They never hold an address, an id or a body.
-fn to_catalog(e: ClientError) -> CatalogError {
+pub(crate) fn to_catalog(e: ClientError) -> CatalogError {
     match e {
         ClientError::RateLimited => CatalogError::RateLimited,
         ClientError::NotFound => CatalogError::NotFound,
@@ -73,6 +73,7 @@ fn to_catalog(e: ClientError) -> CatalogError {
         ClientError::SessionEnded => {
             CatalogError::Unavailable("Sign in to SoundCloud again".to_owned())
         }
+        ClientError::Off => CatalogError::Unavailable("SoundCloud is switched off".to_owned()),
         ClientError::NoClientId => {
             CatalogError::Unavailable("SoundCloud changed its web app".to_owned())
         }
@@ -80,7 +81,7 @@ fn to_catalog(e: ClientError) -> CatalogError {
 }
 
 /// A full track, and a record of its streams for the stream lookup.
-fn mapped(records: &TrackRecords, raw: &ScTrack) -> Option<Track> {
+pub(crate) fn mapped(records: &TrackRecords, raw: &ScTrack) -> Option<Track> {
     let track = map::track(raw)?;
     if let (Some(page), Some(record)) = (&track.source_url, TrackRecord::of(raw)) {
         records.insert(page.as_str(), record);
@@ -88,7 +89,7 @@ fn mapped(records: &TrackRecords, raw: &ScTrack) -> Option<Track> {
     Some(track)
 }
 
-fn tracks_of(items: Vec<Value>, records: &TrackRecords) -> Vec<Track> {
+pub(crate) fn tracks_of(items: Vec<Value>, records: &TrackRecords) -> Vec<Track> {
     items
         .into_iter()
         .filter_map(parse_item)
@@ -220,7 +221,7 @@ impl SoundcloudCatalog {
         Ok((playlist, tracks))
     }
 
-    async fn fill_stubs(&self, slots: Vec<Slot>) -> Result<Vec<Track>, CatalogError> {
+    pub(crate) async fn fill_stubs(&self, slots: Vec<Slot>) -> Result<Vec<Track>, CatalogError> {
         let stubs: Vec<u64> = slots
             .iter()
             .filter_map(|s| {
@@ -262,6 +263,9 @@ impl SoundcloudCatalog {
     }
 
     async fn playlist_page(&self, id: &BrowseId) -> Result<PlaylistDetail, CatalogError> {
+        if let Some(page) = crate::home::Page::parse(id) {
+            return self.extra_page(page).await;
+        }
         let (p, tracks) = self.load_playlist(id).await?;
         let summary =
             map::playlist(&p, tracks.first().and_then(art_of)).ok_or(CatalogError::NotFound)?;
@@ -353,6 +357,18 @@ impl Catalog for SoundcloudCatalog {
         id: &'a BrowseId,
     ) -> BoxFuture<'a, Result<PlaylistDetail, CatalogError>> {
         Box::pin(self.playlist_page(id))
+    }
+
+    fn home(&self) -> BoxFuture<'_, Result<Vec<Shelf>, CatalogError>> {
+        Box::pin(self.home_shelves())
+    }
+
+    fn home_feed(&self) -> BoxFuture<'_, Result<HomeFeed, CatalogError>> {
+        Box::pin(self.home_page())
+    }
+
+    fn explore(&self) -> BoxFuture<'_, Result<Explore, CatalogError>> {
+        Box::pin(self.explore_page())
     }
 
     fn search_kind<'a>(

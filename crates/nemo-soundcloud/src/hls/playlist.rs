@@ -29,6 +29,32 @@ pub struct MediaPlaylist {
 }
 
 impl MediaPlaylist {
+    /// The segment that holds `at`: its index and its start time (the sum of the `#EXTINF`
+    /// values before it). A time past the end gives the last segment.
+    #[must_use]
+    pub fn segment_at(&self, at: Duration) -> (usize, Duration) {
+        let mut start = Duration::ZERO;
+        let mut found = (0, Duration::ZERO);
+        for (index, segment) in self.segments.iter().enumerate() {
+            found = (index, start);
+            let end = start + segment.duration;
+            if at < end {
+                break;
+            }
+            start = end;
+        }
+        found
+    }
+
+    /// The playlist from segment `index` on, with the same init segment.
+    #[must_use]
+    pub fn from_segment(&self, index: usize) -> Self {
+        Self {
+            init: self.init.clone(),
+            segments: self.segments.get(index..).unwrap_or_default().to_vec(),
+        }
+    }
+
     /// Total length of the audio, from the `#EXTINF` values.
     #[must_use]
     pub fn duration(&self) -> Duration {

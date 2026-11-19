@@ -7,8 +7,9 @@
 //! is written to disk. The init segment and the first segment are fetched at the same moment, so
 //! the first bytes arrive after one round trip.
 //!
-//! The source is forward only (`is_seekable()` is false): seeking by segment is a later wave
-//! (soundcloud-full task 11). Reads block; the decoder thread calls them, never the audio
+//! The source itself is forward only (`is_seekable()` is false). A seek goes through
+//! [`Reopen`]: the decoder asks for the stream again from the segment that holds the time, probes
+//! it, and drops the audio before the time (soundcloud-full task 11). Reads block; the decoder thread calls them, never the audio
 //! callback. A playlist that names a key is refused before this reader starts.
 
 use std::io::{self, Read, Seek, SeekFrom};
@@ -18,7 +19,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::thread;
 use std::time::Duration;
 
-use nemo_core::services::ByteSource;
+use nemo_core::services::{ByteSource, Reopen};
 use reqwest::blocking::Client;
 
 pub mod fetch;
@@ -87,6 +88,27 @@ pub struct HlsSource {
     /// The sum of the playlist's segment lengths. The init segment of a fragmented stream states
     /// none, so the decoder would report the first fragment's length.
     length: Duration,
+    /// How to start again at a later segment (a seek). `None` on a source that was itself
+    /// started that way: the decoder keeps the first one.
+    reopen: Option<Arc<HlsReopen>>,
+}
+
+/// Opens the same stream again from the segment that holds a time (soundcloud-full task 11).
+/// The new source has the init segment first and the segments from there on, so the decoder
+/// probes it like a fresh stream; only the segments it reads are fetched.
+struct HlsReopen {
+    client: Client,
+    rules: Rules,
+    list: MediaPlaylist,
+}
+
+impl Reopen for HlsReopen {
+    fn open_at(&self, to: Duration) -> io::Result<(Box<dyn ByteSource>, Duration)> {
+        let (index, start) = self.list.segment_at(to);
+        let rest = self.list.from_segment(index);
+        let source = HlsSource::begin(self.client.clone(), self.rules, rest, None, None)?;
+        Ok((Box::new(source), start))
+    }
 }
 
 impl std::fmt::Debug for HlsSource {
@@ -108,6 +130,21 @@ impl HlsSource {
         rules: Rules,
         list: MediaPlaylist,
         head: Option<Head>,
+    ) -> io::Result<Self> {
+        let reopen = Arc::new(HlsReopen {
+            client: client.clone(),
+            rules,
+            list: list.clone(),
+        });
+        Self::begin(client, rules, list, head, Some(reopen))
+    }
+
+    fn begin(
+        client: Client,
+        rules: Rules,
+        list: MediaPlaylist,
+        head: Option<Head>,
+        reopen: Option<Arc<HlsReopen>>,
     ) -> io::Result<Self> {
         let (tx, rx) = sync_channel(READ_AHEAD_SEGMENTS);
         let stop = Arc::new(AtomicBool::new(false));
@@ -137,6 +174,7 @@ impl HlsSource {
             ended: false,
             stop,
             length,
+            reopen,
         })
     }
 
@@ -277,7 +315,15 @@ impl ByteSource for HlsSource {
     fn duration_hint(&self) -> Option<Duration> {
         Some(self.length)
     }
+
+    fn reopener(&self) -> Option<Arc<dyn Reopen>> {
+        self.reopen
+            .as_ref()
+            .map(|r| Arc::clone(r) as Arc<dyn Reopen>)
+    }
 }
 
+#[cfg(test)]
+mod seek_tests;
 #[cfg(test)]
 mod tests;

@@ -11,6 +11,7 @@ use nemo_core::audio::{Codec, Origin, StreamInfo};
 use nemo_core::secret::Secret;
 use nemo_core::services::ByteSource;
 use nemo_core::stream::{ResolvedStream, StreamError, Transport};
+use nemo_core::url_resolver::UrlResolver;
 use nemo_soundcloud::http::{ScAnswer, ScHttpError, ScRequest};
 
 use super::*;
@@ -49,10 +50,15 @@ async fn run(choices: &BTreeMap<String, OptInChoice>) -> (bool, Vec<String>) {
     let host = Arc::new(CountingHost::default());
     let asked = Arc::new(AtomicUsize::new(0));
     let (counter, shared) = (Arc::clone(&asked), Arc::clone(&host));
-    let parts = build(choices, &Handle::current(), move || {
-        counter.fetch_add(1, Ordering::SeqCst);
-        Some(shared as Arc<dyn ScHttp>)
-    });
+    let parts = build(
+        choices,
+        &Handle::current(),
+        move || {
+            counter.fetch_add(1, Ordering::SeqCst);
+            Some(shared as Arc<dyn ScHttp>)
+        },
+        None,
+    );
     let began = Instant::now();
     // A started client looks up the client id in the background; give it time to ask.
     while parts.is_some()
@@ -97,7 +103,12 @@ async fn an_open_gate_builds_the_services_and_asks_for_the_home_page_first() {
 
 #[tokio::test]
 async fn no_http_layer_means_no_services() {
-    let parts = build(&choice(true, OPT_IN.version), &Handle::current(), || None);
+    let parts = build(
+        &choice(true, OPT_IN.version),
+        &Handle::current(),
+        || None,
+        None,
+    );
     assert!(parts.is_none());
 }
 
@@ -165,6 +176,35 @@ fn the_switch_is_in_the_gate_list_so_its_hosts_are_checked_against_the_readme() 
     );
 }
 
+#[tokio::test]
+async fn with_yt_dlp_behind_it_the_resolver_is_still_the_native_one_and_the_gate_still_holds() {
+    let ytdlp: Arc<dyn UrlResolver> = Arc::new(nemo_ytm::url_resolver::YtDlpUrlResolver::new(
+        nemo_ytm::ytdlp::YtDlpResolver::with_program("nemo-no-such-yt-dlp-xyz"),
+    ));
+    let host = Arc::new(CountingHost::default());
+    let closed = build(
+        &choice(true, 0),
+        &Handle::current(),
+        || Some(Arc::clone(&host) as Arc<dyn ScHttp>),
+        Some(Arc::clone(&ytdlp)),
+    );
+    assert!(
+        closed.is_none(),
+        "an unconfirmed switch builds nothing, fallback or not"
+    );
+    let open = build(
+        &choice(true, OPT_IN.version),
+        &Handle::current(),
+        || Some(Arc::clone(&host) as Arc<dyn ScHttp>),
+        Some(ytdlp),
+    )
+    .expect("built");
+    assert!(matches!(
+        open.resolver.state(),
+        nemo_core::url_resolver::ResolverState::Ready { version } if version == "native"
+    ));
+}
+
 /// Parts built with a counting host, so a test can see whether the account asks for anything.
 fn open_parts() -> (SoundcloudParts, Arc<CountingHost>) {
     let host = Arc::new(CountingHost::default());
@@ -173,6 +213,7 @@ fn open_parts() -> (SoundcloudParts, Arc<CountingHost>) {
         &choice(true, OPT_IN.version),
         &Handle::current(),
         move || Some(shared as Arc<dyn ScHttp>),
+        None,
     )
     .expect("open gate");
     (parts, host)
@@ -210,4 +251,33 @@ async fn without_a_credential_store_there_is_no_account_and_so_no_place_for_a_to
 fn the_two_sign_in_windows_use_their_own_profile_folders() {
     let paths = AppPaths::under(std::path::Path::new("C:/data/NemoMusic"));
     assert_ne!(paths.webview, paths.webview_soundcloud);
+}
+
+#[tokio::test]
+async fn a_client_switched_off_sends_nothing() {
+    use nemo_soundcloud::ClientError;
+
+    let (parts, host) = open_parts();
+    tokio::time::sleep(Duration::from_millis(100)).await; // The client id look-up of `build`.
+    parts.client.set_enabled(false);
+    let before = host.urls.lock().expect("lock").len();
+    assert_eq!(
+        parts.client.get("/search", &[]).await,
+        Err(ClientError::Off)
+    );
+    assert_eq!(
+        host.urls.lock().expect("lock").len(),
+        before,
+        "nothing was sent"
+    );
+}
+
+#[test]
+fn a_closed_gate_has_no_account() {
+    let paths = AppPaths::under(&std::env::temp_dir().join("nemo-app-sc-closed"));
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+    assert!(account_for(None, None, &paths, rt.handle()).is_none());
 }

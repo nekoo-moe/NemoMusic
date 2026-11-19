@@ -18,6 +18,7 @@ pub struct FakeHttp {
     tokens: Mutex<Vec<Option<String>>>,
     in_flight: AtomicUsize,
     max_in_flight: AtomicUsize,
+    delay: Duration,
 }
 
 impl FakeHttp {
@@ -31,7 +32,15 @@ impl FakeHttp {
             tokens: Mutex::new(Vec::new()),
             in_flight: AtomicUsize::new(0),
             max_in_flight: AtomicUsize::new(0),
+            delay: Duration::from_millis(2),
         }
+    }
+
+    /// Take `delay` to answer each request (default 2 ms).
+    #[must_use]
+    pub fn slow(mut self, delay: Duration) -> Self {
+        self.delay = delay;
+        self
     }
 
     /// Every url requested so far, in order.
@@ -79,7 +88,7 @@ impl ScHttp for FakeHttp {
             };
             let open = self.in_flight.fetch_add(1, Ordering::SeqCst) + 1;
             self.max_in_flight.fetch_max(open, Ordering::SeqCst);
-            tokio::time::sleep(Duration::from_millis(2)).await;
+            tokio::time::sleep(self.delay).await;
             let answer = (self.handler)(&request.url, index);
             self.in_flight.fetch_sub(1, Ordering::SeqCst);
             answer
