@@ -14,7 +14,7 @@ Control thread: open the new sink (unchanged) -> `Pipeline::halt_output()` of th
 
 The callback code (`make_callback`, `render`, `apply_gain`) is not touched. `Pipeline::halt_output` runs on the control thread and calls `AudioSink::stop`, which every sink already implements and tolerates being called twice (`stop_and_take` calls it again).
 
-Seek time: `pos` is rounded to the nearest source frame and turned into the earliest time that lands on that frame (`frame_time`, already used for CUE spans). The stored base position is rounded to a microsecond, not cut, so repeated switches do not drift.
+Seek time: `pos` is rounded to the nearest source frame and turned into the earliest time that lands on that frame (`frame_time`, already used for CUE spans). Every switch rounds again to the nearest frame, so the microsecond cut of the stored base does not add up over repeated switches.
 
 Song end: the position belongs to the current song. WHEN the current song has been fully decoded (`Run::finished` is set), the first carried job is the following song, not the current one. Task 3 decides by test what happens today and fixes it with the smallest change: restart the current song at the position through `start_track`, the way `seek` already does for a finished song.
 
