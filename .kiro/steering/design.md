@@ -48,7 +48,7 @@ Owner direction (2026-11-10, evening): the first build looked "raw". Go full Mat
 | Token | Value |
 |---|---|
 | `glass.blur` | 24 px radius (tier High); 12 px (Medium) |
-| `glass.tint` | `surface-container` at 0.55 alpha (range 0.40 to 0.70; adapts to backdrop luminance) |
+| `glass.tint` | `surface-container` at 0.55 alpha (range 0.40 to 0.70; adapts to backdrop luminance); the player bar uses 0.52 over the window backdrop (owner, 2026-11-19; backdrop-calm) |
 | `glass.edge` | 1 px inner highlight `#FFFFFF` at 0.22, top edge brighter (0.32), plus 1 px outer `outline-variant` |
 | `glass.specular` | one soft highlight, alpha <= 0.12, follows pointer or window light; static in reduced motion |
 | `glass.lens` | refraction offset <= 6 px at the edge, only on player bar and sheets; Medium tier and below: off |
@@ -67,7 +67,7 @@ Owner direction (2026-11-10, evening): the first build looked "raw". Go full Mat
 | Medium | 12 px, half-res | off | static | on | UI <= 8 ms, glass <= 1.5 ms |
 | Low | pre-blurred cover texture, no live sampling | off | off | off | UI <= 5 ms |
 | Off | tonal surface | off | off | off | UI <= 4 ms |
-- Player bar tint at tier Low (owner, 2026-11-18; player-bar-redesign): the bar draws the pre-blurred cover as a left to right gradient of the three sampled colours at 18% over `surface-container-high`, not as a texture, because images cannot be clipped to rounded corners on the software renderer. Tier Off and reduce transparency draw plain `surface-container-high` with a 1 px `outline-variant`.
+- Player bar material at tier Low (owner, 2026-11-19; backdrop-calm, replaces the 2026-11-18 tint of player-bar-redesign): real translucent glass. The panes end above the bar, so only the window backdrop lies behind it and shows through. Fill `surface-container` at 0.49 to 0.55 alpha (0.52, a little more opaque at the top edge, less at the bottom) with a 6% white lift at the top, a 1 px white rim at 0.22, a brighter glint on the top edge (0.32), a 1 px `outline-variant` edge at 0.60 and the section 6 shadow. No cover tint and no blur at draw time: the backdrop is already soft. `on-surface` and `on-surface-variant` keep 4.5:1 over every backdrop the mesh can show (fixture covers, dark, AMOLED, light, song tint on and off). Tier Off and reduce transparency draw plain `surface-container-high` with a 1 px `outline-variant`, as before.
 - Auto-downgrade one tier when 30 consecutive frames exceed 16.6 ms; upgrade only on user request. Idle (no motion) must render 0 frames. One exception (owner, 2026-11-15): the window backdrop drift (section 9) moves while a song plays in a focused window, and draws 0 frames otherwise. The window has one frame clock, the app's frame ticker (at most 60 per second, already running while a song plays); the backdrop has no timer of its own and reads the time of each redraw (owner, 2026-11-19; backdrop-calm, replaces the 24 fps cap). The heartbeat of the same backdrop (section 8) shares those frames and adds none (owner, 2026-11-18; song-colour-theme).
 - No UI effect may touch, wait on, or block the audio thread. Effects run on the UI/GPU side, read only via `PlayerEvent`; frame drops never affect playback (code.md RT rules).
 

@@ -122,12 +122,14 @@ fn glass_shots() -> Vec<Shot> {
     ] {
         for (tier_stem, tier) in [("low", GlassTier::Low), ("off", GlassTier::Off)] {
             for size in [(1280, 800), (960, 600)] {
-                let mut s = with_base(scenario(size, track), base);
+                // The queue holds tracks 0 to 11: switch to the cover wanted, the way a song
+                // change does, and draw after the bloom.
+                let mut s = with_base(scenario(size, 0), base);
+                s.bloom = Some((track, 700));
                 s.settings.glass_tier = tier;
                 // A handful of names for the run of one example: leaking them is harmless.
-                let name: &'static str = Box::leak(
-                    format!("bar-glass-{stem}-{tier_stem}-{}", size.0).into_boxed_str(),
-                );
+                let name: &'static str =
+                    Box::leak(format!("bar-glass-{stem}-{tier_stem}-{}", size.0).into_boxed_str());
                 out.push(strip(name, s));
             }
         }
