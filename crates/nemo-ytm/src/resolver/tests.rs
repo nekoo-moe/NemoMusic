@@ -11,12 +11,25 @@ use super::*;
 /// Part of every fake stream URL and video id: it must never reach a log line.
 const SECRET: &str = "SECRETURL";
 
+/// Counts a resolve that is dropped before it ends.
+struct Unfinished<'a>(&'a AtomicUsize, bool);
+
+impl Drop for Unfinished<'_> {
+    fn drop(&mut self) {
+        if self.1 {
+            self.0.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+}
+
 struct Counting {
     calls: AtomicUsize,
     expires_in: Option<Duration>,
     fail: bool,
     delay: Duration,
     failed: AtomicUsize,
+    /// Resolves that were dropped before they answered.
+    cancelled: AtomicUsize,
     /// Every request this resolver was given, in order.
     seen: Mutex<Vec<StreamRequest>>,
 }
@@ -29,6 +42,19 @@ impl Counting {
             fail,
             delay: Duration::from_millis(20),
             failed: AtomicUsize::new(0),
+            cancelled: AtomicUsize::new(0),
+            seen: Mutex::default(),
+        })
+    }
+    /// A resolver that answers after `delay` (a stalled network, a slow `yt-dlp` start).
+    fn after(delay: Duration, fail: bool) -> Arc<Self> {
+        Arc::new(Self {
+            calls: AtomicUsize::new(0),
+            expires_in: Some(Duration::from_hours(1)),
+            fail,
+            delay,
+            failed: AtomicUsize::new(0),
+            cancelled: AtomicUsize::new(0),
             seen: Mutex::default(),
         })
     }
@@ -52,7 +78,9 @@ impl StreamResolver for Counting {
         Box::pin(async move {
             self.calls.fetch_add(1, Ordering::SeqCst);
             self.seen.lock().expect("lock").push(request.clone());
+            let mut unfinished = Unfinished(&self.cancelled, true);
             tokio::time::sleep(self.delay).await;
+            unfinished.1 = false;
             if self.fail {
                 return Err(StreamError::NotAvailable);
             }
@@ -328,4 +356,110 @@ fn no_url_and_no_id_reach_a_log_line_on_any_path() {
             assert!(!line.contains(secret), "{line}");
         }
     }
+}
+
+/// Runs one resolve of `chain` and returns how long it took.
+fn timed(
+    rt: &tokio::runtime::Runtime,
+    chain: &FallbackResolver,
+    v: &VideoId,
+) -> (Answer, Duration) {
+    let began = Instant::now();
+    let answer = rt.block_on(chain.resolve(v));
+    (answer, began.elapsed())
+}
+
+const RACE: Duration = Duration::from_millis(50);
+
+#[test]
+fn a_slow_primary_gets_the_fallback_beside_it_and_the_first_good_answer_wins() {
+    let rt = rt();
+    let v = vid("abcdefghijk");
+    let slow = Counting::after(Duration::from_millis(600), false);
+    let quick = Counting::after(Duration::from_millis(20), false);
+    let chain = FallbackResolver::new(slow.clone(), quick.clone()).with_race_after(RACE);
+    let (answer, took) = timed(&rt, &chain, &v);
+    assert!(answer.is_ok());
+    assert!(took < Duration::from_millis(400), "{took:?}");
+    assert_eq!((slow.calls(), quick.calls()), (1, 1));
+    std::thread::sleep(Duration::from_millis(100));
+    assert_eq!(
+        slow.cancelled.load(Ordering::SeqCst),
+        1,
+        "the loser is cancelled"
+    );
+    assert_eq!(quick.cancelled.load(Ordering::SeqCst), 0);
+    chain.stream_failed(&v);
+    assert_eq!(
+        quick.failed.load(Ordering::SeqCst),
+        1,
+        "the stream came from the fallback"
+    );
+}
+
+#[test]
+fn a_slow_primary_that_answers_before_the_fallback_wins_and_the_fallback_is_cancelled() {
+    let rt = rt();
+    let v = vid("abcdefghijk");
+    let slow = Counting::after(Duration::from_millis(150), false);
+    let slower = Counting::after(Duration::from_secs(5), false);
+    let chain = FallbackResolver::new(slow.clone(), slower.clone()).with_race_after(RACE);
+    let (answer, took) = timed(&rt, &chain, &v);
+    assert!(answer.is_ok());
+    assert!(took < Duration::from_secs(1), "{took:?}");
+    std::thread::sleep(Duration::from_millis(100));
+    assert_eq!(slower.cancelled.load(Ordering::SeqCst), 1);
+    chain.stream_failed(&v);
+    assert_eq!(
+        slow.failed.load(Ordering::SeqCst),
+        1,
+        "the stream came from the primary"
+    );
+}
+
+#[test]
+fn a_slow_primary_that_fails_leaves_the_answer_to_the_running_fallback() {
+    let rt = rt();
+    let v = vid("abcdefghijk");
+    let bad = Counting::after(Duration::from_millis(150), true);
+    let good = Counting::after(Duration::from_millis(300), false);
+    let chain = FallbackResolver::new(bad.clone(), good.clone()).with_race_after(RACE);
+    let (answer, took) = timed(&rt, &chain, &v);
+    assert!(answer.is_ok());
+    assert!(took < Duration::from_millis(600), "{took:?}");
+    assert_eq!(
+        (bad.calls(), good.calls()),
+        (1, 1),
+        "the fallback is not started twice"
+    );
+}
+
+#[test]
+fn a_failing_fallback_waits_for_the_slow_primary() {
+    let rt = rt();
+    let v = vid("abcdefghijk");
+    let slow = Counting::after(Duration::from_millis(300), false);
+    let bad = Counting::after(Duration::from_millis(80), true);
+    let chain = FallbackResolver::new(slow.clone(), bad).with_race_after(RACE);
+    assert!(timed(&rt, &chain, &v).0.is_ok());
+    chain.stream_failed(&v);
+    assert_eq!(slow.failed.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn when_both_fail_the_error_is_the_fallbacks_and_a_fast_primary_starts_no_race() {
+    let rt = rt();
+    let v = vid("abcdefghijk");
+    let chain = FallbackResolver::new(
+        Counting::after(Duration::from_millis(150), true),
+        Counting::after(Duration::from_millis(100), true),
+    )
+    .with_race_after(RACE);
+    assert!(timed(&rt, &chain, &v).0.is_err());
+
+    let fast = Counting::after(Duration::from_millis(10), false);
+    let idle = Counting::after(Duration::from_millis(10), false);
+    let chain = FallbackResolver::new(fast, idle.clone()).with_race_after(RACE);
+    assert!(timed(&rt, &chain, &v).0.is_ok());
+    assert_eq!(idle.calls(), 0);
 }

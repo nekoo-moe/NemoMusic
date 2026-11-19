@@ -24,6 +24,7 @@ use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tokio::runtime::Handle;
 
+use crate::task::AbortOnDrop;
 use crate::timing;
 pub use crate::ytdlp_install::{InstallError, install_onedir, install_onefile};
 
@@ -330,7 +331,8 @@ impl YtDlpResolver {
         match &self.handle {
             // Spawned on the app runtime; the returned future only awaits the join handle.
             Some(handle) => {
-                let task = handle.spawn(timed);
+                // Dropping the future (a lost race) kills the run.
+                let task = AbortOnDrop(handle.spawn(timed));
                 Box::pin(async move {
                     task.await.unwrap_or_else(|_| {
                         Err(StreamError::Network("resolve was cancelled".to_owned()))

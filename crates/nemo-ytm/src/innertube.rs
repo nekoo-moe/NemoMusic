@@ -25,6 +25,7 @@ use serde_json::{Value, json};
 use tokio::runtime::Handle;
 
 use crate::http::InitError;
+use crate::task::AbortOnDrop;
 
 /// Endpoint of the player request.
 const PLAYER_URL: &str = "https://www.youtube.com/youtubei/v1/player?prettyPrint=false";
@@ -295,7 +296,8 @@ impl StreamResolver for InnertubeResolver {
             Arc::clone(&self.visitor),
         );
         let video = video.clone();
-        let task = self.handle.spawn(async move {
+        // Dropping the future (a lost race) ends the request.
+        let task = AbortOnDrop(self.handle.spawn(async move {
             let mut last = StreamError::NotAvailable;
             for profile in profiles {
                 let asked = ask(
@@ -315,7 +317,7 @@ impl StreamResolver for InnertubeResolver {
                 }
             }
             Err(last)
-        });
+        }));
         Box::pin(async move {
             task.await
                 .unwrap_or_else(|_| Err(StreamError::Network("resolve was cancelled".to_owned())))

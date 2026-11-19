@@ -106,3 +106,51 @@ fn builder_keeps_the_allowed_codecs() {
     assert_eq!(resolver.job().allowed, Some(vec![Codec::Opus]));
     assert_eq!(YtDlpResolver::new().job().allowed, None);
 }
+
+/// A resolve that loses a race is dropped; its `yt-dlp` process must not run on.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_dropped_resolve_kills_its_yt_dlp_process() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = std::env::temp_dir().join(format!("nemo-ytdlp-drop-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("dir");
+    let (script, pid_file) = (dir.join("fake-yt-dlp"), dir.join("pid"));
+    let text = format!(
+        "#!/bin/sh\necho $$ > '{}'\nexec sleep 30\n",
+        pid_file.display()
+    );
+    std::fs::write(&script, text).expect("script");
+    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).expect("chmod");
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(1)
+        .enable_all()
+        .build()
+        .expect("runtime");
+    let resolver = YtDlpResolver::with_program(&script).with_handle(rt.handle().clone());
+    let v = vid("abcdefghijk");
+    let outcome = rt.block_on(async {
+        tokio::time::timeout(Duration::from_millis(500), resolver.resolve(&v)).await
+    });
+    assert!(outcome.is_err(), "the fake program was still running");
+    let pid = std::fs::read_to_string(&pid_file).expect("the script ran");
+    let stat = std::path::PathBuf::from("/proc")
+        .join(pid.trim())
+        .join("stat");
+    // Gone, or killed and waiting to be reaped (state Z).
+    let ended = || {
+        std::fs::read_to_string(&stat).map_or(true, |text| {
+            text.rsplit(')')
+                .next()
+                .is_some_and(|rest| rest.trim_start().starts_with('Z'))
+        })
+    };
+    for _ in 0..100 {
+        if ended() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    assert!(ended(), "the process was killed with the dropped resolve");
+    let _ = std::fs::remove_dir_all(&dir);
+}
