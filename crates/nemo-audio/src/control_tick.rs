@@ -7,8 +7,19 @@ use nemo_core::player::{PlayState, PlayerEvent};
 
 use crate::control::{Core, NextState, Run, micros};
 use crate::pipeline::{FeedCmd, FeedEvent, Job, plan_stages};
+use crate::prepare::Prepared;
 use crate::replay_gain::ReplayGain;
 use crate::timing;
+
+/// What a starting track takes over from the prefetch slot.
+pub(crate) enum Adopted {
+    /// The song is open and probed.
+    Ready(Box<Prepared>),
+    /// The prefetch thread is still opening it; this is its token.
+    InFlight(u64),
+    /// Nothing to take: open the song now.
+    Nothing,
+}
 
 impl Core {
     /// One round of housekeeping. Called after every message and at least every few ms.
@@ -264,5 +275,22 @@ impl Core {
     fn on_prepared_current(&mut self, prepared: crate::prepare::Prepared) {
         let token = self.cur.as_ref().map_or(0, |c| c.token);
         self.on_prepared(token, Ok(Box::new(prepared)));
+    }
+
+    /// Empty the prefetch slot. When it holds the track about to start (a Next while the next
+    /// song is open, or still opening), hand that work over instead of opening the song again.
+    /// The current entry is never adopted: it restarts with the stream request in force now.
+    pub(crate) fn take_next_for(&mut self, entry: u64) -> Adopted {
+        let Some(slot) = self.next.take() else {
+            return Adopted::Nothing;
+        };
+        if slot.entry != entry || self.cur.as_ref().is_some_and(|c| c.entry == entry) {
+            return Adopted::Nothing;
+        }
+        match slot.state {
+            NextState::Ready(prepared) => Adopted::Ready(prepared),
+            NextState::Preparing => Adopted::InFlight(slot.token),
+            NextState::Failed => Adopted::Nothing,
+        }
     }
 }
