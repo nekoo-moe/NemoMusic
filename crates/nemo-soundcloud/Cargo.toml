@@ -18,7 +18,7 @@ thiserror.workspace = true
 tracing.workspace = true
 # Same versions and features as `nemo-ytm` (soundcloud-full design): `native-tls` needs no cmake
 # or NASM on Windows. Async client, run on the app runtime.
-reqwest = { version = "=0.13.5", default-features = false, features = ["blocking", "native-tls"] }
+reqwest = { version = "=0.13.5", default-features = false, features = ["blocking", "http2", "native-tls"] }
 tokio = { version = "=1.54.1", default-features = false, features = ["rt", "sync", "time"] }
 
 [dev-dependencies]

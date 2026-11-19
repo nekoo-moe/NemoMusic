@@ -27,8 +27,8 @@ pub struct SoundcloudParts {
 }
 
 /// Build the services when the gate is open. `http` makes the HTTP layer; it is not called while
-/// the gate is closed. The client id is looked up in the background, so the first play does not
-/// wait for it.
+/// the gate is closed. The client id is looked up in the background, then the media client is
+/// built and the media connection opened, so the first play does not wait for them.
 pub fn build(
     choices: &BTreeMap<String, OptInChoice>,
     handle: &Handle,
@@ -36,16 +36,19 @@ pub fn build(
 ) -> Option<SoundcloudParts> {
     build_if_open(choices, &OPT_IN, || {
         let client = Arc::new(ScClient::new(http()?));
-        let warm = Arc::clone(&client);
-        handle.spawn(async move {
-            // A failure here only means the id is looked up at the first request instead.
-            let _ = warm.warm_up().await;
-        });
         let (resolver, opener) = streams(Arc::clone(&client), handle.clone());
-        let early = opener.clone();
-        // Builds the media client (loads the system certificates) before the first play.
-        handle.spawn_blocking(move || {
-            let _ = early.warm_up();
+        let (warm, early) = (Arc::clone(&client), opener.clone());
+        handle.spawn(async move {
+            // The client id first. Only once it is known, the media client is built (it loads
+            // the system certificates) and the connection to the media host is opened, so the
+            // first play pays for neither. A failure only means the first request does the work.
+            if warm.warm_up().await.is_ok() {
+                let _ = tokio::task::spawn_blocking(move || {
+                    let _ = early.warm_up();
+                    early.preconnect();
+                })
+                .await;
+            }
         });
         Some(SoundcloudParts {
             catalog: Arc::new(SoundcloudCatalog::new(client)),
