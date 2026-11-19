@@ -7,6 +7,7 @@ use iced::{Alignment, Element, Length};
 
 use super::super::kit::{paragraph, text_button, tile, tonal_button, vspace};
 use super::super::settings::switch_style;
+use super::reveal::rise;
 use super::steps::{has_two_columns, heading, two_columns};
 use crate::copy::{self, setup as text};
 use crate::gui::app::{AccountMsg, App, Message};
@@ -29,6 +30,7 @@ pub(super) fn view(app: &App, width: f32) -> Element<'_, Message> {
     let yt = card(youtube(app, inner), col_w);
     let sc = card(soundcloud(inner), col_w);
     let local = card(local(app, inner), col_w);
+    let (yt, sc, local) = (rise(app, 0, yt), rise(app, 1, sc), rise(app, 2, local));
     let body: Element<'_, Message> = if two {
         // YouTube Music is the tall card; the other two share the second column.
         two_columns(vec![yt], vec![sc, vspace(gap::SM), local], width)

@@ -289,5 +289,7 @@ pub fn summary(
     ]
 }
 
+pub mod motion;
+
 #[cfg(test)]
 mod tests;

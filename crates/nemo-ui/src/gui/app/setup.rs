@@ -6,9 +6,6 @@ use crate::keys::Key;
 use crate::setup::{SetupEvent, SetupStep};
 use crate::state::Event;
 
-/// Slide distance of a step change, in px (`design.md` section 8: translate up to 16 px).
-pub const SLIDE_PX: f32 = 16.0;
-
 impl App {
     /// Start the step transition when the flow opens or moves to another step. Reduced motion
     /// shows the new step at once.
@@ -17,13 +14,13 @@ impl App {
         if self.setup_seen == now {
             return;
         }
+        let from = self.setup_seen;
         self.setup_seen = now;
         if now.is_none() {
-            self.setup_anim.snap(1.0);
+            self.setup_anim.finish();
             return;
         }
-        self.setup_anim.snap(0.0);
-        self.setup_anim.target = 1.0;
+        self.setup_anim.restart(from);
         if self.ui.reduced_motion {
             self.setup_anim.finish();
         }
@@ -38,10 +35,22 @@ impl App {
         Vec::new()
     }
 
-    /// Progress of the step transition, 0 to 1.
+    /// Milliseconds since the setup step changed (at most 400, then nothing moves).
     #[must_use]
-    pub fn setup_progress(&self) -> f32 {
-        self.setup_anim.value.clamp(0.0, 1.0)
+    pub fn setup_ms(&self) -> f32 {
+        self.setup_anim.ms()
+    }
+
+    /// The step the flow moved from, while its transition runs.
+    #[must_use]
+    pub fn setup_from(&self) -> Option<SetupStep> {
+        self.setup_anim.from()
+    }
+
+    /// Put the transition `ms` milliseconds in (for snapshots).
+    pub fn set_setup_ms(&mut self, ms: f32) {
+        self.setup_anim.restart(self.setup_anim.from());
+        self.setup_anim.advance(ms);
     }
 
     /// The step the transition belongs to, if the flow is open.
@@ -126,7 +135,7 @@ mod tests {
     fn a_step_slides_in_within_400_ms_and_reduced_motion_is_instant() {
         let mut app = first_run(false);
         key(&mut app, Key::Enter);
-        assert!(app.setup_progress() < 0.1, "starts at the beginning");
+        assert!(app.setup_ms() < 1.0, "starts at the beginning");
         assert!(app.needs_frames());
         let t0 = Instant::now();
         let mut ms = 0_u32;
@@ -135,11 +144,12 @@ mod tests {
             drop(app.update_core(Message::Frame(t0 + Duration::from_millis(u64::from(ms)))));
         }
         assert!(ms <= 400, "settled after {ms} ms");
-        assert!((app.setup_progress() - 1.0).abs() < 0.01);
+        assert!((app.setup_ms() - 400.0).abs() < f32::EPSILON);
+        assert!(!app.needs_frames(), "no frames once it has run");
 
         let mut app = first_run(true);
         key(&mut app, Key::Enter);
-        assert!((app.setup_progress() - 1.0).abs() < f32::EPSILON);
+        assert!((app.setup_ms() - 400.0).abs() < f32::EPSILON);
         assert!(!app.needs_frames());
     }
 

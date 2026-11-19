@@ -9,17 +9,20 @@ use iced::widget::{Space, column, container, row};
 use iced::{Alignment, Background, Border, Element, Length, Padding};
 
 use super::kit::{filled_button, text_button, tonal_button};
-use crate::gui::app::{App, Message, SLIDE_PX};
+use crate::gui::app::{App, Message};
 use crate::gui::assets::Icon;
 use crate::gui::fx::Fx;
 use crate::gui::style::{col, gap, scroll};
+use crate::setup::motion::{SLIDE_PX, block};
 use crate::setup::{SetupEvent, SetupStep};
 use crate::state::Event;
 use crate::theme::{color, shape};
 
 mod notice;
 mod panel;
+mod reveal;
 mod sources;
+mod stepper;
 mod steps;
 
 /// Window width from which the brand panel and the vertical stepper show.
@@ -123,22 +126,22 @@ fn card(app: &App, step: SetupStep, body_w: f32) -> Element<'_, Message> {
         .into()
 }
 
-/// Slide and fade the step in (within `motion.slow`); reduced motion has no distance to cover.
+/// The step's content slides in [`SLIDE_PX`] and fades over `motion.base`; the rows then rise
+/// one after the other. Reduced motion has no distance to cover: the clock is already at its end.
 fn transition<'a>(app: &App, body: Element<'a, Message>) -> Element<'a, Message> {
-    let p = app.setup_progress();
-    let shift = (1.0 - p) * SLIDE_PX * if app.ui.setup.forward() { 1.0 } else { -1.0 };
-    // A shift is a difference between left and right padding, which moves the column.
-    let pad = Padding {
-        left: shift.max(0.0) * 2.0,
-        right: (-shift).max(0.0) * 2.0,
-        ..Padding::ZERO
+    let p = block(app.setup_ms());
+    let moved: Element<'a, Message> = if p >= 0.999 {
+        body
+    } else {
+        Fx::new(body)
+            .passive()
+            .entrance(p, SLIDE_PX, col(color::surface_container()))
+            .into()
     };
-    let moved = container(scroll(container(body).width(Length::Fill).padding(pad)))
+    // The slide happens inside the scrollable, which clips it, so it never covers the footer.
+    container(scroll(container(moved).width(Length::Fill)))
         .width(Length::Fill)
-        .height(Length::Fill);
-    Fx::new(moved)
-        .passive()
-        .entrance(p, 0.0, col(color::surface_container()))
+        .height(Length::Fill)
         .into()
 }
 

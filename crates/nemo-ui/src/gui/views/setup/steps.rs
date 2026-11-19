@@ -7,6 +7,7 @@ use super::super::kit::{paragraph, vspace};
 use super::super::settings::control::{segmented, setting_row};
 use super::super::settings::{song_colour_rows, switch_with};
 use super::panel::display;
+use super::reveal::{rise, rise_all};
 use crate::copy::{self, setup as text};
 use crate::gui::app::{App, Message};
 use crate::gui::assets::Icon;
@@ -88,9 +89,17 @@ pub(super) fn welcome(app: &App, width: f32) -> Element<'_, Message> {
     column![
         heading(text::WELCOME_TITLE, Some(text::WELCOME[0]), width),
         vspace(gap::XL),
-        fact(Icon::Lock, text::WELCOME_LOCAL_TITLE, text::WELCOME[1]),
+        rise(
+            app,
+            0,
+            fact(Icon::Lock, text::WELCOME_LOCAL_TITLE, text::WELCOME[1]).into()
+        ),
         vspace(gap::LG),
-        fact(Icon::Timer, text::WELCOME_TIME_TITLE, text::WELCOME[2]),
+        rise(
+            app,
+            1,
+            fact(Icon::Timer, text::WELCOME_TIME_TITLE, text::WELCOME[2]).into()
+        ),
     ]
     .width(Length::Fixed(width))
     .into()
@@ -110,9 +119,9 @@ pub(super) fn look(app: &App, width: f32) -> Element<'_, Message> {
     switches.push(reduce_motion_row(app, col_w));
     let choices = look_choices(app, col_w);
     let body = if two {
-        two_columns(switches, choices, width)
+        two_columns(rise_all(app, switches), rise_all(app, choices), width)
     } else {
-        column(switches.into_iter().chain(choices)).into()
+        column(rise_all(app, switches.into_iter().chain(choices))).into()
     };
     column![
         heading(text::LOOK_TITLE, Some(text::LOOK_HELP), width),
@@ -244,7 +253,7 @@ pub(super) fn playback(app: &App, width: f32) -> Element<'_, Message> {
     column![
         heading(text::PLAYBACK_TITLE, Some(text::PLAYBACK_HELP), width),
         vspace(gap::MD),
-        column(rows),
+        column(rise_all(app, rows)),
     ]
     .width(Length::Fixed(width))
     .into()
@@ -285,7 +294,7 @@ pub(super) fn done(app: &App, width: f32) -> Element<'_, Message> {
     column![
         heading(text::DONE_TITLE, None, width),
         vspace(gap::MD),
-        column(rows),
+        column(rise_all(app, rows)),
         vspace(gap::MD),
         paragraph(
             text::DONE_MORE,
