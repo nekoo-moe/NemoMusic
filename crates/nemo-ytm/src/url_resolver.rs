@@ -72,16 +72,16 @@ fn arguments(page: &MediaUrl) -> Vec<OsString> {
     .collect()
 }
 
-/// The codec a format names: `mp4a.40.2` is AAC, `mp3`, `opus`; the extension decides when the
-/// codec field is empty.
+/// The codec a format names: `mp4a.40.2` or `aac` is AAC, `mp3`, `opus`; the extension decides
+/// when the codec field is empty.
 fn codec_of(format: &Value) -> Option<Codec> {
     let acodec = format.get("acodec").and_then(Value::as_str).unwrap_or("");
     let ext = format.get("ext").and_then(Value::as_str).unwrap_or("");
     match (acodec, ext) {
-        (a, _) if a.starts_with("mp4a") => Some(Codec::Aac),
+        (a, _) if a.starts_with("mp4a") || a == "aac" => Some(Codec::Aac),
         (a, _) if a.starts_with("mp3") => Some(Codec::Mp3),
         (a, _) if a.starts_with("opus") => Some(Codec::Opus),
-        ("" | "none", "m4a") => Some(Codec::Aac),
+        ("" | "none", "m4a" | "aac") => Some(Codec::Aac),
         ("" | "none", "mp3") => Some(Codec::Mp3),
         ("" | "none", "opus") => Some(Codec::Opus),
         _ => None,

@@ -55,6 +55,22 @@ fn the_best_format_is_chosen_like_the_native_resolver_does() {
 }
 
 #[test]
+fn the_formats_an_older_yt_dlp_lists_for_the_adaptive_playlist_play_too() {
+    // Shape seen from yt-dlp 2024.04.09 on 2026-11-19: `aac` as codec and extension, protocol
+    // `m3u8`, one entry per variant of the adaptive playlist.
+    let text = answer(&[
+        format("hls_aac_256-0", "aac", "aac", Some(256.0), "m3u8"),
+        format("hls_aac_256-1", "aac", "aac", Some(256.0), "m3u8"),
+    ]);
+    let stream = parse_page(&text, &policy()).expect("stream");
+    assert_eq!(
+        (stream.info.codec, stream.info.bitrate_kbps),
+        (Codec::Aac, Some(256))
+    );
+    assert_eq!(stream.transport, Transport::Hls { live: false });
+}
+
+#[test]
 fn a_file_beats_hls_of_the_same_codec_and_a_missing_bitrate_stays_unknown() {
     let text = answer(&[
         format("hls_mp3_0_0", "mp3", "mp3", None, "m3u8_native"),
@@ -187,4 +203,35 @@ fn a_missing_program_is_resolver_missing() {
     let p = policy();
     let answer = rt.block_on(resolver.resolve(&page, &p));
     assert_eq!(answer, Err(StreamError::ResolverMissing));
+}
+
+/// Hand-run check against the real service and the real `yt-dlp`: set `NEMO_SC_PAGE` to the page
+/// of a public SoundCloud track and run `cargo test -p nemo-ytm --lib live_ -- --ignored`. It runs
+/// `yt-dlp` once (about ten requests) and prints codec, bitrate and transport only.
+#[test]
+#[ignore = "contacts the real SoundCloud through yt-dlp; run by hand"]
+fn live_page_resolves_through_yt_dlp() {
+    let Ok(text) = std::env::var("NEMO_SC_PAGE") else {
+        println!("NEMO_SC_PAGE is not set");
+        return;
+    };
+    let page = MediaUrl::parse(&text, HOSTS).expect("a SoundCloud page address");
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+    let resolver = YtDlpUrlResolver::new(YtDlpResolver::new());
+    let began = std::time::Instant::now();
+    let stream = rt
+        .block_on(resolver.resolve(&page, &policy()))
+        .expect("a stream");
+    println!(
+        "LIVE yt-dlp: {:?} {:?} kbps {:?} preview {} in {} ms",
+        stream.info.codec,
+        stream.info.bitrate_kbps,
+        stream.transport,
+        stream.preview,
+        began.elapsed().as_millis()
+    );
+    assert_eq!(stream.info.origin, Origin::SoundCloud);
 }
