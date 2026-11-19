@@ -1,16 +1,20 @@
-//! Shots of the start-up splash (startup-flow task 1): each base mode, the minimum window, the
-//! slow note, the failure and a frame in the middle of the fade.
+//! Shots of the brand intro (brand-intro task 1): five key moments in dark and light (t = 0, 300,
+//! 700, 1100 ms and the exit), then amoled, the larger window, reduced motion, the slow note and
+//! the failure.
 
 use std::path::Path;
 
+use iced::widget::image::Handle;
 use nemo_ui::gui::app::Message;
 use nemo_ui::gui::headless::render_view_png;
 use nemo_ui::gui::views::splash::{SplashLook, view};
-use nemo_ui::scheme::{AccentIntensity, BaseMode, ThemeChoice, accent_palette};
+use nemo_ui::scheme::{BaseMode, accent_palette};
+use nemo_ui::settings::UiSettings;
+use nemo_ui::splash::intro::{BLOOM_PEAK, BLOOM_PX, bloom_rgba};
 use nemo_ui::splash::{Splash, StartStep};
 use nemo_ui::theme::color;
 
-/// One splash shot: name, base mode, window, steps finished, and what it shows.
+/// One splash shot: name, base mode, window, and what moment it shows.
 struct Shot {
     name: &'static str,
     base: BaseMode,
@@ -20,60 +24,134 @@ struct Shot {
 
 #[derive(Clone, Copy)]
 enum Kind {
-    /// Three of five steps are in.
-    Progress,
+    /// The intro `ms` after the first frame, with the steps a normal start has finished by then.
+    At(u64),
+    /// Reduce motion: the intro at rest.
+    Reduced,
     /// Six seconds in, still not ready.
     Slow,
     /// The start failed.
     Failed,
-    /// Half way through the fade (opacity 0.5).
-    Fade,
+    /// Half way through the exit (opacity about 0.5).
+    Exit,
 }
 
-const SHOTS: [Shot; 7] = [
+const fn shot(name: &'static str, base: BaseMode, size: (u32, u32), kind: Kind) -> Shot {
     Shot {
-        name: "startup-splash-dark-960x600",
-        base: BaseMode::Dark,
-        size: (960, 600),
-        kind: Kind::Progress,
-    },
-    Shot {
-        name: "startup-splash-amoled-960x600",
-        base: BaseMode::Amoled,
-        size: (960, 600),
-        kind: Kind::Progress,
-    },
-    Shot {
-        name: "startup-splash-light-960x600",
-        base: BaseMode::Light,
-        size: (960, 600),
-        kind: Kind::Progress,
-    },
-    Shot {
-        name: "startup-splash-dark-1366x697",
-        base: BaseMode::Dark,
-        size: (1366, 697),
-        kind: Kind::Progress,
-    },
-    Shot {
-        name: "startup-splash-slow-dark-960x600",
-        base: BaseMode::Dark,
-        size: (960, 600),
-        kind: Kind::Slow,
-    },
-    Shot {
-        name: "startup-splash-failed-light-960x600",
-        base: BaseMode::Light,
-        size: (960, 600),
-        kind: Kind::Failed,
-    },
-    Shot {
-        name: "startup-splash-fade-dark-960x600",
-        base: BaseMode::Dark,
-        size: (960, 600),
-        kind: Kind::Fade,
-    },
+        name,
+        base,
+        size,
+        kind,
+    }
+}
+
+const SMALL: (u32, u32) = (960, 600);
+const SHOTS: [Shot; 15] = [
+    shot(
+        "startup-intro-dark-t0-960x600",
+        BaseMode::Dark,
+        SMALL,
+        Kind::At(0),
+    ),
+    shot(
+        "startup-intro-dark-t300-960x600",
+        BaseMode::Dark,
+        SMALL,
+        Kind::At(300),
+    ),
+    shot(
+        "startup-intro-dark-t700-960x600",
+        BaseMode::Dark,
+        SMALL,
+        Kind::At(700),
+    ),
+    shot(
+        "startup-intro-dark-t1100-960x600",
+        BaseMode::Dark,
+        SMALL,
+        Kind::At(1_100),
+    ),
+    shot(
+        "startup-intro-dark-exit-960x600",
+        BaseMode::Dark,
+        SMALL,
+        Kind::Exit,
+    ),
+    shot(
+        "startup-intro-light-t0-960x600",
+        BaseMode::Light,
+        SMALL,
+        Kind::At(0),
+    ),
+    shot(
+        "startup-intro-light-t300-960x600",
+        BaseMode::Light,
+        SMALL,
+        Kind::At(300),
+    ),
+    shot(
+        "startup-intro-light-t700-960x600",
+        BaseMode::Light,
+        SMALL,
+        Kind::At(700),
+    ),
+    shot(
+        "startup-intro-light-t1100-960x600",
+        BaseMode::Light,
+        SMALL,
+        Kind::At(1_100),
+    ),
+    shot(
+        "startup-intro-light-exit-960x600",
+        BaseMode::Light,
+        SMALL,
+        Kind::Exit,
+    ),
+    shot(
+        "startup-intro-amoled-t1100-960x600",
+        BaseMode::Amoled,
+        SMALL,
+        Kind::At(1_100),
+    ),
+    shot(
+        "startup-intro-dark-t1100-1366x697",
+        BaseMode::Dark,
+        (1366, 697),
+        Kind::At(1_100),
+    ),
+    shot(
+        "startup-intro-reduced-dark-960x600",
+        BaseMode::Dark,
+        SMALL,
+        Kind::Reduced,
+    ),
+    shot(
+        "startup-intro-slow-dark-960x600",
+        BaseMode::Dark,
+        SMALL,
+        Kind::Slow,
+    ),
+    shot(
+        "startup-intro-failed-light-960x600",
+        BaseMode::Light,
+        SMALL,
+        Kind::Failed,
+    ),
 ];
+
+/// The steps a normal start has finished `ms` after the first frame.
+fn finish_steps(splash: &mut Splash, ms: u64) {
+    for (step, at) in [
+        (StartStep::Library, 120),
+        (StartStep::CredentialStore, 400),
+        (StartStep::Player, 650),
+        (StartStep::FirstScreen, 900),
+    ] {
+        if ms >= at {
+            splash.finish(step, at);
+        }
+    }
+}
 
 /// Render the splash shots named in `only` (all when empty) into `out_dir`.
 pub(super) fn render(only: &[String], out_dir: &Path) -> Result<(), String> {
@@ -83,38 +161,49 @@ pub(super) fn render(only: &[String], out_dir: &Path) -> Result<(), String> {
         }
         // The colour roles are global: set them right before the view is built and drawn.
         color::set_active(shot.base.neutrals());
-        let mut splash = Splash::new(false);
-        splash.finish(StartStep::Library, 40);
-        splash.finish(StartStep::CredentialStore, 90);
+        let reduced = matches!(shot.kind, Kind::Reduced);
+        let mut splash = Splash::new(reduced);
         let now = match shot.kind {
-            Kind::Slow => 6_200,
+            Kind::At(ms) => {
+                finish_steps(&mut splash, ms);
+                ms
+            }
+            Kind::Reduced => {
+                finish_steps(&mut splash, 1_100);
+                1_100
+            }
+            Kind::Slow => {
+                finish_steps(&mut splash, 400);
+                6_200
+            }
             Kind::Failed => {
+                finish_steps(&mut splash, 400);
                 splash.fail(
                     "NemoMusic could not start. Cannot start lyrics: the data folder is read-only."
                         .to_owned(),
                 );
-                300
+                1_300
             }
-            Kind::Fade => {
-                splash.finish(StartStep::Player, 100);
-                splash.finish(StartStep::FirstScreen, 120);
-                splash.tick(500);
-                600
+            Kind::Exit => {
+                finish_steps(&mut splash, 1_100);
+                splash.tick(1_200);
+                1_360
             }
-            Kind::Progress => 300,
         };
         let status = splash.status(now);
+        // The accent of a fresh install: the default theme and intensity of the settings.
+        let defaults = UiSettings::default();
+        let accent = accent_palette(defaults.theme, shot.base, defaults.accent_intensity, None);
+        let bloom = Handle::from_rgba(BLOOM_PX, BLOOM_PX, bloom_rgba(accent.primary, BLOOM_PEAK));
         let look = SplashLook {
             fraction: splash.fraction(),
             status: &status,
             opacity: splash.opacity(now),
-            accent: accent_palette(
-                ThemeChoice::Dynamic,
-                shot.base,
-                AccentIntensity::Standard,
-                None,
-            ),
+            accent,
             failed: splash.failure().is_some(),
+            t_ms: now,
+            reduced,
+            bloom: &bloom,
         };
         let path = out_dir.join(format!("{}.png", shot.name));
         render_view_png(view::<Message>(&look, Message::Noop), shot.size, &path)

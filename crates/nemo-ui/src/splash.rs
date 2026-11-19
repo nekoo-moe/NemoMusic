@@ -3,12 +3,16 @@
 //!
 //! Pure logic. The caller passes the time in milliseconds since the first frame, so the tests
 //! drive it with a fake clock. No step is guessed: a step counts only after the app reported it.
+//! What the splash draws at each moment is in [`intro`] (brand-intro spec).
 
 use crate::motion::emphasized_accelerate;
 use crate::theme::motion::BASE_MS;
 
-/// The splash stays at least this long, so it never flashes (requirements, criterion 3).
-pub const MIN_SHOW_MS: u64 = 500;
+pub mod intro;
+
+/// The splash stays at least this long, so the brand intro plays through (brand-intro,
+/// criterion 4). With reduced motion the floor is [`intro::MIN_SHOW_REDUCED_MS`].
+pub const MIN_SHOW_MS: u64 = intro::MIN_SHOW_MS;
 /// After this long without the app being ready the splash says so (requirements, criterion 4).
 pub const MAX_SHOW_MS: u64 = 6_000;
 
@@ -120,14 +124,20 @@ impl Splash {
     }
 
     /// Advance the clock to `now_ms`. Begins the fade once the app is ready and the splash has
-    /// been up for [`MIN_SHOW_MS`]; with reduced motion it ends at once.
+    /// been up for [`MIN_SHOW_MS`] ([`intro::MIN_SHOW_REDUCED_MS`] with reduced motion, which
+    /// then ends at once).
     pub fn tick(&mut self, now_ms: u64) {
         if self.gone || self.failure.is_some() {
             return;
         }
         let Some(ready) = self.ready_at else { return };
+        let floor = if self.reduced_motion {
+            intro::MIN_SHOW_REDUCED_MS
+        } else {
+            MIN_SHOW_MS
+        };
         match self.fade_from {
-            None if now_ms >= MIN_SHOW_MS => {
+            None if now_ms >= floor => {
                 self.fade_from = Some(now_ms.max(ready));
                 self.gone = self.reduced_motion;
             }
@@ -248,14 +258,14 @@ mod tests {
     }
 
     #[test]
-    fn a_fast_start_still_shows_the_splash_for_half_a_second() {
+    fn a_fast_start_still_shows_the_splash_for_1200_ms_so_the_intro_plays() {
         let mut s = Splash::new(false);
         run_all(&mut s, 80);
         s.tick(100);
-        s.tick(499);
+        s.tick(1_199);
         assert_eq!(s.phase(), SplashPhase::Showing);
-        assert!((s.opacity(499) - 1.0).abs() < f32::EPSILON);
-        s.tick(500);
+        assert!((s.opacity(1_199) - 1.0).abs() < f32::EPSILON);
+        s.tick(1_200);
         assert_eq!(s.phase(), SplashPhase::Fading);
     }
 
@@ -263,15 +273,15 @@ mod tests {
     fn the_fade_takes_motion_base_and_ends_gone() {
         let mut s = Splash::new(false);
         run_all(&mut s, 80);
-        s.tick(500);
-        assert!((s.opacity(500) - 1.0).abs() < f32::EPSILON);
-        let mid = s.opacity(600);
+        s.tick(1_200);
+        assert!((s.opacity(1_200) - 1.0).abs() < f32::EPSILON);
+        let mid = s.opacity(1_300);
         assert!(mid > 0.0 && mid < 1.0, "mid-fade opacity {mid}");
-        s.tick(699);
+        s.tick(1_399);
         assert!(s.visible());
-        s.tick(700);
+        s.tick(1_400);
         assert_eq!(s.phase(), SplashPhase::Gone);
-        assert!(s.opacity(700).abs() < f32::EPSILON);
+        assert!(s.opacity(1_400).abs() < f32::EPSILON);
     }
 
     #[test]
@@ -287,7 +297,7 @@ mod tests {
     }
 
     #[test]
-    fn reduced_motion_ends_the_splash_without_a_fade() {
+    fn reduced_motion_keeps_a_floor_of_half_a_second_and_ends_without_a_fade() {
         let mut s = Splash::new(true);
         run_all(&mut s, 80);
         s.tick(499);
