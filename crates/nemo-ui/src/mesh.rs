@@ -7,7 +7,7 @@
 //! grey cover gives greys; a cover of one hue gives that hue in two slightly turned variants.
 //! Each colour is toned into a lightness band per base mode with richer chroma than the accent
 //! palette (which keeps `palette::MAX_CHROMA`). The bands keep every text ink at 4.5:1 over the
-//! panes, and over the bare field for the two main inks (tests, heartbeat peak included).
+//! panes, and over the bare field for the two main inks (tests).
 
 #![allow(
     clippy::many_single_char_names,

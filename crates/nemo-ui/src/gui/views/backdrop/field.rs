@@ -1,8 +1,9 @@
 //! The drifting window backdrop as an iced widget. It draws a flat colour and the cover's
 //! pre-rendered colour fields (`crate::mesh`) with a transform (no blur at draw time, nothing
-//! re-blurred per frame) and paces its own redraws: on each redraw it asks for the next one at
-//! the capped drift rate, without a message, so the app's `update` and `view` do not run for the
-//! drift. It stops asking while it may not move, and it freezes while the window has no focus.
+//! re-blurred per frame). It has no timer: the window's one frame clock is the app's frame
+//! ticker (`App::needs_frames` includes the backdrop while it moves), and the widget only reads
+//! the time of each redraw. It stops its own clock while it may not move, and it freezes, at the
+//! pose it holds, while the window has no focus.
 
 use iced::advanced::image::{self as adv_image, FilterMethod};
 use iced::advanced::layout::{self, Layout, Node};
@@ -13,7 +14,6 @@ use iced::{Element, Event, Length, Radians, Rectangle, Size, mouse, window};
 
 use crate::drift::{self, Clock, Inputs, Mode};
 use crate::gui::style::col;
-use crate::heartbeat;
 use crate::theme::Rgba;
 
 /// The colour fields of one cover and how strongly they show.
@@ -52,7 +52,8 @@ impl Field {
         }
     }
 
-    /// Pulse the fields while the backdrop moves (the `Gentle heartbeat` switch).
+    /// Breathe: grow and shift the fields slowly with the drift clock (the `Gentle heartbeat`
+    /// switch). The breath freezes with the drift clock, at the pose it holds.
     #[must_use]
     pub fn heartbeat(mut self, on: bool) -> Self {
         self.heartbeat = on;
@@ -111,19 +112,15 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for Field {
         _cursor: mouse::Cursor,
         renderer: &iced::Renderer,
         _clipboard: &mut dyn Clipboard,
-        shell: &mut Shell<'_, M>,
+        _shell: &mut Shell<'_, M>,
         _viewport: &Rectangle,
     ) {
         let state = tree.state.downcast_mut::<State>();
         match event {
-            Event::Window(window::Event::Focused) => {
-                state.focused = true;
-                shell.request_redraw();
-            }
+            Event::Window(window::Event::Focused) => state.focused = true,
             Event::Window(window::Event::Unfocused) => {
                 state.focused = false;
-                // One more draw, at rest: the pulse must not freeze mid-beat.
-                shell.request_redraw();
+                state.clock.stop();
             }
             Event::Window(window::Event::RedrawRequested(now)) => {
                 let moving = Mode::of(Inputs {
@@ -131,9 +128,7 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for Field {
                     software: matches!(renderer, iced::Renderer::Secondary(_)),
                     ..self.inputs
                 }) == Mode::Moving;
-                if let Some(next) = state.clock.tick(*now, moving) {
-                    shell.request_redraw_at(next);
-                }
+                state.clock.tick(*now, moving);
             }
             _ => {}
         }
@@ -157,22 +152,8 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for Field {
         // image and never moves.
         // A preview (headless snapshots) shows the GPU look on the CPU renderer.
         let software = matches!(renderer, iced::Renderer::Secondary(_)) && self.preview.is_none();
-        let (elapsed, mode) = match self.preview {
-            Some(ms) => (ms, Mode::Moving),
-            None => (
-                state.clock.elapsed_ms,
-                Mode::of(Inputs {
-                    focused: state.focused,
-                    software,
-                    ..self.inputs
-                }),
-            ),
-        };
-        let pulse = if heartbeat::active(mode, self.heartbeat) {
-            heartbeat::beat(elapsed)
-        } else {
-            0.0
-        };
+        // A paused or unfocused window holds the clock, so the fields hold their pose.
+        let elapsed = self.preview.unwrap_or(state.clock.elapsed_ms);
         renderer.with_layer(b, |r| {
             r.fill_quad(
                 renderer::Quad {
@@ -186,12 +167,14 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for Field {
                     draw_still(r, layer, b);
                     continue;
                 }
-                let extra = layer.scale * (1.0 + heartbeat::SCALE * pulse);
                 for (i, handle) in layer.blobs.iter().enumerate() {
-                    // At most `FIELDS` (4) fields: the index always fits.
-                    let pose = drift::pose(elapsed, u8::try_from(i).unwrap_or(0));
-                    let (x, y, side) =
-                        drift::blob_rect((b.x, b.y, b.width, b.height), i, pose, extra);
+                    let (x, y, side) = drift::field_rect(
+                        (b.x, b.y, b.width, b.height),
+                        i,
+                        elapsed,
+                        layer.scale,
+                        self.heartbeat,
+                    );
                     r.draw_image(
                         adv_image::Image {
                             handle: handle.clone(),
@@ -205,15 +188,6 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for Field {
                         b,
                     );
                 }
-            }
-            if pulse > 0.0 {
-                r.fill_quad(
-                    renderer::Quad {
-                        bounds: b,
-                        ..renderer::Quad::default()
-                    },
-                    col(heartbeat::LIFT.with_alpha(heartbeat::LIGHT * pulse)),
-                );
             }
         });
     }
