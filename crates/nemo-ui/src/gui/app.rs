@@ -67,7 +67,7 @@ pub use model::{
     AccountMsg, AccountUi, CompactTab, DetailData, DetailKey, DetailKind, DetailState, HomeFilter,
     HomePhase, HomeState, LibFilter, ListSource, NpTab, SettingsSection,
 };
-pub use option::{AccountLibrary, CreateMsg, SleepState, UiHooks, UiOptions};
+pub use option::{AccountLibrary, CreateMsg, RestartHandler, SleepState, UiHooks, UiOptions};
 pub use setup::SLIDE_PX;
 
 /// Widget id of the search box.
@@ -158,6 +158,9 @@ pub struct App {
     pub(crate) music_folders: Vec<String>,
     pub(crate) on_settings: Option<Arc<dyn Fn(UiSettings) + Send + Sync>>,
     on_add_music_folder: Option<Arc<dyn Fn() + Send + Sync>>,
+    /// The parent's restart hook, and whether it already started a new copy.
+    pub(crate) on_restart: Option<RestartHandler>,
+    pub(crate) restarting: bool,
     focus_search: bool,
     last_route: Route,
     last_frame: Option<Instant>,
@@ -313,6 +316,8 @@ impl App {
             music_folders: options.music_folders.clone(),
             on_settings: options.on_settings.clone(),
             on_add_music_folder: options.on_add_music_folder.clone(),
+            on_restart: options.on_restart.clone(),
+            restarting: false,
             focus_search: false,
             last_route: options.start_route.clone(),
             last_frame: None,

@@ -20,6 +20,7 @@ use crate::window_glass::GlassState;
 
 mod controls;
 mod preview;
+mod restart;
 #[cfg(test)]
 mod tests;
 
@@ -197,8 +198,8 @@ fn bar_card<'a>(width: f32) -> Element<'a, Message> {
     )
 }
 
-/// The see-through window: switch, restart note, state of the running window, opacity, and what
-/// blur needs.
+/// The see-through window: switch, the `Restart now` pill when the switch needs one, state of the
+/// running window, opacity, and what blur needs.
 fn window_glass_card(app: &App, width: f32) -> Element<'_, Message> {
     let s = &app.ui.settings;
     let g = app.window_glass();
@@ -209,40 +210,42 @@ fn window_glass_card(app: &App, width: f32) -> Element<'_, Message> {
         SwitchMode::Normal
     };
     let status = g.status();
+    let needs_restart = app.restart_offered();
     let text = move |w: f32| -> Element<'_, Message> {
-        column![
-            head(
-                words::WINDOW_GLASS_TITLE,
-                type_scale::TITLE_SM,
-                words::WINDOW_GLASS_HELPER,
-                w
-            ),
-            paragraph(
-                words::WINDOW_GLASS_RESTART,
+        let mut lines = column![head(
+            words::WINDOW_GLASS_TITLE,
+            type_scale::TITLE_SM,
+            words::WINDOW_GLASS_HELPER,
+            w
+        )]
+        .spacing(gap::XS);
+        if needs_restart {
+            lines = lines.push(paragraph(
+                words::RESTART_HELPER,
                 type_scale::BODY_SM,
                 col(color::on_surface()),
-                w
-            ),
-            paragraph(
+                w,
+            ));
+        }
+        lines
+            .push(paragraph(
                 status,
                 type_scale::BODY_SM,
                 col(color::on_surface_variant()),
-                w
-            ),
-        ]
-        .spacing(gap::XS)
-        .into()
+                w,
+            ))
+            .into()
     };
+    let (control, control_w) = restart::control(
+        app,
+        switch(s.window_glass, mode, SettingChange::WindowGlass),
+        mode,
+    );
     let dim = if s.window_glass { 1.0 } else { 0.38 };
     card(
         width,
         vec![
-            aside(
-                inner,
-                text,
-                switch(s.window_glass, mode, SettingChange::WindowGlass),
-                mode.box_w(),
-            ),
+            aside(inner, text, control, control_w),
             aside(
                 inner,
                 |w| {
