@@ -43,6 +43,7 @@ pub mod transition;
 
 mod control;
 mod control_cmd;
+mod control_switch;
 mod control_tick;
 mod cpal_sink;
 mod feeder;

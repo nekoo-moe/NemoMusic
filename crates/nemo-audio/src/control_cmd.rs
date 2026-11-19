@@ -11,8 +11,9 @@ use nemo_core::player::{PlayState, PlayerCommand, PlayerEvent, RepeatMode};
 use nemo_core::track::{Track, VideoId};
 
 use crate::control::{Core, NextSlot, NextState, Run, micros};
+use crate::control_switch::Taken;
 use crate::feeder::{FrameSpan, file_time, snap_to_frame};
-use crate::pipeline::{FeedCmd, FeedEvent, Pipeline, plan_stages};
+use crate::pipeline::{FeedCmd, Pipeline, plan_stages};
 use crate::prepare::{PrepareDeps, spawn_prepare};
 use crate::render::gain_for_percent;
 use crate::sink::{AudioSink, OutputSelection};
@@ -183,7 +184,7 @@ impl Core {
         }
     }
 
-    fn pause(&mut self) {
+    pub(crate) fn pause(&mut self) {
         if let (Some(pipe), PlayState::Playing | PlayState::Buffering) = (&self.pipe, self.state) {
             pipe.shared.paused.store(true, Ordering::SeqCst);
             self.set_state(PlayState::Paused);
@@ -567,27 +568,14 @@ impl Core {
     }
 
     fn migrate_pipeline(&mut self, new_sink: Box<dyn AudioSink>) -> Result<(), String> {
-        let Some(mut old_pipe) = self.pipe.take() else {
+        let Some(old_pipe) = self.pipe.take() else {
             return Ok(());
         };
-        // Stop the old device first: while it runs it keeps playing frames the position read
-        // below would not count, and the new device would play them again.
-        old_pipe.halt_output();
-        self.underruns_base += old_pipe.shared.underruns.load(Ordering::Relaxed);
-        let (mut jobs, events) = old_pipe.stop_and_take_with_events();
-        // A song that began a moment ago may have its `Started` report still unread. Without it
-        // the position is unknown (counted as zero) and the new device would start the song over.
-        for event in events {
-            if let FeedEvent::Started {
-                token,
-                at_frame,
-                base,
-            } = event
-            {
-                self.on_started(token, at_frame, base);
-            }
-        }
-        let mut pos = self.shared.position();
+        let Taken {
+            mut jobs,
+            mut pos,
+            reopen,
+        } = self.take_old_output(old_pipe);
 
         let source_format = jobs.first().map(|j| j.decoder.info().format);
 
@@ -643,6 +631,9 @@ impl Core {
         }
 
         self.pipe = Some(pipe);
+        if reopen {
+            self.reopen_current(pos);
+        }
         Ok(())
     }
 }
