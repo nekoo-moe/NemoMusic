@@ -19,10 +19,10 @@ pub const CORNERS_HELPER: &str = "Sharp is the Material 3 default. Round is extr
 /// Helper of the Now Playing style card.
 pub const NOW_PLAYING_HELPER: &str =
     "How the Now Playing pane and the full-screen view are arranged. Playback does not change.";
-/// Title of the player bar glass card.
-pub const GLASS_TITLE: &str = "Glass";
-/// Helper of the player bar glass card. It says what the two choices draw, nothing more.
-pub const GLASS_HELPER: &str = "The material of the player bar. Low tints it with the colours of the cover, Off draws a plain surface. Light mode always draws the plain surface.";
+/// Title of the player bar card.
+pub const BAR_TITLE: &str = "Player bar";
+/// Helper of the player bar card. It says what the bar is and what makes it opaque.
+pub const BAR_HELPER: &str = "A Material surface with a soft shadow. The background shows through a little. Reduce transparency and Window glass make it fully opaque.";
 /// Title of the Window glass card.
 pub const WINDOW_GLASS_TITLE: &str = "Window glass";
 /// Helper of the Window glass switch.
@@ -43,7 +43,7 @@ pub const REDUCE_MOTION_HELPER: &str =
     "No cross-fades and no lyric glide. The progress bar keeps moving.";
 /// Helper of the Reduce transparency switch.
 pub const REDUCE_TRANSPARENCY_HELPER: &str =
-    "The player bar becomes an opaque surface with a thin border, and the window stays solid.";
+    "The player bar becomes fully opaque, and the window stays solid.";
 
 #[cfg(test)]
 mod tests {
@@ -51,7 +51,7 @@ mod tests {
 
     #[test]
     fn the_glass_text_is_honest_and_the_restart_note_is_exact() {
-        assert!(!GLASS_HELPER.to_lowercase().contains("not built"));
+        assert!(BAR_HELPER.contains("Material") && !BAR_HELPER.contains("Low"));
         assert_eq!(
             WINDOW_GLASS_RESTART,
             "Takes effect after you restart NemoMusic"

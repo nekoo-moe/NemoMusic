@@ -1,0 +1,56 @@
+## Overview
+
+Three small parts, one PR each, in this order.
+
+1. The bar. `bar/surface.rs` draws one container: a flat `surface-container-high` fill at `glass::BAR_ALPHA` (0.90) or `glass::BAR_ALPHA_LIGHT` (0.92), corners `shape::xl()`, the level 3 shadow from `glass::ELEVATED_*` and `glass::SHADOW`, and a border of width 0. The rim, the glint, the gradient and the 1 px `outline-variant` edge are removed, together with the glass fill tokens they used. The fill is opaque when `reduce_transparency` is on or `App::window_glass().is_clear()`. `GlassTier` and the `glass_tier` key stay, unused by the bar. The Appearance card becomes a text-only `Player bar` card, and the preview bar uses the same fill function (`bar::capsule_fill`).
+2. Restart now. `appearance.rs` shows a pill beside the Window glass switch while `WindowGlass::needs_restart()` holds. A new `Event::RestartApp` reaches the app, which calls the new `UiOptions::on_restart` callback (`Option<Arc<dyn Fn() -> Result<(), String> + Send + Sync>>`). On `Ok` the app returns `iced::exit()`; on `Err` it keeps a one-line note in state and the card shows it. `nemo-app` implements the callback: save the settings, spawn `std::env::current_exe()` with `std::env::args_os().skip(1)`, return the result. The pill animates through the shared `motion.rs` helpers.
+3. Windows blur. `nemo-app` gets `window-vibrancy = "=0.8.1"` under `[target.'cfg(windows)'.dependencies]`. A new `UiOptions` callback `on_window_ready` receives the iced window handle (through `iced::window::run` and the raw-window-handle types that iced exposes) and the tint (theme base, opacity). The callback body lives in `nemo-app` behind `cfg(windows)`. `nemo-ui` never names `window-vibrancy`.
+
+## Affected Crates
+
+- `nemo-ui`: bar surface, tokens, settings docs, Appearance page, preview, copy, snapshots, `UiOptions` callbacks, the restart event.
+- `nemo-app`: `on_restart` and `on_window_ready` implementations, the Windows dependency.
+
+Not touched: `nemo-audio`, `nemo-core`, `nemo-ytm`.
+
+## Data Flow
+
+UI thread only. The restart request goes from the pill to `Event::RestartApp`, to `App::dispatch`, to `UiOptions::on_restart` in `nemo-app`, which saves settings (they are saved on every change already, so the save is a flush) and spawns the child. The parent leaves through `iced::exit()`, so the audio device is released by the normal shutdown path before the child opens it. Nothing runs on the audio thread. The bar draws no more frames than before; the pill's rise and fade use the shared motion clock and draw 0 frames when idle.
+
+## Interfaces
+
+```rust
+// nemo-ui: theme/glass.rs
+pub const BAR_ALPHA: f32 = 0.90;
+pub const BAR_ALPHA_LIGHT: f32 = 0.92;
+
+// nemo-ui: gui/views/bar/surface.rs
+pub fn solid(app: &App) -> bool;
+pub fn fill_alpha(light: bool, solid: bool) -> f32;
+pub fn fill(app: &App) -> Rgba;
+
+// nemo-ui: UiOptions (PR 2 and 3)
+pub on_restart: Option<RestartHandler>;
+pub on_window_ready: Option<WindowHandler>;
+```
+
+## Error Handling
+
+- Spawn failure: the callback returns `Err(String)`; the card shows one plain sentence (`NemoMusic could not restart. Close it and start it again.`) and the app keeps running. No panic, no `unwrap`.
+- Windows effect failure: one `tracing::warn!` with the effect name and the error text, never a handle value; the plain transparent window stays.
+- Old config files with `glass_tier`: load as before.
+
+## Testing Strategy
+
+- Bar: unit tests for the alpha rule (0.90, 0.92, opaque), for the style (no border, flat fill, shadow numbers) and the existing contrast sweep over all fixture covers and modes, adapted to the new fill. Snapshot PNGs `bar-material-*` and a pixel probe across each edge at 2x (no 1 px step, see the PR text).
+- Restart: model tests for when the pill shows (only `NeedsRestart`), for one request per press, for the spawn-failure path with a fake callback, and for no pill under Reduce transparency or with nothing changed. A snapshot of the card with the pill, and 3 to 5 key frames of its entrance.
+- Windows: not testable here; CI's Windows job compiles it. The tint maths is a pure function with a unit test on every platform.
+- No audio path is touched, so no bit-exact test applies.
+
+## Risks and Alternatives
+
+- The CPU renderer draws the shadow under a translucent fill, so the shadow shows through at 10% and darkens the capsule by about 3%. The contrast test includes it.
+- The restart may race the audio device release. The parent exits through iced before it matters; the child opens the device after its own start-up, which takes longer than the parent's exit. If a device is still busy the child's existing device fallback applies.
+- Alternative for the bar: keep a tier switch. Rejected: two looks, two sets of tests, and the owner asked to drop glass.
+- Alternative for the restart: a `Command` that relaunches from `nemo-ui`. Rejected: `nemo-ui` must not spawn processes.
+- Alternative for the blur: a custom compositor call. Rejected: `window-vibrancy` is approved and has safe functions.

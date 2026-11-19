@@ -30,21 +30,12 @@ pub const SHADOW_OFFSET_Y: f32 = 8.0;
 pub const SHADOW_BLUR: f32 = 24.0;
 /// Shadow color (`#00000052`).
 pub const SHADOW: Rgba = Rgba::from_rgba_hex(0x0000_0052);
-/// Mean opacity of the capsule's glass fill in light mode: `surface-container` over the window
-/// backdrop (owner, 2026-11-19; backdrop-calm). Text keeps 4.5:1 (tests).
-pub const BAR_FILL_ALPHA: f32 = 0.52;
-/// The glass is this much more opaque at the top edge and less opaque at the bottom edge, around
-/// [`BAR_FILL_ALPHA`]: a light inner gradient.
-pub const BAR_FILL_SLOPE: f32 = 0.03;
-/// Mean opacity of the glass fill in dark and AMOLED: more see-through, because the backdrop
-/// behind it is dark and the ink is light (owner, 2026-11-19; backdrop-calm, clearer glass).
-pub const BAR_FILL_ALPHA_DARK: f32 = 0.40;
-/// The top-to-bottom slope of the dark fill, around [`BAR_FILL_ALPHA_DARK`].
-pub const BAR_FILL_SLOPE_DARK: f32 = 0.02;
-/// White share mixed into the top of the glass fill, so a flat backdrop still reads as glass.
-pub const BAR_LIFT: f32 = 0.06;
-/// Opacity of the 1 px `outline-variant` edge of the glass capsule.
-pub const BAR_OUTLINE_ALPHA: f32 = 0.60;
+/// Opacity of the player bar's Material surface (`surface-container-high`) in dark and AMOLED
+/// (owner, 2026-11-19; bar-material). The backdrop shows through faintly. Text keeps 4.5:1
+/// (tests).
+pub const BAR_ALPHA: f32 = 0.90;
+/// Opacity of the player bar's Material surface in light mode.
+pub const BAR_ALPHA_LIGHT: f32 = 0.92;
 /// Shadow offset y in px of a tonal surface that floats (elevation level 3, `design.md` section 5).
 pub const ELEVATED_OFFSET_Y: f32 = 4.0;
 /// Shadow blur in px of a tonal surface that floats.
