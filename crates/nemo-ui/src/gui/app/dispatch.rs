@@ -85,6 +85,7 @@ impl App {
             self.sort_menu = None;
             self.rows_limit = ROWS_STEP;
             self.anim.restart_page();
+            self.skeletons.leave_page();
             jobs.extend(self.sync_viewport());
         }
         self.sync_theme();

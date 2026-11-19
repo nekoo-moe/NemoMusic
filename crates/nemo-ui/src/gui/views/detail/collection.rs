@@ -11,7 +11,7 @@ use iced::{Alignment, Background, Element, Length, Padding};
 use nemo_core::catalog::{CollectionMeta, Privacy};
 use nemo_core::track::{Artwork, Track};
 
-use super::super::kit::{PAGE_BOTTOM, art, text_button, vspace};
+use super::super::kit::{PAGE_BOTTOM, Skeleton, art, text_button, vspace};
 use super::meta_line::{count_line, kind_line};
 use super::song_row::{self, Rows};
 use super::sort_menu;
@@ -390,26 +390,24 @@ fn tracks<'a>(
     list.into()
 }
 
-/// The page while it loads, in the same layout: shimmering blocks for the cover, the text, the
-/// two buttons and the rows.
-pub fn skeleton(app: &App, content_w: u32) -> Element<'_, Message> {
-    use super::skeleton_block as block;
+/// The page while it loads, in the same layout: blocks for the cover, the text, the two buttons
+/// and the rows.
+pub fn skeleton(app: &App, sk: Skeleton, content_w: u32) -> Element<'_, Message> {
     use crate::theme::shape;
-    let p = app.shimmer;
     let left = |w: f32, art_px: f32| -> Element<'_, Message> {
         column![
-            block(Length::Fixed(art_px), art_px, shape::lg(), p),
+            sk.block(Length::Fixed(art_px), art_px, shape::lg()),
             vspace(gap::XL),
-            block(Length::Fixed(w * 0.7), 28.0, 8.0, p),
-            vspace(gap::MD),
-            block(Length::Fixed(w * 0.4), 18.0, 9.0, p),
+            sk.line(w * 0.7, type_scale::HEADLINE_MD),
             vspace(gap::SM),
-            block(Length::Fixed(w * 0.5), 14.0, 7.0, p),
+            sk.line(w * 0.4, type_scale::BODY_MD),
+            vspace(gap::XS),
+            sk.line(w * 0.5, type_scale::BODY_SM),
             vspace(gap::XL),
             row![
-                block(Length::Fixed(ROUND_BUTTON), ROUND_BUTTON, shape::FULL, p),
+                sk.circle(ROUND_BUTTON),
                 Space::new().width(gap::LG),
-                block(Length::Fixed(PLAY_DISC), PLAY_DISC, shape::FULL, p),
+                sk.circle(PLAY_DISC),
             ]
             .align_y(Alignment::Center),
         ]
@@ -419,25 +417,8 @@ pub fn skeleton(app: &App, content_w: u32) -> Element<'_, Message> {
     };
     let rows = |w: f32| -> Element<'_, Message> {
         let mut c = column![];
-        for i in 0..7_u8 {
-            c = c.push(
-                row![
-                    block(Length::Fixed(44.0), 44.0, shape::sm(), p),
-                    Space::new().width(gap::MD),
-                    column![
-                        block(
-                            Length::Fixed(w * (0.42 + 0.06 * f32::from(i % 3))),
-                            14.0,
-                            7.0,
-                            p
-                        ),
-                        vspace(gap::XS),
-                        block(Length::Fixed(w * 0.28), 11.0, 6.0, p),
-                    ],
-                ]
-                .align_y(Alignment::Center)
-                .height(Length::Fixed(super::super::kit::ROW_H)),
-            );
+        for i in 0..7_usize {
+            c = c.push(sk.row(w, i));
         }
         c.width(Length::Fixed(w)).into()
     };
