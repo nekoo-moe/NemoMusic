@@ -37,6 +37,9 @@ use crate::ytdlp::YtDlpResolver;
 pub const EXPIRY_MARGIN: Duration = Duration::from_mins(10);
 /// Most videos kept in the cache.
 pub const MAX_CACHED: usize = 64;
+/// Pause after each background resolve of a hint ([`StreamResolver::warm`]): hints come one at
+/// a time and a little apart, so a queue or a start-up never makes a burst of requests.
+pub const WARM_PAUSE: Duration = Duration::from_millis(400);
 /// Failed opens of primary streams after which the primary is switched off.
 pub const PRIMARY_FAILURE_LIMIT: u32 = 3;
 /// How long the primary may take before the fallback starts alongside it. A native answer
@@ -110,6 +113,8 @@ pub struct CachedResolver {
     handle: Handle,
     slots: Slots,
     persisted: Option<Persisted>,
+    /// One permit: hints are resolved one at a time.
+    warming: Arc<tokio::sync::Semaphore>,
 }
 
 /// The file of kept streams and the check that runs before one of them is reused.
@@ -134,6 +139,7 @@ impl CachedResolver {
             handle,
             slots: Arc::default(),
             persisted: None,
+            warming: Arc::new(tokio::sync::Semaphore::new(1)),
         }
     }
 
@@ -280,14 +286,18 @@ impl StreamResolver for CachedResolver {
             .get(&CacheKey::new(video, &DEFAULT_REQUEST))
             .is_some_and(|s| slot_is_live(s, SystemTime::now()));
         if !known {
-            // The answer lands in the cache; nobody waits for it here.
-            drop(self.handle.spawn(Self::get(
-                Arc::clone(&self.inner),
-                Arc::clone(&self.slots),
-                self.persisted.clone(),
-                video.clone(),
-                StreamRequest::default(),
-            )));
+            // The answer lands in the cache; nobody waits for it here. Hints go one at a time,
+            // a little apart; a song that is asked for meanwhile shares the running resolve.
+            let (inner, slots) = (Arc::clone(&self.inner), Arc::clone(&self.slots));
+            let (persisted, warming) = (self.persisted.clone(), Arc::clone(&self.warming));
+            let video = video.clone();
+            drop(self.handle.spawn(async move {
+                let Ok(_turn) = warming.acquire().await else {
+                    return;
+                };
+                let _ = Self::get(inner, slots, persisted, video, StreamRequest::default()).await;
+                tokio::time::sleep(WARM_PAUSE).await;
+            }));
         }
     }
 

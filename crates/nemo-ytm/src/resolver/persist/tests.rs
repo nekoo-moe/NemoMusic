@@ -167,3 +167,20 @@ fn the_store_holds_at_most_as_many_entries_as_the_memory_cache() {
     }
     assert_eq!(store.len(), MAX_CACHED);
 }
+
+#[test]
+fn the_last_played_song_is_kept_for_the_next_run_and_wiped_at_sign_out() {
+    let dir = folder("last");
+    let path = dir.join("streams.json");
+    let store = StreamStore::open(path.clone());
+    assert_eq!(store.last_played(), None);
+    store.set_last_played(&vid("abcdefghijk"));
+    assert_eq!(
+        StreamStore::open(path.clone()).last_played(),
+        Some(vid("abcdefghijk"))
+    );
+    assert!(store.wipe().is_ok());
+    assert_eq!(store.last_played(), None);
+    assert_eq!(StreamStore::open(path).last_played(), None);
+    let _ = std::fs::remove_dir_all(&dir); // Cleanup only.
+}

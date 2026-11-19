@@ -19,9 +19,9 @@ use crate::sink::{AudioSink, OutputSelection};
 
 /// Past this position, Previous restarts the current track instead of going back.
 const RESTART_AFTER: Duration = Duration::from_secs(3);
-/// Upcoming queue entries whose streams are resolved ahead of time: only the next one, never
-/// a whole playlist (fast-start spec).
-pub(crate) const WARM_AHEAD: usize = 1;
+/// Upcoming queue entries whose streams are resolved ahead of time: the next two, never a whole
+/// playlist (cold-start spec; fast-start had one). The resolver takes the hints one at a time.
+pub(crate) const WARM_AHEAD: usize = 2;
 
 impl Core {
     // ---- commands ------------------------------------------------------------------------
@@ -331,8 +331,8 @@ impl Core {
     }
 
     /// Start opening the next track while the current one plays, and hint the resolver about
-    /// the entry after the current one ([`WARM_AHEAD`]) so its stream is resolved early. Only
-    /// the next song, never further ahead.
+    /// the entries after the current one ([`WARM_AHEAD`]) so their streams are resolved early.
+    /// Only the next song is opened; the one after it is only resolved.
     pub fn prefetch_next(&mut self) {
         let loaded = self.cur.as_ref().is_some_and(|c| c.loaded);
         if !loaded || self.following.is_some() {

@@ -14,6 +14,7 @@ mod os_motion;
 mod paths;
 mod play_hub;
 mod restart;
+mod start_warm;
 mod ui_bridge;
 
 use std::sync::{Arc, Mutex};
