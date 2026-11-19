@@ -99,6 +99,7 @@ fn run(args: Args) {
         request: StreamRequest::default(),
         local: None,
         offline: None,
+        url_resolver: None,
         opener: no_network,
         segments: None,
         sink_factory: Arc::new(CpalSinkFactory::new(args.device)),

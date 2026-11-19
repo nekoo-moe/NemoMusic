@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
-use nemo_core::audio::{AudioFormat, ProcessingStage};
+use nemo_core::audio::{AudioFormat, Origin, ProcessingStage};
 use nemo_core::effects::EffectsSettings;
 use nemo_core::output::{DeviceId, OutputDevice, SavedDevice};
 use nemo_core::player::{PlayState, PlayerCommand, PlayerEvent, RepeatMode};
@@ -368,6 +368,7 @@ impl Core {
             opener: Arc::clone(&self.deps.opener),
             local: self.deps.local.clone(),
             offline: self.deps.offline.clone(),
+            url_resolver: self.deps.url_resolver.clone(),
         };
         spawn_prepare(deps, self.tx.clone(), token, track);
     }
@@ -387,15 +388,20 @@ impl Core {
         order.into_iter().filter(ok).take(WARM_AHEAD).collect()
     }
 
-    /// Tell the resolver which YouTube tracks come next. Returns at once. A saved song is left
+    /// Tell the resolvers which YouTube and SoundCloud tracks come next. Returns at once. A saved song is left
     /// out: it plays from the cache with no stream lookup (offline-cache criterion 3).
     fn warm_ahead(&self) {
         for i in self.upcoming() {
-            if let Some(video) = &self.queue[i].track.video_id
-                && self.queue[i].track.local_path.is_none()
+            let track = &self.queue[i].track;
+            if let Some(video) = &track.video_id
+                && track.local_path.is_none()
                 && !self.is_saved(video)
             {
                 self.deps.resolver.warm(video);
+            } else if let (Some(url), Some(resolver)) = (&track.source_url, &self.deps.url_resolver)
+                && track.origin == Origin::SoundCloud
+            {
+                resolver.warm(url);
             }
         }
     }

@@ -19,6 +19,7 @@ serde.workspace = true
 serde_json.workspace = true
 nemo-audio.workspace = true
 nemo-ytm.workspace = true
+nemo-soundcloud.workspace = true
 nemo-lyrics.workspace = true
 nemo-library.workspace = true
 nemo-secrets.workspace = true

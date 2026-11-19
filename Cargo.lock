@@ -3660,6 +3660,7 @@ dependencies = [
  "nemo-lyrics",
  "nemo-secrets",
  "nemo-signin",
+ "nemo-soundcloud",
  "nemo-ui",
  "nemo-ytm",
  "rfd",
@@ -3775,6 +3776,7 @@ dependencies = [
 name = "nemo-soundcloud"
 version = "0.2.1"
 dependencies = [
+ "nemo-audio",
  "nemo-core",
  "reqwest",
  "serde",

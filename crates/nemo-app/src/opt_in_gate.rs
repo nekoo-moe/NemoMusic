@@ -20,7 +20,7 @@ use crate::config::OptInChoice;
 
 /// Every opt-in feature `nemo-app` builds through the gate. The task that wires a service adds
 /// its `OptInInfo` here, and a test checks its hosts against the README egress list.
-pub const OPT_INS: &[OptInInfo] = &[];
+pub const OPT_INS: &[OptInInfo] = &[nemo_soundcloud::OPT_IN];
 
 /// The stored choice for `info`, or its default when the user never touched the row. A
 /// default-on row (OS media controls, which send nothing off the computer) counts as confirmed.

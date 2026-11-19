@@ -13,6 +13,7 @@ use nemo_core::secret::Secret;
 
 use crate::client_id::{MAX_SCRIPTS, find_client_id, script_urls};
 use crate::http::{MAX_JSON_BYTES, MAX_SCRIPT_BYTES, ScAnswer, ScHttp, ScHttpError, ScRequest};
+use crate::records::TrackRecords;
 
 /// Where the client reads from. [`Endpoints::production`] is the real service.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -107,6 +108,8 @@ pub struct ScClient {
     gate: tokio::sync::Mutex<Option<Instant>>,
     /// Until when a 429 stops all calls.
     blocked_until: Mutex<Option<Instant>>,
+    /// What the catalog learned about tracks, for the stream lookup.
+    records: TrackRecords,
 }
 
 impl std::fmt::Debug for ScClient {
@@ -132,7 +135,14 @@ impl ScClient {
             id: tokio::sync::Mutex::new(None),
             gate: tokio::sync::Mutex::new(None),
             blocked_until: Mutex::new(None),
+            records: TrackRecords::default(),
         }
+    }
+
+    /// The tracks the catalog has mapped, by page address.
+    #[must_use]
+    pub const fn records(&self) -> &TrackRecords {
+        &self.records
     }
 
     /// Look the client id up now, so the first search or play does not pay for it. A no-op when
@@ -166,6 +176,23 @@ impl ScClient {
                 _ => return Err(ClientError::Refused),
             }
         }
+    }
+
+    /// `GET <url>?<params>&client_id=…` for an address the API gave (a transcoding address). The
+    /// address must start with the API base, so the client id never goes to another host.
+    ///
+    /// # Errors
+    /// [`ClientError::Refused`] for an address on another host, otherwise as [`ScClient::get`].
+    pub async fn get_api_url(
+        &self,
+        url: &str,
+        params: &[(&str, &str)],
+    ) -> Result<Vec<u8>, ClientError> {
+        let path = url
+            .strip_prefix(self.endpoints.api.as_str())
+            .filter(|rest| rest.starts_with('/'))
+            .ok_or(ClientError::Refused)?;
+        self.get(path, params).await
     }
 
     fn api_url(

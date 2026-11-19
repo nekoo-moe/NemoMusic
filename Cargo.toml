@@ -25,6 +25,7 @@ nemo-core = { path = "crates/nemo-core" }
 nemo-audio = { path = "crates/nemo-audio" }
 nemo-library = { path = "crates/nemo-library" }
 nemo-ytm = { path = "crates/nemo-ytm" }
+nemo-soundcloud = { path = "crates/nemo-soundcloud" }
 nemo-lyrics = { path = "crates/nemo-lyrics" }
 nemo-secrets = { path = "crates/nemo-secrets" }
 nemo-ui = { path = "crates/nemo-ui" }

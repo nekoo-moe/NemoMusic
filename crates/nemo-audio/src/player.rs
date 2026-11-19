@@ -13,6 +13,7 @@ use nemo_core::player::{PlayerCommand, PlayerEvent, PlayerSnapshot};
 use nemo_core::segment::{Segment, SegmentSource};
 use nemo_core::services::{EventReceiver, PlayerControl, StreamOpener};
 use nemo_core::stream::{StreamRequest, StreamResolver};
+use nemo_core::url_resolver::UrlResolver;
 
 use crate::control::Core;
 use crate::device_watch::{DeviceEnumerator, DeviceWatcher, SinkFactoryEnumerator, WATCH_INTERVAL};
@@ -41,6 +42,9 @@ pub struct PlayerDeps {
     /// Saved songs (offline cache). Asked on the prepare thread before the resolver; a saved
     /// song plays from its file with no stream lookup. `None` streams every song.
     pub offline: Option<Arc<dyn OfflineStore>>,
+    /// Turns the page of a SoundCloud track into a stream (soundcloud-full). Asked on the prepare
+    /// thread only. `None`: SoundCloud tracks do not play.
+    pub url_resolver: Option<Arc<dyn UrlResolver>>,
     /// Custom device enumerator for the background watcher. `None` defaults to `sink_factory`.
     pub device_enumerator: Option<Arc<dyn DeviceEnumerator>>,
     /// Custom polling interval for the device watcher. `None` defaults to 1 second.

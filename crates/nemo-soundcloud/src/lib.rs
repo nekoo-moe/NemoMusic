@@ -13,11 +13,15 @@
 pub mod catalog;
 pub mod client;
 pub mod client_id;
+pub mod hls;
 pub mod hosts;
 pub mod http;
 mod map;
 mod model;
+pub mod opener;
 pub mod opt_in;
+pub mod records;
+pub mod stream;
 
 #[cfg(test)]
 mod fake;
@@ -30,4 +34,6 @@ pub use catalog::{Link, SoundcloudCatalog};
 pub use client::{ClientError, Endpoints, Pacing, ScClient};
 pub use hosts::HOSTS;
 pub use http::{ReqwestHttp, ScHttp};
+pub use opener::{ScStreamOpener, Shared};
 pub use opt_in::OPT_IN;
+pub use stream::{ScStreamResolver, streams};

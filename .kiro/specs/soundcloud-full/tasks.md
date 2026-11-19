@@ -30,7 +30,7 @@ Waves: 1 = native client and playback (agent H, PRs 1 to 3 of 2026-11-19); 2 to 
   - Steering: `tech.md` hosts line if the probe shows another host.
   - Note: PR 2 reads the first page of every list; paging by `next_href` and the `Catalog` paging call come with task 9. `tests/live.rs` is the hand-run check against the real service (about 13 requests).
 
-- [ ] 4. Stream lookup and ranking
+- [x] 4. Stream lookup and ranking
   - Crate and files: `nemo-soundcloud` (`stream.rs`, `resolver.rs`).
   - Does: `ScStreamResolver` (`UrlResolver`): transcodings to `FormatCandidate`s, `rank_formats`, the stream call, `ResolvedStream` with measured `StreamInfo`, preview flag and expiry, in-memory cache, `warm`.
   - _Requirements: 3, 13, 15, 16, 18, 19, 20_
@@ -39,16 +39,16 @@ Waves: 1 = native client and playback (agent H, PRs 1 to 3 of 2026-11-19); 2 to 
   - Checks: fake-HTTP tests (AAC wins over MP3 and over `abr`, encrypted-only is `NotAvailable`, preview marked, cached until expiry, 403 triggers one new lookup).
   - Steering: none
 
-- [ ] 5. HLS reader and opener
+- [x] 5. HLS reader and opener
   - Crate and files: `nemo-soundcloud` (`hls.rs`, `hls/playlist.rs`, `opener.rs`), `nemo-core` none.
-  - Does: `HlsSource` (playlist parse, init and first segment in parallel, fetch thread, `sync_channel(3)`), `ScStreamOpener`; forward-only (`is_seekable() == false`).
+  - Does: `HlsSource` (playlist parse by hand, init and first segment in parallel, fetch thread, `sync_channel(3)`), `ScStreamOpener`, the prefetch; forward-only (`is_seekable() == false`). Needed by the real answers of 2026-11-19: 76 of 81 sampled tracks are HLS only.
   - _Requirements: 5, 13, 14, 17_
   - Depends on: soundcloud-full#4
   - Wave: 1
   - Checks: loopback tests (init plus three segments read as one stream, key line refused, segment 429 retried, three failures end the stream, channel bound holds); `symphonia` decodes the recorded AAC fMP4 fixture (init plus two segments) to PCM; counting-allocator test.
   - Steering: none
 
-- [ ] 6. Playback wiring and the latency example
+- [x] 6. Playback wiring and the latency example
   - Crate and files: `nemo-audio` (`prepare.rs`, `PrepareDeps.url_resolver`), `nemo-app` (wiring, routing opener, the README host comparison test), `nemo-soundcloud/examples/latency.rs`.
   - Does: a SoundCloud track plays through the existing player; the next track is warmed; the badge shows the real codec and bitrate; the `#[ignore]` example prints stage times.
   - _Requirements: 3, 13, 14, 15, 17, 20_
@@ -93,7 +93,7 @@ Waves: 1 = native client and playback (agent H, PRs 1 to 3 of 2026-11-19); 2 to 
   - Checks: fixtures; screenshots.
   - Steering: none
 
-- [ ] 11. HLS seek by segment, then the `yt-dlp` fallback (next agent)
+- [ ] 11. HLS seek by segment (needed first: a seek on a SoundCloud track fails today), then the `yt-dlp` fallback (next agent)
   - Crate and files: `nemo-soundcloud` (`hls.rs`), `nemo-audio` (`stream_decoder.rs` only if the decoder must reopen at a segment), `nemo-ytm` (fallback resolver, task 8 and 9 of `soundcloud`).
   - Does: criterion 17; restart the fetch at the segment of the target time (`EXTINF` sums) and let the decoder's accurate-seek skip trim the rest; the fallback resolves through `yt-dlp` only when the native lookup fails.
   - _Requirements: 17_

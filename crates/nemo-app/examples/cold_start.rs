@@ -379,6 +379,7 @@ fn build_player(
         request: StreamRequest::default(),
         local: None,
         offline: None,
+        url_resolver: None,
         opener: Arc::new(HttpStreamOpener::default()),
         segments,
         sink_factory: Arc::new(NullFactory(Arc::clone(first))),

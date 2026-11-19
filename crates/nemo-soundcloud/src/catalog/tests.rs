@@ -420,3 +420,35 @@ async fn covers_come_in_several_sizes() {
         [100, 300, 500]
     );
 }
+
+#[tokio::test]
+async fn mapped_tracks_leave_a_record_of_their_streams_under_their_page() {
+    let (catalog, _) = catalog_with(|_| ok(SEARCH_TRACKS));
+    let songs = catalog
+        .search_kind("a", SearchKind::Songs)
+        .await
+        .expect("songs")
+        .songs;
+    assert_eq!(songs.len(), 5);
+    assert_eq!(catalog.client.records().len(), 5);
+    for song in &songs {
+        let page = song.source_url.as_ref().expect("page");
+        let record = catalog
+            .client
+            .records()
+            .get(page.as_str())
+            .expect("a record");
+        assert!(!record.transcodings.is_empty());
+        assert_eq!(format!("sc:{}", record.id), song.id.0);
+    }
+    // The fourth fixture track is a preview.
+    let preview = songs[3].source_url.as_ref().expect("page");
+    assert!(
+        catalog
+            .client
+            .records()
+            .get(preview.as_str())
+            .expect("record")
+            .preview
+    );
+}
