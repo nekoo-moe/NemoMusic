@@ -26,3 +26,7 @@ nemo-secrets.workspace = true
 nemo-signin = { path = "../nemo-signin" }
 tokio = { version = "=1.54.1", default-features = false, features = ["rt-multi-thread", "time"] }
 nemo-ui = { workspace = true, features = ["gui"] }
+
+# Mica or acrylic blur behind the see-through window (Windows only; tech.md, Window blur).
+[target.'cfg(windows)'.dependencies]
+window-vibrancy = "=0.8.1"

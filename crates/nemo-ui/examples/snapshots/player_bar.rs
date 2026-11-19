@@ -1,4 +1,4 @@
-//! Shots of the floating player capsule (player-bar-redesign). Each bar shot renders the whole
+//! Shots of the floating player capsule (player-bar-redesign, bar-material). Each bar shot renders the whole
 //! window and keeps the bottom strip, so the capsule shows over the real window colour; two
 //! full-window shots show how the panes end above it.
 
@@ -9,7 +9,6 @@ use nemo_ui::gui::headless::{Scenario, build_app, render_png, render_png_pointer
 use nemo_ui::layout::bar::{PADDING, ZONE_GAP, width, zones};
 use nemo_ui::mock::mock_backend;
 use nemo_ui::scheme::BaseMode;
-use nemo_ui::settings::GlassTier;
 
 /// Logical px kept from the bottom of the window: the capsule, its margin and the shadow.
 const STRIP: u32 = 124;
@@ -95,7 +94,7 @@ fn shots() -> Vec<Shot> {
             "player-bar-light-1280",
             with_base(scenario(wide, 0), BaseMode::Light),
         ),
-        strip("player-bar-glass-off-1280", off),
+        strip("player-bar-solid-1280", off),
         strip("player-bar-cover-b-1280", scenario(wide, 1)),
         strip(
             "player-bar-cover-c-light-1280",
@@ -106,34 +105,36 @@ fn shots() -> Vec<Shot> {
         window("player-bar-window-1280x800", scenario(wide, 0)),
         window("player-bar-window-960x600", scenario((960, 600), 0)),
     ];
-    out.extend(glass_shots());
+    out.extend(material_shots());
     out
 }
 
-/// The glass capsule over three backdrops (backdrop-calm spec): a dark red cover (album 8), a
-/// yellow-green one (album 6) and the red one in light mode; tier Low (glass) and Off (opaque),
-/// at 1280 and 960 px wide.
-fn glass_shots() -> Vec<Shot> {
+/// The Material capsule over four backdrops (bar-material spec): a dark red cover (album 8), a
+/// yellow-green one (album 6), the red one in light mode and in AMOLED, at 1280 and 960 px wide,
+/// and the red one with Reduce transparency (fully opaque).
+fn material_shots() -> Vec<Shot> {
     let mut out = Vec::new();
     for (stem, track, base) in [
         ("red", 32, BaseMode::Dark),
         ("yellow", 24, BaseMode::Dark),
         ("light", 32, BaseMode::Light),
+        ("amoled", 32, BaseMode::Amoled),
     ] {
-        for (tier_stem, tier) in [("low", GlassTier::Low), ("off", GlassTier::Off)] {
-            for size in [(1280, 800), (960, 600)] {
-                // The queue holds tracks 0 to 11: switch to the cover wanted, the way a song
-                // change does, and draw after the bloom.
-                let mut s = with_base(scenario(size, 0), base);
-                s.bloom = Some((track, 700));
-                s.settings.glass_tier = tier;
-                // A handful of names for the run of one example: leaking them is harmless.
-                let name: &'static str =
-                    Box::leak(format!("bar-glass-{stem}-{tier_stem}-{}", size.0).into_boxed_str());
-                out.push(strip(name, s));
-            }
+        for size in [(1280, 800), (960, 600)] {
+            // The queue holds tracks 0 to 11: switch to the cover wanted, the way a song change
+            // does, and draw after the bloom.
+            let mut s = with_base(scenario(size, 0), base);
+            s.bloom = Some((track, 700));
+            // A handful of names for the run of one example: leaking them is harmless.
+            let name: &'static str =
+                Box::leak(format!("bar-material-{stem}-{}", size.0).into_boxed_str());
+            out.push(strip(name, s));
         }
     }
+    let mut solid = with_base(scenario((1280, 800), 0), BaseMode::Dark);
+    solid.bloom = Some((32, 700));
+    solid.settings.reduce_transparency = true;
+    out.push(strip("bar-material-red-solid-1280", solid));
     out
 }
 

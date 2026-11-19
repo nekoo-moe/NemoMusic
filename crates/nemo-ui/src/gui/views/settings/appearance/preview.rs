@@ -7,11 +7,12 @@ use iced::widget::{Space, column, container, row, stack};
 use iced::{Alignment, Background, Border, Element, Length, Padding};
 
 use crate::gui::app::{App, Message};
-use crate::gui::style::{DOWN, col, gap, label};
+use crate::gui::style::{DOWN, col, gap, label, shadow};
+use crate::gui::views::bar::capsule_fill;
 use crate::palette::{Palette, mix_rgb};
 use crate::scheme::PANE_ALPHA;
 use crate::settings::NowPlayingStyle;
-use crate::theme::{Rgba, color, shape, type_scale};
+use crate::theme::{Rgba, color, glass, shape, type_scale};
 use crate::window_glass::WindowGlass;
 
 /// Height of the preview.
@@ -155,18 +156,10 @@ fn right<'a>(app: &App, accent: &Palette, fill: Rgba) -> Element<'a, Message> {
     pane(body, Length::Fixed(RIGHT_W), fill)
 }
 
-/// The floating bar: a cover, two lines, the play disc and a rail. Low glass tints it with the
-/// accent; Off and light mode draw the plain surface with a thin border.
+/// The floating bar: a cover, two lines, the play disc and a rail, on the same Material surface
+/// as the real bar: a tonal fill, no outline, a soft shadow.
 fn bar<'a>(app: &App, accent: &Palette) -> Element<'a, Message> {
-    let s = &app.ui.settings;
-    let plain = s.opaque_chrome();
-    let base = color::surface_container_high();
-    let fill = if plain {
-        base
-    } else {
-        accent.primary_container.with_alpha(0.18).over(base)
-    };
-    let outline = plain.then(color::outline_variant);
+    let fill = capsule_fill(app);
     let inner = row![
         block(
             Length::Fixed(20.0),
@@ -200,9 +193,13 @@ fn bar<'a>(app: &App, accent: &Palette) -> Element<'a, Message> {
             background: Some(col(fill).into()),
             border: Border {
                 radius: shape::FULL.into(),
-                width: if outline.is_some() { 1.0 } else { 0.0 },
-                color: col(outline.unwrap_or(fill)),
+                ..Border::default()
             },
+            shadow: shadow(
+                glass::ELEVATED_OFFSET_Y,
+                glass::ELEVATED_BLUR,
+                glass::SHADOW,
+            ),
             ..container::Style::default()
         })
         .into()

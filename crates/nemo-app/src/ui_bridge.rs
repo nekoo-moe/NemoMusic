@@ -109,6 +109,9 @@ pub enum SettingsMsg {
     Ui(UiSettings),
     /// Output status updated from the player.
     Output(OutputStatus),
+    /// Answer on the channel once everything sent before has been saved (the restart waits for
+    /// it).
+    Flush(Sender<()>),
 }
 
 /// Update `settings.output_device` from the player's output status.
@@ -149,6 +152,9 @@ pub fn options(settings: Settings, root: PathBuf) -> (UiOptions, Sender<Settings
         music_folders: folders,
         // No folder picker yet: folders are edited in settings.json (see README).
         on_add_music_folder: None,
+        on_restart: Some(crate::restart::handler(saver.clone())),
+        #[cfg(windows)]
+        on_window_ready: Some(crate::blur::handler()),
         maximized: true,
         // One switch: the OS preference here, OR the user's Settings toggle (the UI joins them).
         reduced_motion: crate::os_motion::reduce_motion(),
@@ -194,6 +200,7 @@ fn spawn_saver(mut settings: Settings, root: PathBuf) -> Sender<SettingsMsg> {
         .spawn(move || {
             while let Ok(msg) = rx.recv() {
                 let mut changed = false;
+                let mut acks = Vec::new();
                 match msg {
                     SettingsMsg::Ui(mut ui) => {
                         // Keep only the newest change when the user drags a slider.
@@ -203,6 +210,7 @@ fn spawn_saver(mut settings: Settings, root: PathBuf) -> Sender<SettingsMsg> {
                                 SettingsMsg::Output(status) => {
                                     apply_output_choice(&mut settings, &status);
                                 }
+                                SettingsMsg::Flush(ack) => acks.push(ack),
                             }
                         }
                         apply_ui(&mut settings, &ui);
@@ -211,9 +219,14 @@ fn spawn_saver(mut settings: Settings, root: PathBuf) -> Sender<SettingsMsg> {
                     SettingsMsg::Output(status) => {
                         changed |= apply_output_choice(&mut settings, &status);
                     }
+                    SettingsMsg::Flush(ack) => acks.push(ack),
                 }
                 if changed && let Err(err) = settings.save(&root) {
                     tracing::warn!(error = %err, "cannot save settings");
+                }
+                // Answered after the write, so the sender knows the file is current.
+                for ack in acks {
+                    let _ = ack.send(());
                 }
             }
         });
@@ -397,5 +410,27 @@ mod tests {
         status.chosen = None;
         assert!(apply_output_choice(&mut s, &status));
         assert_eq!(s.output_device, None);
+    }
+
+    #[test]
+    fn a_flush_is_answered_after_the_change_reached_the_disk() {
+        let root = std::env::temp_dir().join(format!("nemo-flush-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root); // A leftover from an earlier run is fine to drop.
+        std::fs::create_dir_all(&root).expect("dir");
+        let tx = spawn_saver(Settings::default(), root.clone());
+        let ui = UiSettings {
+            window_glass: true,
+            ..to_ui(&Settings::default())
+        };
+        tx.send(SettingsMsg::Ui(ui)).expect("saver");
+        let (ack, done) = channel();
+        tx.send(SettingsMsg::Flush(ack)).expect("saver");
+        done.recv_timeout(std::time::Duration::from_secs(5))
+            .expect("answered");
+        assert!(
+            Settings::load(&root).window_glass,
+            "written before the answer"
+        );
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

@@ -1,136 +1,72 @@
-//! The capsule's surface. Tier Low draws real glass (owner, 2026-11-19; backdrop-calm): the
-//! `surface-container` fill at half opacity over the window backdrop, which shows through (the
-//! panes end above the capsule, so only the backdrop lies behind it), a light inner gradient, a
-//! 1 px white rim with a brighter glint on the top edge, a 1 px `outline-variant` edge and a soft
-//! outer shadow. Tier Off and reduce transparency draw the opaque `surface-container-high` with
-//! the 1 px `outline-variant` edge. The edges are borders and gradients, not textures: images
-//! cannot be clipped to round corners on the software renderer.
+//! The capsule's surface (owner, 2026-11-19; bar-material): a Material 3 tonal surface. The fill
+//! is `surface-container-high` at 0.90 alpha in dark and AMOLED and 0.92 in light, so the window
+//! backdrop shows through faintly. There is no outline, no rim, no glint and no inner highlight:
+//! depth comes from the tone and the level 3 shadow (`design.md` section 5). Reduce
+//! transparency, and a see-through window (Window glass), draw the fill fully opaque. The
+//! `glass_tier` setting stays so old config files load; both of its values draw this surface.
 
-use iced::widget::{Space, container, stack};
-use iced::{Border, Element, Length, Padding};
+use iced::widget::{Space, container};
+use iced::{Border, Element, Length};
 
 use super::px;
 use crate::gui::app::{App, Message};
-use crate::gui::style::{col, shadow, vertical_gradient};
+use crate::gui::style::{col, shadow};
 use crate::layout::PLAYER_BAR_HEIGHT;
-use crate::settings::GlassTier;
 use crate::theme::{Rgba, color, glass, shape};
 
-/// `true` when the capsule draws glass: tier Low with transparency not reduced.
+/// `true` when the capsule draws fully opaque: Reduce transparency is on, or the window itself is
+/// see-through (the bar stays solid there, `design.md` section 6).
 #[must_use]
-pub fn glassy(app: &App) -> bool {
-    app.ui.settings.glass_tier == GlassTier::Low && !app.ui.settings.reduce_transparency
+pub fn solid(app: &App) -> bool {
+    app.ui.settings.reduce_transparency || app.window_glass().is_clear()
 }
 
-/// The glass fill at the top and at the bottom edge, with alpha: `base` at the mean alpha of the
-/// mode ([`glass::BAR_FILL_ALPHA`] in light mode, [`glass::BAR_FILL_ALPHA_DARK`] in dark and
-/// AMOLED) plus and minus its slope, the top lifted toward white by [`glass::BAR_LIFT`].
+/// Alpha of the capsule fill: 1 when `solid`, else [`glass::BAR_ALPHA`] (dark and AMOLED) or
+/// [`glass::BAR_ALPHA_LIGHT`].
 #[must_use]
-pub fn glass_stops(base: Rgba, light: bool) -> [Rgba; 2] {
-    let (mean, slope) = if light {
-        (glass::BAR_FILL_ALPHA, glass::BAR_FILL_SLOPE)
+pub fn fill_alpha(light: bool, solid: bool) -> f32 {
+    if solid {
+        1.0
+    } else if light {
+        glass::BAR_ALPHA_LIGHT
     } else {
-        (glass::BAR_FILL_ALPHA_DARK, glass::BAR_FILL_SLOPE_DARK)
-    };
-    let top = glass::EDGE
-        .with_alpha(glass::BAR_LIFT)
-        .over(base)
-        .with_alpha(mean + slope);
-    let bottom = base.with_alpha(mean - slope);
-    [top, bottom]
+        glass::BAR_ALPHA
+    }
 }
 
-/// A left to right gradient through three stops.
-fn across(stops: [iced::Color; 3]) -> iced::Background {
-    let g = iced::gradient::Linear::new(iced::Radians(std::f32::consts::FRAC_PI_2))
-        .add_stop(0.0, stops[0])
-        .add_stop(0.5, stops[1])
-        .add_stop(1.0, stops[2]);
-    iced::Background::Gradient(g.into())
+/// The fill of the capsule now: `surface-container-high` at [`fill_alpha`].
+#[must_use]
+pub fn fill(app: &App) -> Rgba {
+    let alpha = fill_alpha(app.ui.settings.base.is_light(), solid(app));
+    color::surface_container_high().with_alpha(alpha)
 }
 
-/// The capsule body: fill, edge and shadow, `bar_w` px wide.
+/// The capsule's container style for `fill`: a flat colour, rounded corners, the level 3 shadow,
+/// and no border.
+fn style(fill: Rgba) -> container::Style {
+    container::Style {
+        background: Some(col(fill).into()),
+        border: Border {
+            radius: shape::xl().into(),
+            ..Border::default()
+        },
+        shadow: shadow(
+            glass::ELEVATED_OFFSET_Y,
+            glass::ELEVATED_BLUR,
+            glass::SHADOW,
+        ),
+        ..container::Style::default()
+    }
+}
+
+/// The capsule body: fill and shadow, `bar_w` px wide.
 pub(super) fn body<'a>(app: &App, bar_w: f32) -> Element<'a, Message> {
-    let (background, edge, shade) = if glassy(app) {
-        let [top, bottom] =
-            glass_stops(color::surface_container(), app.ui.settings.base.is_light());
-        (
-            vertical_gradient(col(top), col(bottom)),
-            col(color::outline_variant().with_alpha(glass::BAR_OUTLINE_ALPHA)),
-            shadow(glass::SHADOW_OFFSET_Y, glass::SHADOW_BLUR, glass::SHADOW),
-        )
-    } else {
-        (
-            col(color::surface_container_high()).into(),
-            col(color::outline_variant()),
-            shadow(
-                glass::ELEVATED_OFFSET_Y,
-                glass::ELEVATED_BLUR,
-                glass::SHADOW,
-            ),
-        )
-    };
+    let fill = fill(app);
     container(Space::new())
         .width(Length::Fixed(bar_w))
         .height(Length::Fixed(px(PLAYER_BAR_HEIGHT)))
-        .style(move |_| container::Style {
-            background: Some(background),
-            border: Border {
-                color: edge,
-                width: 1.0,
-                radius: shape::xl().into(),
-            },
-            shadow: shade,
-            ..container::Style::default()
-        })
+        .style(move |_| style(fill))
         .into()
-}
-
-/// The 1 px white rim just inside the edge (tier Low only).
-fn rim<'a>(bar_w: f32) -> Element<'a, Message> {
-    let ring = container(Space::new())
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .style(|_| container::Style {
-            border: Border {
-                color: col(glass::EDGE.with_alpha(glass::EDGE_ALPHA)),
-                width: 1.0,
-                radius: (shape::xl() - 1.0).into(),
-            },
-            ..container::Style::default()
-        });
-    container(ring)
-        .width(Length::Fixed(bar_w))
-        .height(Length::Fixed(px(PLAYER_BAR_HEIGHT)))
-        .padding(1)
-        .into()
-}
-
-/// The rim and the glint on the top edge (tier Low only): a 1 px line that fades out toward
-/// both corners.
-pub(super) fn glint<'a>(app: &App, bar_w: f32) -> Element<'a, Message> {
-    if !glassy(app) {
-        return Space::new().into();
-    }
-    let peak = col(glass::EDGE.with_alpha(glass::EDGE_ALPHA_TOP));
-    let none = col(glass::EDGE.with_alpha(0.0));
-    let line = container(Space::new())
-        .width(Length::Fill)
-        .height(Length::Fixed(1.0))
-        .style(move |_| container::Style {
-            background: Some(across([none, peak, none])),
-            ..container::Style::default()
-        });
-    let top = container(line)
-        .width(Length::Fixed(bar_w))
-        .height(Length::Fixed(px(PLAYER_BAR_HEIGHT)))
-        .padding(Padding {
-            top: 1.0,
-            left: shape::xl(),
-            right: shape::xl(),
-            bottom: 0.0,
-        });
-    stack![rim(bar_w), top].into()
 }
 
 #[cfg(test)]
@@ -194,26 +130,24 @@ mod tests {
         out
     }
 
-    /// Check both inks over the glass over `back`, with and without the shadow the CPU renderer
-    /// also draws under the fill.
+    /// Check both inks over the Material surface over `back`, with and without the shadow the CPU
+    /// renderer also draws under the fill.
     fn check(n: &Neutrals, light: bool, back: Rgba, what: &str) {
         let shadow_colour = Rgba::from_rgb_hex(0x00_0000);
         for v in [0.0, VIGNETTE_MID_ALPHA, VIGNETTE_ALPHA] {
             let seen = n.lowest.with_alpha(v).over(back);
             for shade in [0.0, glass::SHADOW.alpha()] {
                 let behind = shadow_colour.with_alpha(shade).over(seen);
-                for fill in glass_stops(n.container, light) {
-                    let f = fill.over(behind);
-                    for (ink, name) in [
-                        (n.on_surface, "on-surface"),
-                        (n.on_surface_variant, "on-surface-variant"),
-                    ] {
-                        let r = contrast_ratio(ink, f);
-                        assert!(
-                            r >= 4.5,
-                            "{what} {name} {r:.2} (vignette {v}, shadow {shade})"
-                        );
-                    }
+                let f = n.high.with_alpha(fill_alpha(light, false)).over(behind);
+                for (ink, name) in [
+                    (n.on_surface, "on-surface"),
+                    (n.on_surface_variant, "on-surface-variant"),
+                ] {
+                    let r = contrast_ratio(ink, f);
+                    assert!(
+                        r >= 4.5,
+                        "{what} {name} {r:.2} (vignette {v}, shadow {shade})"
+                    );
                 }
             }
         }
@@ -265,18 +199,23 @@ mod tests {
     }
 
     #[test]
-    fn the_glass_is_translucent_clearer_in_dark_and_a_little_lighter_on_top() {
-        for (n, light, lo, hi) in [
-            (Neutrals::DARK, false, 0.35, 0.45),
-            (Neutrals::AMOLED, false, 0.35, 0.45),
-            (Neutrals::LIGHT, true, 0.49, 0.55),
-        ] {
-            let [top, bottom] = glass_stops(n.container, light);
-            for a in [top.alpha(), bottom.alpha()] {
-                assert!((lo..=hi).contains(&a), "fill alpha {a}");
-            }
-            assert!(top.alpha() > bottom.alpha(), "more fill at the top edge");
-            assert_ne!(top.with_alpha(1.0), bottom.with_alpha(1.0), "a lifted top");
-        }
+    fn the_fill_is_90_percent_in_dark_92_in_light_and_opaque_when_solid() {
+        assert!((fill_alpha(false, false) - 0.90).abs() < 1e-6);
+        assert!((fill_alpha(true, false) - 0.92).abs() < 1e-6);
+        assert!((fill_alpha(false, true) - 1.0).abs() < 1e-6);
+        assert!((fill_alpha(true, true) - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn the_capsule_has_no_outline_no_gradient_and_the_level_3_shadow() {
+        let st = style(Neutrals::DARK.high.with_alpha(fill_alpha(false, false)));
+        assert!(st.border.width.abs() < f32::EPSILON, "no outline, no rim");
+        assert!(
+            matches!(st.background, Some(iced::Background::Color(_))),
+            "a flat fill, no glint or highlight gradient"
+        );
+        assert!((st.shadow.offset.y - 4.0).abs() < f32::EPSILON);
+        assert!((st.shadow.blur_radius - 16.0).abs() < f32::EPSILON);
+        assert!((st.shadow.color.a - 0.32).abs() < 0.01);
     }
 }
