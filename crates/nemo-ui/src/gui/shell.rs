@@ -177,6 +177,21 @@ impl Shell {
         style::theme()
     }
 
+    /// iced `style`: the window colour. Transparent while the window glass is clear, so only
+    /// the backdrop decides what the desktop shows through (appearance-glass spec); the splash
+    /// and every other state keep the opaque colour of the theme.
+    #[must_use]
+    pub fn style(&self, theme: &iced::Theme) -> iced::theme::Style {
+        let base = iced::theme::Base::base(theme);
+        match &self.stage {
+            Stage::Running(app) if app.window_is_clear() => iced::theme::Style {
+                background_color: iced::Color::TRANSPARENT,
+                ..base
+            },
+            _ => base,
+        }
+    }
+
     /// iced `subscription`: the app's streams, and frames while the splash moves.
     pub fn subscription(&self) -> Subscription<ShellMessage> {
         let mut subs = Vec::new();
@@ -225,6 +240,8 @@ impl Shell {
 pub fn run_with_startup(start: StartFn, options: UiOptions) -> iced::Result {
     let (width, height) = options.window_size;
     let maximized = options.maximized;
+    // The window is created once: it is see-through only when the switch is on now.
+    let transparent = options.settings.window_glass;
     let min = crate::theme::layout::MIN_WINDOW;
     let slot = Mutex::new(Some((start, options)));
     iced::application(
@@ -245,6 +262,7 @@ pub fn run_with_startup(start: StartFn, options: UiOptions) -> iced::Result {
     .title(Shell::title)
     .subscription(Shell::subscription)
     .theme(Shell::theme)
+    .style(Shell::style)
     .font(assets::FONT_REGULAR)
     .font(assets::FONT_MEDIUM)
     .font(assets::FONT_SEMIBOLD)
@@ -256,6 +274,7 @@ pub fn run_with_startup(start: StartFn, options: UiOptions) -> iced::Result {
         size: iced::Size::new(width, height),
         min_size: Some(iced::Size::new(min.0, min.1)),
         maximized,
+        transparent,
         ..window::Settings::default()
     })
     .run()

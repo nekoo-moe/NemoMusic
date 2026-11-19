@@ -111,7 +111,7 @@ pub(super) fn left_pane(app: &App, width: f32, _h: u32) -> Element<'_, Message> 
     pane_surface(
         c.padding(Padding::from([gap::MD, gap::MD])),
         Length::Fixed(width),
-        col(color::surface_container().with_alpha(crate::scheme::PANE_ALPHA)).into(),
+        col(color::surface_container().with_alpha(crate::scheme::pane_alpha())).into(),
     )
     .into()
 }

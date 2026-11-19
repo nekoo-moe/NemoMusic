@@ -25,7 +25,7 @@ pub const QUICK_H: f32 = 64.0;
 /// The colour of the pane behind a page; entrances fade to it.
 #[must_use]
 pub fn pane_bg() -> Color {
-    col(color::surface_container().with_alpha(crate::scheme::PANE_ALPHA))
+    col(color::surface_container().with_alpha(crate::scheme::pane_alpha()))
 }
 
 /// A scrolling page: a column `content_w` px wide, centred, with a thin scroll bar and bottom

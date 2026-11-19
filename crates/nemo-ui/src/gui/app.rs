@@ -40,6 +40,7 @@ mod dispatch;
 mod explore;
 #[cfg(test)]
 mod frame_tests;
+mod glass;
 mod handle;
 mod job;
 mod message;
@@ -201,6 +202,9 @@ pub struct App {
     /// Mini player and full-screen Now Playing.
     pub(crate) mini: bool,
     pub(crate) fullscreen: bool,
+    /// The window was created see-through (the window glass switch was on at start; the
+    /// window is created once, so this never changes).
+    pub(crate) window_transparent: bool,
     /// Window size before the mini player.
     normal_size: Size,
     hooks: UiHooks,
@@ -337,6 +341,7 @@ impl App {
             sleep: None,
             speed_percent: 100,
             mini: false,
+            window_transparent: options.settings.window_glass,
             fullscreen: false,
             normal_size: Size::new(options.window_size.0, options.window_size.1),
             hooks: options.hooks.clone(),
@@ -361,6 +366,7 @@ impl App {
             ),
         };
         color::set_active(app.scheme_fade.current());
+        app.sync_pane_alpha();
         app.lyric_sources = app.backend.lyrics.providers();
         shape::set_scale_percent(options.settings.corner_style.percent());
         let mut jobs = Vec::new();

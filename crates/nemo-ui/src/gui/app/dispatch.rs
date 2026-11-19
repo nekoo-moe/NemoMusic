@@ -58,6 +58,7 @@ impl App {
                     }
                     Effect::FocusSearch => self.focus_search = true,
                     Effect::SettingsChanged(settings) => {
+                        self.sync_pane_alpha();
                         if let Some(cb) = &self.on_settings {
                             cb(settings);
                         }
