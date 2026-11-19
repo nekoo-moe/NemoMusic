@@ -85,7 +85,8 @@ async fn the_window_is_started_for_soundcloud_with_its_own_profile_folder() {
     let args: Vec<&str> = args.split_whitespace().collect();
     assert_eq!(&args[..3], ["--signin", "--site", "soundcloud"]);
     assert_eq!(args[3], "--data-dir");
-    assert!(Path::new(args[4]).ends_with("profile"));
+    // A Windows batch file gets its arguments quoted.
+    assert!(Path::new(args[4].trim_matches('"')).ends_with("profile"));
     assert!(!args.iter().any(|a| a.contains(TOKEN)));
 }
 
