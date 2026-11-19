@@ -37,6 +37,9 @@ use crate::ytdlp::YtDlpResolver;
 pub const EXPIRY_MARGIN: Duration = Duration::from_mins(10);
 /// Most videos kept in the cache.
 pub const MAX_CACHED: usize = 64;
+/// Pause after each background resolve of a hint ([`StreamResolver::warm`]): hints come one at
+/// a time and a little apart, so a queue or a start-up never makes a burst of requests.
+pub const WARM_PAUSE: Duration = Duration::from_millis(400);
 /// Failed opens of primary streams after which the primary is switched off.
 pub const PRIMARY_FAILURE_LIMIT: u32 = 3;
 /// How long the primary may take before the fallback starts alongside it. A native answer
@@ -48,8 +51,12 @@ pub const RACE_AFTER: Duration = Duration::from_millis(1500);
 /// reports its formats need a PO token, so it is second (measured 2026-11-11, one video).
 pub const NATIVE_PROFILES: &[ClientProfile] = &[VISIONOS, ANDROID_VR];
 
+mod check;
+mod persist;
 mod rest;
 
+pub use check::{CHECK_TIMEOUT, HttpUrlCheck, UrlCheck};
+pub use persist::{SIGN_OUT_STEP as STREAM_STORE_STEP, StreamStore};
 use rest::{Outcome, Rest};
 pub use rest::{PRIMARY_MISS_LIMIT, PRIMARY_PAUSE, PRIMARY_REFUSAL_LIMIT, PRIMARY_REFUSAL_PAUSE};
 
@@ -105,6 +112,16 @@ pub struct CachedResolver {
     inner: Arc<dyn StreamResolver>,
     handle: Handle,
     slots: Slots,
+    persisted: Option<Persisted>,
+    /// One permit: hints are resolved one at a time.
+    warming: Arc<tokio::sync::Semaphore>,
+}
+
+/// The file of kept streams and the check that runs before one of them is reused.
+#[derive(Clone)]
+struct Persisted {
+    store: Arc<StreamStore>,
+    check: Arc<dyn UrlCheck>,
 }
 
 impl std::fmt::Debug for CachedResolver {
@@ -121,7 +138,18 @@ impl CachedResolver {
             inner,
             handle,
             slots: Arc::default(),
+            persisted: None,
+            warming: Arc::new(tokio::sync::Semaphore::new(1)),
         }
+    }
+
+    /// Also keep the streams of the automatic request in `store` (a file that survives a
+    /// restart), and reuse one from an earlier run only after `check` says its address still
+    /// answers.
+    #[must_use]
+    pub fn with_persisted(mut self, store: Arc<StreamStore>, check: Arc<dyn UrlCheck>) -> Self {
+        self.persisted = Some(Persisted { store, check });
+        self
     }
 
     /// The slot for `key`: the live one, or a fresh one.
@@ -142,16 +170,63 @@ impl CachedResolver {
         slot
     }
 
+    /// A stream kept by an earlier run, when its address still answers.
+    async fn from_disk(
+        persisted: Option<&Persisted>,
+        video: &VideoId,
+        request: &StreamRequest,
+    ) -> Option<ResolvedStream> {
+        let kept = persisted?;
+        if *request != DEFAULT_REQUEST {
+            return None;
+        }
+        let stream = kept.store.get(video)?;
+        let began = Instant::now();
+        let alive = kept.check.alive(&stream).await;
+        timing::stage("stored stream check", began, alive);
+        if alive {
+            return Some(stream);
+        }
+        let store = Arc::clone(&kept.store);
+        let video = video.clone();
+        drop(tokio::task::spawn_blocking(move || store.forget(&video)));
+        None
+    }
+
+    /// Keep a fresh stream of the automatic request in the file.
+    fn remember(
+        persisted: Option<&Persisted>,
+        video: &VideoId,
+        request: &StreamRequest,
+        answer: &Answer,
+    ) {
+        let (Some(kept), Ok(stream)) = (persisted, answer) else {
+            return;
+        };
+        if *request == DEFAULT_REQUEST && kept.store.put(video, stream) {
+            let store = Arc::clone(&kept.store);
+            drop(tokio::task::spawn_blocking(move || store.flush()));
+        }
+    }
+
     async fn get(
         inner: Arc<dyn StreamResolver>,
         slots: Slots,
+        persisted: Option<Persisted>,
         video: VideoId,
         request: StreamRequest,
     ) -> Answer {
         let key = CacheKey::new(&video, &request);
         let slot = Self::slot(&slots, &key);
         let answer = slot
-            .get_or_init(|| async { inner.resolve_with(&video, &request).await })
+            .get_or_init(|| async {
+                if let Some(kept) = Self::from_disk(persisted.as_ref(), &video, &request).await {
+                    return Ok(kept);
+                }
+                let answer = inner.resolve_with(&video, &request).await;
+                Self::remember(persisted.as_ref(), &video, &request, &answer);
+                answer
+            })
             .await
             .clone();
         let keep = answer.as_ref().is_ok_and(|s| usable(s, SystemTime::now()));
@@ -193,6 +268,7 @@ impl StreamResolver for CachedResolver {
         let task = self.handle.spawn(Self::get(
             Arc::clone(&self.inner),
             Arc::clone(&self.slots),
+            self.persisted.clone(),
             video.clone(),
             request.clone(),
         ));
@@ -210,13 +286,18 @@ impl StreamResolver for CachedResolver {
             .get(&CacheKey::new(video, &DEFAULT_REQUEST))
             .is_some_and(|s| slot_is_live(s, SystemTime::now()));
         if !known {
-            // The answer lands in the cache; nobody waits for it here.
-            drop(self.handle.spawn(Self::get(
-                Arc::clone(&self.inner),
-                Arc::clone(&self.slots),
-                video.clone(),
-                StreamRequest::default(),
-            )));
+            // The answer lands in the cache; nobody waits for it here. Hints go one at a time,
+            // a little apart; a song that is asked for meanwhile shares the running resolve.
+            let (inner, slots) = (Arc::clone(&self.inner), Arc::clone(&self.slots));
+            let (persisted, warming) = (self.persisted.clone(), Arc::clone(&self.warming));
+            let video = video.clone();
+            drop(self.handle.spawn(async move {
+                let Ok(_turn) = warming.acquire().await else {
+                    return;
+                };
+                let _ = Self::get(inner, slots, persisted, video, StreamRequest::default()).await;
+                tokio::time::sleep(WARM_PAUSE).await;
+            }));
         }
     }
 
@@ -226,6 +307,9 @@ impl StreamResolver for CachedResolver {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .retain(|key, _| key.video != video.as_str());
+        if let Some(kept) = &self.persisted {
+            kept.store.forget(video);
+        }
         self.inner.stream_failed(video);
     }
 }
@@ -465,6 +549,18 @@ pub fn default_chain(
     allowed: &[Codec],
     handle: &Handle,
 ) -> Arc<dyn StreamResolver> {
+    persisted_chain(ytdlp, allowed, handle, None)
+}
+
+/// [`default_chain`] whose cache also keeps its streams in `store`, when there is one: a song
+/// played in the last hours then starts at once after a restart.
+#[must_use]
+pub fn persisted_chain(
+    ytdlp: YtDlpResolver,
+    allowed: &[Codec],
+    handle: &Handle,
+    store: Option<Arc<StreamStore>>,
+) -> Arc<dyn StreamResolver> {
     let inner: Arc<dyn StreamResolver> =
         match InnertubeResolver::new(handle.clone(), NATIVE_PROFILES) {
             Ok(native) => Arc::new(FallbackResolver::new(
@@ -476,7 +572,16 @@ pub fn default_chain(
                 Arc::new(ytdlp)
             }
         };
-    Arc::new(CachedResolver::new(inner, handle.clone()))
+    let cached = CachedResolver::new(inner, handle.clone());
+    let cached = match (store, HttpUrlCheck::new()) {
+        (Some(store), Ok(check)) => cached.with_persisted(store, Arc::new(check)),
+        (Some(_), Err(e)) => {
+            tracing::warn!(error = %e, "streams are not kept between runs");
+            cached
+        }
+        (None, _) => cached,
+    };
+    Arc::new(cached)
 }
 
 #[cfg(test)]

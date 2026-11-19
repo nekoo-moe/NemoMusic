@@ -15,7 +15,8 @@
 
 use std::fmt;
 use std::io::{self, Read, Seek, SeekFrom};
-use std::time::Duration;
+use std::sync::OnceLock;
+use std::time::{Duration, Instant};
 
 use nemo_core::services::{ByteSource, StreamOpener};
 use nemo_core::stream::{ResolvedStream, StreamError};
@@ -23,6 +24,7 @@ use reqwest::blocking::Client;
 use reqwest::header::{CONTENT_RANGE, RANGE};
 
 use crate::http::{https_redirects, is_https};
+use crate::timing;
 
 /// Largest range one request may ask for, in bytes.
 pub const MAX_CHUNK_BYTES: u64 = 10 * 1024 * 1024;
@@ -161,23 +163,41 @@ fn build_client(https_only: bool) -> Result<Client, StreamError> {
         .map_err(|_| StreamError::Network("could not build the HTTP client".to_owned()))
 }
 
+/// The one client every song is read with (cold-start spec): building it costs about 40 ms, and
+/// a pooled connection to the media host saves the TLS handshake of the next song. The app
+/// builds it before the first click ([`HttpStreamOpener::prepare`]). A failed build is not kept.
+fn shared_client(https_only: bool) -> Result<Client, StreamError> {
+    static HTTPS: OnceLock<Client> = OnceLock::new();
+    static ANY: OnceLock<Client> = OnceLock::new();
+    let slot = if https_only { &HTTPS } else { &ANY };
+    if let Some(client) = slot.get() {
+        return Ok(client.clone());
+    }
+    let built = build_client(https_only)?;
+    Ok(slot.get_or_init(|| built).clone())
+}
+
 impl HttpStream {
     /// Open `url` and fetch the first window, which also tells the total size.
     fn open(url: &str, https_only: bool) -> Result<Self, StreamError> {
         if https_only && !is_https(url) {
             return Err(StreamError::Network("stream URL is not HTTPS".to_owned()));
         }
+        let building = Instant::now();
+        let client = shared_client(https_only)?;
+        timing::stage("http client build", building, true);
         let mut stream = Self {
-            client: build_client(https_only)?,
+            client,
             url: url.to_owned(),
             pos: 0,
             len: None,
             buf: Vec::new(),
             buf_start: 0,
         };
-        stream
-            .fetch_window(0, FIRST_WINDOW_BYTES)
-            .map_err(FetchError::into_stream_error)?;
+        let fetching = Instant::now();
+        let first = stream.fetch_window(0, FIRST_WINDOW_BYTES);
+        timing::stage("http first window", fetching, first.is_ok());
+        first.map_err(FetchError::into_stream_error)?;
         if stream.buf.is_empty() {
             return Err(StreamError::Network("empty stream".to_owned()));
         }
@@ -353,6 +373,14 @@ impl HttpStreamOpener {
     #[must_use]
     pub const fn new() -> Self {
         Self { https_only: true }
+    }
+
+    /// Build the HTTP client the next [`open`](StreamOpener::open) uses, so the first song
+    /// does not pay for it. Cheap when it exists already; may take about 40 ms otherwise, so
+    /// call it from a background thread. Returns `false` when the client cannot be built.
+    #[must_use]
+    pub fn prepare(&self) -> bool {
+        shared_client(self.https_only).is_ok()
     }
 
     /// Test constructor: lets the loopback test server (plain HTTP) through.

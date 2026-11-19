@@ -3,6 +3,7 @@
 use std::path::PathBuf;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use nemo_audio::decoder::supported_stream_codecs;
 use nemo_audio::player::{Player, PlayerDeps};
@@ -26,10 +27,11 @@ use nemo_ytm::account::{AccountCatalog, AccountConfig, GoogleAccount, SessionSlo
 use nemo_ytm::catalog::YtmCatalog;
 use nemo_ytm::images::ImageCache;
 use nemo_ytm::offline::{OfflineCache, SystemClock};
-use nemo_ytm::resolver::default_chain;
+use nemo_ytm::resolver::{StreamStore, persisted_chain};
 use nemo_ytm::session::YtmSessionBackend;
 use nemo_ytm::sponsorblock::{ReqwestHttp, SponsorBlockSource};
 use nemo_ytm::stream::HttpStreamOpener;
+use nemo_ytm::warmup::WarmUp;
 use nemo_ytm::ytdlp::{YtDlpResolver, locate_yt_dlp, managed};
 use tokio::runtime::Handle;
 
@@ -38,6 +40,7 @@ use crate::merged::MergedCatalog;
 use crate::paths::AppPaths;
 use crate::play_hub::{self, PlayHub};
 use crate::soundcloud::{self, RoutingOpener};
+use crate::start_warm::{LastPlayed, StartupWarm, WarmSlot};
 use crate::ui_bridge::SettingsMsg;
 
 /// Starting a service failed. The message is user-safe.
@@ -56,6 +59,12 @@ fn fail(service: &'static str) -> impl FnOnce(String) -> StartError {
 pub struct Services {
     /// The UI-facing services.
     pub backend: Backend,
+    /// The `yt-dlp` resolver of the play path, kept for the start-up warm-up.
+    pub ytdlp: YtDlpResolver,
+    /// The streams kept between runs; the last played song is read from it at start-up.
+    pub streams: Arc<StreamStore>,
+    /// The start-up resolve-ahead budget (the last played song, the first songs of Home).
+    pub start_warm: Arc<StartupWarm>,
     /// The local library, rescanned on a worker thread.
     pub local: LocalCatalog,
 }
@@ -74,7 +83,12 @@ pub struct Startup {
     pub hub: Arc<Mutex<Option<PlayHub>>>,
     /// Where the running library goes, so the folder dialog can add a folder to it.
     pub library: crate::folder_picker::LibrarySlot,
+    /// Where the start-up warm-up goes, so `main` can end it after the window closes.
+    pub warm: Arc<Mutex<Option<WarmUp>>>,
 }
+
+/// How long after the services are up the warm-up starts: the first frame is long drawn by then.
+const WARM_UP_PAUSE: Duration = Duration::from_secs(1);
 
 impl Startup {
     /// Open the services behind the first frame, reporting each real step. The library scan, the
@@ -89,7 +103,12 @@ impl Startup {
         if let Ok(mut slot) = self.library.lock() {
             *slot = Some(services.local.clone());
         }
-        match play_hub::spawn(Arc::clone(&services.backend.player), play_observers()) {
+        // The song that played last is resolved ahead now, before Home brings its own hints.
+        services.start_warm.hint(services.streams.last_played());
+        match play_hub::spawn(
+            Arc::clone(&services.backend.player),
+            play_observers(&services.streams),
+        ) {
             Ok(hub) => {
                 if let Ok(mut slot) = self.hub.lock() {
                     *slot = Some(hub);
@@ -100,7 +119,29 @@ impl Startup {
             }
         }
         crate::ui_bridge::spawn_output_watcher(&services.backend.player, self.saver);
+        // After the first frame (this runs behind the splash): the HTTP client of the stream
+        // opener and one `yt-dlp --version`, so the first song does not pay for them.
+        let warm = WarmUp::start(
+            &self.handle,
+            services.ytdlp,
+            HttpStreamOpener::new(),
+            WARM_UP_PAUSE,
+        );
+        if let Ok(mut slot) = self.warm.lock() {
+            *slot = Some(warm);
+        }
         Ok(services.backend)
+    }
+}
+
+/// The SponsorBlock source, or `None` (with a warning) when its HTTP client cannot start.
+fn sponsorblock_source(handle: &Handle) -> Option<Arc<dyn SegmentSource>> {
+    match ReqwestHttp::new(handle.clone()) {
+        Ok(http) => Some(Arc::new(SponsorBlockSource::new(http))),
+        Err(err) => {
+            tracing::warn!(error = %err, "SponsorBlock disabled");
+            None
+        }
     }
 }
 
@@ -118,16 +159,26 @@ pub fn build(
     let local = LocalCatalog::new(LocalLibrary::new(settings.music_folders.clone()));
     let account_slot: SessionSlot = SessionSlot::default();
     let offline = open_offline(paths);
+    // Streams resolved in the last hours, kept between runs (cold-start spec).
+    let streams = Arc::new(StreamStore::open(paths.streams.clone()));
     report(StartStep::Library);
-    let account = build_account(paths, handle, &account_slot, offline);
+    let account = build_account(paths, handle, &account_slot, offline, &streams);
     report(StartStep::CredentialStore);
     // Signed out: the anonymous catalog. Signed in: the account's session, switched live.
     let remote = AccountCatalog::new(Arc::new(YtmCatalog::new(handle.clone())), account_slot);
+    // The first songs of Home are resolved ahead once the resolver exists (start_warm).
+    let warm_slot = WarmSlot::default();
+    let home_slot = Arc::clone(&warm_slot);
     let catalog = MergedCatalog::new(
         Arc::new(local.clone()),
         Arc::new(remote),
         LOCAL_ALBUM_PREFIX,
-    );
+    )
+    .with_home_hint(Arc::new(move |feed| {
+        if let Some(warm) = home_slot.get() {
+            warm.hint_home(feed);
+        }
+    }));
 
     let user_set = settings.yt_dlp_path.is_some();
     let program = settings.yt_dlp_path.clone().or_else(locate_yt_dlp);
@@ -148,15 +199,17 @@ pub fn build(
         ytdlp.program_slot(),
     );
     // Cache -> native player request -> yt-dlp (fast arguments, then the full extraction).
-    let resolver = default_chain(ytdlp, supported_stream_codecs(), handle);
+    let resolver = persisted_chain(
+        ytdlp.clone(),
+        supported_stream_codecs(),
+        handle,
+        Some(Arc::clone(&streams)),
+    );
+    let start_warm = StartupWarm::new(Arc::clone(&resolver));
+    // Already set only if `build` ran twice on one slot, which it does not.
+    let _ = warm_slot.set(Arc::clone(&start_warm));
 
-    let segments: Option<Arc<dyn SegmentSource>> = match ReqwestHttp::new(handle.clone()) {
-        Ok(http) => Some(Arc::new(SponsorBlockSource::new(http))),
-        Err(err) => {
-            tracing::warn!(error = %err, "SponsorBlock disabled");
-            None
-        }
-    };
+    let segments = sponsorblock_source(handle);
 
     // SoundCloud exists only when the switch is on and the notice confirmed (soundcloud-full).
     let sc = soundcloud::build(&settings.opt_ins, handle, || soundcloud::real_http(handle));
@@ -200,6 +253,9 @@ pub fn build(
         .map_err(|e| fail("covers")(e.to_string()))?;
 
     Ok(Services {
+        ytdlp,
+        streams,
+        start_warm,
         backend: Backend {
             catalog: Arc::new(catalog),
             player,
@@ -236,6 +292,7 @@ fn build_account(
     handle: &Handle,
     slot: &SessionSlot,
     offline: Option<Arc<OfflineCache>>,
+    streams: &Arc<StreamStore>,
 ) -> Arc<dyn AccountService> {
     let store = match nemo_secrets::open_platform_store() {
         Ok(store) => store,
@@ -257,7 +314,7 @@ fn build_account(
         slot.clone(),
         handle.clone(),
     );
-    for step in sign_out_steps(offline) {
+    for step in sign_out_steps(offline, Arc::clone(streams)) {
         account.register_wipe(step);
     }
     Arc::new(account)
@@ -287,18 +344,23 @@ fn open_offline(paths: &AppPaths) -> Option<Arc<OfflineCache>> {
 
 /// The one place where crates that keep account data register their sign-out step
 /// (ADR 0004, Decision 3). Sign-out runs them in this order, then removes the session.
-/// The offline cache is wiped whole, whichever account signs out.
-fn sign_out_steps(offline: Option<Arc<OfflineCache>>) -> Vec<Arc<dyn SignOutWipe>> {
+/// The offline cache is wiped whole, whichever account signs out; so is the file of kept
+/// streams (their addresses can carry the listener's IP).
+fn sign_out_steps(
+    offline: Option<Arc<OfflineCache>>,
+    streams: Arc<StreamStore>,
+) -> Vec<Arc<dyn SignOutWipe>> {
     offline
         .into_iter()
         .map(|cache| cache as Arc<dyn SignOutWipe>)
+        .chain(std::iter::once(streams as Arc<dyn SignOutWipe>))
         .collect()
 }
 
 /// The one place where services that watch playback register as play observers (integrations,
 /// listening stats). The play hub hands each of them every play event.
-pub fn play_observers() -> Vec<Arc<dyn PlayObserver>> {
-    Vec::new()
+pub fn play_observers(streams: &Arc<StreamStore>) -> Vec<Arc<dyn PlayObserver>> {
+    vec![Arc::new(LastPlayed(Arc::clone(streams)))]
 }
 
 /// Rescan the local library on its own thread so the window opens at once.
@@ -351,9 +413,10 @@ mod tests {
         let root = std::env::temp_dir().join(format!("nemo-app-wipe-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root); // A leftover from an earlier run is fine to drop.
         let paths = AppPaths::under(&root);
-        let steps = sign_out_steps(open_offline(&paths));
+        let streams = Arc::new(StreamStore::open(paths.streams.clone()));
+        let steps = sign_out_steps(open_offline(&paths), Arc::clone(&streams));
         let names: Vec<_> = steps.iter().map(|s| s.name()).collect();
-        assert_eq!(names, ["offline"]);
+        assert_eq!(names, ["offline", "streams"]);
         assert!(paths.offline.join("offline.db").is_file());
         let mut report = SignOutReport::default();
         for step in &steps {
@@ -361,7 +424,7 @@ mod tests {
         }
         assert!(report.failed_steps.is_empty() && report.items_removed >= 1);
         assert!(!paths.offline.exists());
-        assert!(sign_out_steps(None).is_empty());
+        assert_eq!(sign_out_steps(None, streams).len(), 1);
         let _ = std::fs::remove_dir_all(root); // Cleanup only.
     }
 }

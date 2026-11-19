@@ -10,9 +10,10 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use super::ProgramSlot;
+use crate::timing;
 use crate::ytdlp_install::{
     self, ASSET, InstallError, LINUX_ASSET, LINUX_ZIP_ASSET, checksum_for, fetch_asset, fetch_sums,
     unzip_on_path,
@@ -27,6 +28,51 @@ const CHECK_FILE: &str = "nemo-last-check";
 
 /// Set while a worker runs, so there is only ever one download at a time.
 static RUNNING: AtomicBool = AtomicBool::new(false);
+
+/// Set from the start of the app until the startup worker ends, when the app had no `yt-dlp`
+/// to run and the worker may install one (cold-start spec): a resolve that finds no program
+/// waits for it instead of failing.
+static PENDING: AtomicBool = AtomicBool::new(false);
+
+/// Longest a resolve waits for the installer.
+pub const INSTALL_WAIT: Duration = Duration::from_secs(90);
+/// How often a waiting resolve looks at the installer.
+const WAIT_STEP: Duration = Duration::from_millis(100);
+
+/// Clears a pending flag when the worker ends, whichever way it ends.
+struct Pending<'a>(&'a AtomicBool);
+
+impl Drop for Pending<'_> {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::Release);
+    }
+}
+
+/// Wait for the installer to hand over a program, for at most [`INSTALL_WAIT`]. `None` when no
+/// install is running (or it ended without a program, or the time ran out).
+pub async fn wait_for_install(slot: &ProgramSlot) -> Option<PathBuf> {
+    wait_until(slot, &PENDING, INSTALL_WAIT).await
+}
+
+async fn wait_until(
+    slot: &ProgramSlot,
+    pending: &AtomicBool,
+    longest: Duration,
+) -> Option<PathBuf> {
+    let began = Instant::now();
+    loop {
+        // The flag is read first: the worker sets the slot before it clears the flag, so a
+        // cleared flag means the slot is final.
+        let running = pending.load(Ordering::Acquire);
+        if let Some(program) = slot.get() {
+            return Some(program.clone());
+        }
+        if !running || began.elapsed() >= longest {
+            return None;
+        }
+        tokio::time::sleep(WAIT_STEP).await;
+    }
+}
 
 /// The release build this platform installs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -219,9 +265,15 @@ pub fn start_in_background(
     found: Option<PathBuf>,
     slot: ProgramSlot,
 ) {
+    // Nothing to run yet and an install allowed: resolves wait for the worker.
+    let waiting = auto_install && !user_set && found.is_none();
+    if waiting {
+        PENDING.store(true, Ordering::Release);
+    }
     let spawned = std::thread::Builder::new()
         .name("yt-dlp-install".into())
         .spawn(move || {
+            let _pending = waiting.then(|| Pending(&PENDING));
             let start = Startup {
                 auto_install,
                 user_set,
@@ -230,6 +282,7 @@ pub fn start_in_background(
             run_startup(&start, &slot);
         });
     if let Err(e) = spawned {
+        PENDING.store(false, Ordering::Release);
         tracing::warn!(error = %e, "cannot start the yt-dlp install worker");
     }
 }
@@ -249,7 +302,10 @@ fn run_startup(start: &Startup<'_>, slot: &ProgramSlot) {
     if RUNNING.swap(true, Ordering::AcqRel) {
         return;
     }
-    match run(&managed, plan, now) {
+    let began = Instant::now();
+    let done = run(&managed, plan, now);
+    timing::stage("yt-dlp install worker", began, done.is_ok());
+    match done {
         Ok(Some(program)) => {
             tracing::info!(update = plan == Plan::CheckForUpdate, "yt-dlp installed");
             // Already set only when an earlier install in this run set the same path.

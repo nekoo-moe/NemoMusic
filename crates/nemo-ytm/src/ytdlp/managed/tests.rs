@@ -175,3 +175,66 @@ fn an_installed_program_switches_every_resolver_clone() {
     assert!(!slot.set(PathBuf::from("/other")));
     assert_eq!(clone.program(), "/data/yt-dlp");
 }
+
+#[test]
+fn a_resolve_waits_for_a_running_install_and_takes_what_it_installs() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(1)
+        .enable_all()
+        .build()
+        .expect("runtime");
+    let slot = ProgramSlot::default();
+    let pending = std::sync::Arc::new(AtomicBool::new(true));
+    let (worker_slot, worker_flag) = (slot.clone(), std::sync::Arc::clone(&pending));
+    let worker = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(250));
+        let _ = worker_slot.set(PathBuf::from("installed"));
+        let _guard = Pending(&worker_flag);
+    });
+    let began = Instant::now();
+    let got = rt.block_on(wait_until(&slot, &pending, Duration::from_secs(10)));
+    assert_eq!(got, Some(PathBuf::from("installed")));
+    assert!(began.elapsed() >= Duration::from_millis(200), "it waited");
+    worker.join().expect("worker");
+}
+
+#[test]
+fn no_install_running_means_no_wait() {
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_time()
+        .build()
+        .expect("runtime");
+    let slot = ProgramSlot::default();
+    let began = Instant::now();
+    let got = rt.block_on(wait_until(
+        &slot,
+        &AtomicBool::new(false),
+        Duration::from_secs(10),
+    ));
+    assert_eq!(got, None);
+    assert!(began.elapsed() < Duration::from_millis(100));
+}
+
+#[test]
+fn an_install_that_never_ends_is_waited_for_only_so_long() {
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_time()
+        .build()
+        .expect("runtime");
+    let slot = ProgramSlot::default();
+    let began = Instant::now();
+    let got = rt.block_on(wait_until(
+        &slot,
+        &AtomicBool::new(true),
+        Duration::from_millis(300),
+    ));
+    assert_eq!(got, None);
+    assert!(began.elapsed() >= Duration::from_millis(300));
+}
+
+#[test]
+fn the_pending_flag_is_cleared_when_the_worker_ends() {
+    let flag = AtomicBool::new(true);
+    drop(Pending(&flag));
+    assert!(!flag.load(Ordering::Acquire));
+}
