@@ -19,11 +19,9 @@ pub(crate) struct Taken {
 }
 
 impl Core {
-    /// Stop `old` and collect its songs and the position the device had reached.
-    pub(crate) fn take_old_output(&mut self, mut old: Pipeline) -> Taken {
-        // Stop the device first: while it runs it keeps playing frames that a position read
-        // would not count, and the new device would play them again.
-        old.halt_output();
+    /// Stop `old` (feeder, then device) and collect its songs and the position the device had
+    /// reached.
+    pub(crate) fn take_old_output(&mut self, old: Pipeline) -> Taken {
         self.underruns_base += old.shared.underruns.load(Ordering::Relaxed);
         let (mut jobs, events) = old.stop_and_take_with_events();
         // A song that began a moment ago may have its `Started` report unread. Without it the
@@ -38,6 +36,9 @@ impl Core {
                 self.on_started(token, at_frame, base);
             }
         }
+        // Read only now, with the device stopped: it plays on while the feeder is joined, and a
+        // position read before the stop does not count those frames, so the new device would
+        // play them again.
         let pos = self.shared.position();
         // When the current song is not among the jobs, the feeder has decoded all of it and
         // what is left lies in the old ring, which cannot move. The next song's decoder must

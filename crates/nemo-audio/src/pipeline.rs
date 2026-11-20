@@ -223,13 +223,6 @@ impl Pipeline {
         self.sink.latency_frames()
     }
 
-    /// Stop the output device. Its callback no longer runs afterwards, so `played` is final.
-    /// The feeder keeps running until [`Pipeline::stop`] or [`Pipeline::stop_and_take`], and
-    /// both tolerate a sink that is stopped already.
-    pub fn halt_output(&mut self) {
-        self.sink.stop();
-    }
-
     /// Stop the feeder, then the sink.
     pub fn stop(&mut self) {
         self.shared.stop.store(true, Ordering::SeqCst);
