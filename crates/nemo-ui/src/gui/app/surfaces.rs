@@ -31,6 +31,8 @@ pub struct Surfaces {
     pub tos: Presence,
     /// The `Restart now` pill of the Window glass card.
     pub restart: Presence,
+    /// The same pill under the SoundCloud switch.
+    pub sc_restart: Presence,
     /// The toast drawn now (it stays while the toast fades out).
     toast_shown: Option<Toast>,
     /// The track of the menu drawn now.
@@ -49,6 +51,7 @@ impl Default for Surfaces {
             shortcuts: Presence::popup(),
             tos: Presence::popup(),
             restart: Presence::popup(),
+            sc_restart: Presence::popup(),
             toast_shown: None,
             menu_shown: None,
         }
@@ -56,7 +59,7 @@ impl Default for Surfaces {
 }
 
 impl Surfaces {
-    fn all(&mut self) -> [&mut Presence; 9] {
+    fn all(&mut self) -> [&mut Presence; 10] {
         [
             &mut self.toast,
             &mut self.menu,
@@ -67,6 +70,7 @@ impl Surfaces {
             &mut self.shortcuts,
             &mut self.tos,
             &mut self.restart,
+            &mut self.sc_restart,
         ]
     }
 
@@ -162,6 +166,7 @@ impl App {
         let r = self.ui.reduced_motion;
         let tos = self.ui.tos_sheet_visible();
         let restart = self.restart_offered();
+        let sc_restart = self.sc_restart_offered();
         let s = &mut self.surfaces;
         s.follow_toast(self.ui.toast.as_ref(), r);
         s.follow_menu(self.ui.menu.as_ref(), r);
@@ -172,6 +177,7 @@ impl App {
         s.shortcuts.set(self.shortcuts_open, r);
         s.tos.set(tos, r);
         s.restart.set(restart, r);
+        s.sc_restart.set(sc_restart, r);
     }
 
     /// Rewind the page entrance and the enter of every open surface to `ms` after they started

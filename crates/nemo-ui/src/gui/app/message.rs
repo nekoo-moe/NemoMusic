@@ -353,6 +353,8 @@ pub enum Job {
     ScSignIn,
     /// Sign in to SoundCloud with a pasted token.
     ScSignInToken(Secret<String>),
+    /// Sign out of SoundCloud, then the switch goes off (turning it off wipes the token).
+    ScTurnOff,
     /// Sign out of SoundCloud.
     ScSignOut,
     /// Search SoundCloud (the Search page is set to SoundCloud).

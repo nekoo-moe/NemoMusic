@@ -106,19 +106,52 @@ pub fn hosts_text(info: &OptInInfo) -> String {
 
 /// Draw one opt-in row `width` px wide.
 pub fn opt_in_row(row: OptInRow<'_>, actions: OptInActions, width: f32) -> Element<'_, Message> {
+    opt_in_row_with(row, actions, width, None)
+}
+
+/// [`opt_in_row`] with an element under the switch, `under.1` px wide, right-aligned (the
+/// `Restart now` pill of a switch that needs a restart).
+pub fn opt_in_row_with<'a>(
+    row: OptInRow<'a>,
+    actions: OptInActions,
+    width: f32,
+    under: Option<(Element<'a, Message>, f32)>,
+) -> Element<'a, Message> {
     let inner = (width - 2.0 * gap::LG).max(MIN_TEXT_W);
     let on = row.phase == OptInPhase::On;
-    let header = iced::widget::row![
-        paragraph(
-            row.info.title,
-            type_scale::BODY_MD,
-            col(color::on_surface()),
-            (inner - SWITCH_W - gap::LG).max(MIN_TEXT_W / 2.0),
+    let switch = switch(on, actions.ask.clone(), actions.turn_off.clone());
+    let stacked = under.is_some();
+    let (control, control_w) = match under {
+        Some((below, w)) => (
+            column![switch, below]
+                .spacing(gap::SM)
+                .align_x(Alignment::End)
+                .into(),
+            w.max(SWITCH_W),
         ),
-        Space::new().width(Length::Fill),
-        switch(on, actions.ask.clone(), actions.turn_off.clone()),
-    ]
-    .align_y(Alignment::Center);
+        None => (switch, SWITCH_W),
+    };
+    let title: Element<'a, Message> = paragraph(
+        row.info.title,
+        type_scale::BODY_MD,
+        col(color::on_surface()),
+        (inner - control_w - gap::LG).max(MIN_TEXT_W / 2.0),
+    );
+    // With the pill under the switch the title stays level with the switch, not the column.
+    let title = if stacked {
+        container(title)
+            .height(Length::Fixed(40.0))
+            .align_y(Alignment::Center)
+            .into()
+    } else {
+        title
+    };
+    let header =
+        iced::widget::row![title, Space::new().width(Length::Fill), control].align_y(if stacked {
+            Alignment::Start
+        } else {
+            Alignment::Center
+        });
     let mut body = column![header].spacing(gap::MD);
     let delete_now = actions.delete_now.clone();
     match row.phase {

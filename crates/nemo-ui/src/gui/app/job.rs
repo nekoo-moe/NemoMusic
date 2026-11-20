@@ -181,6 +181,7 @@ pub async fn run_job(job: Job, backend: Backend) -> Message {
             Message::Sc(ScMsg::SignedIn(sc_sign_in(&backend, Some(token)).await))
         }
         Job::ScSignOut => Message::Sc(ScMsg::SignedOut(sc_sign_out(&backend).await)),
+        Job::ScTurnOff => Message::Sc(ScMsg::TurnedOff(sc_sign_out(&backend).await)),
         Job::ScSearch(query) => {
             let result = match &backend.soundcloud {
                 Some(c) => c
