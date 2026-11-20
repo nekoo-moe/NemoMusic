@@ -7,4 +7,6 @@
 
 mod trace;
 
-pub use trace::{TRACE_FIELDS, TRACE_TARGET, account_outcome, elapsed_ms, host_of};
+pub use trace::{
+    TRACE_FIELDS, TRACE_TARGET, account_outcome, catalog_outcome, elapsed_ms, host_of,
+};

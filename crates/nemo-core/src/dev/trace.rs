@@ -2,6 +2,7 @@
 
 use std::time::Instant;
 
+use crate::catalog::CatalogError;
 use crate::source_account::SourceAccountError;
 
 /// The `tracing` target of provider trace events. The developer ring takes events of this
@@ -39,7 +40,7 @@ macro_rules! nemo_trace {
             op = $op,
             $( $key = $value, )*
             "trace"
-        )
+        );
     }};
 }
 
@@ -95,6 +96,21 @@ pub fn account_outcome<T>(result: &Result<T, SourceAccountError>) -> &'static st
         Err(SourceAccountError::Unavailable(_)) => "unavailable",
         Err(SourceAccountError::Storage(_)) => "storage",
         Err(SourceAccountError::Network(_)) => "network",
+    }
+}
+
+/// A fixed outcome name for one catalog call, for the `status` field: `ok`, or the kind of the
+/// error. Never the error text.
+#[must_use]
+pub fn catalog_outcome<T>(result: &Result<T, CatalogError>) -> &'static str {
+    match result {
+        Ok(_) => "ok",
+        Err(CatalogError::Network(_)) => "network",
+        Err(CatalogError::Parse(_)) => "parse",
+        Err(CatalogError::Unavailable(_)) => "unavailable",
+        Err(CatalogError::NotFound) => "not_found",
+        Err(CatalogError::Rejected(_)) => "rejected",
+        Err(CatalogError::RateLimited) => "rate_limited",
     }
 }
 
@@ -165,6 +181,17 @@ mod tests {
             let name = account_outcome::<()>(&Err(error));
             assert!(!name.contains("abc123"));
         }
+    }
+
+    #[test]
+    fn catalog_outcomes_are_fixed_names() {
+        assert_eq!(catalog_outcome(&Ok::<(), _>(())), "ok");
+        assert_eq!(
+            catalog_outcome::<()>(&Err(CatalogError::RateLimited)),
+            "rate_limited"
+        );
+        let name = catalog_outcome::<()>(&Err(CatalogError::Network("https://x/?k=SECRET".into())));
+        assert_eq!(name, "network");
     }
 
     #[test]

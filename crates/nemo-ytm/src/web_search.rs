@@ -26,10 +26,12 @@ use nemo_core::catalog::{
     PlaylistDetail, PlaylistSummary, PodcastDetail, SearchKind, SearchResults, SearchScope, Shelf,
     VideoSummary,
 };
+use nemo_core::dev::host_of;
 use nemo_core::track::{Track, VideoId};
 use serde_json::json;
 
 use crate::http::{InitError, https_redirects, parse_retry_after};
+use crate::trace;
 
 mod channel;
 mod parse;
@@ -147,9 +149,14 @@ async fn send(client: reqwest::Client, url: String, body: String) -> Result<WebA
 
 impl WebPost for ReqwestWeb {
     fn post<'a>(&'a self, url: &'a str, body: String) -> BoxFuture<'a, Result<WebAnswer, String>> {
-        let task = self
-            .handle
-            .spawn(send(self.client.clone(), url.to_owned(), body));
+        let (client, url) = (self.client.clone(), url.to_owned());
+        let task = self.handle.spawn(async move {
+            let (began, host) = (Instant::now(), host_of(&url).to_owned());
+            let answer = send(client, url, body).await;
+            let status = answer.as_ref().map(|a| a.status).map_err(String::as_str);
+            trace::http("ytm", "web_search", &host, status, began);
+            answer
+        });
         Box::pin(async move {
             task.await
                 .unwrap_or_else(|_| Err("web search was cancelled".to_owned()))

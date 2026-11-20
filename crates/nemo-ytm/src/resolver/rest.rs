@@ -94,6 +94,7 @@ impl Rest {
             // A longer rest that is already running is not shortened.
             if slot.is_none_or(|old| old < until) {
                 *slot = Some(until);
+                crate::trace::resting("native", pause);
             }
             tracing::info!("native resolver rests after repeated refusals");
         }
