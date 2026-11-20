@@ -38,7 +38,7 @@ Screens (PRs 4 to 6)
 15. THE SYSTEM SHALL show the badge as `MP3 128 kbps` or `AAC 160 kbps` style text from the real stream and SHALL NOT show "Lossless", "HD", "Hi-Fi" or "Hi-Res" on a SoundCloud track.
 
 Writes (PR 7)
-16. WHEN the user likes or unlikes a track, follows or unfollows an artist, creates, renames or deletes a playlist, or adds or removes a track, THE SYSTEM SHALL send it only after reading how the web app sends it, show the new state only after the server answers, say in one sentence when it failed, never retry a write, and never write silently.
+16. WHEN the user likes or unlikes a track, follows or unfollows an artist, creates, renames or deletes a playlist, or adds or removes a track, THE SYSTEM SHALL send it only after reading how the web app sends it, show the new state only after the server answers, say in one sentence when it failed, never retry a write, and never write silently. (2026-11-20: built are like, unlike, unfollow, create, add, remove and rename; follow waits for the owner, because the web app signs that one request with a secret of its own script, and deleting a playlist is not in the owner's list.)
 
 Limits (all PRs)
 17. THE SYSTEM SHALL keep the limits of `common3.md`: tokens only in the credential store, no token, URL, id or title in a log, no bulk export, requests human-paced with `Retry-After` honoured.

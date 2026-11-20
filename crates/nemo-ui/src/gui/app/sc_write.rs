@@ -352,3 +352,6 @@ impl From<ScWriteMsg> for Message {
         Self::ScWrite(msg)
     }
 }
+
+#[cfg(test)]
+mod tests;
