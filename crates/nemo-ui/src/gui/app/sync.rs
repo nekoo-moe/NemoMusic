@@ -68,6 +68,7 @@ impl App {
                 || views::backdrop::moves(self)
                 || self.anim.active()
                 || self.account_busy()
+                || self.sc_busy()
                 || !self.scheme_fade.is_done()
                 || !self.bg_fade.is_done()
                 || !self.micro.settled()

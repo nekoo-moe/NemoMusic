@@ -14,17 +14,22 @@
 //! available, 64 bad arguments. Cookies and tokens are never written to stderr, logs or files.
 
 mod cookies;
+mod soundcloud;
+mod token;
 
 use std::ffi::OsString;
 use std::io::Write;
 use std::path::PathBuf;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use tao::dpi::LogicalSize;
-use tao::event::{Event, StartCause, WindowEvent};
+use tao::event::{Event, WindowEvent};
 use tao::event_loop::{ControlFlow, EventLoop, EventLoopBuilder};
 use tao::window::WindowBuilder;
 use wry::{PageLoadEvent, WebContext, WebView, WebViewBuilder};
+
+/// The script that watches the page's own requests for the session token (SoundCloud only).
+const HOOK: &str = include_str!("hook.js");
 
 /// The first program argument that turns the app executable into the sign-in window.
 pub const SIGNIN_ARG: &str = "--signin";
@@ -35,14 +40,18 @@ pub const EXIT_UNAVAILABLE: i32 = 3;
 /// Exit code: bad arguments.
 pub const EXIT_USAGE: i32 = 64;
 
-/// How often the SoundCloud window looks for the session cookie. The sign-in there can finish
-/// without loading a new page, so a page-load event alone could miss it.
-const SOUNDCLOUD_POLL: Duration = Duration::from_secs(1);
-
-/// Sent from the page-load callback to the event loop.
+/// Sent to the event loop from the page-load callback, the script callbacks and the stdin reader.
 enum Message {
     /// A page finished loading.
     Loaded(String),
+    /// `document.cookie` answered (the JSON text of the string).
+    Document(String),
+    /// The diagnostic read the page's storage names (the JSON text of the answer).
+    Storage(String),
+    /// The page's own request carried `Authorization: OAuth <token>` (what the hook saw).
+    Header(String),
+    /// The app asked to look for the token again now.
+    Recheck,
 }
 
 /// Which sign-in page the window shows.
@@ -158,6 +167,7 @@ fn show(event_loop: EventLoop<Message>, site: Site, data_dir: PathBuf) -> i32 {
     };
 
     let mut context = WebContext::new(Some(data_dir));
+    let load_proxy = proxy.clone();
     // The user agent stays the webview's own: the sign-in pages check it, and a spoofed one is
     // what gets embedded sign-in blocked.
     let builder = WebViewBuilder::new_with_web_context(&mut context)
@@ -167,37 +177,149 @@ fn show(event_loop: EventLoop<Message>, site: Site, data_dir: PathBuf) -> i32 {
             if matches!(event, PageLoadEvent::Finished) {
                 // The loop owns the webview; cookies are read there, on the UI thread.
                 // Ignored on purpose: a send only fails when the loop has already ended.
-                let _ = proxy.send_event(Message::Loaded(url));
+                let _ = load_proxy.send_event(Message::Loaded(url));
             }
         });
+    let builder = if site == Site::SoundCloud {
+        // Third reader: the token the page itself sends to SoundCloud once someone is signed in.
+        let hook_proxy = proxy.clone();
+        builder
+            .with_initialization_script(HOOK)
+            .with_ipc_handler(move |request| {
+                if let Some(value) = request.body().strip_prefix("oauth:") {
+                    let _ = hook_proxy.send_event(Message::Header(value.to_owned()));
+                }
+            })
+    } else {
+        builder
+    };
     let Ok(webview) = attach(builder, &window) else {
         return EXIT_UNAVAILABLE;
     };
+    if site == Site::SoundCloud {
+        watch_stdin(proxy.clone());
+    }
 
+    let debug = std::env::var_os(soundcloud::DEBUG_ENV).is_some_and(|v| v == "1");
+    let mut poller = soundcloud::Poller::new(Instant::now(), debug);
     event_loop.run(move |event, _, control_flow| {
+        // SoundCloud: wake at the fixed deadline of the clock, never at "a second from now".
         *control_flow = match site {
             Site::Google => ControlFlow::Wait,
-            Site::SoundCloud => ControlFlow::WaitUntil(Instant::now() + SOUNDCLOUD_POLL),
+            Site::SoundCloud => ControlFlow::WaitUntil(poller.deadline()),
         };
         match event {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 ..
             } => std::process::exit(EXIT_CANCELLED),
-            Event::UserEvent(Message::Loaded(url)) => {
-                if let Some(line) = signed_in_line(site, &webview, &url) {
-                    finish(&line);
+            Event::UserEvent(Message::Loaded(url)) => match site {
+                Site::Google => {
+                    if let Some(line) = signed_in_line(site, &webview, &url) {
+                        finish(&line);
+                    }
+                }
+                Site::SoundCloud => {
+                    poller.page_loaded(&url, Instant::now());
+                    poller.look_now(Instant::now());
+                }
+            },
+            Event::UserEvent(Message::Document(answer)) => {
+                let log = poller.take_document_log();
+                if let Some(token) = soundcloud::read_document_answer(&answer, log) {
+                    finish(&cookies::token_line(&token));
                 }
             }
-            Event::NewEvents(StartCause::ResumeTimeReached { .. }) if site == Site::SoundCloud => {
-                let on_site = webview.url().ok();
-                if let Some(line) = on_site.and_then(|url| signed_in_line(site, &webview, &url)) {
-                    finish(&line);
+            Event::UserEvent(Message::Header(value)) => {
+                if poller.debug {
+                    soundcloud::debug_line(&token::header_line(&value));
+                }
+                if let Some(token) = token::token_from_value(&value) {
+                    finish(&cookies::token_line(&token));
                 }
             }
+            Event::UserEvent(Message::Storage(answer)) => {
+                for line in soundcloud::storage_lines(&answer) {
+                    soundcloud::debug_line(&line);
+                }
+            }
+            Event::UserEvent(Message::Recheck) => poller.look_now(Instant::now()),
             _ => {}
         }
+        if site == Site::SoundCloud {
+            look_for_token(&webview, &mut poller, &proxy);
+        }
     })
+}
+
+/// One look at the SoundCloud window, when the clock says it is due: the cookie manager, the
+/// page's `document.cookie` (answered later through the event loop), the hint to the app after
+/// a long wait, and with the diagnostic on, the lines about cookies and storage.
+fn look_for_token(
+    webview: &WebView,
+    poller: &mut soundcloud::Poller,
+    proxy: &tao::event_loop::EventLoopProxy<Message>,
+) {
+    let now = Instant::now();
+    if !poller.due(now) {
+        return;
+    }
+    let on_site = webview
+        .url()
+        .ok()
+        .is_some_and(|url| cookies::is_soundcloud_page(&url));
+    let debug_now = poller.debug_due(now);
+    if debug_now {
+        soundcloud::debug_line(&format!("looking, on a soundcloud.com page: {on_site}"));
+    }
+    if !on_site {
+        return;
+    }
+    if let Some(token) = soundcloud::token_from_cookie_manager(webview, debug_now) {
+        finish(&cookies::token_line(&token));
+    }
+    if debug_now {
+        poller.expect_document_log();
+    }
+    let to_loop = proxy.clone();
+    soundcloud::ask_document_cookie(webview, move |answer| {
+        // Ignored on purpose: a send only fails when the loop has already ended.
+        let _ = to_loop.send_event(Message::Document(answer));
+    });
+    if debug_now {
+        let to_loop = proxy.clone();
+        soundcloud::ask_storage(webview, move |answer| {
+            let _ = to_loop.send_event(Message::Storage(answer));
+        });
+    }
+    if poller.hint_due(now) {
+        // One line on stdout; the app shows its "I am signed in, check again" offer.
+        println_hint();
+    }
+}
+
+/// Tell the app, on stdout, that nothing was found for a long time. Not an answer: the window
+/// keeps looking and still ends with the token line, the exit code 2 or a signal.
+fn println_hint() {
+    let mut out = std::io::stdout().lock();
+    // Best effort: if the app is gone, the window is about to end anyway.
+    let _ =
+        writeln!(out, "{}", serde_json::json!({ "hint": "no_token" })).and_then(|()| out.flush());
+}
+
+/// Read the app's requests on stdin: a line `check` asks the window to look for the token now.
+fn watch_stdin(proxy: tao::event_loop::EventLoopProxy<Message>) {
+    // The thread ends at the end of stdin, with the window's process.
+    let _ = std::thread::Builder::new()
+        .name("signin-stdin".into())
+        .spawn(move || {
+            use std::io::BufRead;
+            for line in std::io::stdin().lock().lines().map_while(Result::ok) {
+                if line.trim() == "check" && proxy.send_event(Message::Recheck).is_err() {
+                    break;
+                }
+            }
+        });
 }
 
 /// The stdout line for the session of `site`, once the page `url` shows a signed-in session.
@@ -212,14 +334,7 @@ fn signed_in_line(site: Site, webview: &WebView, url: &str) -> Option<String> {
             let header = cookies::cookie_header(pairs)?;
             Some(serde_json::json!({ "cookie": header }).to_string())
         }
-        Site::SoundCloud => {
-            if !cookies::is_soundcloud_page(url) {
-                return None;
-            }
-            let jar = webview.cookies_for_url(cookies::SOUNDCLOUD_ORIGIN).ok()?;
-            let all = jar.iter().map(|c| (c.name(), c.value(), c.domain()));
-            cookies::soundcloud_token(all).map(|token| cookies::token_line(&token))
-        }
+        Site::SoundCloud => None,
     }
 }
 

@@ -122,14 +122,14 @@ fn dir(name: &str) -> PathBuf {
     dir
 }
 
-fn rig(name: &str, window: Arc<FakeWindow>) -> Rig {
+fn rig(name: &str, window: Arc<dyn TokenSource>) -> Rig {
     rig_with(name, window, Arc::new(MemoryStore::default()), None)
 }
 
 /// A rig over an existing store and folder (a restart), or a new folder.
 fn rig_with(
     name: &str,
-    window: Arc<FakeWindow>,
+    window: Arc<dyn TokenSource>,
     store: Arc<MemoryStore>,
     existing: Option<PathBuf>,
 ) -> Rig {
@@ -195,6 +195,8 @@ fn make_webview_dir(rig: &Rig) {
     std::fs::create_dir_all(rig.files.webview_dir.join("Default")).expect("dir");
     std::fs::write(rig.files.webview_dir.join("Default").join("Cookies"), "x").expect("file");
 }
+
+mod window;
 
 #[tokio::test]
 async fn the_window_signs_in_and_the_token_goes_only_to_the_store_and_the_api() {

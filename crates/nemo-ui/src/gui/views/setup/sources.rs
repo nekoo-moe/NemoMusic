@@ -202,11 +202,21 @@ fn soundcloud(app: &App, inner: f32) -> Element<'_, Message> {
             if let Some(error) = &app.sc.error {
                 c = c.push(status_line(Icon::Info, error.clone(), inner));
             }
-            c.push(tonal_button(
+            c = c.push(tonal_button(
                 copy::soundcloud::SIGN_IN,
                 Some(Icon::Login),
                 (!app.sc.busy).then_some(Message::Sc(ScMsg::SignIn)),
-            ))
+            ));
+            if app.sc_sign_in_hint() {
+                c = c
+                    .push(dim(copy::soundcloud::SETUP_STILL_WAITING, inner))
+                    .push(tonal_button(
+                        copy::soundcloud::CHECK_AGAIN,
+                        Some(Icon::Refresh),
+                        Some(Message::Sc(ScMsg::Recheck)),
+                    ));
+            }
+            c
         }
         None => c.push(dim(copy::soundcloud::NO_STORE, inner)),
     }
