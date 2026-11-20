@@ -146,12 +146,14 @@ impl DevRing {
     }
 
     /// How many events the ring holds now.
+    #[cfg(test)]
     #[must_use]
     pub fn len(&self) -> usize {
         self.lock().len()
     }
 
     /// Whether the ring holds no event.
+    #[cfg(test)]
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.lock().is_empty()

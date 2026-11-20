@@ -4,16 +4,10 @@
 //! Nothing here is written to disk or sent anywhere. Every text is redacted at capture, and only
 //! an allow-list of structured fields is kept.
 
-#![allow(
-    dead_code,
-    unused_imports,
-    reason = "the probe and the panel that read the ring arrive in the next dev-tools PRs"
-)]
-
 mod layer;
 mod redact;
 mod ring;
 
-pub use layer::{ALLOWED_FIELDS, CaptureLayer, TRACE_TARGET, capture_filter};
+pub use layer::{CaptureLayer, capture_filter};
 pub use redact::Redactor;
 pub use ring::{CapturedEvent, DevRing, RING_CAPACITY};

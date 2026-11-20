@@ -45,6 +45,7 @@ impl Redactor {
     }
 
     /// A redactor for one given home folder (tests).
+    #[cfg(test)]
     #[must_use]
     pub fn with_home(home: &str) -> Self {
         let mut redactor = Self { homes: Vec::new() };
