@@ -16,6 +16,7 @@ use std::sync::{Arc, Mutex, PoisonError, Weak};
 
 use nemo_core::BoxFuture;
 use nemo_core::account::{SignOutReport, SignOutWipe, WipeScope};
+use nemo_core::dev;
 use nemo_core::secret::Secret;
 use nemo_core::secret_store::SecretStore;
 use nemo_core::source_account::{
@@ -190,19 +191,23 @@ impl Shared {
         let token = normalize_token(raw.expose())
             .map(Secret::new)
             .ok_or(SourceAccountError::Rejected)?;
-        let me = match self.me(&token).await {
+        let checked = self.me(&token).await.map_err(check_error);
+        crate::trace::signin_stage("signin_check", dev::account_outcome(&checked));
+        let me = match checked {
             Ok(me) => me,
-            Err(e) => {
-                let error = check_error(e);
+            Err(error) => {
                 if error == SourceAccountError::Rejected {
                     let _ = std::fs::remove_dir_all(&self.files.webview_dir);
                 }
                 return Err(error);
             }
         };
-        self.store
+        let stored = self
+            .store
             .set(TOKEN_KEY, token.expose().as_bytes())
-            .map_err(|e| SourceAccountError::Storage(e.0.to_owned()))?;
+            .map_err(|e| SourceAccountError::Storage(e.0.to_owned()));
+        crate::trace::signin_stage("signin_store", dev::account_outcome(&stored));
+        stored?;
         // Another account than before: its data must not show under the new one.
         if self.user().is_some_and(|before| before != me.id) {
             self.run_steps(&mut SignOutReport::default());
@@ -221,6 +226,7 @@ impl Shared {
         before: SourceAccountState,
         token: Result<Secret<String>, SourceAccountError>,
     ) -> Result<SourceAccountInfo, SourceAccountError> {
+        crate::trace::signin_stage("signin_window", dev::account_outcome(&token));
         let result = match token {
             Ok(token) => self.complete(&token).await,
             Err(e) => Err(e),

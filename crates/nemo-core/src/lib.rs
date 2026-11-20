@@ -9,6 +9,7 @@ pub mod animated_art;
 pub mod audio;
 pub mod cast;
 pub mod catalog;
+pub mod dev;
 pub mod downloads;
 pub mod effects;
 pub mod hooks;

@@ -392,10 +392,26 @@ impl ScClient {
         }
     }
 
-    fn block(&self, retry_after: Option<Duration>) {
-        let wait = retry_after
+    /// How long a 429 with this `Retry-After` stops all calls.
+    fn backoff_for(&self, retry_after: Option<Duration>) -> Duration {
+        retry_after
             .unwrap_or(self.pacing.default_backoff)
-            .min(self.pacing.max_backoff);
+            .min(self.pacing.max_backoff)
+    }
+
+    /// How much of a running 429 backoff is left.
+    fn backoff_left(&self) -> Duration {
+        let until = *self
+            .blocked_until
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        until.map_or(Duration::ZERO, |t| {
+            t.saturating_duration_since(Instant::now())
+        })
+    }
+
+    fn block(&self, retry_after: Option<Duration>) {
+        let wait = self.backoff_for(retry_after);
         *self
             .blocked_until
             .lock()
@@ -427,8 +443,11 @@ impl ScClient {
         let write = call.method != ScMethod::Get;
         let mut gate = self.gate.lock().await;
         let mut retries = self.pacing.retry_delays.iter();
+        let mut attempt = 0_u64;
         loop {
-            self.check_blocked()?;
+            self.check_blocked().inspect_err(|_| {
+                crate::trace::held_back(&call.url, self.backoff_left());
+            })?;
             if !self.is_enabled() {
                 return Err(ClientError::Off);
             }
@@ -439,6 +458,8 @@ impl ScClient {
                 self.wait_for_write_turn().await;
             }
             *gate = Some(Instant::now());
+            attempt += 1;
+            let started = Instant::now();
             let sent = self
                 .http
                 .send(ScRequest {
@@ -449,6 +470,11 @@ impl ScClient {
                     body: call.body.clone(),
                 })
                 .await;
+            let rest = match &sent {
+                Ok(answer) if answer.status == 429 => Some(self.backoff_for(answer.retry_after)),
+                _ => None,
+            };
+            crate::trace::sent(&call.url, &sent, started, attempt, rest);
             let failure = match sent {
                 Ok(answer) if answer.status == 429 => {
                     self.block(answer.retry_after);

@@ -6,7 +6,7 @@
 
 use std::io::Read;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use nemo_core::track::MediaUrl;
 use reqwest::blocking::Client;
@@ -137,8 +137,15 @@ fn once(client: &Client, url: &str) -> Result<Vec<u8>, (Failure, Option<Duration
 /// [`MAX_RETRY_AFTER`] or persists, `Network` after the last try.
 pub fn get(client: &Client, url: &str, rules: &Rules) -> Result<Vec<u8>, Failure> {
     let mut delays = rules.retry_delays.iter();
+    let started = Instant::now();
+    let mut attempt = 0_u64;
     loop {
-        match once(client, url) {
+        attempt += 1;
+        let tried = once(client, url);
+        if let Err((failure, _)) = &tried {
+            crate::trace::stream_failed(url, *failure, started, attempt);
+        }
+        match tried {
             Ok(body) => return Ok(body),
             Err((Failure::Gone, _)) => return Err(Failure::Gone),
             Err((Failure::Busy, wait)) => {
