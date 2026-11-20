@@ -2,6 +2,8 @@
 
 `Source` loses `All` and moves from `gui/app/model.rs` to the pure module `crates/nemo-ui/src/workspace.rs`, which also holds what each area offers: its sidebar entries (`nav`), its landing page (`landing`), the pages it has (`allows`) and who owns a page id (`owns_page`, `is_foreign`). The app keeps the active area in `App::source`, starts it from `UiSettings::listening_area`, and switches it in one function (`App::switch_source`, `gui/app/workspace.rs`). Every screen that used to read a source switch reads `App::source` instead: the sidebar list, Library, Search, the nav entries, Refresh and the background loads.
 
+Polish (PR 3): the sidebar caption (`brand_text` in `views/shell/nav.rs`), the list fade (`Anim::restart_list` and `Anim::list`, `ENTRANCE_MS`, `emphasized_decelerate`, instant under Reduce motion, no frame when settled), and the keyboard (`Fx::arrows`, `sliding_chips_with`, `Message::AreaKey`: Left and Right on a focused chip pick its neighbour, the key is captured so it never seeks, and the focus follows the pick).
+
 The control is one shared view (`views/listening_area.rs`), drawn in the account sheet and in the SoundCloud section of Settings. It reuses the sliding chips of the kit, so it has the same focus ring and the same pill motion as the other chip rows.
 
 ## Affected Crates

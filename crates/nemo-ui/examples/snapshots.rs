@@ -112,6 +112,7 @@ fn scenarios() -> Vec<Shot> {
     soundcloud_account::write_shots(&mut out);
     source_workspaces::shots(&mut out);
     source_workspaces::account_shots(&mut out);
+    source_workspaces::motion_shots(&mut out);
     skeleton::shots(&mut out);
     out.extend(wave_lyrics::shots());
     out.extend(syllable_motion::shots());

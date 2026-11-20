@@ -105,6 +105,7 @@ impl App {
         self.sort_menu = None;
         self.rows_limit = super::ROWS_STEP;
         self.anim.restart_page();
+        self.anim.restart_list();
         let mut jobs = self.dispatch(Event::Setting(SettingChange::ListeningArea(source)));
         jobs.extend(self.sc_watch());
         jobs

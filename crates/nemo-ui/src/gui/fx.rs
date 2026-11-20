@@ -61,6 +61,10 @@ pub fn fx<'a, M: 'a>(content: impl Into<Element<'a, M>>) -> Fx<'a, M> {
     Fx::new(content)
 }
 
+/// What Left and Right send from a focused control: the message for the neighbour in that
+/// direction (`true` is Right), or `None` at the end of the group.
+type ArrowFn<'a, M> = Box<dyn Fn(bool) -> Option<M> + 'a>;
+
 /// See the module docs.
 pub struct Fx<'a, M> {
     content: Element<'a, M>,
@@ -72,6 +76,8 @@ pub struct Fx<'a, M> {
     slide: f32,
     fade_to: Color,
     badge: Option<Badge<'a, M>>,
+    /// Left (`false`) and Right (`true`) while the wrapper has keyboard focus (a radio group).
+    arrows: Option<ArrowFn<'a, M>>,
     scale: f32,
     zoom: f32,
     pop: f32,
@@ -90,6 +96,7 @@ impl<'a, M: 'a> Fx<'a, M> {
             slide: 0.0,
             fade_to: Color::TRANSPARENT,
             badge: None,
+            arrows: None,
             scale: 1.0,
             zoom: 0.0,
             pop: 0.0,
@@ -135,6 +142,15 @@ impl<'a, M: 'a> Fx<'a, M> {
     #[must_use]
     pub fn layer(mut self, layer: Color) -> Self {
         self.layer = layer;
+        self
+    }
+
+    /// Left and Right on this control, while it has keyboard focus, send what `step` returns
+    /// (`true` is Right; `None` sends nothing). The keys are captured either way, so a focused
+    /// choice never also seeks the song.
+    #[must_use]
+    pub fn arrows(mut self, step: impl Fn(bool) -> Option<M> + 'a) -> Self {
+        self.arrows = Some(Box::new(step));
         self
     }
 

@@ -77,6 +77,14 @@ pub enum Message {
         /// The answer.
         result: Result<Arc<SearchResults>, String>,
     },
+    /// Left or Right on the focused `Listening area` choice: switch to `to`, then move the
+    /// keyboard focus the same way so it stays on the choice that is now picked.
+    AreaKey {
+        /// The area to switch to.
+        to: Source,
+        /// The key was Right.
+        forward: bool,
+    },
     /// A SoundCloud account change (a like, a playlist change, an unfollow) or its answer.
     ScWrite(super::sc_write::ScWriteMsg),
     /// A detail page answered.

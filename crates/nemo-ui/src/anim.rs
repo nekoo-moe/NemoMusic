@@ -70,6 +70,7 @@ pub struct Anim {
     cover_ms: f32,
     bloom_ms: f32,
     line_ms: f32,
+    list_ms: f32,
     /// Play button shape: 0 circle (paused), 1 rounded square (playing).
     pub play: Spring,
     /// Right pane open fraction.
@@ -91,6 +92,7 @@ impl Anim {
             cover_ms: COVER_FADE_MS,
             bloom_ms: BLOOM_MS,
             line_ms: LINE_MS,
+            list_ms: ENTRANCE_MS,
             play: unit(EXPRESSIVE_PLAY),
             pane: unit(SPATIAL_DEFAULT),
             capsule: unit(SPATIAL_DEFAULT),
@@ -121,6 +123,18 @@ impl Anim {
     /// The live lyric line changed.
     pub fn restart_line(&mut self) {
         self.line_ms = if self.reduced { LINE_MS } else { 0.0 };
+    }
+
+    /// The sidebar list swapped to the other listening area: the new rows fade in over the pane
+    /// (a fade through, the old rows are already gone). Instant with reduced motion.
+    pub fn restart_list(&mut self) {
+        self.list_ms = if self.reduced { ENTRANCE_MS } else { 0.0 };
+    }
+
+    /// Fade-in progress (0 to 1) of the sidebar list after a swap of the listening area.
+    #[must_use]
+    pub fn list(&self) -> f32 {
+        emphasized_decelerate((self.list_ms / ENTRANCE_MS).clamp(0.0, 1.0))
     }
 
     /// Entrance progress (0 to 1) of item `index` of a staggered list on this page.
@@ -167,6 +181,7 @@ impl Anim {
         self.cover_ms = (self.cover_ms + dt).min(COVER_FADE_MS);
         self.bloom_ms = (self.bloom_ms + dt).min(BLOOM_MS);
         self.line_ms = (self.line_ms + dt).min(LINE_MS);
+        self.list_ms = (self.list_ms + dt).min(ENTRANCE_MS);
         for s in [
             &mut self.play,
             &mut self.pane,
@@ -183,6 +198,7 @@ impl Anim {
         self.cover_ms = COVER_FADE_MS;
         self.bloom_ms = BLOOM_MS;
         self.line_ms = LINE_MS;
+        self.list_ms = ENTRANCE_MS;
         for s in [
             &mut self.play,
             &mut self.pane,
@@ -200,6 +216,7 @@ impl Anim {
             || self.cover_ms < COVER_FADE_MS
             || self.bloom_ms < BLOOM_MS
             || self.line_ms < LINE_MS
+            || self.list_ms < ENTRANCE_MS
             || [&self.play, &self.pane, &self.capsule, &self.sheet]
                 .iter()
                 .any(|s| !s.is_settled())
@@ -252,6 +269,32 @@ mod tests {
         assert!((play_radius(56.0, 0.0) - 28.0).abs() < 1e-4);
         assert!((play_radius(56.0, 1.0) - 16.8).abs() < 1e-4);
         assert!(play_radius(56.0, 5.0) >= 0.0);
+    }
+
+    #[test]
+    fn the_sidebar_list_fades_in_after_a_swap_and_draws_nothing_when_it_is_done() {
+        let mut a = Anim::new(false);
+        assert!(
+            (a.list() - 1.0).abs() < 1e-6 && !a.active(),
+            "settled at start"
+        );
+        a.restart_list();
+        assert!(a.active() && a.list() < 0.01);
+        run(&mut a, 100.0);
+        assert!(
+            a.list() > 0.05 && a.list() < 1.0,
+            "on its way: {}",
+            a.list()
+        );
+        run(&mut a, 400.0);
+        assert!((a.list() - 1.0).abs() < 1e-6 && !a.active());
+    }
+
+    #[test]
+    fn the_sidebar_list_swap_is_instant_with_reduced_motion() {
+        let mut a = Anim::new(true);
+        a.restart_list();
+        assert!((a.list() - 1.0).abs() < 1e-6 && !a.active());
     }
 
     #[test]

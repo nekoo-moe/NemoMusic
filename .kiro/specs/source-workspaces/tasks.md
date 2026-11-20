@@ -11,7 +11,7 @@
   - _Requirements: 15, 16, 17_
   - Depends on: 1
 
-- [ ] 3. Caption, transitions, Reduce motion, keyboard, steering lines (PR 3)
+- [x] 3. Caption, transitions, Reduce motion, keyboard, steering lines (PR 3)
   - Crate and files: `nemo-ui` (sidebar brand, `anim.rs`, the control), `design.md` sections 4 and 18, `product.md` Scope line, README if behaviour text changes.
   - Does: criteria 18 to 21.
   - _Requirements: 18, 19, 20, 21_

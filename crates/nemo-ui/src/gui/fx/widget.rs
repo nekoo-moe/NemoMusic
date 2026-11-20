@@ -111,6 +111,20 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for Fx<'_, M> {
                     shell.request_redraw();
                     return;
                 }
+                // Left and Right on a focused choice of a group pick its neighbour.
+                Event::Keyboard(keyboard::Event::KeyPressed {
+                    key: keyboard::Key::Named(arrow @ (Named::ArrowLeft | Named::ArrowRight)),
+                    ..
+                }) if state.focused && self.arrows.is_some() => {
+                    if let Some(step) = &self.arrows
+                        && let Some(message) = step(*arrow == Named::ArrowRight)
+                    {
+                        shell.publish(message);
+                    }
+                    shell.capture_event();
+                    shell.request_redraw();
+                    return;
+                }
                 _ => {}
             }
         }

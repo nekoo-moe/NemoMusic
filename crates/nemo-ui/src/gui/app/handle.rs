@@ -112,6 +112,7 @@ impl App {
             }
             Message::Account(msg) => self.account_msg(msg),
             Message::Sc(msg) => self.sc_msg(msg),
+            Message::AreaKey { to, .. } => self.switch_source(to),
             Message::Discord(msg) => self.discord_msg(msg),
             // A reload replaced the shelves already: a late start-up answer is older.
             Message::HomeFeed(_) | Message::HomeSeed { .. }
