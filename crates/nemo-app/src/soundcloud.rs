@@ -183,15 +183,18 @@ pub fn wipe_when_off(
     let Some(store) = store.filter(|_| wipe_is_due(choices, &files)) else {
         return;
     };
-    handle.spawn_blocking(move || match run_wipe(store.as_ref(), &files) {
-        Ok(report) => tracing::info!(
-            credentials = report.credentials_removed,
-            files = report.files_removed,
-            "SoundCloud is off: removed what an earlier sign-in left"
-        ),
-        Err(_) => tracing::warn!(
-            "SoundCloud is off: the saved sign-in could not be removed; the next start tries again"
-        ),
+    handle.spawn_blocking(move || {
+        if let Ok(report) = run_wipe(store.as_ref(), &files) {
+            tracing::info!(
+                credentials = report.credentials_removed,
+                files = report.files_removed,
+                "SoundCloud is off: removed what an earlier sign-in left"
+            );
+        } else {
+            tracing::warn!(
+                "SoundCloud is off: the saved sign-in could not be removed; the next start tries again"
+            );
+        }
     });
 }
 

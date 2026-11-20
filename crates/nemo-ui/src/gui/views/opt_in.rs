@@ -106,17 +106,31 @@ pub fn hosts_text(info: &OptInInfo) -> String {
 
 /// Draw one opt-in row `width` px wide.
 pub fn opt_in_row(row: OptInRow<'_>, actions: OptInActions, width: f32) -> Element<'_, Message> {
-    opt_in_row_with(row, actions, width, None)
+    opt_in_row_with(row, actions, width, Extras::default())
 }
 
-/// [`opt_in_row`] with an element under the switch, `under.1` px wide, right-aligned (the
-/// `Restart now` pill of a switch that needs a restart).
+/// What a caller may add to a row besides its texts.
+#[derive(Default)]
+pub struct Extras<'a> {
+    /// An element under the switch, with its width, right-aligned (the `Restart now` pill of a
+    /// switch that needs a restart).
+    pub under_switch: Option<(Element<'a, Message>, f32)>,
+    /// A block right under the title and the switch, before the facts (a question the switch
+    /// asked, which must be seen where the switch is).
+    pub under_header: Option<Element<'a, Message>>,
+}
+
+/// [`opt_in_row`] with [`Extras`].
 pub fn opt_in_row_with<'a>(
     row: OptInRow<'a>,
     actions: OptInActions,
     width: f32,
-    under: Option<(Element<'a, Message>, f32)>,
+    extras: Extras<'a>,
 ) -> Element<'a, Message> {
+    let Extras {
+        under_switch: under,
+        under_header,
+    } = extras;
     let inner = (width - 2.0 * gap::LG).max(MIN_TEXT_W);
     let on = row.phase == OptInPhase::On;
     let switch = switch(on, actions.ask.clone(), actions.turn_off.clone());
@@ -153,6 +167,9 @@ pub fn opt_in_row_with<'a>(
             Alignment::Center
         });
     let mut body = column![header].spacing(gap::MD);
+    if let Some(block) = under_header {
+        body = body.push(block);
+    }
     let delete_now = actions.delete_now.clone();
     match row.phase {
         OptInPhase::Confirming => body = body.push(panel(row.info, actions, inner)),

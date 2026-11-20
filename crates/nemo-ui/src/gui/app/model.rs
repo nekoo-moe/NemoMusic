@@ -138,6 +138,8 @@ pub enum ListSource {
     ScLikes,
     /// The tracks of history section number `n` of the SoundCloud account.
     ScHistory(usize),
+    /// The SoundCloud songs under the YouTube Music results of `All` in Search.
+    ScSearch,
 }
 
 /// Lower area of compact Now Playing.

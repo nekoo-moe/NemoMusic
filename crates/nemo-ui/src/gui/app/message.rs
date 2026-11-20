@@ -19,7 +19,7 @@ use crate::palette::Seed;
 use crate::refresh::Start;
 use crate::state::{Event, ResolveKind};
 use iced::Size;
-use nemo_core::catalog::{BrowseId, Explore, FeedShelf, SearchResults, Shelf};
+use nemo_core::catalog::{BrowseId, Explore, FeedShelf, SearchKind, SearchResults, Shelf};
 use nemo_core::lyrics::{LyricsCandidate, ProviderId};
 use nemo_core::player::PlayerEvent;
 use nemo_core::secret::Secret;
@@ -60,6 +60,15 @@ pub enum Message {
     SearchDone {
         /// The query that was run.
         query: String,
+        /// The answer.
+        result: Result<Arc<SearchResults>, String>,
+    },
+    /// The SoundCloud group of `All` in Search answered.
+    ScGroup {
+        /// The text that was searched.
+        query: String,
+        /// The chip it was searched for.
+        kind: Option<SearchKind>,
         /// The answer.
         result: Result<Arc<SearchResults>, String>,
     },
@@ -365,6 +374,13 @@ pub enum Job {
         query: String,
         /// The chip.
         kind: nemo_core::catalog::SearchKind,
+    },
+    /// Search SoundCloud for the group under the YouTube Music results (`All` in Search).
+    ScGroup {
+        /// The text.
+        query: String,
+        /// The chip: `None` is the `All` chip.
+        kind: Option<SearchKind>,
     },
     /// Read the SoundCloud library (likes, playlists, albums, followed artists, history).
     ScLibrary {

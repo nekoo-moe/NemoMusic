@@ -138,8 +138,10 @@ impl App {
             .iter()
             .position(|t| *t == self.lib_tab)
             .unwrap_or(0);
-        let search = super::super::views::search::filter_labels();
-        let search_sel = super::super::views::search::filter_index(self.ui.search.filter);
+        let with_videos = !self.search_is_soundcloud();
+        let search = super::super::views::search::filter_labels(with_videos);
+        let search_sel =
+            super::super::views::search::filter_index(with_videos, self.ui.search.filter);
         // The SoundCloud tabs and the source switch of the Library (soundcloud-account spec).
         let sc_tabs: Vec<&str> = super::model::ScTab::ALL.iter().map(|t| t.label()).collect();
         let sc_sel = super::model::ScTab::ALL
@@ -148,12 +150,16 @@ impl App {
             .unwrap_or(0);
         let sources = crate::gui::views::library::source_labels();
         let source_sel = crate::gui::views::library::source_index(self.source);
+        // Search has a third choice, `All`.
+        let search_sources = crate::gui::views::library::search_source_labels();
+        let search_source_sel = crate::gui::views::library::search_source_index(self.source);
         for (slot, (labels, sel)) in [
             (home, home_sel),
             (lib, lib_sel),
             (search, search_sel),
             (sc_tabs, sc_sel),
             (sources, source_sel),
+            (search_sources, search_source_sel),
         ]
         .into_iter()
         .enumerate()

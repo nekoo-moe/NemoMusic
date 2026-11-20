@@ -19,7 +19,7 @@ use crate::gui::assets::Icon;
 use crate::gui::style::{col, gap, label, label_w, spinner};
 use crate::gui::views::account::{SecretField, notice_box, secret_field};
 use crate::gui::views::kit::{art, filled_button, paragraph, text_button, tile, tonal_button};
-use crate::gui::views::opt_in::{OptInActions, OptInPhase, OptInRow, opt_in_row_with};
+use crate::gui::views::opt_in::{Extras, OptInActions, OptInPhase, OptInRow, opt_in_row_with};
 use crate::gui::views::settings::appearance::restart;
 use crate::theme::{color, type_scale};
 
@@ -101,47 +101,45 @@ fn switch_row(app: &App, width: f32) -> Element<'_, Message> {
         // Off: what turning it off did. A failed removal is told here, where the switch is.
         stays: Some(app.sc.error.as_deref().unwrap_or(text::STAYS)),
     };
-    // The same `Restart now` pill as the Window glass card sits under the switch.
-    let pill = (phase == OptInPhase::On).then(|| {
+    // The same `Restart now` pill as the Window glass card sits under the switch, and its place
+    // only exists while it shows or fades.
+    let pill = (phase == OptInPhase::On && app.surfaces.sc_restart.visible()).then(|| {
         (
             restart::slot(app, &app.surfaces.sc_restart, restart::PILL_W),
             restart::PILL_W,
         )
     });
-    let row = opt_in_row_with(row, actions(), width, pill);
-    if app.sc.confirm_off {
-        return column![row, off_confirm(app, width)].into();
-    }
-    row
+    let extras = Extras {
+        under_switch: pill,
+        under_header: app.sc.confirm_off.then(|| off_confirm(app, width)),
+    };
+    opt_in_row_with(row, actions(), width, extras)
 }
 
-/// The question that comes with turning the switch off while signed in.
+/// The question that comes with turning the switch off while signed in. It sits right under
+/// the switch, inside the row, so it is seen where the switch was pressed.
 fn off_confirm(app: &App, width: f32) -> Element<'_, Message> {
     let inner = width - 2.0 * gap::LG;
-    container(
-        column![
-            paragraph(
-                text::OFF_CONFIRM,
-                type_scale::BODY_MD,
-                col(color::on_surface()),
-                inner,
+    column![
+        paragraph(
+            text::OFF_CONFIRM,
+            type_scale::BODY_MD,
+            col(color::on_surface()),
+            inner,
+        ),
+        row![
+            filled_button(
+                text::OFF_CONFIRM_BUTTON,
+                Icon::Logout,
+                app.accent(),
+                Message::Sc(ScMsg::ConfirmOff),
             ),
-            row![
-                filled_button(
-                    text::OFF_CONFIRM_BUTTON,
-                    Icon::Logout,
-                    app.accent(),
-                    Message::Sc(ScMsg::ConfirmOff),
-                ),
-                Space::new().width(gap::SM),
-                text_button("Cancel", Message::Sc(ScMsg::CancelOff)),
-            ]
-            .align_y(Alignment::Center),
+            Space::new().width(gap::SM),
+            text_button("Cancel", Message::Sc(ScMsg::CancelOff)),
         ]
-        .spacing(gap::MD),
-    )
-    .padding(Padding::from([gap::MD, gap::LG]))
-    .width(Length::Fixed(width))
+        .align_y(Alignment::Center),
+    ]
+    .spacing(gap::MD)
     .into()
 }
 
@@ -395,3 +393,6 @@ fn signed_in<'a>(app: &'a App, info: &SourceAccountInfo, width: f32) -> Element<
     }
     c.into()
 }
+
+#[cfg(test)]
+mod tests;
