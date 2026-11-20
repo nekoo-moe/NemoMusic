@@ -11,7 +11,8 @@ use nemo_core::player::{PlayState, PlayerCommand, PlayerEvent, RepeatMode};
 use nemo_core::track::{Track, VideoId};
 
 use crate::control::{Core, NextSlot, NextState, Run, micros};
-use crate::feeder::{FrameSpan, file_time};
+use crate::control_switch::Taken;
+use crate::feeder::{FrameSpan, file_time, snap_to_frame};
 use crate::pipeline::{FeedCmd, Pipeline, plan_stages};
 use crate::prepare::{PrepareDeps, spawn_prepare};
 use crate::render::gain_for_percent;
@@ -183,7 +184,7 @@ impl Core {
         }
     }
 
-    fn pause(&mut self) {
+    pub(crate) fn pause(&mut self) {
         if let (Some(pipe), PlayState::Playing | PlayState::Buffering) = (&self.pipe, self.state) {
             pipe.shared.paused.store(true, Ordering::SeqCst);
             self.set_state(PlayState::Paused);
@@ -570,15 +571,18 @@ impl Core {
         let Some(old_pipe) = self.pipe.take() else {
             return Ok(());
         };
-        let pos = self.shared.position();
-        self.underruns_base += old_pipe.shared.underruns.load(Ordering::Relaxed);
-        let mut jobs = old_pipe.stop_and_take();
+        let Taken {
+            mut jobs,
+            mut pos,
+            reopen,
+        } = self.take_old_output(old_pipe);
 
         let source_format = jobs.first().map(|j| j.decoder.info().format);
 
         if let Some(first_job) = jobs.first_mut() {
-            first_job.start = pos;
             let rate = first_job.decoder.info().format.sample_rate;
+            pos = snap_to_frame(pos, rate);
+            first_job.start = pos;
             let span = first_job.span.map(|s| FrameSpan::new(s, rate));
             let from = file_time(span, pos, rate);
             let _ = first_job.decoder.seek(from);
@@ -627,6 +631,9 @@ impl Core {
         }
 
         self.pipe = Some(pipe);
+        if reopen {
+            self.reopen_current(pos);
+        }
         Ok(())
     }
 }
