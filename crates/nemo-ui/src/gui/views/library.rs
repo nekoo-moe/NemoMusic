@@ -36,6 +36,27 @@ pub fn source_labels() -> Vec<&'static str> {
     vec![Source::YouTube.label(), Source::SoundCloud.label()]
 }
 
+/// The choices of the source switch of Search: the two services and `All` (YouTube Music first,
+/// then a SoundCloud group).
+#[must_use]
+pub fn search_source_labels() -> Vec<&'static str> {
+    vec![
+        Source::YouTube.label(),
+        Source::SoundCloud.label(),
+        Source::All.label(),
+    ]
+}
+
+/// The place of `source` in [`search_source_labels`].
+#[must_use]
+pub const fn search_source_index(source: Source) -> usize {
+    match source {
+        Source::YouTube => 0,
+        Source::SoundCloud => 1,
+        Source::All => 2,
+    }
+}
+
 /// The place of `source` in [`source_labels`].
 #[must_use]
 pub const fn source_index(source: Source) -> usize {
@@ -54,6 +75,20 @@ pub(super) fn source_switch(app: &App) -> Option<Element<'_, Message>> {
                 Source::SoundCloud
             } else {
                 Source::YouTube
+            }))
+        })
+    })
+}
+
+/// The same switch on Search, with `All` as the third choice.
+pub(super) fn search_source_switch(app: &App) -> Option<Element<'_, Message>> {
+    app.sc_open().then(|| {
+        let labels = search_source_labels();
+        super::kit::sliding_chips(app, &labels, search_source_index(app.source), 5, |i| {
+            Message::Sc(ScMsg::Source(match i {
+                1 => Source::SoundCloud,
+                2 => Source::All,
+                _ => Source::YouTube,
             }))
         })
     })

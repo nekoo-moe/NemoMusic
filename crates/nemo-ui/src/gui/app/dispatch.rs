@@ -38,6 +38,7 @@ impl App {
                         if self.search_is_soundcloud() {
                             jobs.push(Job::ScSearch(query));
                         } else if self.ui.youtube_enabled() {
+                            jobs.extend(self.sc_group_start(&query, None));
                             jobs.push(Job::Search(query));
                         } else {
                             // Nothing leaves the computer before the notice is accepted.
@@ -51,6 +52,7 @@ impl App {
                         if self.search_is_soundcloud() {
                             jobs.push(Job::ScSearchKind { query, kind });
                         } else if self.ui.youtube_enabled() {
+                            jobs.extend(self.sc_group_start(&query, Some(kind)));
                             jobs.push(Job::SearchKind { query, kind });
                         } else {
                             pending.push_back(Event::SearchFilterDone {

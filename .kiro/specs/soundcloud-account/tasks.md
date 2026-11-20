@@ -41,6 +41,11 @@
   - _Requirements: 13, 14, 15_
   - Depends on: 4
 
+- [x] 6a. Owner decisions of 2026-11-20 (PR `feat/nemo-ui-soundcloud-decisions`)
+  - Crate and files: `nemo-soundcloud` (`off.rs`), `nemo-app` (`soundcloud.rs`, `backend.rs`), `nemo-ui` (settings card, `opt_in.rs` extras, `restart.rs` slot, `sc_search.rs`, search views).
+  - Does: criteria 6d, 6e and the `All` part of 13. Off signs out and wipes (confirm sentence, store-only wipe at start); the `Restart now` pill under the SoundCloud switch; `All` in Search is YouTube Music first, then a SoundCloud group, and Videos is hidden for SoundCloud alone.
+  - Depends on: 1a, 6
+
 - [ ] 7. Account writes (PR 7)
   - Crate and files: `nemo-soundcloud` (`write.rs`), `nemo-ui`.
   - _Requirements: 16, 17_

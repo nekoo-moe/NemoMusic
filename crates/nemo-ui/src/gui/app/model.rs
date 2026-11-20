@@ -138,6 +138,8 @@ pub enum ListSource {
     ScLikes,
     /// The tracks of history section number `n` of the SoundCloud account.
     ScHistory(usize),
+    /// The SoundCloud songs under the YouTube Music results of `All` in Search.
+    ScSearch,
 }
 
 /// Lower area of compact Now Playing.
@@ -340,6 +342,8 @@ pub struct ScUi {
     pub error: Option<String>,
     /// Sign out waits for the confirmation.
     pub confirm_sign_out: bool,
+    /// Turning the switch off waits for the confirmation (it signs out and wipes the token).
+    pub confirm_off: bool,
     /// Result line of the last sign-out.
     pub notice: Option<String>,
 }
@@ -356,6 +360,7 @@ impl Default for ScUi {
             rechecked: false,
             error: None,
             confirm_sign_out: false,
+            confirm_off: false,
             notice: None,
         }
     }
@@ -500,8 +505,15 @@ pub enum ScMsg {
     Cancel,
     /// "Turn on" in the panel: store the choice and the confirmed notice version.
     TurnOn,
-    /// The switch was turned off: one click, no panel.
+    /// The switch was turned off. Signed in, it asks first (turning off signs out and wipes the
+    /// token); otherwise it turns off at once.
     TurnOff,
+    /// "Turn off and sign out" after the question.
+    ConfirmOff,
+    /// "Cancel" after the question: the switch stays on.
+    CancelOff,
+    /// The sign-out that comes with turning the switch off finished.
+    TurnedOff(Result<SignOutReport, SourceAccountError>),
     /// Press "Sign in with SoundCloud".
     SignIn,
     /// Show or hide the masked token field.

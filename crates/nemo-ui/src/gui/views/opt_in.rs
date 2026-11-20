@@ -106,20 +106,70 @@ pub fn hosts_text(info: &OptInInfo) -> String {
 
 /// Draw one opt-in row `width` px wide.
 pub fn opt_in_row(row: OptInRow<'_>, actions: OptInActions, width: f32) -> Element<'_, Message> {
+    opt_in_row_with(row, actions, width, Extras::default())
+}
+
+/// What a caller may add to a row besides its texts.
+#[derive(Default)]
+pub struct Extras<'a> {
+    /// An element under the switch, with its width, right-aligned (the `Restart now` pill of a
+    /// switch that needs a restart).
+    pub under_switch: Option<(Element<'a, Message>, f32)>,
+    /// A block right under the title and the switch, before the facts (a question the switch
+    /// asked, which must be seen where the switch is).
+    pub under_header: Option<Element<'a, Message>>,
+}
+
+/// [`opt_in_row`] with [`Extras`].
+pub fn opt_in_row_with<'a>(
+    row: OptInRow<'a>,
+    actions: OptInActions,
+    width: f32,
+    extras: Extras<'a>,
+) -> Element<'a, Message> {
+    let Extras {
+        under_switch: under,
+        under_header,
+    } = extras;
     let inner = (width - 2.0 * gap::LG).max(MIN_TEXT_W);
     let on = row.phase == OptInPhase::On;
-    let header = iced::widget::row![
-        paragraph(
-            row.info.title,
-            type_scale::BODY_MD,
-            col(color::on_surface()),
-            (inner - SWITCH_W - gap::LG).max(MIN_TEXT_W / 2.0),
+    let switch = switch(on, actions.ask.clone(), actions.turn_off.clone());
+    let stacked = under.is_some();
+    let (control, control_w) = match under {
+        Some((below, w)) => (
+            column![switch, below]
+                .spacing(gap::SM)
+                .align_x(Alignment::End)
+                .into(),
+            w.max(SWITCH_W),
         ),
-        Space::new().width(Length::Fill),
-        switch(on, actions.ask.clone(), actions.turn_off.clone()),
-    ]
-    .align_y(Alignment::Center);
+        None => (switch, SWITCH_W),
+    };
+    let title: Element<'a, Message> = paragraph(
+        row.info.title,
+        type_scale::BODY_MD,
+        col(color::on_surface()),
+        (inner - control_w - gap::LG).max(MIN_TEXT_W / 2.0),
+    );
+    // With the pill under the switch the title stays level with the switch, not the column.
+    let title = if stacked {
+        container(title)
+            .height(Length::Fixed(40.0))
+            .align_y(Alignment::Center)
+            .into()
+    } else {
+        title
+    };
+    let header =
+        iced::widget::row![title, Space::new().width(Length::Fill), control].align_y(if stacked {
+            Alignment::Start
+        } else {
+            Alignment::Center
+        });
     let mut body = column![header].spacing(gap::MD);
+    if let Some(block) = under_header {
+        body = body.push(block);
+    }
     let delete_now = actions.delete_now.clone();
     match row.phase {
         OptInPhase::Confirming => body = body.push(panel(row.info, actions, inner)),

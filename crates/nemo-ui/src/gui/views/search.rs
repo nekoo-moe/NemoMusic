@@ -16,6 +16,7 @@ use crate::state::Event;
 use crate::theme::{color, shape, type_scale};
 
 mod filter;
+mod sc_group;
 mod section;
 mod skeleton;
 mod top;
@@ -31,8 +32,8 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
     let search = &app.ui.search;
 
     let mut title = row![page_title("Search")].align_y(Alignment::Center);
-    // While SoundCloud is on, the same two chips as the Library choose the service searched.
-    if let Some(switch) = super::library::source_switch(app) {
+    // While SoundCloud is on, chips choose the service searched: YouTube Music, SoundCloud, All.
+    if let Some(switch) = super::library::search_source_switch(app) {
         title = title.push(Space::new().width(gap::LG)).push(switch);
     }
     let mut c = column![title, vspace(gap::LG), query_box(app, content_w)].width(Length::Fill);
@@ -87,7 +88,7 @@ fn all<'a>(app: &'a App, frame: &section::Frame) -> Element<'a, Message> {
     let mut c = column![];
     let results = search.results.as_ref();
     if let Some(r) = results {
-        if r.is_empty() && !search.loading {
+        if r.is_empty() && !search.loading && !sc_group::has_results(app) {
             c = c.push(no_results(search.query()));
         }
         if let Some(top) = &r.top {
@@ -106,9 +107,13 @@ fn all<'a>(app: &'a App, frame: &section::Frame) -> Element<'a, Message> {
             format!("{e} Check your connection and try again."),
             Some(("Try again", Message::Ui(Event::SearchRetry))),
         ));
+        // The YouTube Music search failed; SoundCloud's group is still worth showing.
     } else {
         // Pending: the skeleton comes after its 150 ms wait.
         c = c.push(blank());
+    }
+    if let Some(group) = sc_group::view(app, frame) {
+        c = c.push(group);
     }
     if results.is_some()
         && let Some(e) = &search.error

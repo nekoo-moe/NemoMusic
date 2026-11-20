@@ -24,6 +24,8 @@ Sign-in (PR 1)
 6a. (sign-in fix, 2026-11-20) WHEN the sign-in window shows a signed-in SoundCloud page, THE SYSTEM SHALL find the session token by the first of three readers that answers (the webview's cookie manager, `document.cookie` evaluated in the page, and the `Authorization: OAuth` header of the page's own requests to `soundcloud.com` hosts), accept a token of 8 to 2048 visible ASCII bytes (quotes removed, `%XX` decoded when the decoded form is shaped), and close the window when the page left `/signin` or a token is found.
 6b. IF the window found no token 25 s after a SoundCloud page loaded, THEN THE SYSTEM SHALL say so in one plain sentence on the account card and offer `I am signed in, check again` (the window looks at once) next to `Paste a token instead`; a token pasted while the window is open SHALL close the window and take over.
 6c. WHEN `NEMO_SIGNIN_DEBUG=1` is set, THE SYSTEM SHALL write one line per cookie of the sign-in window to stderr and to the app log (name, domain, secure and http-only flags, value length and shape class), and the names the `document.cookie`, `localStorage` and page-hydration probes found; it SHALL NOT write any value.
+6d. (owner decision, 2026-11-20) WHEN the user turns SoundCloud off, THE SYSTEM SHALL sign out and remove the token, the cached name and avatar and the window's profile folder (after one confirmation while signed in; a sign-in window that is open is closed), and WHEN SoundCloud is off at start and a sign-in may have left something, THE SYSTEM SHALL remove it without asking the credential store when nothing is left; the switch text SHALL say so.
+6e. (owner decision, 2026-11-20) WHEN SoundCloud is turned on, THE SYSTEM SHALL show the `Restart now` pill of the Window glass card under the switch, because the services start with the app.
 
 Settings and setup (PR 2)
 7. THE SYSTEM SHALL show the SoundCloud opt-in row in Settings through the existing gate (On/Off, the risk text, the hosts), and the account card (Sign in with SoundCloud, name and avatar, Sign out with its confirm text) only while the switch is on and confirmed.
@@ -36,7 +38,7 @@ Library reads (PR 3)
 12. WHEN the account changes or signs out, THE SYSTEM SHALL clear what the previous account loaded before showing anything for the new one.
 
 Screens (PRs 4 to 6)
-13. THE SYSTEM SHALL offer a source switch (YouTube Music, SoundCloud, All) in the sidebar library list and on Search, and a SoundCloud library (Likes, Playlists, Following, History) and playlist, user and track pages built from the existing components (Sort, track rows, skeleton kit, motion module, Material look).
+13. THE SYSTEM SHALL offer a source switch (YouTube Music, SoundCloud, All) in the sidebar library list and on Search; `All` in Search SHALL show YouTube Music's results first, then a SoundCloud group, and the Videos chip SHALL be hidden while SoundCloud alone is chosen; and a SoundCloud library (Likes, Playlists, Following, History) and playlist, user and track pages built from the existing components (Sort, track rows, skeleton kit, motion module, Material look).
 14. WHEN a SoundCloud screen loads, THE SYSTEM SHALL show the shared skeleton; WHEN it fails, a plain sentence with Retry; WHEN it is empty, an empty state. Play and queue SHALL work from every row.
 15. THE SYSTEM SHALL show the badge as `MP3 128 kbps` or `AAC 160 kbps` style text from the real stream and SHALL NOT show "Lossless", "HD", "Hi-Fi" or "Hi-Res" on a SoundCloud track.
 

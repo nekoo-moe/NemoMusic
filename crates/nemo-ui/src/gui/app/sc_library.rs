@@ -35,13 +35,6 @@ impl App {
             && matches!(self.sc_lib.phase, ScPhase::Idle | ScPhase::Loading)
     }
 
-    /// The Search page is set to SoundCloud (and SoundCloud is on): its searches go to SoundCloud
-    /// and need no YouTube Music notice.
-    #[must_use]
-    pub fn search_is_soundcloud(&self) -> bool {
-        self.source == Source::SoundCloud && self.sc_open()
-    }
-
     /// Clear the library when the account behind it changed or ended, then start the read the
     /// screen waits for. Cheap; runs after every update and frame.
     pub(super) fn sc_watch(&mut self) -> Vec<Job> {
@@ -93,6 +86,7 @@ impl App {
                 if matches!(self.ui.route(), crate::route::Route::Search(_)) {
                     // The answers on screen belong to the other service.
                     self.ui.search.forget_answers();
+                    self.sc_groups.clear();
                     jobs.extend(self.dispatch(crate::state::Event::SearchRetry));
                 }
                 return jobs;

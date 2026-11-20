@@ -126,6 +126,11 @@ pub(super) fn shots(out: &mut Vec<Shot>) {
                 signed_in(),
             ));
             out.push(running(
+                format!("soundcloud-confirm-off-{t}-960x900"),
+                page(base, (960, 900), ScScene::ConfirmOff),
+                signed_in(),
+            ));
+            out.push(running(
                 n("signed-out-notice"),
                 page(base, SMALL, ScScene::SignedOutNotice),
                 SourceAccountState::SignedOut,
@@ -291,6 +296,36 @@ pub(super) fn search_shots(out: &mut Vec<Shot>) {
             pending: Some(Pending::Search),
             skeleton_phase: Some(0.0),
             ..search(BaseMode::Dark, SMALL, Source::SoundCloud)
+        },
+        signed_in(),
+    ));
+    // `All`: YouTube Music first, then the SoundCloud group.
+    for (base, tag, size, dims) in [
+        (BaseMode::Dark, "dark", SMALL, "960x600"),
+        (BaseMode::Light, "light", SMALL, "960x600"),
+        (BaseMode::Dark, "dark", LARGE, "1366x697"),
+    ] {
+        out.push(running(
+            format!("soundcloud-search-all-{tag}-{dims}"),
+            search(base, size, Source::All),
+            signed_in(),
+        ));
+    }
+    // One kind of both services, small enough to show the group under YouTube Music's answer.
+    out.push(running(
+        "soundcloud-search-all-artists-dark-960x900".to_owned(),
+        Scenario {
+            size: (960, 900),
+            search_filter: Some(SearchKind::Artists),
+            ..search(BaseMode::Dark, SMALL, Source::All)
+        },
+        signed_in(),
+    ));
+    out.push(running(
+        "soundcloud-search-all-songs-dark-960x600".to_owned(),
+        Scenario {
+            search_filter: Some(SearchKind::Songs),
+            ..search(BaseMode::Dark, SMALL, Source::All)
         },
         signed_in(),
     ));
