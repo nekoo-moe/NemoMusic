@@ -193,7 +193,7 @@ impl UnisonProvider {
             params.push(("duration", d));
         }
         let url = url_with(&format!("{BASE_URL}/lyrics"), &params)?;
-        let (status, body) = send_text(self.client.get(url)).await?;
+        let (status, body) = send_text("lyrics:unison", self.client.get(url)).await?;
         match status {
             200..=299 => parse_response_detailed(&body),
             // Not found, or an id Unison cannot read: nothing for this track.

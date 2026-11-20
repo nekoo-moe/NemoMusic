@@ -14,7 +14,7 @@ The unlock is a click counter on the About version text. The panel looks like th
 
 - `nemo-core`: new `dev` module (`DevProbe`, `DevSnapshot` and its row types, the trace field names, the `nemo_trace!` macro) and the `Backend.dev` field.
 - `nemo-app`: `dev_capture` (ring, redaction, layer, filter), `logging::init` builds the subscriber from layers, the `DevProbe` implementation.
-- `nemo-ytm`, `nemo-soundcloud`, `nemo-lyrics`, `nemo-spotify`: small mechanical calls of `nemo_trace!` at their choke points. `nemo-spotify` gains the `tracing` dependency that is already in the workspace (no new crate).
+- `nemo-ytm`, `nemo-soundcloud`, `nemo-lyrics`: small mechanical calls of `nemo_trace!` at their choke points, each crate with its own `trace.rs` for the helper functions. `nemo-spotify` has no network code yet (an empty crate), so it has nothing to trace; its HTTP layer gets the same call when it is written.
 - `nemo-ui`: the panel, the click counter, the toast, the `Ctrl+Shift+D` shortcut, the headless render of each tab.
 
 ## Data Flow

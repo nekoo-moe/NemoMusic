@@ -4,10 +4,12 @@
 //! Rules every provider here follows: an identifying `User-Agent`, a short timeout, a body size
 //! cap, no URL in errors or logs (the URL carries the track metadata), `Retry-After` honored.
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use nemo_core::lyrics::LyricsError;
 use reqwest::{RequestBuilder, Url};
+
+use crate::trace;
 
 /// `User-Agent` sent to every lyrics host.
 pub const USER_AGENT: &str = crate::lrclib::USER_AGENT;
@@ -59,12 +61,16 @@ pub fn status_error(status: u16, retry_after: Option<&str>) -> Option<LyricsErro
 }
 
 /// Send a request. Returns the status and, for a 2xx answer, the body (empty otherwise).
+/// `provider` names the caller in the developer trace (`lyrics:<name>`).
 ///
 /// # Errors
 /// [`LyricsError::RateLimited`] on 429 and 503, [`LyricsError::Network`] on other failures,
 /// [`LyricsError::Parse`] when the body is too large or not text.
-pub async fn send_text(req: RequestBuilder) -> Result<(u16, String), LyricsError> {
-    send(req, false).await
+pub async fn send_text(
+    provider: &'static str,
+    req: RequestBuilder,
+) -> Result<(u16, String), LyricsError> {
+    send(provider, req, false).await
 }
 
 /// Like [`send_text`], but also returns the body of a 4xx answer (for hosts that explain a miss
@@ -73,11 +79,40 @@ pub async fn send_text(req: RequestBuilder) -> Result<(u16, String), LyricsError
 ///
 /// # Errors
 /// As [`send_text`].
-pub async fn send_any(req: RequestBuilder) -> Result<(u16, String), LyricsError> {
-    send(req, true).await
+pub async fn send_any(
+    provider: &'static str,
+    req: RequestBuilder,
+) -> Result<(u16, String), LyricsError> {
+    send(provider, req, true).await
 }
 
-async fn send(req: RequestBuilder, keep_4xx_body: bool) -> Result<(u16, String), LyricsError> {
+/// Send and trace one request (host and status only, never the address).
+async fn send(
+    provider: &'static str,
+    req: RequestBuilder,
+    keep_4xx_body: bool,
+) -> Result<(u16, String), LyricsError> {
+    let began = Instant::now();
+    let host = host_of_request(&req);
+    let result = read(req, keep_4xx_body).await;
+    trace::call(
+        provider,
+        &host,
+        result.as_ref().map(|(status, _)| *status),
+        began,
+    );
+    result
+}
+
+/// The host of a request that can be cloned (`unknown` otherwise).
+fn host_of_request(req: &RequestBuilder) -> String {
+    req.try_clone()
+        .and_then(|r| r.build().ok())
+        .and_then(|r| r.url().host_str().map(str::to_owned))
+        .unwrap_or_else(|| "unknown".to_owned())
+}
+
+async fn read(req: RequestBuilder, keep_4xx_body: bool) -> Result<(u16, String), LyricsError> {
     let resp = req
         .send()
         .await

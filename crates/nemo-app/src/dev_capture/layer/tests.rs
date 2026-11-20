@@ -208,9 +208,48 @@ fn cut_keeps_short_text_and_counts_characters() {
 
 #[test]
 fn every_trace_field_name_is_on_the_allow_list() {
-    for name in [
-        "provider", "op", "host", "status", "ms", "bytes", "tier", "attempt", "rest",
-    ] {
+    for name in nemo_core::dev::TRACE_FIELDS {
         assert!(ALLOWED_FIELDS.contains(&name), "{name}");
+    }
+    assert_eq!(TRACE_TARGET, "nemo_trace");
+}
+
+#[test]
+fn the_trace_macro_fills_the_ring_through_the_layer() {
+    let ring = DevRing::new(10);
+    let subscriber = build(
+        BoxMakeWriter::new(Sink::default()),
+        Level::INFO,
+        layer(&ring),
+    );
+    tracing::subscriber::with_default(subscriber, || {
+        nemo_core::nemo_trace!(
+            "lyrics:lrclib",
+            "lyrics",
+            host = "lrclib.net",
+            status = "rate_limited",
+            ms = 12_u64,
+            bytes = 1024_usize,
+            tier = "native",
+            attempt = 2_u64,
+            rest = 30_u64,
+        );
+    });
+    let events = ring.snapshot();
+    let event = events.first().expect("one event");
+    assert_eq!(event.target, TRACE_TARGET);
+    assert_eq!(event.level, Level::DEBUG);
+    for (name, value) in [
+        ("provider", "lyrics:lrclib"),
+        ("op", "lyrics"),
+        ("host", "lrclib.net"),
+        ("status", "rate_limited"),
+        ("ms", "12"),
+        ("bytes", "1024"),
+        ("tier", "native"),
+        ("attempt", "2"),
+        ("rest", "30"),
+    ] {
+        assert_eq!(event.field(name), Some(value), "{name}");
     }
 }

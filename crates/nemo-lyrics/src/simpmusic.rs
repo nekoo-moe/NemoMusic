@@ -133,7 +133,11 @@ impl SimpMusicProvider {
         {
             return Ok(None);
         }
-        let (status, body) = send_text(self.client.get(format!("{BASE_URL}{id}"))).await?;
+        let (status, body) = send_text(
+            "lyrics:simpmusic",
+            self.client.get(format!("{BASE_URL}{id}")),
+        )
+        .await?;
         match status {
             200..=299 => parse_response(&body),
             404 => Ok(None),
