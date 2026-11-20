@@ -3652,7 +3652,7 @@ dependencies = [
 
 [[package]]
 name = "nemo-app"
-version = "0.3.8"
+version = "0.3.9"
 dependencies = [
  "nemo-audio",
  "nemo-core",
@@ -3677,7 +3677,7 @@ dependencies = [
 
 [[package]]
 name = "nemo-audio"
-version = "0.3.8"
+version = "0.3.9"
 dependencies = [
  "cpal",
  "ebur128",
@@ -3695,7 +3695,7 @@ dependencies = [
 
 [[package]]
 name = "nemo-cast"
-version = "0.3.8"
+version = "0.3.9"
 dependencies = [
  "nemo-core",
  "thiserror 2.0.21",
@@ -3704,7 +3704,7 @@ dependencies = [
 
 [[package]]
 name = "nemo-core"
-version = "0.3.8"
+version = "0.3.9"
 dependencies = [
  "proptest",
  "thiserror 2.0.21",
@@ -3712,7 +3712,7 @@ dependencies = [
 
 [[package]]
 name = "nemo-integrations"
-version = "0.3.8"
+version = "0.3.9"
 dependencies = [
  "md-5",
  "nemo-core",
@@ -3728,7 +3728,7 @@ dependencies = [
 
 [[package]]
 name = "nemo-library"
-version = "0.3.8"
+version = "0.3.9"
 dependencies = [
  "lofty",
  "nemo-core",
@@ -3739,7 +3739,7 @@ dependencies = [
 
 [[package]]
 name = "nemo-lyrics"
-version = "0.3.8"
+version = "0.3.9"
 dependencies = [
  "lofty",
  "nemo-core",
@@ -3757,7 +3757,7 @@ dependencies = [
 
 [[package]]
 name = "nemo-secrets"
-version = "0.3.8"
+version = "0.3.9"
 dependencies = [
  "keyring-core",
  "nemo-core",
@@ -3767,7 +3767,7 @@ dependencies = [
 
 [[package]]
 name = "nemo-signin"
-version = "0.3.8"
+version = "0.3.9"
 dependencies = [
  "serde_json",
  "tao",
@@ -3776,7 +3776,7 @@ dependencies = [
 
 [[package]]
 name = "nemo-soundcloud"
-version = "0.3.8"
+version = "0.3.9"
 dependencies = [
  "nemo-audio",
  "nemo-core",
@@ -3790,14 +3790,14 @@ dependencies = [
 
 [[package]]
 name = "nemo-spotify"
-version = "0.3.8"
+version = "0.3.9"
 dependencies = [
  "nemo-core",
 ]
 
 [[package]]
 name = "nemo-stats"
-version = "0.3.8"
+version = "0.3.9"
 dependencies = [
  "nemo-core",
  "thiserror 2.0.21",
@@ -3805,7 +3805,7 @@ dependencies = [
 
 [[package]]
 name = "nemo-together"
-version = "0.3.8"
+version = "0.3.9"
 dependencies = [
  "nemo-core",
  "proptest",
@@ -3813,7 +3813,7 @@ dependencies = [
 
 [[package]]
 name = "nemo-ui"
-version = "0.3.8"
+version = "0.3.9"
 dependencies = [
  "iced",
  "iced_test",
@@ -3824,7 +3824,7 @@ dependencies = [
 
 [[package]]
 name = "nemo-ytm"
-version = "0.3.8"
+version = "0.3.9"
 dependencies = [
  "getrandom 0.3.4",
  "nemo-audio",
