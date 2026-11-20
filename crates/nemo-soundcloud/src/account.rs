@@ -223,9 +223,14 @@ impl Shared {
         match removed {
             Ok(existed) => {
                 report.credentials_removed = usize::from(existed);
+                crate::off::clear_pending(&self.files);
                 Ok(report)
             }
-            Err(e) => Err(SourceAccountError::Storage(e.0.to_owned())),
+            Err(e) => {
+                // The next start with SoundCloud off tries again (`off::wipe_stored`).
+                crate::off::mark_pending(&self.files);
+                Err(SourceAccountError::Storage(e.0.to_owned()))
+            }
         }
     }
 
