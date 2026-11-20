@@ -36,8 +36,14 @@ fn only_youtube(app: &App) -> &'static str {
 }
 
 /// The title, then the two choices (or the sentence that says why there is one), then one line
-/// of help. `width` is the width the sentences wrap at.
-pub fn control(app: &App, width: f32) -> Element<'_, Message> {
+/// of help. `width` is the width the sentences wrap at. `None` in a build without SoundCloud:
+/// there is only one area then.
+pub fn control(app: &App, width: f32) -> Option<Element<'_, Message>> {
+    app.sc_info()?;
+    Some(choices(app, width))
+}
+
+fn choices(app: &App, width: f32) -> Element<'_, Message> {
     let dim = col(color::on_surface_variant());
     let title = label(
         text::AREA_TITLE,

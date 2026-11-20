@@ -15,6 +15,8 @@ use super::{Shot, shot};
 
 const SMALL: (u32, u32) = (960, 600);
 const LARGE: (u32, u32) = (1366, 697);
+/// Tall enough to show the whole sheet without scrolling.
+const TALL: (u32, u32) = (960, 1000);
 
 fn tag(base: BaseMode) -> &'static str {
     if base == BaseMode::Light {
@@ -131,5 +133,75 @@ pub fn shots(out: &mut Vec<Shot>) {
             soundcloud: Some(ScScene::Off),
             ..base_scenario(BaseMode::Dark, SMALL, Route::Settings)
         },
+    ));
+}
+
+/// The sheet with both accounts signed in, in the state `scene` gives the SoundCloud card.
+fn both(name: String, base: BaseMode, size: (u32, u32), scene: ScScene) -> Shot {
+    Shot {
+        signed_in: true,
+        ..running(
+            name,
+            Scenario {
+                sheet: Sheet::SignedIn,
+                soundcloud: Some(scene),
+                ..base_scenario(base, size, Route::Home)
+            },
+            signed_in(),
+        )
+    }
+}
+
+/// The `Your accounts` sheet (PR 2): both accounts, the SoundCloud card in each state, and the
+/// sheet in a window half the size (what 200% scale leaves of 960 x 600).
+pub fn account_shots(out: &mut Vec<Shot>) {
+    for base in [BaseMode::Dark, BaseMode::Light] {
+        for size in [SMALL, LARGE] {
+            out.push(both(
+                format!("accounts-both-{}-{}", tag(base), dims(size)),
+                base,
+                size,
+                ScScene::Account,
+            ));
+        }
+    }
+    out.push(both(
+        "accounts-both-confirm-dark-960x1000".to_owned(),
+        BaseMode::Dark,
+        TALL,
+        ScScene::ConfirmSignOut,
+    ));
+    out.push(both(
+        "accounts-both-scale200-dark-480x300".to_owned(),
+        BaseMode::Dark,
+        (480, 300),
+        ScScene::Account,
+    ));
+    out.push(running(
+        "accounts-paste-dark-960x1000".to_owned(),
+        Scenario {
+            sheet: Sheet::SignIn,
+            soundcloud: Some(ScScene::Paste),
+            ..base_scenario(BaseMode::Dark, TALL, Route::Home)
+        },
+        SourceAccountState::SignedOut,
+    ));
+    out.push(running(
+        "accounts-busy-dark-960x1000".to_owned(),
+        Scenario {
+            sheet: Sheet::SignIn,
+            soundcloud: Some(ScScene::Busy),
+            ..base_scenario(BaseMode::Dark, TALL, Route::Home)
+        },
+        SourceAccountState::SignedOut,
+    ));
+    out.push(running(
+        "accounts-expired-dark-960x1000".to_owned(),
+        Scenario {
+            sheet: Sheet::SignIn,
+            soundcloud: Some(ScScene::Account),
+            ..base_scenario(BaseMode::Dark, TALL, Route::Home)
+        },
+        SourceAccountState::Expired,
     ));
 }

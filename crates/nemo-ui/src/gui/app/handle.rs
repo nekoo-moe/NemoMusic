@@ -311,6 +311,10 @@ impl App {
                 Vec::new()
             }
             Message::SettingsSectionGo(s) => {
+                // The accounts sheet points here (`Turn on SoundCloud in Settings`): it closes.
+                if self.account.open {
+                    let _ = self.account_msg(AccountMsg::Close);
+                }
                 self.settings_section = s;
                 self.dispatch(Event::Go(Route::Settings))
             }

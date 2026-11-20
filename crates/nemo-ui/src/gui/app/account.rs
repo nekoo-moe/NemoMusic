@@ -28,6 +28,10 @@ impl App {
                 acc.notice = None;
                 acc.confirm_sign_out = false;
                 self.ui.text_focused = false;
+                // The sheet shows the SoundCloud card too: a typed token, a question and a
+                // result line do not wait for the next time it opens.
+                self.sc_reset_page();
+                self.sc.notice = None;
             }
             AccountMsg::SignIn => {
                 if self.ui.settings.tos_acknowledged && !acc.busy {
@@ -146,3 +150,6 @@ pub(super) fn shuffle(tracks: &mut [Track]) {
         tracks.swap(i, j);
     }
 }
+
+#[cfg(test)]
+mod tests;

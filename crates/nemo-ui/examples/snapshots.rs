@@ -111,6 +111,7 @@ fn scenarios() -> Vec<Shot> {
     soundcloud_account::sidebar_shots(&mut out);
     soundcloud_account::write_shots(&mut out);
     source_workspaces::shots(&mut out);
+    source_workspaces::account_shots(&mut out);
     skeleton::shots(&mut out);
     out.extend(wave_lyrics::shots());
     out.extend(syllable_motion::shots());
@@ -196,6 +197,11 @@ fn main() {
         }
         let backend: Backend = match (s.seeded, s.signed_in, s.soundcloud.clone()) {
             (_, _, Some(state)) if s.empty => mock_backend_soundcloud_empty(state),
+            // Both accounts signed in (the accounts sheet).
+            (_, true, Some(state)) => Backend {
+                account: mock_backend_signed_in().account,
+                ..mock_backend_soundcloud(state)
+            },
             (_, _, Some(state)) => mock_backend_soundcloud(state),
             (true, _, None) => mock_backend_seeded(),
             (false, true, None) => mock_backend_signed_in(),
