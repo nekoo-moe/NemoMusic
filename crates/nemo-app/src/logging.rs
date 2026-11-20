@@ -7,6 +7,11 @@ use std::path::Path;
 use std::sync::Mutex;
 
 use tracing::Level;
+use tracing_subscriber::filter::LevelFilter;
+use tracing_subscriber::fmt::writer::BoxMakeWriter;
+use tracing_subscriber::prelude::*;
+
+use crate::dev_capture::{CaptureLayer, DevRing, RING_CAPACITY, capture_filter};
 
 /// Name of the log file inside the logs folder.
 pub const LOG_FILE: &str = "nemo.log";
@@ -28,21 +33,40 @@ pub fn parse_level(text: &str) -> Option<Level> {
 }
 
 /// Start logging into `logs_dir`. Falls back to stderr when the file cannot be opened.
-pub fn init(logs_dir: &Path) {
+///
+/// Returns the developer ring that the capture layer fills (dev-tools spec). The ring lives in
+/// memory only; the log file and stderr are unchanged by it.
+pub fn init(logs_dir: &Path) -> DevRing {
     let level = std::env::var("NEMO_LOG")
         .ok()
         .and_then(|v| parse_level(&v))
         .unwrap_or(Level::INFO);
-    let builder = tracing_subscriber::fmt()
-        .with_max_level(level)
-        .with_ansi(false)
-        .with_target(true);
-    let result = match open_log(logs_dir) {
-        Ok(file) => builder.with_writer(Mutex::new(file)).try_init(),
-        Err(_) => builder.with_writer(std::io::stderr).try_init(),
+    let writer = match open_log(logs_dir) {
+        Ok(file) => BoxMakeWriter::new(Mutex::new(file)),
+        Err(_) => BoxMakeWriter::new(std::io::stderr),
     };
+    let ring = DevRing::new(RING_CAPACITY);
     // A second init (tests, or a subscriber set by a host) is harmless: keep the first.
-    let _ = result;
+    let _ = build(writer, level, CaptureLayer::new(ring.clone())).try_init();
+    ring
+}
+
+/// The subscriber: the text layer at the `NEMO_LOG` level and the capture layer with its own
+/// filter. Each layer has its own filter, so the ring also receives provider trace events when
+/// the text layer is at `info`.
+pub(crate) fn build(
+    writer: BoxMakeWriter,
+    level: Level,
+    capture: CaptureLayer,
+) -> impl tracing::Subscriber + Send + Sync + 'static {
+    let text = tracing_subscriber::fmt::layer()
+        .with_ansi(false)
+        .with_target(true)
+        .with_writer(writer)
+        .with_filter(LevelFilter::from_level(level));
+    tracing_subscriber::registry()
+        .with(text)
+        .with(capture.with_filter(capture_filter(level)))
 }
 
 /// Open the log file for appending, rotating it once when it is too big.
