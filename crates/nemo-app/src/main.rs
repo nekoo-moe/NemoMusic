@@ -6,6 +6,7 @@ mod backend;
 #[cfg(windows)]
 mod blur;
 mod config;
+mod dev_capture;
 mod folder_picker;
 mod hover_hint;
 mod logging;
@@ -42,7 +43,8 @@ fn main() {
     if let Err(err) = paths.create_all() {
         fatal(&format!("cannot create data folders: {err}"));
     }
-    logging::init(&paths.logs);
+    // The ring of the developer panel (dev-tools spec); the probe that reads it comes with the panel.
+    let _dev_ring = logging::init(&paths.logs);
     tracing::info!(version = env!("CARGO_PKG_VERSION"), "starting");
     let settings = config::Settings::load(&paths.root);
     if let Err(err) = settings.save(&paths.root) {
