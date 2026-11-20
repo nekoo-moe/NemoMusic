@@ -6,7 +6,7 @@ use nemo_core::catalog::{AlbumSummary, ArtistSummary, PlaylistSummary};
 use nemo_core::track::Artwork;
 
 use crate::format;
-use crate::gui::app::{App, ArtShape, LibFilter, Message};
+use crate::gui::app::{App, ArtShape, LibFilter, Message, ScMsg, Source};
 use crate::gui::assets::Icon;
 use crate::gui::fx::entrance;
 use crate::gui::style::{animated, col, fit, gap, icon, icon_button, label, scroll, tip};
@@ -74,6 +74,26 @@ pub(super) fn library_chips(app: &App) -> Element<'_, Message> {
     r.into()
 }
 
+/// The source switch of the list while SoundCloud is on: YouTube Music, SoundCloud or both. The
+/// chips wrap, because the sidebar is narrow. It is the same choice the Library and Search pages
+/// make (`App::source`).
+pub(super) fn source_chips(app: &App) -> Option<Element<'_, Message>> {
+    app.sc_open().then(|| {
+        let accent = app.accent();
+        let mut r = row![].spacing(gap::SM);
+        for source in Source::ALL {
+            r = r.push(chip_padded(
+                source.label(),
+                app.source == source,
+                accent,
+                Message::Sc(ScMsg::Source(source)),
+                gap::MD,
+            ));
+        }
+        r.wrap().vertical_spacing(gap::SM).into()
+    })
+}
+
 /// One row of the library list.
 struct LibRow {
     kind: LibFilter,
@@ -118,12 +138,34 @@ fn library_rows(app: &App) -> Vec<LibRow> {
         artwork: Artwork::Remote(p.thumbnails.clone()),
         route: Route::Playlist(p.id.clone()),
     };
-    if let Some(lib) = app.account_lists() {
-        playlists.extend(lib.playlists.iter().map(playlist_row));
-        artists.extend(lib.artists.iter().map(artist_row));
-        albums.extend(lib.albums.iter().map(album_row));
+    let (youtube, soundcloud) = sources(app);
+    if youtube {
+        if let Some(lib) = app.account_lists() {
+            playlists.extend(lib.playlists.iter().map(playlist_row));
+            artists.extend(lib.artists.iter().map(artist_row));
+            albums.extend(lib.albums.iter().map(album_row));
+        }
+        albums.extend(app.local_albums.iter().map(album_row));
     }
-    albums.extend(app.local_albums.iter().map(album_row));
+    if soundcloud && app.sc_is_signed_in() {
+        let data = app.sc_data();
+        let both = youtube;
+        playlists.extend(data.playlists.iter().map(|p| {
+            let mut row = playlist_row(p);
+            row.subtitle = sc_subtitle("Playlist", p.author.as_deref(), both);
+            row
+        }));
+        artists.extend(data.artists.iter().map(|a| {
+            let mut row = artist_row(a);
+            row.subtitle = sc_subtitle("Artist", None, both);
+            row
+        }));
+        albums.extend(data.albums.iter().map(|a| {
+            let mut row = album_row(a);
+            row.subtitle = sc_subtitle("Album", Some(&format::artists(&a.artists)), both);
+            row
+        }));
+    }
     let mut rows = Vec::new();
     for (kind, list) in [
         (LibFilter::Playlists, playlists),
@@ -147,8 +189,43 @@ fn library_rows(app: &App) -> Vec<LibRow> {
     rows
 }
 
+/// Which services the list draws: YouTube Music, SoundCloud or both. YouTube Music is the only
+/// one while SoundCloud is off.
+fn sources(app: &App) -> (bool, bool) {
+    if !app.sc_open() {
+        return (true, false);
+    }
+    (
+        app.source != Source::SoundCloud,
+        app.source.has_soundcloud(),
+    )
+}
+
+/// The second line of a SoundCloud row: what it is and whose, with `SoundCloud` named when the
+/// list also holds YouTube Music rows.
+fn sc_subtitle(kind: &str, whose: Option<&str>, named: bool) -> String {
+    match (whose, named) {
+        (Some(w), true) => format!("{kind} \u{b7} {w} \u{b7} SoundCloud"),
+        (Some(w), false) => format!("{kind} \u{b7} {w}"),
+        (None, true) => format!("{kind} \u{b7} SoundCloud"),
+        (None, false) => kind.to_owned(),
+    }
+}
+
 /// What the list says when it has no rows.
 fn empty_hint(app: &App) -> &'static str {
+    let (youtube, soundcloud) = sources(app);
+    if soundcloud && !youtube {
+        return if !app.sc_is_signed_in() {
+            "Sign in to SoundCloud in Settings to see your playlists, artists and albums here."
+        } else if app.sc_lib.phase == crate::gui::app::ScPhase::Failed {
+            "Could not load your SoundCloud library. Press Refresh (F5) to try again."
+        } else if app.sc_lib.phase == crate::gui::app::ScPhase::Done {
+            "Nothing saved on SoundCloud yet."
+        } else {
+            "Loading your SoundCloud library\u{2026}"
+        };
+    }
     if !app.signed_in() {
         "Sign in to YouTube Music to see your playlists, albums and artists here."
     } else if app.account_lists().is_some() {
@@ -175,7 +252,7 @@ pub(crate) fn hint(app: &App) -> &'static str {
 /// What the list says when it has no rows. While the library loads it says nothing: the
 /// skeleton stands in after its 150 ms wait.
 fn empty_list(app: &App, width: f32) -> Element<'_, Message> {
-    if app.library_loading() {
+    if app.sidebar_loading() {
         return blank();
     }
     container(

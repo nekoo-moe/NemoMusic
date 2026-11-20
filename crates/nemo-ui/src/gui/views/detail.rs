@@ -206,7 +206,12 @@ fn playlist<'a>(
     grid: layout::Grid,
 ) -> Element<'a, Message> {
     let c = collection::Collection {
-        kind: "Playlist",
+        // A SoundCloud track page is built like a playlist page: the track, then what follows.
+        kind: if key.id.0.starts_with("sc:track:") {
+            "Track"
+        } else {
+            "Playlist"
+        },
         artwork: Artwork::Remote(p.summary.thumbnails.clone()),
         title: &p.summary.title,
         owner: p.meta.owner.clone().or_else(|| p.summary.author.clone()),

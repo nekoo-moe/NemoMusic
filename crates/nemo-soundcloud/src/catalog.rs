@@ -11,8 +11,8 @@ use std::sync::Arc;
 use nemo_core::BoxFuture;
 use nemo_core::catalog::{
     AlbumDetail, AlbumSummary, ArtistDetail, ArtistSummary, BrowseId, Catalog, CatalogError,
-    Explore, HistorySection, HomeFeed, PlaylistDetail, PlaylistSummary, SearchKind, SearchResults,
-    Shelf,
+    CollectionMeta, Explore, HistorySection, HomeFeed, PlaylistDetail, PlaylistSummary, SearchKind,
+    SearchResults, Shelf,
 };
 use nemo_core::track::{MediaUrl, Track, TrackId};
 use serde_json::Value;
@@ -277,9 +277,51 @@ impl SoundcloudCatalog {
             .collect())
     }
 
+    /// The page of one track (`sc:track:<id>`), built from the parts of a playlist page: the
+    /// track first, then the tracks SoundCloud suggests after it. Two requests. A failed read of
+    /// the suggestions leaves the page with its one track; a missing track is not found.
+    async fn track_page(&self, number: u64) -> Result<PlaylistDetail, CatalogError> {
+        let body = self
+            .client
+            .get(&format!("/tracks/{number}"), &[])
+            .await
+            .map_err(to_catalog)?;
+        let raw: ScTrack = parse_one(&body).map_err(to_catalog)?;
+        let track = mapped(self.client.records(), &raw).ok_or(CatalogError::NotFound)?;
+        let related = self.related(&track.id).await.unwrap_or_default();
+        let mut tracks = vec![track.clone()];
+        tracks.extend(related.into_iter().filter(|t| t.id != track.id));
+        let owner = raw.user.as_ref().and_then(|u| u.username.clone());
+        let thumbnails = match &track.artwork {
+            nemo_core::track::Artwork::Remote(thumbs) => thumbs.clone(),
+            _ => Vec::new(),
+        };
+        Ok(PlaylistDetail {
+            summary: PlaylistSummary {
+                id: map::browse_id(Kind::Track, number),
+                title: track.title.clone(),
+                author: owner.clone(),
+                thumbnails,
+            },
+            meta: CollectionMeta {
+                owner,
+                owner_avatar: map::thumbnails(
+                    raw.user.as_ref().and_then(|u| u.avatar_url.as_deref()),
+                ),
+                track_count: u32::try_from(tracks.len()).ok(),
+                ..CollectionMeta::default()
+            },
+            tracks,
+            edit: None,
+        })
+    }
+
     async fn playlist_page(&self, id: &BrowseId) -> Result<PlaylistDetail, CatalogError> {
         if let Some(page) = crate::home::Page::parse(id) {
             return self.extra_page(page).await;
+        }
+        if let Some((Kind::Track, number)) = map::parse_browse_id(id) {
+            return self.track_page(number).await;
         }
         let (p, tracks) = self.load_playlist(id).await?;
         let summary =

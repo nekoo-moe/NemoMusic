@@ -215,7 +215,17 @@ impl App {
                 .map(|l| l.songs.clone())
                 .unwrap_or_default(),
             ListSource::Recent => self.ui.recent.clone(),
-            ListSource::ScLikes => self.sc_lib.data.likes.clone(),
+            ListSource::ScLikes => {
+                // Sorted like the Likes tab draws it, so a row plays from where it is.
+                let mut likes = self.sc_lib.data.likes.clone();
+                crate::explore::sort_by_key(
+                    &mut likes,
+                    self.lib_sort,
+                    |t| t.title.clone(),
+                    |t| crate::format::artists(&t.artists),
+                );
+                likes
+            }
             ListSource::ScHistory(n) => self
                 .sc_lib
                 .data

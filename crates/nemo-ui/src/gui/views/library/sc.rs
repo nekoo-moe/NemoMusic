@@ -8,7 +8,7 @@ use iced::{Alignment, Element, Length};
 use nemo_core::catalog::{AlbumSummary, ArtistSummary, HistorySection, PlaylistSummary};
 use nemo_core::track::Artwork;
 
-use super::collection::Coll;
+use super::collection::{Coll, sorted};
 use super::list::{collections, song_block};
 use super::note;
 use crate::gui::app::{
@@ -113,9 +113,10 @@ fn tab_body(app: &App, grid: layout::Grid, content_w: f32) -> Element<'_, Messag
             if data.likes.is_empty() {
                 return note(app, "No liked tracks yet.", None);
             }
+            // The rows play in the order they are drawn in (`App::tracks_of`).
             song_block(
                 app,
-                data.likes.clone(),
+                app.tracks_of(&ListSource::ScLikes),
                 ListSource::ScLikes,
                 content_w,
                 grid,
@@ -123,21 +124,24 @@ fn tab_body(app: &App, grid: layout::Grid, content_w: f32) -> Element<'_, Messag
         }
         ScTab::Playlists => collections(
             app,
-            data.playlists.iter().map(playlist_coll).collect(),
+            sorted(
+                data.playlists.iter().map(playlist_coll).collect(),
+                app.lib_sort,
+            ),
             grid,
             content_w,
             "No playlists yet.",
         ),
         ScTab::Albums => collections(
             app,
-            data.albums.iter().map(album_coll).collect(),
+            sorted(data.albums.iter().map(album_coll).collect(), app.lib_sort),
             grid,
             content_w,
             "No albums yet.",
         ),
         ScTab::Following => collections(
             app,
-            data.artists.iter().map(artist_coll).collect(),
+            sorted(data.artists.iter().map(artist_coll).collect(), app.lib_sort),
             grid,
             content_w,
             "You follow no artists yet.",

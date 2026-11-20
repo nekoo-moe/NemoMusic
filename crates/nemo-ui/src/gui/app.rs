@@ -78,6 +78,7 @@ pub use option::{
     AccountLibrary, CreateMsg, FolderPicker, PickFuture, RestartHandler, SleepState, UiHooks,
     UiOptions, WindowHandler,
 };
+pub use sc_library::sc_track_page;
 
 /// Widget id of the search box.
 pub const SEARCH_ID: &str = "nemo-search";

@@ -191,6 +191,16 @@ pub fn track_menu<'a>(app: &'a App, track: &'a Track) -> Element<'a, Message> {
             .is_some()
             .then(|| Message::CopyLink(track.clone())),
     ));
+    if track.origin == nemo_core::audio::Origin::SoundCloud
+        && app.sc_open()
+        && let Some(page) = crate::gui::app::sc_track_page(track)
+    {
+        items = items.push(entry(
+            Icon::Note,
+            "Track page",
+            Some(Message::Ui(Event::Go(crate::route::Route::Playlist(page)))),
+        ));
+    }
     let liked = app.is_liked(track);
     items = items.push(entry(
         if liked { Icon::HeartFill } else { Icon::Heart },

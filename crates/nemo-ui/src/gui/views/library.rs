@@ -203,9 +203,6 @@ fn header(app: &App, _width: f32) -> Element<'_, Message> {
 
 /// Tabs on the left; sort and list or grid on the right.
 fn tabs(app: &App, width: f32) -> Element<'_, Message> {
-    let accent = app.accent();
-    let dim = col(color::on_surface_variant());
-    let ink = col(color::on_surface());
     let mut r = row![].spacing(gap::SM).align_y(Alignment::Center);
     let labels: Vec<&str> = LibTab::ALL.iter().map(|t| t.label()).collect();
     let selected = LibTab::ALL
@@ -216,6 +213,18 @@ fn tabs(app: &App, width: f32) -> Element<'_, Message> {
         Message::LibTab(LibTab::ALL[i])
     }));
     r = r.push(Space::new().width(Length::Fill));
+    r = r.push(sort_and_layout(app));
+    let _ = width;
+    r.into()
+}
+
+/// The sort button and the list or grid toggle, drawn on the right of the tab row of the YouTube
+/// Music Library and of the SoundCloud one.
+pub(super) fn sort_and_layout(app: &App) -> Element<'_, Message> {
+    let accent = app.accent();
+    let dim = col(color::on_surface_variant());
+    let ink = col(color::on_surface());
+    let mut r = row![].spacing(gap::SM).align_y(Alignment::Center);
     let sort_label = format!("Sort: {}", app.lib_sort.label());
     let sort = button(
         row![
@@ -258,7 +267,6 @@ fn tabs(app: &App, width: f32) -> Element<'_, Message> {
             tip_text,
         ));
     }
-    let _ = width;
     r.into()
 }
 
