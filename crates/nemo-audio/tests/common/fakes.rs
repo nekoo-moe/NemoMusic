@@ -210,6 +210,7 @@ pub struct ThreadSink {
     info: OutputInfo,
     capture: Arc<Mutex<Vec<f32>>>,
     interval: Duration,
+    block: usize,
     stop: Arc<AtomicBool>,
     thread: Option<JoinHandle<()>>,
 }
@@ -226,7 +227,7 @@ impl AudioSink for ThreadSink {
         let capture = Arc::clone(&self.capture);
         let stop = Arc::clone(&self.stop);
         let interval = self.interval;
-        let samples = BLOCK * usize::from(self.info.format.channels);
+        let samples = self.block * usize::from(self.info.format.channels);
         self.thread = Some(thread::spawn(move || {
             let mut buf = vec![0.0_f32; samples];
             let mut next = Instant::now();
@@ -284,6 +285,7 @@ impl SinkFactory for ThreadSinkFactory {
             },
             capture: Arc::clone(&self.capture),
             interval: self.interval,
+            block: BLOCK,
             stop: Arc::new(AtomicBool::new(false)),
             thread: None,
         }))
@@ -300,6 +302,8 @@ pub struct SelectableSinkFactory {
     pub capture: Arc<Mutex<Vec<f32>>>,
     pub opened: Arc<AtomicUsize>,
     pub interval: Duration,
+    /// Frames per callback of the devices this factory opens.
+    pub block: usize,
     pub devices: Mutex<Vec<OutputDevice>>,
     pub fail_id: Mutex<Option<DeviceId>>,
     pub missing_fallback: AtomicBool,
@@ -317,6 +321,7 @@ impl SelectableSinkFactory {
             capture,
             opened,
             interval,
+            block: BLOCK,
             devices: Mutex::new(devices),
             fail_id: Mutex::new(None),
             missing_fallback: AtomicBool::new(false),
@@ -357,6 +362,7 @@ impl SinkFactory for SelectableSinkFactory {
             },
             capture: Arc::clone(&self.capture),
             interval: self.interval,
+            block: self.block,
             stop: Arc::new(AtomicBool::new(false)),
             thread: None,
         }))

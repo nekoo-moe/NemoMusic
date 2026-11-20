@@ -1,5 +1,6 @@
 //! Device switching tests: seamless switch during playback, no re-resolution, queue
-//! preservation, click-free continuity, failure rollback, and switching while stopped.
+//! preservation, failure rollback, and switching while stopped. Frame-exact continuity across a
+//! switch is in `player_switch_frames.rs`.
 
 mod common;
 
@@ -159,98 +160,6 @@ fn failed_open_keeps_old_device_and_saved_choice() {
     // Playback continues uninterrupted on old device
     let samples_now = r.captured().len();
     r.wait_samples(samples_now + 480 * 4, LIMIT);
-}
-
-#[test]
-fn switch_device_no_click_step() {
-    let (dev1, dev2, _dev_fail) = test_devices();
-    let capture = Arc::new(Mutex::new(Vec::new()));
-    let opened = Arc::new(AtomicUsize::new(0));
-    let factory = Arc::new(SelectableSinkFactory::new(
-        vec![dev1, dev2.clone()],
-        Arc::clone(&capture),
-        Arc::clone(&opened),
-        Duration::from_millis(1),
-    ));
-
-    // Continuous 440 Hz sine tone (amplitude ~0.5)
-    let s1 = tone_i16(48_000, 2, 10 * 48_000, 440.0);
-    let mut r = rig(
-        vec![(video_id(1), wav_bytes(&s1, 16, 48_000, 2))],
-        RigOptions {
-            sink_factory: Some(factory),
-            capture: Some(capture),
-            opened: Some(opened),
-            ..RigOptions::default()
-        },
-    );
-
-    r.send(PlayerCommand::Play(video_track(1)));
-    r.wait_samples(480 * 8, LIMIT);
-
-    // Switch device during continuous tone
-    r.send(PlayerCommand::SetOutputDevice(Some(SavedDevice {
-        id: dev2.id.clone(),
-        name: dev2.name,
-    })));
-
-    r.wait_event("output changed", LIMIT, |e| {
-        matches!(e, PlayerEvent::OutputChanged(s) if s.chosen.as_ref().map(|d| &d.id) == Some(&dev2.id))
-    });
-
-    // Capture more samples across the switch (covering prefill gap + resumption)
-    let samples_after = r.captured().len() + 480 * 60;
-    r.wait_samples(samples_after, LIMIT);
-
-    let captured = r.captured();
-    assert!(captured.len() >= 480 * 10);
-
-    // Find the end of device 1 playback (before the silence gap) and the start of device 2 playback.
-    // The switch occurred after 480 * 8 samples. The inter-device prefill gap is a block of silence.
-    let search_start = 480 * 8;
-    let gap_offset = captured[search_start..]
-        .windows(100)
-        .position(|w| w.iter().all(|s| *s == 0.0))
-        .expect("prefill gap between devices");
-    let gap_start = search_start + gap_offset;
-    let resume = captured[gap_start..]
-        .windows(10)
-        .position(|w| w.iter().all(|s| *s != 0.0))
-        .map(|p| gap_start + p)
-        .expect("device 2 resumes playback");
-
-    // Check gap duration: at 48 kHz stereo, gap frames must be <= 500 ms (24000 frames)
-    let gap_frames = (resume - gap_start) / 2;
-    let gap_ms = gap_frames as u64 * 1000 / 48_000;
-    assert!(
-        gap_ms <= 500,
-        "gap between devices must be <= 500 ms, was {gap_ms} ms"
-    );
-
-    // Verify continuity across the switch boundary (dev1 last sample vs dev2 first sample)
-    let boundary_step = (captured[resume] - captured[gap_start - 2]).abs();
-    assert!(
-        boundary_step < 0.1,
-        "sample step across switch boundary must be below click threshold (< 0.1), was {boundary_step}"
-    );
-
-    // Verify smooth continuity during dev1 playback
-    for i in 2..gap_start {
-        let diff = (captured[i] - captured[i - 2]).abs();
-        assert!(
-            diff < 0.1,
-            "sample jump too large in dev1 at sample {i}: {diff}"
-        );
-    }
-
-    // Verify smooth continuity during dev2 playback
-    for i in (resume + 2)..captured.len() {
-        let diff = (captured[i] - captured[i - 2]).abs();
-        assert!(
-            diff < 0.1,
-            "sample jump too large in dev2 at sample {i}: {diff}"
-        );
-    }
 }
 
 #[test]
