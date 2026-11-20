@@ -27,6 +27,11 @@ pub const META_MEDIA_CONTROLS: &str = "media_controls";
 pub const META_LASTFM: &str = "lastfm";
 /// Meta key of the Discord presence switch (`"1"` or `"0"`).
 pub const META_DISCORD: &str = "discord";
+/// Meta key of the notice version of Discord presence the user confirmed (a number). The switch
+/// counts only while it equals the version of the notice (ADR 0004, opt-in rule 3).
+pub const META_DISCORD_CONFIRMED: &str = "discord_confirmed";
+/// Meta key of `Hide song names on Discord` (`"1"` or `"0"`).
+pub const META_DISCORD_PRIVATE: &str = "discord_private";
 /// Meta key of the Last.fm user name (public data, not a secret).
 pub const META_LASTFM_USER: &str = "lastfm_user";
 

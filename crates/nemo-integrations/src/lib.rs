@@ -24,4 +24,4 @@ pub mod notify;
 pub mod service;
 pub mod store;
 
-pub use service::{DISCORD_APPLICATION_ID, Integrations, build};
+pub use service::{DISCORD_APPLICATION_ID, Integrations, build, build_in, build_with_connector};

@@ -28,6 +28,7 @@ nemo-ytm = { path = "crates/nemo-ytm" }
 nemo-soundcloud = { path = "crates/nemo-soundcloud" }
 nemo-lyrics = { path = "crates/nemo-lyrics" }
 nemo-secrets = { path = "crates/nemo-secrets" }
+nemo-integrations = { path = "crates/nemo-integrations" }
 nemo-ui = { path = "crates/nemo-ui" }
 
 # Debug builds still need real-time DSP: an unoptimised 256-tap sinc runs only ~1.4x real time.

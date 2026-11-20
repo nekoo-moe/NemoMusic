@@ -35,7 +35,7 @@ Worker and limits
 14. THE SYSTEM SHALL send at most one update per 15 seconds, the newest state winning; the first update after a quiet time and the first after a connect SHALL be sent at once; an update equal to the last one sent SHALL NOT be sent again.
 15. THE SYSTEM SHALL cut text to at most 128 bytes on a character boundary (ending in `…`) and pad text of fewer than 2 bytes with spaces, so Discord never rejects a line.
 16. IF the Discord app is not running or the connection breaks, THEN THE SYSTEM SHALL retry every 30 seconds while the switch is on, with one debug line for each change of the connected state, no dialog and no effect on playback or on the UI.
-17. THE SYSTEM SHALL NOT block the play hub, the UI or the audio thread: events go into a bounded mailbox that drops the oldest entry when full.
+17. THE SYSTEM SHALL NOT block the play hub, the UI or the audio thread: events go into a bounded mailbox (64 entries) that drops the oldest play event when full.
 18. THE SYSTEM SHALL log no title, artist, album, cover address, id, room or device name. It SHALL emit one fixed `nemo_trace` debug event per connect, disconnect and activity change (`provider=discord`, `op=connect|set_activity|clear`, `status=ok|err`) without text.
 19. THE SYSTEM SHALL talk to the local Discord app only (a Unix socket or a Windows named pipe), so the README egress list does not change.
 
