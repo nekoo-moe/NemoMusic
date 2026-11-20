@@ -97,6 +97,15 @@ fn unix_paths_cover_the_runtime_dir_flatpak_snap_and_temp_dirs() {
     assert_eq!(paths.last(), Some(&PathBuf::from("/tmp/discord-ipc-9")));
 }
 
+#[cfg(windows)]
+#[test]
+fn windows_paths_are_the_ten_named_pipes() {
+    let paths = candidates(&|_| None);
+    assert_eq!(paths.len(), 10);
+    assert_eq!(paths[0], PathBuf::from(r"\\.\pipe\discord-ipc-0"));
+    assert_eq!(paths[9], PathBuf::from(r"\\.\pipe\discord-ipc-9"));
+}
+
 #[cfg(unix)]
 #[test]
 fn without_a_runtime_dir_only_the_temp_dirs_remain_and_nothing_repeats() {
