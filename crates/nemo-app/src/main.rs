@@ -7,6 +7,7 @@ mod backend;
 mod blur;
 mod config;
 mod dev_capture;
+mod dev_probe;
 mod folder_picker;
 mod hover_hint;
 mod logging;
@@ -43,8 +44,8 @@ fn main() {
     if let Err(err) = paths.create_all() {
         fatal(&format!("cannot create data folders: {err}"));
     }
-    // The ring of the developer panel (dev-tools spec); the probe that reads it comes with the panel.
-    let _dev_ring = logging::init(&paths.logs);
+    // The ring of the developer panel (dev-tools spec); the probe over it is built with the services.
+    let dev_ring = logging::init(&paths.logs);
     tracing::info!(version = env!("CARGO_PKG_VERSION"), "starting");
     let settings = config::Settings::load(&paths.root);
     if let Err(err) = settings.save(&paths.root) {
@@ -83,6 +84,7 @@ fn main() {
         warm: Arc::clone(&warm),
         hint,
         sc_slot,
+        dev_ring,
     };
     if let Err(err) =
         nemo_ui::run_with_startup(Box::new(move |report| startup.run(report)), options)

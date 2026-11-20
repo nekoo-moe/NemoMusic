@@ -12,6 +12,7 @@ use crate::BoxFuture;
 use crate::account::AccountService;
 use crate::ai::{AiService, Translator};
 use crate::catalog::{Catalog, Comment, CommentCursor, CommentError, CommentId, CommentPage};
+use crate::dev::DevProbe;
 use crate::integrations::IntegrationsService;
 use crate::lyrics::{
     Granularity, LyricsCandidate, LyricsCredit, LyricsDoc, LyricsQuery, ProviderId,
@@ -335,4 +336,7 @@ pub struct Backend {
     /// Lyrics translation, the only AI contract lyrics-plus calls.
     /// [`NoTranslator`](crate::ai::NoTranslator) until the app builds the real client.
     pub translator: Arc<dyn Translator>,
+    /// What the hidden developer panel reads (dev-tools spec). `None` in tests and in a host
+    /// without it; the panel then shows `Unknown` for every fact.
+    pub dev: Option<Arc<dyn DevProbe>>,
 }

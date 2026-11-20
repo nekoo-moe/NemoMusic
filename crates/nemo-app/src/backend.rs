@@ -38,6 +38,8 @@ use nemo_ytm::ytdlp::{YtDlpResolver, locate_yt_dlp, managed};
 use tokio::runtime::Handle;
 
 use crate::config::{Settings, StoredDevice};
+use crate::dev_capture::DevRing;
+use crate::dev_probe;
 use crate::hover_hint::{HintSlot, HoverHint};
 use crate::merged::MergedCatalog;
 use crate::paths::AppPaths;
@@ -74,6 +76,9 @@ pub struct Services {
     pub start_warm: Arc<StartupWarm>,
     /// The local library, rescanned on a worker thread.
     pub local: LocalCatalog,
+    /// The OS credential store, if this computer has one (the developer panel measures what is
+    /// kept there; it never shows it).
+    pub store: Option<Arc<dyn SecretStore>>,
 }
 
 /// Everything the start function needs once the window and the splash are up (startup-flow).
@@ -96,6 +101,8 @@ pub struct Startup {
     pub hint: HintSlot,
     /// Where the SoundCloud client goes, so the settings can switch it off at once.
     pub sc_slot: soundcloud::ClientSlot,
+    /// The ring that the developer panel reads (dev-tools spec).
+    pub dev_ring: DevRing,
 }
 
 /// How long after the services are up the warm-up starts: the first frame is long drawn by then.
@@ -116,6 +123,7 @@ impl Startup {
             &self.sc_slot,
         )
         .map_err(|err| format!("NemoMusic could not start. {err}"))?;
+        let probe = dev_probe::for_app(self.dev_ring, &services, &self.paths, &self.settings);
         rescan_in_background(&services.local);
         if let Ok(mut slot) = self.library.lock() {
             *slot = Some(services.local.clone());
@@ -154,7 +162,10 @@ impl Startup {
         if let Ok(mut slot) = self.warm.lock() {
             *slot = Some(warm);
         }
-        Ok(services.backend)
+        Ok(Backend {
+            dev: Some(probe),
+            ..services.backend
+        })
     }
 }
 
@@ -238,7 +249,7 @@ pub fn build(
     if sc.is_none() {
         soundcloud::wipe_when_off(&settings.opt_ins, store.clone(), paths, handle);
     }
-    let sc_account = soundcloud::account_for(sc.as_ref(), store, paths, handle, sc_slot);
+    let sc_account = soundcloud::account_for(sc.as_ref(), store.clone(), paths, handle, sc_slot);
 
     let player = Player::spawn(PlayerDeps {
         resolver,
@@ -268,10 +279,7 @@ pub fn build(
     }
     report(StartStep::Player);
 
-    let lyrics = LyricsHub::new(&paths.lyrics, handle.clone(), Vec::new())
-        .map_err(|e| fail("lyrics")(e.to_string()))?;
-    let images = ImageCache::new(paths.images.clone(), handle.clone())
-        .map_err(|e| fail("covers")(e.to_string()))?;
+    let (lyrics, images) = open_stores(paths, handle)?;
 
     Ok(Services {
         ytdlp,
@@ -295,9 +303,20 @@ pub fn build(
             ratings: None,
             ai: Arc::new(NoAi),
             translator: Arc::new(NoTranslator),
+            dev: None,
         },
         local,
+        store,
     })
+}
+
+/// The lyrics hub and the cover cache.
+fn open_stores(paths: &AppPaths, handle: &Handle) -> Result<(LyricsHub, ImageCache), StartError> {
+    let lyrics = LyricsHub::new(&paths.lyrics, handle.clone(), Vec::new())
+        .map_err(|e| fail("lyrics")(e.to_string()))?;
+    let images = ImageCache::new(paths.images.clone(), handle.clone())
+        .map_err(|e| fail("covers")(e.to_string()))?;
+    Ok((lyrics, images))
 }
 
 /// The start-up resolve-ahead budget for `resolver`, also handed to the Home catalog through

@@ -295,6 +295,7 @@ pub fn mock_backend() -> Backend {
         ratings: None,
         ai: Arc::new(NoAi),
         translator: Arc::new(NoTranslator),
+        dev: None,
     }
 }
 
