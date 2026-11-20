@@ -8,13 +8,14 @@ use iced::{Alignment, Color, Element, Length, Padding};
 
 use super::super::app::{App, CompactTab, Message};
 use super::super::assets::Icon;
-use super::super::fx::{Fx, entrance};
+use super::super::fx::Fx;
 use super::super::style::{animated, col, fit, gap, icon_button, label, label_w};
 use super::bar::cover_art;
 use super::lyrics as lyr;
 use crate::anim;
 use crate::format;
 use crate::layout;
+use crate::route::Route;
 use crate::settings::NowPlayingStyle;
 use crate::state::{Event, LyricsState};
 use crate::theme::{color, shape, type_scale};
@@ -34,8 +35,7 @@ pub fn lyrics_viewport_height(_w: u32, h: u32) -> f32 {
 /// reads the same `App` state (position, lyrics offset and scroll, `compact_tab`), so a style
 /// change restarts nothing.
 pub fn view(app: &App, w: u32, h: u32) -> Element<'_, Message> {
-    // Opening (or leaving for) this screen is a route change: it fades in like every page.
-    entrance(styled(app, w, h), app.anim.page(), col(color::surface()))
+    styled(app, w, h)
 }
 
 fn styled(app: &App, w: u32, h: u32) -> Element<'_, Message> {
@@ -53,9 +53,14 @@ fn styled(app: &App, w: u32, h: u32) -> Element<'_, Message> {
 
 /// The cover grows from 86% to 100% with the page fade: it seems to come out of the capsule.
 fn grow<'a>(app: &App, cover: Element<'a, Message>) -> Element<'a, Message> {
+    let p = if app.anim.now_playing.value > 0.001 || matches!(app.ui.route(), Route::NowPlaying) {
+        app.anim.now_playing.value.clamp(0.0, 1.0)
+    } else {
+        app.anim.page()
+    };
     Fx::new(cover)
         .passive()
-        .scale(anim::GROW_FROM + (1.0 - anim::GROW_FROM) * app.anim.page())
+        .scale(anim::GROW_FROM + (1.0 - anim::GROW_FROM) * p)
         .into()
 }
 

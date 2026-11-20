@@ -442,6 +442,9 @@ impl App {
         app.lyric_sources = app.backend.lyrics.providers();
         app.start_source();
         shape::set_scale_percent(options.settings.corner_style.percent());
+        if matches!(options.start_route, Route::NowPlaying) {
+            app.anim.now_playing.snap(1.0);
+        }
         let mut jobs = Vec::new();
         // The reducer starts without a current track; feeding the snapshot requests cover and
         // lyrics.

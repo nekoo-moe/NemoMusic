@@ -28,9 +28,10 @@ pub mod shell;
 pub mod splash;
 
 use iced::widget::{container, stack};
-use iced::{Alignment, Element, Length, Padding};
+use iced::{Alignment, Border, Color, Element, Length, Padding};
 
 use super::app::{App, Message};
+use super::fx::Fx;
 use super::style::{col, gap, label};
 use crate::layout;
 use crate::route::Route;
@@ -42,12 +43,47 @@ pub fn root(app: &App) -> Element<'_, Message> {
         return panels::mini_player(app);
     }
     let (w, h) = app.window_px();
-    let now_playing = matches!(app.ui.route(), Route::NowPlaying);
-    let page = if now_playing {
+    let is_np = matches!(app.ui.route(), Route::NowPlaying);
+    let np_p = app.anim.now_playing.value.clamp(0.0, 1.0);
+    let page: Element<'_, Message> = if np_p <= 0.001 {
+        shell::view(app, w, h)
+    } else if np_p >= 0.999 {
         now_playing::view(app, w, h)
     } else {
-        shell::view(app, w, h)
+        let shell_scale = 1.0 - 0.04 * np_p;
+        let shell_el = Fx::new(shell::view(app, w, h))
+            .passive()
+            .scale(shell_scale);
+
+        let np_scale = 0.94 + 0.06 * np_p;
+        let np_radius = 24.0 * (1.0 - np_p);
+
+        let np_content = container(now_playing::view(app, w, h))
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .clip(true)
+            .style(move |_| container::Style {
+                border: Border {
+                    radius: shape::scaled(np_radius).into(),
+                    ..Border::default()
+                },
+                ..container::Style::default()
+            });
+
+        let mut np_fx = Fx::new(np_content)
+            .scale(np_scale)
+            .entrance(np_p, 32.0, Color::TRANSPARENT);
+
+        if !is_np {
+            np_fx = np_fx.passive();
+        }
+
+        stack![shell_el, np_fx]
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into()
     };
+    let now_playing = is_np;
     let mut layers: Vec<Element<'_, Message>> = vec![
         backdrop::window_field(app),
         container(page)

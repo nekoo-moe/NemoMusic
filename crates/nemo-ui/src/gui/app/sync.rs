@@ -205,6 +205,7 @@ impl App {
         if !self.account.open {
             self.anim.sheet.snap(0.0);
         }
+        self.anim.now_playing.target = unit(matches!(self.ui.route(), Route::NowPlaying));
         // After the targets: with reduced motion they are reached in this same update, so not
         // even one frame is asked for.
         self.anim.set_reduced(reduced);

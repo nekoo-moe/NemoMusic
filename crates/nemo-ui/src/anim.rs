@@ -79,6 +79,8 @@ pub struct Anim {
     pub capsule: Spring,
     /// Sign-in sheet presence.
     pub sheet: Spring,
+    /// Now Playing full screen / full window transition progress.
+    pub now_playing: Spring,
     reduced: bool,
 }
 
@@ -97,6 +99,7 @@ impl Anim {
             pane: unit(SPATIAL_DEFAULT),
             capsule: unit(SPATIAL_DEFAULT),
             sheet: unit(SPATIAL_DEFAULT),
+            now_playing: unit(SPATIAL_DEFAULT),
             reduced,
         }
     }
@@ -187,6 +190,7 @@ impl Anim {
             &mut self.pane,
             &mut self.capsule,
             &mut self.sheet,
+            &mut self.now_playing,
         ] {
             s.step(dt / 1000.0);
         }
@@ -204,6 +208,7 @@ impl Anim {
             &mut self.pane,
             &mut self.capsule,
             &mut self.sheet,
+            &mut self.now_playing,
         ] {
             s.finish();
         }
@@ -217,7 +222,7 @@ impl Anim {
             || self.bloom_ms < BLOOM_MS
             || self.line_ms < LINE_MS
             || self.list_ms < ENTRANCE_MS
-            || [&self.play, &self.pane, &self.capsule, &self.sheet]
+            || [&self.play, &self.pane, &self.capsule, &self.sheet, &self.now_playing]
                 .iter()
                 .any(|s| !s.is_settled())
     }
@@ -349,6 +354,18 @@ mod tests {
         for _ in 0..80 {
             a.step(16.0);
             max = max.max(a.pane.value);
+        }
+        assert!(max <= 1.001, "{max}");
+    }
+
+    #[test]
+    fn the_now_playing_spring_does_not_overshoot() {
+        let mut a = Anim::new(false);
+        a.now_playing.target = 1.0;
+        let mut max = 0.0_f32;
+        for _ in 0..80 {
+            a.step(16.0);
+            max = max.max(a.now_playing.value);
         }
         assert!(max <= 1.001, "{max}");
     }
