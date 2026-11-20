@@ -299,27 +299,104 @@ fn any_settings(q_max: u16) -> impl Strategy<Value = EqSettings> {
     })
 }
 
+/// The highest response in dB of `settings` with the automatic preamp applied, over an
+/// independent grid of 300 points per octave from 1 Hz, 0 Hz, Nyquist, and the frequencies
+/// `extra` (shares of Nyquist).
+fn highest_after_auto_preamp(settings: &EqSettings, rate: u32, extra: &[f64]) -> f64 {
+    let lowered = auto_preamp(settings, rate);
+    let bank: Vec<Coefficients> = settings
+        .filters
+        .iter()
+        .flatten()
+        .map(|f| Coefficients::for_filter(f, rate))
+        .collect();
+    let preamp = f64::from(i32::from(settings.preamp_tenth_db) - i32::from(lowered)) / 10.0;
+    let response = |freq: f64| preamp + bank.iter().map(|c| c.gain_db_at(freq, rate)).sum::<f64>();
+    let nyquist = f64::from(rate) / 2.0;
+    let grid = (0..)
+        .map(|k| 2_f64.powf(f64::from(k) / 300.0))
+        .take_while(|f| *f < nyquist);
+    let random = extra.iter().map(|u| u * nyquist);
+    grid.chain(random)
+        .chain([0.0, nyquist])
+        .map(response)
+        .fold(f64::MIN, f64::max)
+}
+
+/// Inputs the property test found in CI (2026-11-18) where the old probe grid, 48 points per
+/// octave in Hz from 5 Hz, missed the peak, with the frequency of the peak in Hz.
+fn missed_peaks() -> [(EqSettings, u32, f64); 3] {
+    [
+        // A resonant low shelf and a narrow peak near Nyquist make two bumps 300 Hz apart:
+        // 9.009 dB at 18 122 Hz, found as 8.9 dB.
+        (
+            eq(
+                0,
+                &[
+                    filter(FilterKind::LowShelf, 16_467, -80, 662),
+                    filter(FilterKind::Peak, 18_157, 56, 851),
+                    filter(FilterKind::HighShelf, 4_202, -42, 393),
+                ],
+            ),
+            44_100,
+            18_121.9,
+        ),
+        // The peak lies between 0 Hz and the first probe: 9.5003 dB at 0.72 Hz.
+        (
+            eq(
+                0,
+                &[
+                    filter(FilterKind::LowShelf, 10, 95, 72),
+                    filter(FilterKind::HighShelf, 23, -2, 26),
+                ],
+            ),
+            44_100,
+            0.717,
+        ),
+        // A narrow peak on the edge of a resonant high shelf: 12.29 dB at 18 675 Hz.
+        (
+            eq(
+                0,
+                &[
+                    filter(FilterKind::HighShelf, 19_039, -80, 558),
+                    filter(FilterKind::Peak, 18_712, 86, 947),
+                ],
+            ),
+            44_100,
+            18_675.2,
+        ),
+    ]
+}
+
+#[test]
+fn the_auto_preamp_covers_the_peaks_the_hz_grid_missed() {
+    for (settings, rate, peak_hz) in missed_peaks() {
+        let at_peak = peak_hz / (f64::from(rate) / 2.0);
+        let highest = highest_after_auto_preamp(&settings, rate, &[at_peak]);
+        assert!(
+            highest <= 1e-6,
+            "{highest} dB at {peak_hz} Hz: {settings:?}"
+        );
+    }
+}
+
 proptest! {
+    // A fixed seed: the same 256 inputs on every run, on every machine. A random seed found
+    // the peaks above on 2026-11-18 and failed CI at random until the search was fixed. To hunt
+    // for more, run with `PROPTEST_CASES=100000` and change the seed by hand.
+    #![proptest_config(ProptestConfig {
+        failure_persistence: None,
+        rng_seed: proptest::test_runner::RngSeed::Fixed(0x6e65_6d6f),
+        ..ProptestConfig::default()
+    })]
+
     #[test]
     fn with_the_auto_preamp_no_steady_tone_exceeds_full_scale(
         settings in any_settings(1000),
         rate in proptest::sample::select(RATES.to_vec()),
         extra in proptest::collection::vec(0.0_f64..1.0, 32),
     ) {
-        let lowered = auto_preamp(&settings, rate);
-        let bank: Vec<Coefficients> = settings
-            .filters
-            .iter()
-            .flatten()
-            .map(|f| Coefficients::for_filter(f, rate))
-            .collect();
-        let preamp = f64::from(i32::from(settings.preamp_tenth_db) - i32::from(lowered)) / 10.0;
-        let response = |freq: f64| preamp + bank.iter().map(|c| c.gain_db_at(freq, rate)).sum::<f64>();
-        // An independent grid of 300 points per octave from 1 Hz, plus random frequencies.
-        let nyquist = f64::from(rate) / 2.0;
-        let grid = (0..).map(|k| 2_f64.powf(f64::from(k) / 300.0)).take_while(|f| *f < nyquist);
-        let random = extra.iter().map(|u| u * nyquist);
-        let highest = grid.chain(random).chain([0.0, nyquist]).map(response).fold(f64::MIN, f64::max);
+        let highest = highest_after_auto_preamp(&settings, rate, &extra);
         prop_assert!(highest <= 1e-6, "{} dB", highest);
     }
 }

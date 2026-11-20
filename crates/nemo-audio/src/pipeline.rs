@@ -235,7 +235,14 @@ impl Pipeline {
 
     /// Stop the feeder and the sink, returning the active and queued jobs with their open decoders.
     #[must_use]
-    pub fn stop_and_take(mut self) -> Vec<Job> {
+    pub fn stop_and_take(self) -> Vec<Job> {
+        self.stop_and_take_with_events().0
+    }
+
+    /// Like [`Pipeline::stop_and_take`], and also returns the events the feeder sent that
+    /// nobody has read yet (the feeder has ended, so no more can follow).
+    #[must_use]
+    pub fn stop_and_take_with_events(mut self) -> (Vec<Job>, Vec<FeedEvent>) {
         self.shared.stop.store(true, Ordering::SeqCst);
         let jobs = if let Some(handle) = self.thread.take() {
             handle.join().unwrap_or_default()
@@ -243,7 +250,8 @@ impl Pipeline {
             Vec::new()
         };
         self.sink.stop();
-        jobs
+        let events = self.events.try_iter().collect();
+        (jobs, events)
     }
 }
 
