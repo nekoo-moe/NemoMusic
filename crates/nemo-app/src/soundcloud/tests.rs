@@ -288,3 +288,59 @@ fn a_closed_gate_has_no_account_and_leaves_the_slot_empty() {
     assert!(account_for(None, None, &paths, rt.handle(), &slot).is_none());
     slot.apply(false); // Nothing to switch.
 }
+
+/// What a wipe at start does: SoundCloud off with a leftover sign-in is wiped, and nothing else.
+mod wipe_when_off {
+    use nemo_core::secret_store::MemoryStore;
+    use nemo_soundcloud::TOKEN_KEY;
+
+    use super::*;
+
+    fn files(name: &str) -> AccountFiles {
+        let dir =
+            std::env::temp_dir().join(format!("nemo-app-sc-off-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("dir");
+        AccountFiles {
+            webview_dir: dir.join("webview-soundcloud"),
+            cache_file: dir.join("account").join("soundcloud.json"),
+        }
+    }
+
+    fn leave(files: &AccountFiles) {
+        std::fs::create_dir_all(&files.webview_dir).expect("dir");
+        std::fs::create_dir_all(files.cache_file.parent().expect("parent")).expect("dir");
+        std::fs::write(&files.cache_file, "{}").expect("file");
+    }
+
+    #[test]
+    fn only_an_off_switch_with_leftovers_is_wiped() {
+        let files = files("due");
+        // Off, nothing left: the keyring is not touched.
+        assert!(!wipe_is_due(&choice(false, 2), &files));
+        leave(&files);
+        assert!(wipe_is_due(&choice(false, 2), &files), "off with leftovers");
+        assert!(
+            wipe_is_due(&BTreeMap::new(), &files),
+            "never touched counts as off"
+        );
+        assert!(!wipe_is_due(&choice(true, 2), &files), "on");
+        // On with an old notice is not an off switch: the person did not turn it off.
+        assert!(!wipe_is_due(&choice(true, 1), &files));
+        let _ = std::fs::remove_dir_all(files.webview_dir.parent().expect("dir"));
+    }
+
+    #[test]
+    fn the_wipe_deletes_the_token_and_the_leftovers() {
+        let files = files("run");
+        leave(&files);
+        let store = MemoryStore::default();
+        store
+            .set(TOKEN_KEY, b"2-293232-7000001-SyntheticToken")
+            .expect("set");
+        let report = run_wipe(&store, &files).expect("wiped");
+        assert_eq!(report.credentials_removed, 1);
+        assert!(store.is_empty() && !nemo_soundcloud::off::has_leftovers(&files));
+        let _ = std::fs::remove_dir_all(files.webview_dir.parent().expect("dir"));
+    }
+}

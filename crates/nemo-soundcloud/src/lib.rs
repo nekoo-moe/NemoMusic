@@ -23,6 +23,7 @@ pub mod hosts;
 pub mod http;
 mod map;
 mod model;
+pub mod off;
 pub mod opener;
 pub mod opt_in;
 pub mod records;
