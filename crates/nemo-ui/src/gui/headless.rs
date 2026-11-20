@@ -329,6 +329,9 @@ pub struct Scenario {
     /// With `area` and `full_motion`: draw this many ms after the switch (a key frame of the
     /// sidebar list fade).
     pub area_ms: Option<u32>,
+    /// Open the hidden developer panel on this tab (dev-tools spec). The backend decides what it
+    /// reads; use [`crate::mock::mock_backend_dev`].
+    pub dev: Option<crate::gui::app::dev::DevTab>,
 }
 
 /// Which state of the sign-in sheet a snapshot shows.
@@ -407,6 +410,7 @@ impl Default for Scenario {
             sc_write: None,
             area: None,
             area_ms: None,
+            dev: None,
             restart_ms: None,
         }
     }
@@ -620,6 +624,9 @@ pub fn build_app(backend: &Backend, scenario: &Scenario) -> App {
                 true,
             ))),
         );
+    }
+    if let Some(tab) = scenario.dev {
+        app.open_dev_for_snapshot(tab);
     }
     app.finish_animations();
     if let Some(phase) = scenario.skeleton_phase {

@@ -1,10 +1,11 @@
 //! The Privacy and About sections.
 
-use iced::widget::{column, container};
+use iced::widget::{column, container, mouse_area};
 use iced::{Color, Element, Padding};
 
 use crate::copy;
 use crate::gui::app::Message;
+use crate::gui::app::dev::DevMsg;
 use crate::gui::style::{col, gap, label};
 use crate::gui::views::kit::{paragraph, text_button};
 use crate::setup::SetupEvent;
@@ -64,12 +65,16 @@ pub(super) fn about(width: f32) -> Vec<Element<'static, Message>> {
         .padding(Padding::from([gap::MD, gap::LG]))
         .into()
     };
+    // Ten clicks on the title and the version open the developer panel (dev-tools spec). The
+    // text looks and behaves like any other: no hover, no cursor, no hint, no count.
+    let version = mouse_area(block(
+        "NemoMusic",
+        format!("Version {}", env!("CARGO_PKG_VERSION")),
+        dim,
+    ))
+    .on_press(Message::Dev(DevMsg::Click));
     vec![
-        block(
-            "NemoMusic",
-            format!("Version {}", env!("CARGO_PKG_VERSION")),
-            dim,
-        ),
+        version.into(),
         block("Licences", copy::ABOUT_LICENSE.to_owned(), dim),
         block("Credits", copy::ABOUT_CREDITS.join("\n"), dim),
         block("YouTube Music", copy::ABOUT_TOS.to_owned(), dim),

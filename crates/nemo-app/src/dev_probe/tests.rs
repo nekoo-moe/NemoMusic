@@ -163,6 +163,6 @@ fn clear_empties_the_ring_and_redact_uses_the_capture_rules() {
     assert!(probe.snapshot().trace.is_empty());
     assert_eq!(
         probe.redact("see https://a.example/x?k=SECRET and /home/alice/f"),
-        "see a.example and ~/f"
+        "see a.example and ~/…"
     );
 }

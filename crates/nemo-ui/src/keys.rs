@@ -76,6 +76,8 @@ pub enum KeyAction {
     Tools,
     /// Reload the music data of the account (Home, library, history).
     Refresh,
+    /// Show or hide the developer panel, once it is unlocked (dev-tools spec).
+    DevTools,
 }
 
 /// Seek step in seconds (`Shift` uses [`SEEK_BIG_SECS`]).
@@ -96,6 +98,7 @@ pub fn map(key: Key, mods: Mods, in_text_field: bool) -> Option<KeyAction> {
         Key::F3 => Some(KeyAction::ToggleFrameReadout),
         Key::F11 => Some(KeyAction::FullScreen),
         Key::F5 => Some(KeyAction::Refresh),
+        Key::Char('d') if mods.ctrl && mods.shift => Some(KeyAction::DevTools),
         Key::Char('k') if mods.ctrl => Some(KeyAction::OpenSearch),
         Key::Char('r') if mods.ctrl => Some(KeyAction::Refresh),
         Key::Char(',') if mods.ctrl => Some(KeyAction::OpenSettings),

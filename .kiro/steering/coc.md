@@ -46,6 +46,10 @@ Keep request volume low and human-paced. Honor backoff and error signals.
 - Song recognition: the owner also accepts the patent risk of Shazam-compatible fingerprinting (open-source implementations warn about software patents outside the EU).
 - Every new host still goes on the README egress list in the change that adds it, and every new service names its risk in the README and in its settings.
 
+## Owner Decisions (2026-11-19)
+
+- Developer tools (dev-tools): the hidden developer panel is local only. It keeps a bounded ring of redacted events in memory, never writes it to disk, a log or the network, and never sends it anywhere. URLs, queries, tokens, cookies, e-mail addresses and home paths are redacted when an event is captured; copying the report is the user's own action. (owner, 2026-11-19; dev-tools)
+
 ## Honest Audio Quality Labeling
 
 - Label what is actually played: codec, bitrate, sample rate when known.

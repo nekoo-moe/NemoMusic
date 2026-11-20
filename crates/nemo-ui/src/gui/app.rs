@@ -36,6 +36,7 @@ use super::run;
 
 mod account;
 mod art;
+pub mod dev;
 mod discord;
 mod dispatch;
 mod explore;
@@ -234,6 +235,10 @@ pub struct App {
     /// Tools panel, shortcut sheet and "Create playlist" sheet.
     pub(crate) tools_open: bool,
     pub(crate) shortcuts_open: bool,
+    /// The hidden developer panel (dev-tools spec).
+    pub(crate) dev: dev::DevState,
+    /// The report text of `Copy report`, until `update` hands it to the clipboard.
+    pub(crate) dev_copied: Option<String>,
     pub(crate) create_open: bool,
     pub(crate) create_name: String,
     /// Sleep timer.
@@ -400,6 +405,8 @@ impl App {
             moods: MoodPages::default(),
             tools_open: false,
             shortcuts_open: false,
+            dev: dev::DevState::default(),
+            dev_copied: None,
             create_open: false,
             create_name: String::new(),
             sleep: None,

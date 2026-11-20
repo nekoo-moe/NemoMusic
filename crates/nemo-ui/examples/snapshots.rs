@@ -12,6 +12,8 @@
 mod appearance_page;
 #[path = "snapshots/backdrop.rs"]
 mod backdrop;
+#[path = "snapshots/dev_tools.rs"]
+mod dev_tools;
 #[path = "snapshots/discord_presence.rs"]
 mod discord_presence;
 #[path = "snapshots/feature.rs"]
@@ -61,8 +63,8 @@ use nemo_core::services::Backend;
 use nemo_core::source_account::SourceAccountState;
 use nemo_ui::gui::headless::{Scenario, build_app, render_png, render_view_png, specimen};
 use nemo_ui::mock::{
-    mock_backend, mock_backend_seeded, mock_backend_signed_in, mock_backend_soundcloud,
-    mock_backend_soundcloud_empty,
+    mock_backend, mock_backend_dev, mock_backend_seeded, mock_backend_signed_in,
+    mock_backend_soundcloud, mock_backend_soundcloud_empty,
 };
 
 /// The two window sizes the owner cares about: the maximized 1366 x 768 laptop and full HD.
@@ -114,11 +116,14 @@ fn scenarios() -> Vec<Shot> {
     source_workspaces::account_shots(&mut out);
     source_workspaces::motion_shots(&mut out);
     skeleton::shots(&mut out);
+    dev_tools::shots(&mut out);
     out.extend(wave_lyrics::shots());
     out.extend(syllable_motion::shots());
     out
 }
 
+// One flat list of snapshot modules, each a short call; splitting it would hide the list.
+#[allow(clippy::too_many_lines)]
 fn main() {
     if std::env::var("ICED_TEST_BACKEND").as_deref() != Ok("tiny-skia") {
         eprintln!("set ICED_TEST_BACKEND=tiny-skia first (headless rendering without a GPU)");
@@ -142,6 +147,10 @@ fn main() {
     if only.iter().any(|n| n == "song-frame-cost") {
         song_colour::frame_cost();
         return;
+    }
+    if let Err(e) = dev_tools::write_report(&only, &out_dir) {
+        eprintln!("{e}");
+        std::process::exit(1);
     }
     if let Err(e) = np_classic::render(&only, &out_dir) {
         eprintln!("{e}");
@@ -197,6 +206,8 @@ fn main() {
             continue;
         }
         let backend: Backend = match (s.seeded, s.signed_in, s.soundcloud.clone()) {
+            // The developer panel reads the invented session of the mock probe.
+            _ if s.scenario.dev.is_some() => mock_backend_dev(),
             (_, _, Some(state)) if s.empty => mock_backend_soundcloud_empty(state),
             // Both accounts signed in (the accounts sheet).
             (_, true, Some(state)) => Backend {
