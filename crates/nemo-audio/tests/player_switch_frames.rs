@@ -64,11 +64,6 @@ fn setup(frames: &[usize], interval: Duration, block: usize) -> (Rig, OutputDevi
     (r, dev2)
 }
 
-/// Frames in the capture so far, silence included.
-fn captured_frames(r: &Rig) -> usize {
-    r.captured().len() / 2
-}
-
 /// Wait until the capture holds `frames` frames.
 fn wait_frames(r: &mut Rig, frames: usize) {
     r.wait_samples(frames * 2, LIMIT);
@@ -89,7 +84,7 @@ fn switch_to(r: &mut Rig, dev2: &OutputDevice) {
 /// Every join between two runs continues at the next frame: no repeat and no hole. Silence
 /// between runs is allowed (the new device opens, a fast test clock underruns).
 fn assert_continuous(runs: &[FrameRun]) {
-    assert!(runs.len() >= 2, "the switch left no join: {runs:?}");
+    assert!(!runs.is_empty(), "nothing was played: {runs:?}");
     for pair in runs.windows(2) {
         assert_eq!(
             pair[1].first,
@@ -99,15 +94,17 @@ fn assert_continuous(runs: &[FrameRun]) {
     }
 }
 
-/// One seamless switch on a clock that runs at real time: two runs and at most 500 ms of
-/// silence between them.
+/// One seamless switch on a clock that runs at real time: at most one join (none when the new
+/// device was ready before its first callback), and at most 500 ms of silence at it.
 fn assert_seamless(runs: &[FrameRun]) {
-    assert_eq!(runs.len(), 2, "one run per device: {runs:?}");
+    assert!(runs.len() <= 2, "one run per device at most: {runs:?}");
     assert_continuous(runs);
-    assert!(
-        runs[1].silence_before <= MAX_GAP_FRAMES,
-        "silence between the devices must be at most 500 ms: {runs:?}"
-    );
+    if let Some(second) = runs.get(1) {
+        assert!(
+            second.silence_before <= MAX_GAP_FRAMES,
+            "silence between the devices must be at most 500 ms: {runs:?}"
+        );
+    }
 }
 
 /// Switch a counter track after `lead` frames and read back what both devices played.
@@ -115,9 +112,19 @@ fn switch_and_read(interval: Duration, block: usize, lead: usize) -> Vec<FrameRu
     let (mut r, dev2) = setup(&[10 * RATE], interval, block);
     wait_frames(&mut r, lead);
     switch_to(&mut r, &dev2);
-    let after = captured_frames(&r) + 30 * block;
-    wait_frames(&mut r, after);
+    // The old device is stopped when the switch is reported, so sound that comes after this
+    // point is the new device's. Wait for sound, not for frames: on a fast clock the silence
+    // of the start-up alone fills any number of frames.
+    let before = sound_frames(&r.captured());
+    r.wait("sound on the new device", LIMIT, |r| {
+        sound_frames(&r.captured()) >= before + 30 * block
+    });
     counter_runs(&r.captured())
+}
+
+/// Frames of a stereo capture that are not silent.
+fn sound_frames(capture: &[f32]) -> usize {
+    capture.chunks_exact(2).filter(|f| f[0] != 0.0).count()
 }
 
 /// A callback of 480 frames every 10 ms: the device clock is the wall clock.
