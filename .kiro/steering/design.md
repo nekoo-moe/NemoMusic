@@ -112,6 +112,7 @@ Owner direction (2026-11-10, evening): the first build looked "raw". Go full Mat
 ## 12. SponsorBlock indicator and ad blocking
 - Skip indicator: a pill above the player bar, `label-sm`, `Skipped sponsor segment (0:42)` with `Undo` button (target >= 40 px) valid for 5 s (ADR 0003); Undo seeks to the segment start and marks that segment ignored for this play. Segment ranges tinted on the seek bar at 0.35 alpha with category in accessible text. No sound, no flashing; polite announcement.
 - Settings `SponsorBlock`: switch `Skip non-music parts of music videos`, source line `Data from SponsorBlock` plus the license text required by ADR 0003 (license unverified here).
+- Settings, Privacy, Discord presence (owner, 2026-11-19; discord-presence): above the list of hosts, a group card with the shared opt-in row (`Discord presence`, switch, `What is sent`, `To`, `Risk`; the switch opens the panel with `Turn on` and `Cancel` drawn alike, and it takes effect at once, with no restart) and under it the row `Hide song names on Discord` (a switch, off by default, with the helper `Discord then shows only that you listen to NemoMusic: no title, artist, cover or time.`). The card is absent while the app does not offer Discord presence.
 - Ad blocking switch label: `Don't request or play ads`. Helper text: `This can restrict your account and reduces income for artists. It does not unlock Premium quality.` Default state: On (owner, 2026-11-15; ADR 0003); state always shown as text `On`/`Off`.
 
 ## 13. Signal path, icons, keyboard, accessibility

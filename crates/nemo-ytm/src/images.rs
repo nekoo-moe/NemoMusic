@@ -11,13 +11,16 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Instant;
 
 use nemo_core::BoxFuture;
+use nemo_core::dev::host_of;
 use nemo_core::services::{ImageError, ImageSource};
 use nemo_core::track::{Artwork, pick_thumbnail};
 
 use crate::http::{InitError, https_redirects};
 use crate::sponsorblock::sha256_hex;
+use crate::trace;
 
 pub mod prune;
 pub mod variant;
@@ -150,14 +153,18 @@ impl Inner {
 
     async fn download(&self, url: &str) -> Result<Vec<u8>, Failure> {
         let net = |text: &str| ImageError::Network(text.to_owned());
+        let (began, host) = (Instant::now(), host_of(url).to_owned());
         let mut response = self.client.get(url).send().await.map_err(|e| {
-            Failure::Transport(if e.is_timeout() {
-                net("request timed out")
+            let kind = if e.is_timeout() {
+                "timed out"
             } else {
-                net("request failed")
-            })
+                "failed"
+            };
+            trace::http("ytm", "image", &host, Err(kind), began);
+            Failure::Transport(net(&format!("request {kind}")))
         })?;
         let status = response.status().as_u16();
+        trace::http("ytm", "image", &host, Ok(status), began);
         if !response.status().is_success() {
             let error = ImageError::Network(format!("HTTP status {status}"));
             return Err(if matches!(status, 404 | 410) {

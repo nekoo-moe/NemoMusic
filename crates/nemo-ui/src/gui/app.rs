@@ -36,6 +36,7 @@ use super::run;
 
 mod account;
 mod art;
+mod discord;
 mod dispatch;
 mod explore;
 #[cfg(test)]
@@ -71,6 +72,7 @@ pub use art::{
     ArtEntry, ArtFit, ArtShape, ArtSpec, CanvasView, CoverView, MeshView, TILE_RADIUS, art_fit,
     handle_px,
 };
+pub use discord::DiscordMsg;
 pub use job::{art_key, run_job};
 pub use message::{AccountBundle, CoverBuilt, ExploreMsg, Job, Message, RefreshData};
 pub use micro::{ART_FADE_MS, Micro};
@@ -142,6 +144,10 @@ pub struct App {
     pub(crate) account: AccountUi,
     /// The SoundCloud page and card (soundcloud-account spec).
     pub(crate) sc: ScUi,
+    /// The Discord presence panel (`Turn on`, `Cancel`) is open; the switch is still off.
+    pub(crate) discord_confirming: bool,
+    /// The notice of Discord presence, when the app offers it.
+    pub(crate) discord_info: Option<nemo_core::opt_in::OptInInfo>,
     /// Which service the Library shows.
     pub(crate) source: Source,
     /// The open tab of the SoundCloud library.
@@ -288,6 +294,7 @@ impl App {
         // Window sizes are small positive numbers.
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let pane_open = layout::right_pushes(options.window_size.0 as u32);
+        let discord_info = discord::find_info(backend.integrations.as_ref());
         let mut app = Self {
             backend,
             ui,
@@ -315,6 +322,8 @@ impl App {
             lib_filter: None,
             account: AccountUi::default(),
             sc: ScUi::default(),
+            discord_confirming: false,
+            discord_info,
             source: Source::default(),
             sc_tab: ScTab::default(),
             sc_lib: ScLibrary::default(),

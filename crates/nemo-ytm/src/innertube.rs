@@ -27,6 +27,7 @@ use tokio::runtime::Handle;
 use crate::http::InitError;
 use crate::task::AbortOnDrop;
 use crate::timing;
+use crate::trace;
 
 /// Endpoint of the player request.
 const PLAYER_URL: &str = "https://www.youtube.com/youtubei/v1/player?prettyPrint=false";
@@ -288,21 +289,23 @@ pub(crate) async fn send(
     if let Some(v) = &known {
         request = request.header("X-Goog-Visitor-Id", v.as_str());
     }
-    let response = request
-        .body(body.to_string())
-        .send()
-        .await
-        .map_err(|_| StreamError::Network("player request failed".to_owned()))?;
+    let began = Instant::now();
+    let response = request.body(body.to_string()).send().await.map_err(|_| {
+        trace::player_failed(PLAYER_URL, "connect_failed", began);
+        StreamError::Network("player request failed".to_owned())
+    })?;
     let status = response.status().as_u16();
     if status != 200 {
+        trace::player_http(PLAYER_URL, status, began, 0);
         return Err(StreamError::Network(format!(
             "player request: HTTP {status}"
         )));
     }
-    let bytes = response
-        .bytes()
-        .await
-        .map_err(|_| StreamError::Network("player answer was cut off".to_owned()))?;
+    let bytes = response.bytes().await.map_err(|_| {
+        trace::player_failed(PLAYER_URL, "cut_off", began);
+        StreamError::Network("player answer was cut off".to_owned())
+    })?;
+    trace::player_http(PLAYER_URL, status, began, bytes.len());
     if bytes.len() > MAX_ANSWER_BYTES {
         return Err(parse_err("player answer too large"));
     }

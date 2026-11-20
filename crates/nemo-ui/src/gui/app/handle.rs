@@ -72,6 +72,7 @@ impl App {
             Message::Rescaled(factor) => self.rescale(factor),
             Message::Focus(on) => {
                 self.focused = on;
+                self.sync_integrations();
                 // The first frame after a pause must not see the pause as one long frame.
                 self.last_frame = None;
                 Vec::new()
@@ -112,6 +113,7 @@ impl App {
             Message::Account(msg) => self.account_msg(msg),
             Message::Sc(msg) => self.sc_msg(msg),
             Message::AreaKey { to, .. } => self.switch_source(to),
+            Message::Discord(msg) => self.discord_msg(msg),
             // A reload replaced the shelves already: a late start-up answer is older.
             Message::HomeFeed(_) | Message::HomeSeed { .. }
                 if self.home.phase == HomePhase::Done =>

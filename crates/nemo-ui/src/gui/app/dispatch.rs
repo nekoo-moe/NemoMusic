@@ -102,6 +102,7 @@ impl App {
         self.refresh_daily();
         self.sync_bg();
         jobs.extend(self.check_sleep());
+        self.sync_integrations();
         self.sync_anim();
         jobs.extend(self.pump_loads());
         self.probe_art();

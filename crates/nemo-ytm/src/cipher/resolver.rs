@@ -22,6 +22,7 @@ use super::solver::{ChallengeSolver, Challenges, JsSolver, Script, SolveError, S
 use crate::http::InitError;
 use crate::innertube::{ClientProfile, TV, TV_SAMSUNG, Visitor, parse_player_ciphered, send};
 use crate::timing;
+use crate::trace;
 
 /// Time limit of a solve against an already preprocessed player.
 const SOLVE_LIMIT: Duration = Duration::from_secs(10);
@@ -229,14 +230,19 @@ impl CipherResolver {
 
     async fn run(&self, video: &VideoId) -> Result<ResolvedStream, StreamError> {
         let began = Instant::now();
-        let player = self.store.get().await?;
+        let player = self.store.get().await;
+        trace::cipher_step("cipher_player", player.is_ok(), began);
+        let player = player?;
         timing::stage("cipher player", began, true);
         let asking = Instant::now();
-        let text = self.request.ask(video, player.sts).await?;
+        let text = self.request.ask(video, player.sts).await;
+        trace::cipher_step("cipher_request", text.is_ok(), asking);
+        let text = text?;
         timing::stage("cipher player request", asking, true);
         let pending = parse_player_ciphered(&text, self.allowed.as_deref())?;
         let solving = Instant::now();
         let solved = self.solve(player, pending.challenges()).await;
+        trace::cipher_step("cipher_solve", solved.is_ok(), solving);
         timing::stage("cipher solve", solving, solved.is_ok());
         match solved {
             Ok(solved) => pending.finish(&solved),
@@ -254,7 +260,12 @@ impl StreamResolver for CipherResolver {
         &'a self,
         video: &'a VideoId,
     ) -> BoxFuture<'a, Result<ResolvedStream, StreamError>> {
-        Box::pin(self.run(video))
+        Box::pin(async move {
+            let began = Instant::now();
+            let answer = self.run(video).await;
+            trace::tier("in_process", &answer, began);
+            answer
+        })
     }
 
     /// A stream built here could not be opened (a CDN 403): the player table may be stale.

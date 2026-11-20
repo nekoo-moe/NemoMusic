@@ -3656,6 +3656,7 @@ version = "0.3.0"
 dependencies = [
  "nemo-audio",
  "nemo-core",
+ "nemo-integrations",
  "nemo-library",
  "nemo-lyrics",
  "nemo-secrets",
@@ -3663,6 +3664,7 @@ dependencies = [
  "nemo-soundcloud",
  "nemo-ui",
  "nemo-ytm",
+ "proptest",
  "rfd",
  "serde",
  "serde_json",

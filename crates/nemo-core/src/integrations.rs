@@ -12,6 +12,38 @@ use crate::secret::Secret;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct NativeWindow(pub usize);
 
+/// The part of the app the user browses while nothing plays, as Discord presence may tell it
+/// (discord-presence spec, criterion 5). Never what was typed or which item is open.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BrowsingSection {
+    /// The Library.
+    Library,
+    /// Search.
+    Search,
+}
+
+/// What the window shows, for services that mirror it (Discord presence).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WindowContext {
+    /// The window has the focus (a minimized window has not).
+    pub focused: bool,
+    /// The part the user browses, if it is one of the listed ones.
+    pub section: Option<BrowsingSection>,
+    /// A sleep timer runs.
+    pub sleep_timer: bool,
+}
+
+impl Default for WindowContext {
+    /// A window that has the focus, on no listed part, with no sleep timer.
+    fn default() -> Self {
+        Self {
+            focused: true,
+            section: None,
+            sleep_timer: false,
+        }
+    }
+}
+
 /// Where the Last.fm connection stands.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum LastFmStatus {
@@ -103,6 +135,20 @@ pub trait IntegrationsService: Send + Sync {
 
     /// The main window exists; OS media controls attach to it.
     fn window_ready(&self, window: NativeWindow);
+
+    /// Whether Discord presence hides the song names (it then shows only `Listening to
+    /// NemoMusic`). Off by default.
+    fn discord_private(&self) -> bool {
+        false
+    }
+
+    /// Switch hiding the song names on Discord on or off; the choice is stored.
+    fn set_discord_private(&self, _on: bool) {}
+
+    /// The window or the sleep timer changed. Cheap; called often and ignored when nothing
+    /// differs from the last call. Discord presence uses it for `Away`, `Browsing` and the
+    /// sleep timer tooltip.
+    fn window_context(&self, _context: WindowContext) {}
 }
 
 /// An integrations service with nothing behind it: every switch is off, nothing is offered and
@@ -190,7 +236,9 @@ mod tests {
         s.set_media_controls(true);
         s.set_discord(true);
         s.window_ready(NativeWindow(1));
-        assert!(!s.media_controls() && !s.discord());
+        s.set_discord_private(true);
+        s.window_context(super::WindowContext::default());
+        assert!(!s.media_controls() && !s.discord() && !s.discord_private());
         assert_eq!(s.lastfm_status(), LastFmStatus::NoKeys);
         assert_eq!(s.lastfm_queue_len(), 0);
     }

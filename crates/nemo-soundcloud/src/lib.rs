@@ -29,6 +29,7 @@ pub mod opt_in;
 pub mod records;
 pub mod signin;
 pub mod stream;
+mod trace;
 pub mod wipe;
 pub mod write;
 pub mod writes;

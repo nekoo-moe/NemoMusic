@@ -116,7 +116,8 @@ impl BetterLyricsProvider {
             return Ok(None);
         };
         let pairs: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
-        let (status, body) = send_text(self.client.get(url_with(URL, &pairs)?)).await?;
+        let (status, body) =
+            send_text("lyrics:blapi", self.client.get(url_with(URL, &pairs)?)).await?;
         match status {
             200..=299 => parse_response_detailed(&body),
             // 401: not cached and we hold no key. 404: a cached "no lyrics". 422: no title.

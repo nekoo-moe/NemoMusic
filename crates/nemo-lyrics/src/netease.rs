@@ -223,7 +223,7 @@ impl NeteaseProvider {
                 "application/x-www-form-urlencoded",
             )
             .body(form_body);
-        let (status, body) = send_text(req).await?;
+        let (status, body) = send_text("lyrics:netease", req).await?;
         if !(200..300).contains(&status) {
             return if matches!(status, 400 | 404) {
                 Ok(None)
@@ -247,7 +247,7 @@ impl NeteaseProvider {
                 ("rv", "-1"),
             ],
         )?;
-        let (status, body) = send_text(self.client.get(url)).await?;
+        let (status, body) = send_text("lyrics:netease", self.client.get(url)).await?;
         match status {
             200..=299 => parse_lyric_detailed(&body, meta),
             400 | 404 => Ok(None),

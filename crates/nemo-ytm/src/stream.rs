@@ -197,6 +197,11 @@ impl HttpStream {
         let fetching = Instant::now();
         let first = stream.fetch_window(0, FIRST_WINDOW_BYTES);
         timing::stage("http first window", fetching, first.is_ok());
+        crate::trace::stream_open(
+            url,
+            first.as_ref().err().map_or(Some(200), |e| e.status),
+            fetching,
+        );
         first.map_err(FetchError::into_stream_error)?;
         if stream.buf.is_empty() {
             return Err(StreamError::Network("empty stream".to_owned()));

@@ -28,6 +28,7 @@ pub use crate::mock_lyrics::{MockLyrics, lyrics_for};
 mod account;
 mod catalog;
 mod cover;
+mod integrations;
 mod player;
 #[cfg(test)]
 mod tests;
@@ -35,6 +36,7 @@ mod tests;
 pub use account::{MockAccount, MockScAccount, MockScWrites};
 pub use catalog::{MockCatalog, SeededCatalog, mock_backend_seeded, signal_path};
 pub use cover::{MockImages, cover_png};
+pub use integrations::MockIntegrations;
 pub use player::MockPlayer;
 
 /// Number of generated tracks.

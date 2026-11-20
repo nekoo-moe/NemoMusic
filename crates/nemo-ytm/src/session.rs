@@ -288,7 +288,7 @@ impl SessionCatalog {
     /// and returns counts and error labels only (never titles, ids or URLs).
     pub async fn diagnose(&self) -> crate::diagnostics::Diagnosis {
         let inner = Arc::clone(&self.inner);
-        self.run(async move {
+        self.run("diagnose", async move {
             let api = inner.api().await?;
             Ok(crate::diagnostics::account_report(api).await)
         })
@@ -299,7 +299,7 @@ impl SessionCatalog {
     /// [`crate::diagnostics::id_kind`]); shapes and counts only.
     pub async fn diagnose_browse(&self, browse_id: String) -> String {
         let inner = Arc::clone(&self.inner);
-        self.run(async move {
+        self.run("diagnose_browse", async move {
             let api = inner.api().await?;
             Ok(crate::diagnostics::browse_report(api, &browse_id).await)
         })
@@ -307,12 +307,14 @@ impl SessionCatalog {
         .unwrap_or_else(|e| format!("could not connect ({e})"))
     }
 
-    fn run<T, F>(&self, work: F) -> BoxFuture<'static, Result<T, CatalogError>>
+    fn run<T, F>(&self, op: &'static str, work: F) -> BoxFuture<'static, Result<T, CatalogError>>
     where
         T: Send + 'static,
         F: Future<Output = Result<T, CatalogError>> + Send + 'static,
     {
-        let task = self.handle.spawn(work);
+        let task = self
+            .handle
+            .spawn(crate::trace::catalog("ytm_account", op, work));
         Box::pin(async move {
             task.await
                 .unwrap_or_else(|_| Err(CatalogError::Network("request was cancelled".to_owned())))
@@ -335,7 +337,7 @@ impl Catalog for SessionCatalog {
             return Box::pin(async { Ok(SearchResults::default()) });
         }
         let inner = Arc::clone(&self.inner);
-        self.run(async move { inner.search(text).await })
+        self.run("search", async move { inner.search(text).await })
     }
 
     fn search_kind<'a>(
@@ -348,14 +350,17 @@ impl Catalog for SessionCatalog {
             return Box::pin(async { Ok(SearchResults::default()) });
         }
         let inner = Arc::clone(&self.inner);
-        self.run(async move { inner.search_kind(text, kind).await })
+        self.run(
+            "search_kind",
+            async move { inner.search_kind(text, kind).await },
+        )
     }
 
     fn album<'a>(&'a self, id: &'a BrowseId) -> BoxFuture<'a, Result<AlbumDetail, CatalogError>> {
         match checked(id) {
             Ok(id) => {
                 let inner = Arc::clone(&self.inner);
-                self.run(async move { inner.album(id).await })
+                self.run("album", async move { inner.album(id).await })
             }
             Err(e) => Box::pin(async move { Err(e) }),
         }
@@ -365,7 +370,7 @@ impl Catalog for SessionCatalog {
         match checked(id) {
             Ok(id) => {
                 let inner = Arc::clone(&self.inner);
-                self.run(async move { inner.artist(id).await })
+                self.run("artist", async move { inner.artist(id).await })
             }
             Err(e) => Box::pin(async move { Err(e) }),
         }
@@ -378,7 +383,7 @@ impl Catalog for SessionCatalog {
         match checked(id) {
             Ok(id) => {
                 let inner = Arc::clone(&self.inner);
-                self.run(async move { inner.playlist(id).await })
+                self.run("playlist", async move { inner.playlist(id).await })
             }
             Err(e) => Box::pin(async move { Err(e) }),
         }
@@ -386,44 +391,56 @@ impl Catalog for SessionCatalog {
 
     fn home(&self) -> BoxFuture<'_, Result<Vec<Shelf>, CatalogError>> {
         let inner = Arc::clone(&self.inner);
-        self.run(async move { inner.home().await })
+        self.run("home", async move { inner.home().await })
     }
 
     fn home_feed(&self) -> BoxFuture<'_, Result<HomeFeed, CatalogError>> {
         let inner = Arc::clone(&self.inner);
-        self.run(async move { pages::home_feed(inner.api().await?).await })
+        self.run("home_feed", async move {
+            pages::home_feed(inner.api().await?).await
+        })
     }
 
     fn library_playlists(&self) -> BoxFuture<'_, Result<Vec<PlaylistSummary>, CatalogError>> {
         let inner = Arc::clone(&self.inner);
-        self.run(
-            async move { pages::library_playlists(inner.api().await?, pages::LIST_PAGES).await },
-        )
+        self.run("library_playlists", async move {
+            pages::library_playlists(inner.api().await?, pages::LIST_PAGES).await
+        })
     }
 
     fn liked_songs(&self) -> BoxFuture<'_, Result<Vec<Track>, CatalogError>> {
         let inner = Arc::clone(&self.inner);
-        self.run(async move { pages::liked_songs(inner.api().await?, pages::PLAYLIST_PAGES).await })
+        self.run("liked_songs", async move {
+            pages::liked_songs(inner.api().await?, pages::PLAYLIST_PAGES).await
+        })
     }
 
     fn library_albums(&self) -> BoxFuture<'_, Result<Vec<AlbumSummary>, CatalogError>> {
         let inner = Arc::clone(&self.inner);
-        self.run(async move { pages::library_albums(inner.api().await?).await })
+        self.run("library_albums", async move {
+            pages::library_albums(inner.api().await?).await
+        })
     }
 
     fn library_artists(&self) -> BoxFuture<'_, Result<Vec<ArtistSummary>, CatalogError>> {
         let inner = Arc::clone(&self.inner);
-        self.run(async move { pages::library_artists(inner.api().await?).await })
+        self.run("library_artists", async move {
+            pages::library_artists(inner.api().await?).await
+        })
     }
 
     fn history(&self) -> BoxFuture<'_, Result<Vec<HistorySection>, CatalogError>> {
         let inner = Arc::clone(&self.inner);
-        self.run(async move { pages::history(inner.api().await?).await })
+        self.run("history", async move {
+            pages::history(inner.api().await?).await
+        })
     }
 
     fn explore(&self) -> BoxFuture<'_, Result<Explore, CatalogError>> {
         let inner = Arc::clone(&self.inner);
-        self.run(async move { pages::explore(inner.api().await?).await })
+        self.run("explore", async move {
+            pages::explore(inner.api().await?).await
+        })
     }
 
     fn mood_playlists<'a>(
@@ -432,7 +449,9 @@ impl Catalog for SessionCatalog {
     ) -> BoxFuture<'a, Result<Vec<FeedShelf>, CatalogError>> {
         let inner = Arc::clone(&self.inner);
         let id = id.clone();
-        self.run(async move { pages::mood_playlists(inner.api().await?, &id).await })
+        self.run("mood_playlists", async move {
+            pages::mood_playlists(inner.api().await?, &id).await
+        })
     }
 
     fn podcast<'a>(
@@ -441,7 +460,9 @@ impl Catalog for SessionCatalog {
     ) -> BoxFuture<'a, Result<PodcastDetail, CatalogError>> {
         let inner = Arc::clone(&self.inner);
         let id = id.clone();
-        self.run(async move { pages::podcast(inner.api().await?, &id).await })
+        self.run("podcast", async move {
+            pages::podcast(inner.api().await?, &id).await
+        })
     }
 
     fn rate_song<'a>(
@@ -451,7 +472,7 @@ impl Catalog for SessionCatalog {
     ) -> BoxFuture<'a, Result<(), CatalogError>> {
         let inner = Arc::clone(&self.inner);
         let id = video_id.as_str().to_owned();
-        self.run(async move { inner.rate_song(id, liked).await })
+        self.run("rate_song", async move { inner.rate_song(id, liked).await })
     }
 }
 

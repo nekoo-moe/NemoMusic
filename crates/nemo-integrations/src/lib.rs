@@ -5,6 +5,7 @@
 //! `nemo-core` `IntegrationsService` and to the play hub as a `PlayObserver`. This crate
 //! depends on `nemo-core` only.
 //!
+//! - [`discord`]: Discord Rich Presence, every state (discord-presence spec).
 //! - [`info`]: the settings rows of the three integrations.
 //! - [`lastfm`]: the signed Last.fm API client and the scrobble queue.
 //! - [`notify`]: the text of OS notifications.
@@ -16,10 +17,11 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod discord;
 pub mod info;
 pub mod lastfm;
 pub mod notify;
 pub mod service;
 pub mod store;
 
-pub use service::{DISCORD_APPLICATION_ID, Integrations, build};
+pub use service::{DISCORD_APPLICATION_ID, Integrations, build, build_in, build_with_connector};

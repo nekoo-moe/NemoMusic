@@ -13,12 +13,14 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use nemo_core::BoxFuture;
+use nemo_core::dev::host_of;
 use nemo_core::stream::StreamError;
 use serde::{Deserialize, Serialize};
 use tokio::runtime::Handle;
 
 use super::solver::{ChallengeSolver, Challenges, Script};
 use crate::http::{InitError, https_redirects};
+use crate::trace;
 
 /// How long a player id is trusted before `iframe_api` is read again.
 pub const PLAYER_CHECK_EVERY: Duration = Duration::from_hours(6);
@@ -75,6 +77,13 @@ impl HttpPlayerSource {
     }
 
     async fn get(&self, url: String) -> Result<String, StreamError> {
+        let (began, host) = (Instant::now(), host_of(&url).to_owned());
+        let result = self.fetch_text(url).await;
+        trace::fetch_result("resolver", "player_script", &host, result.is_ok(), began);
+        result
+    }
+
+    async fn fetch_text(&self, url: String) -> Result<String, StreamError> {
         let response = self
             .client
             .get(url)
