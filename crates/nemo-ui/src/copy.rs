@@ -160,8 +160,8 @@ pub const LIBRARY_EMPTY_TITLE: &str = "Your library is empty";
 /// Library empty state, how to add music.
 pub const LIBRARY_EMPTY_HELP: &str = "Add a music folder in Settings, under Library. NemoMusic reads FLAC, ALAC, WAV, MP3, AAC and Ogg files and keeps the list on this computer.";
 
-/// Sign-in sheet: title when signed out.
-pub const ACCOUNT_TITLE: &str = "Sign in to YouTube Music";
+/// Title of the accounts sheet (source-workspaces spec): one sheet for both services.
+pub const ACCOUNTS_TITLE: &str = "Your accounts";
 /// Sign-in sheet: where everything lives (`design.md` section 11, word for word).
 pub const ACCOUNT_LOCAL: &str = concat!(
     "Everything stays on this computer. NemoMusic has no server. Your sign-in and library data are stored here, in ",
@@ -236,6 +236,7 @@ pub fn sign_out_result(report: &nemo_core::account::SignOutReport) -> String {
 }
 
 pub mod appearance;
+pub mod discord;
 pub mod setup;
 pub mod soundcloud;
 

@@ -72,6 +72,7 @@ impl App {
             Message::Rescaled(factor) => self.rescale(factor),
             Message::Focus(on) => {
                 self.focused = on;
+                self.sync_integrations();
                 // The first frame after a pause must not see the pause as one long frame.
                 self.last_frame = None;
                 Vec::new()
@@ -111,6 +112,8 @@ impl App {
             }
             Message::Account(msg) => self.account_msg(msg),
             Message::Sc(msg) => self.sc_msg(msg),
+            Message::AreaKey { to, .. } => self.switch_source(to),
+            Message::Discord(msg) => self.discord_msg(msg),
             // A reload replaced the shelves already: a late start-up answer is older.
             Message::HomeFeed(_) | Message::HomeSeed { .. }
                 if self.home.phase == HomePhase::Done =>
@@ -149,19 +152,36 @@ impl App {
                 }
                 Vec::new()
             }
-            Message::ScGroup {
+            Message::SearchDone {
+                source,
+                query,
+                result,
+            } => {
+                if let Ok(r) = &result {
+                    self.learn_local(r);
+                }
+                if source != self.source {
+                    // The area was switched while it ran: the answer goes to the area that asked.
+                    self.rest.search.done(&query, result);
+                    return Vec::new();
+                }
+                self.dispatch(Event::SearchDone { query, result })
+            }
+            Message::SearchKindDone {
+                source,
                 query,
                 kind,
                 result,
             } => {
-                self.sc_group_done(&query, kind, result);
-                Vec::new()
-            }
-            Message::SearchDone { query, result } => {
-                if let Ok(r) = &result {
-                    self.learn_local(r);
+                if source != self.source {
+                    self.rest.search.filter_done(&query, kind, result);
+                    return Vec::new();
                 }
-                self.dispatch(Event::SearchDone { query, result })
+                self.dispatch(Event::SearchFilterDone {
+                    query,
+                    kind,
+                    result,
+                })
             }
             Message::Detail { key, result } => {
                 let state = match result {
@@ -292,6 +312,10 @@ impl App {
                 Vec::new()
             }
             Message::SettingsSectionGo(s) => {
+                // The accounts sheet points here (`Turn on SoundCloud in Settings`): it closes.
+                if self.account.open {
+                    let _ = self.account_msg(AccountMsg::Close);
+                }
                 self.settings_section = s;
                 self.dispatch(Event::Go(Route::Settings))
             }

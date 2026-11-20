@@ -88,8 +88,31 @@ impl Redactor {
         for home in &self.homes {
             text = replace_bounded(&text, home, "~");
         }
-        url::generic_home_paths(&text)
+        drop_path_tails(&url::generic_home_paths(&text))
     }
+}
+
+/// Cut everything after `~/` or `~\` up to a space, quote, bracket or comma: a path under the
+/// home folder can hold a song or folder name, so only `~/…` is kept.
+fn drop_path_tails(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        out.push(c);
+        if c == '~' && matches!(chars.peek(), Some('/' | '\\')) {
+            let sep = chars.next().unwrap_or('/');
+            out.push(sep);
+            out.push('\u{2026}');
+            while chars
+                .next_if(|n| {
+                    !(n.is_whitespace()
+                        || matches!(n, '"' | '\'' | ')' | ']' | '}' | ',' | ';' | '`'))
+                })
+                .is_some()
+            {}
+        }
+    }
+    out
 }
 
 /// Drop carriage returns and turn control characters (tabs too) into spaces.

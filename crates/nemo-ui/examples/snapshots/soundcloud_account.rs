@@ -261,7 +261,7 @@ pub(super) fn search_shots(out: &mut Vec<Shot>) {
             ..UiSettings::default()
         },
         soundcloud: Some(ScScene::Account),
-        search_source: Some(source),
+        area: Some(source),
         search: Some("velvet".to_owned()),
         ..Scenario::default()
     };
@@ -296,36 +296,6 @@ pub(super) fn search_shots(out: &mut Vec<Shot>) {
             pending: Some(Pending::Search),
             skeleton_phase: Some(0.0),
             ..search(BaseMode::Dark, SMALL, Source::SoundCloud)
-        },
-        signed_in(),
-    ));
-    // `All`: YouTube Music first, then the SoundCloud group.
-    for (base, tag, size, dims) in [
-        (BaseMode::Dark, "dark", SMALL, "960x600"),
-        (BaseMode::Light, "light", SMALL, "960x600"),
-        (BaseMode::Dark, "dark", LARGE, "1366x697"),
-    ] {
-        out.push(running(
-            format!("soundcloud-search-all-{tag}-{dims}"),
-            search(base, size, Source::All),
-            signed_in(),
-        ));
-    }
-    // One kind of both services, small enough to show the group under YouTube Music's answer.
-    out.push(running(
-        "soundcloud-search-all-artists-dark-960x900".to_owned(),
-        Scenario {
-            size: (960, 900),
-            search_filter: Some(SearchKind::Artists),
-            ..search(BaseMode::Dark, SMALL, Source::All)
-        },
-        signed_in(),
-    ));
-    out.push(running(
-        "soundcloud-search-all-songs-dark-960x600".to_owned(),
-        Scenario {
-            search_filter: Some(SearchKind::Songs),
-            ..search(BaseMode::Dark, SMALL, Source::All)
         },
         signed_in(),
     ));
@@ -404,12 +374,12 @@ pub(super) fn sidebar_shots(out: &mut Vec<Shot>) {
         },
         ..Scenario::default()
     };
-    // The list with `All`: YouTube Music's rows, then SoundCloud's.
+    // The sidebar list in the SoundCloud area: its own rows, none of YouTube Music's.
     out.push(running(
-        "soundcloud-sidebar-all-dark-1366x697".to_owned(),
+        "soundcloud-sidebar-dark-1366x697".to_owned(),
         Scenario {
             sc_library: Some(ScLibraryScene::Tab(ScTab::Playlists)),
-            search_source: Some(Source::All),
+            area: Some(Source::SoundCloud),
             ..dark(LARGE, Route::Library)
         },
         signed_in(),

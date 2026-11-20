@@ -1,7 +1,7 @@
 //! The SoundCloud library as the app holds it (soundcloud-account criteria 11 and 12): read when
 //! the person opens it signed in, again on Refresh, cleared the moment the account changes.
 //! Nothing is read in the background: a read starts only while SoundCloud is on, someone is
-//! signed in and the Library is set to show SoundCloud.
+//! signed in and SoundCloud is the listening area, plus one read right after a sign-in.
 
 use std::sync::Arc;
 
@@ -27,7 +27,7 @@ impl App {
         matches!(self.sc_state(), Some(SourceAccountState::SignedIn(_)))
     }
 
-    /// The SoundCloud library is the one on screen: the Library shows it and it waits for data.
+    /// The SoundCloud library is the one on screen: SoundCloud is the area and it waits for data.
     #[must_use]
     pub(crate) fn sc_library_pending(&self) -> bool {
         self.sc_is_signed_in()
@@ -50,7 +50,15 @@ impl App {
                 ..ScLibrary::default()
             };
         }
-        if signed && self.source.has_soundcloud() && self.sc_lib.phase == ScPhase::Idle {
+        if !signed {
+            self.sc.read_after_sign_in = false;
+        }
+        // One read when SoundCloud is the area, or once right after a sign-in.
+        if signed
+            && self.sc_lib.phase == ScPhase::Idle
+            && (self.source == Source::SoundCloud || self.sc.read_after_sign_in)
+        {
+            self.sc.read_after_sign_in = false;
             return self.sc_load();
         }
         Vec::new()
@@ -74,23 +82,10 @@ impl App {
         self.sc_load()
     }
 
-    /// The messages of the Library's source switch and SoundCloud tabs.
+    /// The messages of the listening-area switch and the SoundCloud tabs.
     pub(super) fn sc_library_msg(&mut self, msg: ScMsg) -> Vec<Job> {
         match msg {
-            ScMsg::Source(source) => {
-                if self.source == source {
-                    return Vec::new();
-                }
-                self.source = source;
-                let mut jobs = self.sc_watch();
-                if matches!(self.ui.route(), crate::route::Route::Search(_)) {
-                    // The answers on screen belong to the other service.
-                    self.ui.search.forget_answers();
-                    self.sc_groups.clear();
-                    jobs.extend(self.dispatch(crate::state::Event::SearchRetry));
-                }
-                return jobs;
-            }
+            ScMsg::Source(source) => return self.switch_source(source),
             ScMsg::Tab(tab) => self.sc_tab = tab,
             ScMsg::Reload => return self.sc_reload(),
             ScMsg::LibraryLoaded { generation, result } => {
@@ -181,6 +176,20 @@ mod tests {
     }
 
     #[test]
+    fn a_sign_in_reads_the_library_once_even_while_youtube_music_is_the_area() {
+        let (mut app, _) = app_with(signed_in());
+        assert_eq!(app.source, Source::YouTube);
+        let jobs = app.update_core(Message::Sc(ScMsg::SignedIn(Ok(MockScAccount::info()))));
+        assert_eq!(reads(&jobs), 1, "the one read after a sign-in");
+        assert_eq!(app.source, Source::YouTube, "the area stays");
+        assert_eq!(
+            reads(&app.update_core(Message::TimerTick)),
+            0,
+            "and only one"
+        );
+    }
+
+    #[test]
     fn choosing_soundcloud_starts_one_read_and_the_answer_fills_the_tabs() {
         let (mut app, _) = app_with(signed_in());
         let jobs = app.update_core(Message::Sc(ScMsg::Source(Source::SoundCloud)));
@@ -259,110 +268,36 @@ mod tests {
         assert_eq!(app.sc_lib.phase, ScPhase::Idle);
         assert!(app.sc_lib.generation > before);
         assert!(!app.sc_lib.owner);
+        assert_eq!(
+            app.source,
+            Source::YouTube,
+            "signed out: back to YouTube Music"
+        );
     }
 
     #[test]
-    fn refresh_reloads_soundcloud_only_when_the_library_shows_it() {
+    fn refresh_reloads_only_the_active_area() {
         let (mut app, _) = app_with(signed_in());
         let jobs = app.update_core(Message::Sc(ScMsg::Source(Source::SoundCloud)));
         app.settle_blocking(jobs);
         assert_eq!(reads(&app.update_core(Message::Refresh)), 1);
         let (mut yt, _) = app_with(signed_in());
         assert_eq!(reads(&yt.update_core(Message::Refresh)), 0);
+        // While SoundCloud is the area, YouTube Music's reload does not start.
+        assert!(
+            !app.update_core(Message::Refresh)
+                .iter()
+                .any(|j| matches!(j, Job::Refresh(_))),
+            "only SoundCloud reloads"
+        );
     }
 
     #[test]
-    fn the_source_switch_and_tabs_are_remembered() {
+    fn the_area_and_the_tab_are_remembered() {
         let (mut app, _) = app_with(signed_in());
         let _ = app.update_core(Message::Sc(ScMsg::Source(Source::SoundCloud)));
         let _ = app.update_core(Message::Sc(ScMsg::Tab(ScTab::History)));
         assert_eq!(app.source, Source::SoundCloud);
         assert_eq!(app.sc_open_tab(), ScTab::History);
-        assert!(Source::All.has_soundcloud() && !Source::YouTube.has_soundcloud());
-    }
-
-    fn search_app(tos: bool) -> App {
-        let backend = mock_backend_soundcloud(signed_in());
-        build_app(
-            &backend,
-            &Scenario {
-                soundcloud: Some(ScScene::Account),
-                settings: crate::settings::UiSettings {
-                    tos_acknowledged: tos,
-                    soundcloud: crate::settings::OptInState {
-                        enabled: true,
-                        confirmed_version: 2,
-                    },
-                    ..crate::settings::UiSettings::default()
-                },
-                route: crate::route::Route::Search(String::new()),
-                ..Scenario::default()
-            },
-        )
-    }
-
-    fn searches(jobs: &[Job]) -> (usize, usize) {
-        let sc = jobs
-            .iter()
-            .filter(|j| matches!(j, Job::ScSearch(_) | Job::ScSearchKind { .. }))
-            .count();
-        let yt = jobs
-            .iter()
-            .filter(|j| matches!(j, Job::Search(_) | Job::SearchKind { .. }))
-            .count();
-        (sc, yt)
-    }
-
-    #[test]
-    fn a_search_goes_to_the_service_the_switch_names() {
-        use crate::state::Event;
-        let mut app = search_app(true);
-        let _ = app.update_core(Message::Ui(Event::SearchInput("velvet".to_owned())));
-        let yt = app.update_core(Message::Ui(Event::SearchSubmit));
-        assert_eq!(searches(&yt), (0, 1), "YouTube Music is the default");
-        let mut app = search_app(true);
-        let _ = app.update_core(Message::Sc(ScMsg::Source(Source::SoundCloud)));
-        let _ = app.update_core(Message::Ui(Event::SearchInput("velvet".to_owned())));
-        let sc = app.update_core(Message::Ui(Event::SearchSubmit));
-        assert_eq!(searches(&sc), (1, 0));
-        let filtered = app.update_core(Message::Ui(Event::SearchFilter(Some(
-            nemo_core::catalog::SearchKind::Albums,
-        ))));
-        assert_eq!(searches(&filtered), (1, 0), "a chip too");
-    }
-
-    #[test]
-    fn soundcloud_search_needs_no_youtube_notice_and_youtube_still_does() {
-        use crate::state::Event;
-        let mut app = search_app(false);
-        let _ = app.update_core(Message::Sc(ScMsg::Source(Source::SoundCloud)));
-        let _ = app.update_core(Message::Ui(Event::SearchInput("velvet".to_owned())));
-        let jobs = app.update_core(Message::Ui(Event::SearchSubmit));
-        assert_eq!(searches(&jobs), (1, 0), "SoundCloud waits for no notice");
-        let mut yt = search_app(false);
-        let _ = yt.update_core(Message::Ui(Event::SearchInput("velvet".to_owned())));
-        let jobs = yt.update_core(Message::Ui(Event::SearchSubmit));
-        assert_eq!(searches(&jobs), (0, 0), "nothing leaves before the notice");
-    }
-
-    #[test]
-    fn switching_the_source_on_the_search_page_drops_the_other_answers_and_searches_again() {
-        use crate::state::Event;
-        let mut app = search_app(true);
-        let _ = app.update_core(Message::Ui(Event::SearchInput("velvet".to_owned())));
-        let jobs = app.update_core(Message::Ui(Event::SearchSubmit));
-        app.settle_blocking(jobs);
-        assert!(app.ui.search.results.is_some());
-        let jobs = app.update_core(Message::Sc(ScMsg::Source(Source::SoundCloud)));
-        assert!(
-            app.ui.search.results.is_none(),
-            "YouTube answers do not stay"
-        );
-        assert_eq!(searches(&jobs), (1, 0));
-        // Choosing the same source again does nothing.
-        assert!(
-            app.update_core(Message::Sc(ScMsg::Source(Source::SoundCloud)))
-                .is_empty()
-        );
     }
 }

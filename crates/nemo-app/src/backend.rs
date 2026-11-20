@@ -19,6 +19,7 @@ use nemo_core::segment::SegmentSource;
 use nemo_core::services::Backend;
 use nemo_core::stats::NoStats;
 use nemo_core::stream::{StreamRequest, StreamResolver};
+use nemo_integrations::Integrations;
 use nemo_library::catalog::LOCAL_ALBUM_PREFIX;
 use nemo_library::{LocalCatalog, LocalLibrary};
 use nemo_lyrics::LyricsHub;
@@ -115,7 +116,7 @@ impl Startup {
     /// # Errors
     /// A plain sentence for the splash when a service cannot start.
     pub fn run(self, report: StepReporter<'_>) -> Result<Backend, String> {
-        let services = build(
+        let mut services = build(
             &self.paths,
             &self.settings,
             &self.handle,
@@ -123,6 +124,10 @@ impl Startup {
             &self.sc_slot,
         )
         .map_err(|err| format!("NemoMusic could not start. {err}"))?;
+        // The real integrations service replaces the empty one: its switches are kept in the
+        // integrations folder, and Discord presence starts only if its switch is on.
+        let integrations = Arc::new(nemo_integrations::build_in(&self.paths.integrations));
+        services.backend.integrations = Arc::clone(&integrations) as _;
         let probe = dev_probe::for_app(self.dev_ring, &services, &self.paths, &self.settings);
         rescan_in_background(&services.local);
         if let Ok(mut slot) = self.library.lock() {
@@ -134,7 +139,7 @@ impl Startup {
         services.start_warm.hint(services.streams.last_played());
         match play_hub::spawn(
             Arc::clone(&services.backend.player),
-            play_observers(&services.streams),
+            play_observers(&services.streams, &integrations),
         ) {
             Ok(hub) => {
                 if let Ok(mut slot) = self.hub.lock() {
@@ -471,8 +476,14 @@ fn sign_out_steps(
 
 /// The one place where services that watch playback register as play observers (integrations,
 /// listening stats). The play hub hands each of them every play event.
-pub fn play_observers(streams: &Arc<StreamStore>) -> Vec<Arc<dyn PlayObserver>> {
-    vec![Arc::new(LastPlayed(Arc::clone(streams)))]
+pub fn play_observers(
+    streams: &Arc<StreamStore>,
+    integrations: &Arc<Integrations>,
+) -> Vec<Arc<dyn PlayObserver>> {
+    vec![
+        Arc::new(LastPlayed(Arc::clone(streams))),
+        Arc::clone(integrations) as Arc<dyn PlayObserver>,
+    ]
 }
 
 /// Rescan the local library on its own thread so the window opens at once.

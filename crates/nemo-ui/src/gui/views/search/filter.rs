@@ -5,7 +5,6 @@
 //! picks it. The picked chip takes the cover's `secondary-container`.
 
 use iced::Element;
-use iced::widget::column;
 use nemo_core::catalog::SearchKind;
 
 use super::super::super::app::{App, Message};
@@ -73,7 +72,7 @@ fn pick_without_videos(i: usize) -> Message {
     Message::Ui(Event::SearchFilter(kind_at(false, i)))
 }
 
-/// All, then one chip per [`SearchKind::FILTERS`] (no Videos for SoundCloud alone), with a pill
+/// All, then one chip per [`SearchKind::FILTERS`] (no Videos in the SoundCloud area), with a pill
 /// that slides to the picked one.
 pub(super) fn chips(app: &App, picked: Option<SearchKind>) -> Element<'_, Message> {
     let with_videos = !app.search_is_soundcloud();
@@ -91,33 +90,22 @@ pub(super) fn chips(app: &App, picked: Option<SearchKind>) -> Element<'_, Messag
     )
 }
 
-/// The answer of chip `kind`: its section in full, or the state of its search. With `All` in
-/// the source switch, the SoundCloud group of the same chip follows.
+/// The answer of chip `kind`: its section in full, or the state of its search.
 pub(super) fn filtered<'a>(app: &'a App, kind: SearchKind, frame: &Frame) -> Element<'a, Message> {
     let search = &app.ui.search;
     let Some(answer) = search.filtered_now() else {
         return blank();
     };
-    let own: Option<Element<'a, Message>> = match &answer.result {
-        Ok(r) if r.count(kind) == 0 => {
-            (!super::sc_group::has_results(app)).then(|| no_results(search.query()))
-        }
-        Ok(r) => section::section(app, r, kind, frame, 0),
-        Err(e) => Some(status(
+    match &answer.result {
+        Ok(r) if r.count(kind) == 0 => no_results(search.query()),
+        Ok(r) => section::section(app, r, kind, frame, 0).unwrap_or_else(blank),
+        Err(e) => status(
             Icon::Info,
             "Search did not work",
             format!("{e} Check your connection and try again."),
             Some(("Try again", Message::Ui(Event::SearchFilter(Some(kind))))),
-        )),
-    };
-    let mut c = column![];
-    if let Some(own) = own {
-        c = c.push(own);
+        ),
     }
-    if let Some(group) = super::sc_group::view(app, frame) {
-        c = c.push(group);
-    }
-    c.into()
 }
 
 #[cfg(test)]

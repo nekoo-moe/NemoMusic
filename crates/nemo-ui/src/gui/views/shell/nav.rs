@@ -5,12 +5,13 @@ use iced::widget::{Space, button, column, container, row, stack};
 use iced::{Alignment, Border, Color, Element, Length, Padding};
 
 use super::pane_surface;
-use super::sidebar::{library_chips, library_header, library_list, source_chips};
-use crate::gui::app::{App, Message, NAV_ENTRIES};
+use super::sidebar::{library_chips, library_header, library_list};
+use crate::copy::soundcloud as text;
+use crate::gui::app::{App, Message, Source};
 use crate::gui::assets::Icon;
-use crate::gui::fx::fx;
+use crate::gui::fx::{entrance, fx};
 use crate::gui::style::{button_flat, col, gap, icon, icon_button, label, label_w, tip};
-use crate::gui::views::kit::vspace;
+use crate::gui::views::kit::{pane_bg, vspace};
 use crate::route::{NavEntry, Route};
 use crate::state::Event;
 use crate::theme::{color, shape, type_scale};
@@ -35,10 +36,34 @@ fn mark_style(fill: iced::Color) -> container::Style {
     }
 }
 
+/// The name of the app and, while SoundCloud is the listening area, one quiet line under it.
+/// Nothing under it while YouTube Music is the area. Both lines fit the 48 px of the brand row.
+fn brand_text(app: &App) -> Element<'_, Message> {
+    let name = label(
+        "NemoMusic",
+        type_scale::TITLE_SM,
+        true,
+        col(color::on_surface()),
+    );
+    if app.source != Source::SoundCloud {
+        return name.into();
+    }
+    column![
+        name,
+        label(
+            text::AREA_CAPTION,
+            type_scale::LABEL_SM,
+            false,
+            col(color::on_surface_variant())
+        )
+    ]
+    .into()
+}
+
 pub(super) fn left_pane(app: &App, width: f32, _h: u32) -> Element<'_, Message> {
     let wide = width >= 200.0;
     let route = app.ui.route();
-    let selected = app.ui.nav.active_entry();
+    let selected = app.nav_selected();
     let accent = app.accent();
 
     let brand: Element<'_, Message> = {
@@ -49,20 +74,11 @@ pub(super) fn left_pane(app: &App, width: f32, _h: u32) -> Element<'_, Message> 
             .center_y(Length::Fixed(MARK_SIDE))
             .style(move |_| mark_style(col(accent.primary)));
         if wide {
-            row![
-                mark,
-                Space::new().width(gap::MD),
-                label(
-                    "NemoMusic",
-                    type_scale::TITLE_SM,
-                    true,
-                    col(color::on_surface())
-                )
-            ]
-            .align_y(Alignment::Center)
-            .padding(Padding::from([0.0, gap::SM]))
-            .height(Length::Fixed(48.0))
-            .into()
+            row![mark, Space::new().width(gap::MD), brand_text(app)]
+                .align_y(Alignment::Center)
+                .padding(Padding::from([0.0, gap::SM]))
+                .height(Length::Fixed(48.0))
+                .into()
         } else {
             container(mark)
                 .width(Length::Fill)
@@ -73,7 +89,7 @@ pub(super) fn left_pane(app: &App, width: f32, _h: u32) -> Element<'_, Message> 
     };
 
     let mut entries = column![].spacing(gap::XS);
-    for entry in NAV_ENTRIES {
+    for &entry in app.source.nav() {
         let on = selected == Some(entry);
         let (glyph, text) = match entry {
             NavEntry::Home => (if on { Icon::HomeFill } else { Icon::Home }, "Home"),
@@ -94,13 +110,14 @@ pub(super) fn left_pane(app: &App, width: f32, _h: u32) -> Element<'_, Message> 
             .push(vspace(gap::LG))
             .push(library_header())
             .push(vspace(gap::SM));
-        if let Some(switch) = source_chips(app) {
-            c = c.push(switch).push(vspace(gap::SM));
-        }
         c = c
             .push(library_chips(app))
             .push(vspace(gap::SM))
-            .push(library_list(app, width - 2.0 * gap::MD, route));
+            .push(entrance(
+                library_list(app, width - 2.0 * gap::MD, route),
+                app.anim.list(),
+                pane_bg(),
+            ));
     } else {
         c = c.push(Space::new().height(Length::Fill)).push(
             container(tip(
@@ -149,7 +166,7 @@ fn nav_stack<'a>(app: &App, entries: Element<'a, Message>) -> Element<'a, Messag
         Space::new().height(Length::Fixed(nav_pill_y(app.micro.nav.value))),
         pill
     ];
-    let count = f32::from(u8::try_from(NAV_ENTRIES.len()).unwrap_or(4));
+    let count = f32::from(u8::try_from(app.source.nav().len()).unwrap_or(4));
     stack![
         Space::new()
             .width(Length::Fill)

@@ -108,30 +108,30 @@ fn home_paths_become_a_tilde() {
     let r = r();
     assert_eq!(
         r.redact("open /home/alice/.local/share/NemoMusic/db"),
-        "open ~/.local/share/NemoMusic/db"
+        "open ~/…"
     );
     assert_eq!(r.redact("saved in /home/alice."), "saved in ~.");
-    assert_eq!(r.redact("kept /home/alice2/x"), "kept ~/x");
+    assert_eq!(r.redact("kept /home/alice2/x"), "kept ~/…");
     assert_eq!(
         r.redact("in /home/bob/x and /Users/carol/y"),
-        "in ~/x and ~/y"
+        "in ~/… and ~/…"
     );
     assert_eq!(
         r.redact(r"C:\Users\Dave\AppData\x and D:/users/eve/z"),
-        r"~\AppData\x and ~/z"
+        "~\\… and ~/…"
     );
-    assert_eq!(r.redact("cwd /root/work"), "cwd ~/work");
+    assert_eq!(r.redact("cwd /root/work"), "cwd ~/…");
     assert_eq!(
         r.redact("PATH=/usr/bin:/home/alice/bin"),
-        "PATH=/usr/bin:~/bin"
+        "PATH=/usr/bin:~/…"
     );
     assert_eq!(
         r.redact("keep /var/home/x and ~/home/y"),
-        "keep /var/home/x and ~/home/y"
+        "keep /var/home/x and ~/…"
     );
     let win = Redactor::with_home(r"C:\Users\Alice");
-    assert_eq!(win.redact(r"C:\Users\Alice\Music"), r"~\Music");
-    assert_eq!(win.redact("C:/Users/Alice/Music"), "~/Music");
+    assert_eq!(win.redact(r"C:\Users\Alice\Music"), "~\\…");
+    assert_eq!(win.redact("C:/Users/Alice/Music"), "~/…");
 }
 
 #[test]

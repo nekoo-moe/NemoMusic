@@ -10,38 +10,102 @@ use nemo_core::account::{AccountInfo, AccountState};
 use nemo_core::secret::Secret;
 use nemo_core::track::Artwork;
 
-use super::super::app::{AccountMsg, App, ArtShape, Message};
+use super::super::app::{AccountMsg, App, ArtShape, Message, SettingsSection};
 use super::super::assets::{Icon, font};
 use super::super::fx::Fx;
-use super::super::style::{col, gap, icon, icon_button, label, label_w, shadow, spinner};
-use super::kit::{art, filled_button, paragraph, text_button, tonal_button, vspace};
+use super::super::style::{col, gap, icon, icon_button, label, label_w, scroll, shadow, spinner};
+use super::kit::{art, filled_button, paragraph, text_button, tile, tonal_button, vspace};
+use super::sc_account::{self, Place};
 use crate::copy;
+use crate::copy::soundcloud as sc_text;
 use crate::state::Event;
 use crate::theme::{color, glass, shape, type_scale};
 
 /// Sheet width.
 const WIDTH: f32 = 440.0;
+/// Room kept between the sheet and the window edge, top and bottom.
+const MARGIN: f32 = gap::LG;
+/// Room the scroll bar keeps at the right of the cards, so it never covers a word.
+const RAIL: f32 = gap::MD;
+/// The sheet never gets shorter than this, so a tiny window still shows a scroll area.
+const MIN_HEIGHT: f32 = 240.0;
 
-/// The sheet over a scrim.
-pub fn sheet(app: &App) -> Element<'_, Message> {
-    let p = app.anim.sheet.value.clamp(0.0, 1.0);
-    let (w, _) = app.window_px();
-    // Window widths are small exact numbers.
-    #[allow(clippy::cast_precision_loss)]
-    let width = WIDTH.min((w as f32 - 2.0 * gap::LG).max(320.0));
-    let inner = width - 2.0 * gap::XL;
+/// A card of the sheet: its heading and what it shows, on `surface-container` inside the sheet.
+fn account_card<'a>(
+    title: &'static str,
+    body: Element<'a, Message>,
+    width: f32,
+) -> Element<'a, Message> {
+    tile(
+        container(
+            column![
+                label(title, type_scale::TITLE_SM, true, col(color::on_surface())),
+                body
+            ]
+            .spacing(gap::MD),
+        )
+        .padding(gap::LG)
+        .width(Length::Fixed(width)),
+        color::surface_container(),
+    )
+}
 
+/// The YouTube Music card: what the sheet showed before the sheet held two accounts.
+fn youtube_card(app: &App, width: f32) -> Element<'_, Message> {
+    let inner = width - 2.0 * gap::LG;
     let state = app.backend.account.state();
     let body = match &state {
         AccountState::SignedIn(info) => signed_in(app, info, inner),
         _ => signed_out(app, matches!(state, AccountState::SigningIn), inner),
     };
-    let title = match &state {
-        AccountState::SignedIn(_) => "Your account",
-        _ => copy::ACCOUNT_TITLE,
+    account_card("YouTube Music", body, width)
+}
+
+/// The SoundCloud card: the same pieces as the Settings card, or one sentence and the way to
+/// Settings while SoundCloud is off.
+fn soundcloud_card(app: &App, width: f32) -> Element<'_, Message> {
+    let inner = width - 2.0 * gap::LG;
+    let body: Element<'_, Message> = if app.sc_open() {
+        sc_account::body(app, inner, Place::Sheet)
+    } else {
+        column![
+            paragraph(
+                sc_text::CARD_OFF,
+                type_scale::BODY_MD,
+                col(color::on_surface_variant()),
+                inner
+            ),
+            text_button(
+                sc_text::CARD_TURN_ON,
+                Message::SettingsSectionGo(SettingsSection::SoundCloud)
+            ),
+        ]
+        .spacing(gap::SM)
+        .into()
     };
+    account_card(sc_text::TITLE, body, width)
+}
+
+/// The sheet over a scrim: `Your accounts`, the `Listening area` control, then one card for each
+/// service. It scrolls inside its card when the window is too short for all of it.
+pub fn sheet(app: &App) -> Element<'_, Message> {
+    let p = app.anim.sheet.value.clamp(0.0, 1.0);
+    let (w, h) = app.window_px();
+    // Window sizes are small exact numbers.
+    #[allow(clippy::cast_precision_loss)]
+    let (width, max_h) = (
+        WIDTH.min((w as f32 - 2.0 * gap::LG).max(320.0)),
+        (h as f32 - 2.0 * MARGIN).max(MIN_HEIGHT),
+    );
+    let inner = width - 2.0 * gap::XL;
+
     let header = row![
-        label(title, type_scale::TITLE_LG, true, col(color::on_surface())),
+        label(
+            copy::ACCOUNTS_TITLE,
+            type_scale::TITLE_LG,
+            true,
+            col(color::on_surface())
+        ),
         Space::new().width(Length::Fill),
         icon_button(
             Icon::Close,
@@ -53,19 +117,30 @@ pub fn sheet(app: &App) -> Element<'_, Message> {
         ),
     ]
     .align_y(Alignment::Center);
-    let card = container(column![header, vspace(gap::SM), body].width(Length::Fixed(inner)))
-        .padding(gap::XL)
-        .width(Length::Fixed(width))
-        .style(|_| container::Style {
-            background: Some(Background::Color(col(color::surface_container_high()))),
-            border: Border {
-                color: col(color::outline_variant()),
-                width: 1.0,
-                radius: shape::xl().into(),
-            },
-            shadow: shadow(glass::SHADOW_OFFSET_Y, glass::SHADOW_BLUR, glass::SHADOW),
-            ..container::Style::default()
-        });
+    let wide = inner - RAIL;
+    let mut content = column![].spacing(gap::LG).width(Length::Fixed(inner));
+    if let Some(area) = super::listening_area::control(app, wide) {
+        content = content.push(area);
+    }
+    content = content.push(youtube_card(app, wide));
+    if app.sc_info().is_some() {
+        content = content.push(soundcloud_card(app, wide));
+    }
+    let card =
+        container(column![header, vspace(gap::SM), scroll(content)].width(Length::Fixed(inner)))
+            .padding(gap::XL)
+            .width(Length::Fixed(width))
+            .max_height(max_h)
+            .style(|_| container::Style {
+                background: Some(Background::Color(col(color::surface_container_high()))),
+                border: Border {
+                    color: col(color::outline_variant()),
+                    width: 1.0,
+                    radius: shape::xl().into(),
+                },
+                shadow: shadow(glass::SHADOW_OFFSET_Y, glass::SHADOW_BLUR, glass::SHADOW),
+                ..container::Style::default()
+            });
     let card = Fx::new(card)
         .passive()
         .entrance(p, 16.0, col(color::surface_container_high()));
@@ -209,25 +284,29 @@ fn signed_out(app: &App, service_busy: bool, width: f32) -> Element<'_, Message>
                     (can && !acc.cookie.expose().trim().is_empty())
                         .then_some(Message::Account(AccountMsg::CookieSubmit)),
                 ),
-                Space::new().width(gap::SM),
                 text_button(
                     copy::ACCOUNT_USE_WINDOW,
                     Message::Account(AccountMsg::CookieMode(false))
                 ),
             ]
-            .align_y(Alignment::Center),
+            .spacing(gap::SM)
+            .align_y(Alignment::Center)
+            .wrap()
+            .vertical_spacing(gap::SM),
         );
     } else {
         c = c.push(
             row![
                 filled_button_neutral(can),
-                Space::new().width(gap::SM),
                 text_button(
                     copy::ACCOUNT_PASTE,
                     Message::Account(AccountMsg::CookieMode(true))
                 ),
             ]
-            .align_y(Alignment::Center),
+            .spacing(gap::SM)
+            .align_y(Alignment::Center)
+            .wrap()
+            .vertical_spacing(gap::SM),
         );
     }
     c.into()
@@ -384,3 +463,6 @@ fn signed_in<'a>(app: &'a App, info: &AccountInfo, width: f32) -> Element<'a, Me
     }
     c.into()
 }
+
+#[cfg(test)]
+mod tests;

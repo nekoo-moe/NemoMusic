@@ -15,6 +15,7 @@ use crate::theme::{color, shape, type_scale};
 
 mod appearance;
 pub(super) mod control;
+mod discord;
 mod info;
 mod playback;
 mod soundcloud;
@@ -81,7 +82,7 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
         SettingsSection::SoundCloud => soundcloud::section(app, right_w),
         // Appearance is its own cards under a live preview.
         SettingsSection::Appearance => appearance::page(app, right_w),
-        SettingsSection::Privacy => group(privacy(right_w), right_w),
+        SettingsSection::Privacy => discord::page(app, privacy(right_w), right_w),
         SettingsSection::About => group(about(right_w), right_w),
     };
     let right =

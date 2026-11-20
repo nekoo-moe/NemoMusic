@@ -34,28 +34,7 @@ pub(super) fn section<'a>(
     frame: &Frame,
     stagger: usize,
 ) -> Option<Element<'a, Message>> {
-    section_of(app, r, kind, frame, stagger, ListSource::Search)
-}
-
-/// The section of `kind` of the SoundCloud group of `All`: its songs play from the group.
-pub(super) fn sc_section<'a>(
-    app: &'a App,
-    r: &SearchResults,
-    kind: SearchKind,
-    frame: &Frame,
-    stagger: usize,
-) -> Option<Element<'a, Message>> {
-    section_of(app, r, kind, frame, stagger, ListSource::ScSearch)
-}
-
-fn section_of<'a>(
-    app: &'a App,
-    r: &SearchResults,
-    kind: SearchKind,
-    frame: &Frame,
-    stagger: usize,
-    songs: ListSource,
-) -> Option<Element<'a, Message>> {
+    let songs = ListSource::Search;
     let (title, body) = match kind {
         SearchKind::Songs => ("Songs", rows(app, &r.songs, songs, frame)),
         SearchKind::Videos => {

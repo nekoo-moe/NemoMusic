@@ -58,7 +58,7 @@ impl App {
     }
 
     /// Forget what a sign-in left in the page: the typed token, errors, the confirmation.
-    fn sc_reset_page(&mut self) {
+    pub(super) fn sc_reset_page(&mut self) {
         self.sc.paste = false;
         self.sc.token = Secret::new(String::new());
         self.sc.error = None;
@@ -250,7 +250,10 @@ impl App {
     ) {
         self.sc.busy = false;
         match result {
-            Ok(_) => self.sc_reset_page(),
+            Ok(_) => {
+                self.sc_reset_page();
+                self.sc.read_after_sign_in = true;
+            }
             Err(e) => {
                 self.sc.error = Some(text::error(&e));
                 if matches!(e, SourceAccountError::Unavailable(_)) {

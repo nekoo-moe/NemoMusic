@@ -1,6 +1,6 @@
-//! The sidebar list with SoundCloud on (soundcloud-account, PR 4): the source switch, the rows of
-//! each source, the sentences when there is nothing, the track page and the sort of the
-//! SoundCloud library.
+//! The sidebar list with SoundCloud on (soundcloud-account, PR 4; source-workspaces): the rows of
+//! each listening area and nothing of the other, the sentences when there is nothing, the track
+//! page and the sort of the SoundCloud library.
 
 use std::sync::Arc;
 
@@ -77,28 +77,20 @@ fn pick(app: &mut App, source: Source) {
 }
 
 #[test]
-fn each_source_lists_its_own_rows_and_all_lists_both() {
+fn each_area_lists_its_own_rows_and_nothing_of_the_other() {
     let mut app = app(signed_in());
     pick(&mut app, Source::YouTube);
     let youtube = sidebar_titles(&app);
     assert!(!youtube.iter().any(|t| t == "Night drive"), "{youtube:?}");
+    assert!(!youtube.iter().any(|t| t == "Velvet Harbor"), "{youtube:?}");
     pick(&mut app, Source::SoundCloud);
     assert_eq!(
         sidebar_titles(&app),
         ["Night drive", "Velvet Harbor"],
-        "playlists first, then artists"
+        "playlists first, then artists, and none of YouTube Music's"
     );
-    pick(&mut app, Source::All);
-    let both = sidebar_titles(&app);
-    assert_eq!(
-        both.len(),
-        youtube.len() + 2,
-        "{both:?} against {youtube:?}"
-    );
-    let ours = ["Night drive".to_owned(), "Velvet Harbor".to_owned()];
-    for title in youtube.iter().chain(ours.iter()) {
-        assert!(both.contains(title), "{title} in {both:?}");
-    }
+    pick(&mut app, Source::YouTube);
+    assert_eq!(sidebar_titles(&app), youtube, "back where it was");
 }
 
 #[test]
@@ -112,24 +104,26 @@ fn a_soundcloud_row_goes_to_its_own_page() {
 }
 
 #[test]
-fn the_switch_shows_only_while_soundcloud_is_on_and_running() {
-    let on = app(signed_in());
-    assert!(on.sc_open());
-    let plain = build_app(&crate::mock::mock_backend(), &Scenario::default());
-    assert!(!plain.sc_open());
-    // The chips are the same three the Search page has.
+fn there_are_two_areas_and_soundcloud_is_offered_only_while_it_is_on_running_and_signed_in() {
     assert_eq!(
         Source::ALL.map(Source::label),
-        ["YouTube Music", "SoundCloud", "All"]
+        ["YouTube Music", "SoundCloud"]
     );
+    let on = app(signed_in());
+    assert!(on.sc_open() && on.source_offered(Source::SoundCloud));
+    let plain = build_app(&crate::mock::mock_backend(), &Scenario::default());
+    assert!(!plain.sc_open() && !plain.source_offered(Source::SoundCloud));
+    assert!(plain.source_offered(Source::YouTube));
+    let out = app(SourceAccountState::SignedOut);
+    assert!(out.sc_open() && !out.source_offered(Source::SoundCloud));
 }
 
 #[test]
-fn soundcloud_alone_says_why_it_is_empty() {
+fn the_soundcloud_area_says_why_it_is_empty() {
     let mut out = app(SourceAccountState::SignedOut);
     pick(&mut out, Source::SoundCloud);
-    assert!(sidebar_titles(&out).is_empty());
-    assert!(sidebar_hint(&out).starts_with("Sign in to SoundCloud"));
+    assert_eq!(out.source, Source::YouTube, "signed out: not offered");
+    assert!(sidebar_hint(&out).starts_with("Sign in to YouTube Music"));
 
     let mut loading = app(signed_in());
     loading.sc_lib.data = Arc::default();

@@ -12,6 +12,8 @@
 mod appearance_page;
 #[path = "snapshots/backdrop.rs"]
 mod backdrop;
+#[path = "snapshots/discord_presence.rs"]
+mod discord_presence;
 #[path = "snapshots/feature.rs"]
 mod feature;
 #[path = "snapshots/font_compare.rs"]
@@ -40,6 +42,8 @@ mod skeleton;
 mod song_colour;
 #[path = "snapshots/soundcloud_account.rs"]
 mod soundcloud_account;
+#[path = "snapshots/source_workspaces.rs"]
+mod source_workspaces;
 #[path = "snapshots/startup.rs"]
 mod startup;
 #[path = "snapshots/state.rs"]
@@ -106,6 +110,9 @@ fn scenarios() -> Vec<Shot> {
     soundcloud_account::search_shots(&mut out);
     soundcloud_account::sidebar_shots(&mut out);
     soundcloud_account::write_shots(&mut out);
+    source_workspaces::shots(&mut out);
+    source_workspaces::account_shots(&mut out);
+    source_workspaces::motion_shots(&mut out);
     skeleton::shots(&mut out);
     out.extend(wave_lyrics::shots());
     out.extend(syllable_motion::shots());
@@ -164,6 +171,10 @@ fn main() {
         eprintln!("{e}");
         std::process::exit(1);
     }
+    if let Err(e) = discord_presence::render(&only, &out_dir) {
+        eprintln!("{e}");
+        std::process::exit(1);
+    }
     if let Err(e) = player_bar::render(&only, &out_dir) {
         eprintln!("{e}");
         std::process::exit(1);
@@ -187,6 +198,11 @@ fn main() {
         }
         let backend: Backend = match (s.seeded, s.signed_in, s.soundcloud.clone()) {
             (_, _, Some(state)) if s.empty => mock_backend_soundcloud_empty(state),
+            // Both accounts signed in (the accounts sheet).
+            (_, true, Some(state)) => Backend {
+                account: mock_backend_signed_in().account,
+                ..mock_backend_soundcloud(state)
+            },
             (_, _, Some(state)) => mock_backend_soundcloud(state),
             (true, _, None) => mock_backend_seeded(),
             (false, true, None) => mock_backend_signed_in(),

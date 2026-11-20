@@ -31,7 +31,7 @@ Being built (feature wave, approved specs in `.kiro/specs/`):
 - Ten-band equalizer, AutoEq profiles, delay, reverb and crossfade, all off by default (DSP code merged, UI next)
 - ReplayGain and loudness scan for local files, off by default (merged, UI next)
 - Offline cache: save songs, albums and playlists, plus capped smart downloads
-- SoundCloud as a second source: search, fast playback, then your account (likes, playlists, following, history), opt-in
+- SoundCloud as a second listening area next to YouTube Music: search, fast playback, then your account (likes, playlists, following, history), opt-in. You choose the area in Your accounts or in Settings; the sidebar, Library and Search show one service at a time, and the song that plays keeps playing when you switch
 - Search all of YouTube, channels, live stations, comments and dislikes
 - Several accounts, preferred audio language, Premium quality (opt-in)
 - Own synced lyrics editor, romanization, lyrics translation (opt-in AI)
@@ -86,6 +86,8 @@ These are the only hosts NemoMusic contacts. Adding a host needs owner approval.
 | `i1.sndcdn.com` | Cover art and avatars | Only when SoundCloud is on |
 | `playback.media-streaming.soundcloud.cloud`, `*.sndcdn.com` | The audio stream itself (HLS segments, previews, older MP3 files) | Only when a SoundCloud track plays |
 | `github.com`, `release-assets.githubusercontent.com` | Download the official [yt-dlp](https://github.com/yt-dlp/yt-dlp) release and its SHA-256 list | Only to install or update the app's own yt-dlp (automatic install on, no `yt_dlp_path` set); at most one update check a day |
+
+Discord presence adds no host. While you turn it on in Settings, Privacy (off by default), NemoMusic talks only to the Discord app on your computer through its local socket or named pipe. The Discord app shows the song (title, artist, source, cover address, position) to your friends and servers as your Discord privacy settings allow; Discord's own servers, not NemoMusic, load the cover from the address. `Hide song names on Discord` shows only that you listen to NemoMusic.
 
 ## Build and run
 

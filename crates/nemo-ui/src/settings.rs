@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 use crate::collection_sort::CollectionSort;
 use crate::scheme::{AccentIntensity, BaseMode, CornerStyle, ThemeChoice};
 use crate::window_glass::{OPACITY_DEFAULT, WindowGlass, clamp_opacity};
+use crate::workspace::Source;
 
 /// The old glass tier of the player bar. The bar is a Material surface now (owner, 2026-11-19;
 /// bar-material), so both values draw the same thing. The enum and its config key stay so old
@@ -121,6 +122,9 @@ pub struct UiSettings {
     pub collection_sorts: BTreeMap<String, CollectionSort>,
     /// The SoundCloud opt-in row (owner, 2026-11-19; soundcloud-account). Off by default.
     pub soundcloud: OptInState,
+    /// The listening area the window follows (owner, 2026-11-19; source-workspaces spec).
+    /// YouTube Music by default; the app falls back to it when SoundCloud is off or signed out.
+    pub listening_area: Source,
 }
 
 impl Default for UiSettings {
@@ -147,6 +151,7 @@ impl Default for UiSettings {
             window_glass_opacity: OPACITY_DEFAULT,
             collection_sorts: BTreeMap::new(),
             soundcloud: OptInState::default(),
+            listening_area: Source::default(),
         }
     }
 }
@@ -186,6 +191,8 @@ pub enum SettingChange {
     WindowGlassOpacity(u8),
     /// The SoundCloud opt-in row: the switch and the confirmed notice version.
     SoundCloud(OptInState),
+    /// The listening area: YouTube Music or SoundCloud.
+    ListeningArea(Source),
 }
 
 impl UiSettings {
@@ -208,6 +215,7 @@ impl UiSettings {
             SettingChange::WindowGlass(v) => self.window_glass = v,
             SettingChange::WindowGlassOpacity(v) => self.window_glass_opacity = clamp_opacity(v),
             SettingChange::SoundCloud(v) => self.soundcloud = v,
+            SettingChange::ListeningArea(v) => self.listening_area = v,
         }
     }
 
@@ -330,6 +338,16 @@ mod tests {
             confirmed_version: 2,
         }));
         assert!(!s.soundcloud.is_open(2), "off is off");
+    }
+
+    #[test]
+    fn the_listening_area_starts_on_youtube_music_and_changes_through_a_setting() {
+        let mut s = UiSettings::default();
+        assert_eq!(s.listening_area, Source::YouTube);
+        s.apply(SettingChange::ListeningArea(Source::SoundCloud));
+        assert_eq!(s.listening_area, Source::SoundCloud);
+        s.apply(SettingChange::ListeningArea(Source::YouTube));
+        assert_eq!(s.listening_area, Source::YouTube);
     }
 
     #[test]
