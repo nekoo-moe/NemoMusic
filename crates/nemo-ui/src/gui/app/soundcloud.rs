@@ -250,7 +250,10 @@ impl App {
     ) {
         self.sc.busy = false;
         match result {
-            Ok(_) => self.sc_reset_page(),
+            Ok(_) => {
+                self.sc_reset_page();
+                self.sc.read_after_sign_in = true;
+            }
             Err(e) => {
                 self.sc.error = Some(text::error(&e));
                 if matches!(e, SourceAccountError::Unavailable(_)) {

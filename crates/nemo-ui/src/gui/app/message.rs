@@ -8,7 +8,7 @@ use crate::home;
 use super::art::ArtSpec;
 use super::model::{
     AccountMsg, CompactTab, DetailData, DetailKey, HomeFilter, LibFilter, ListSource, NpTab, ScMsg,
-    SettingsSection,
+    SettingsSection, Source,
 };
 use super::option::{AccountLibrary, CreateMsg};
 use crate::cover::{Baked, CoverData};
@@ -58,22 +58,27 @@ pub enum Message {
     Library(Result<Arc<SearchResults>, String>),
     /// A search answered.
     SearchDone {
+        /// The listening area whose search it was. An answer that comes after a switch belongs to
+        /// the area that asked, not to the one on screen.
+        source: Source,
         /// The query that was run.
         query: String,
         /// The answer.
         result: Result<Arc<SearchResults>, String>,
     },
-    /// A SoundCloud account change (a like, a playlist change, an unfollow) or its answer.
-    ScWrite(super::sc_write::ScWriteMsg),
-    /// The SoundCloud group of `All` in Search answered.
-    ScGroup {
-        /// The text that was searched.
+    /// A search with a chip answered.
+    SearchKindDone {
+        /// The listening area whose search it was.
+        source: Source,
+        /// The query that was run.
         query: String,
-        /// The chip it was searched for.
-        kind: Option<SearchKind>,
+        /// The chip.
+        kind: SearchKind,
         /// The answer.
         result: Result<Arc<SearchResults>, String>,
     },
+    /// A SoundCloud account change (a like, a playlist change, an unfollow) or its answer.
+    ScWrite(super::sc_write::ScWriteMsg),
     /// A detail page answered.
     Detail {
         /// Page.
@@ -381,13 +386,6 @@ pub enum Job {
     },
     /// Send one change of the SoundCloud account.
     ScWrite(super::sc_write::ScWriteJob),
-    /// Search SoundCloud for the group under the YouTube Music results (`All` in Search).
-    ScGroup {
-        /// The text.
-        query: String,
-        /// The chip: `None` is the `All` chip.
-        kind: Option<SearchKind>,
-    },
     /// Read the SoundCloud library (likes, playlists, albums, followed artists, history).
     ScLibrary {
         /// The read; its answer carries it back.

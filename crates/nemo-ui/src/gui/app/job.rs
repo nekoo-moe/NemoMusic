@@ -2,7 +2,7 @@
 
 use super::art::device_px;
 use super::message::{AccountBundle, CoverBuilt, ExploreMsg, Job, Message, RefreshData};
-use super::model::{AccountMsg, DetailData, DetailKey, DetailKind, ScLibData, ScMsg};
+use super::model::{AccountMsg, DetailData, DetailKey, DetailKind, ScLibData, ScMsg, Source};
 use super::sc_write::ScWriteJob;
 use crate::cover;
 use crate::home;
@@ -87,7 +87,11 @@ pub async fn run_job(job: Job, backend: Backend) -> Message {
                 .await
                 .map(Arc::new)
                 .map_err(|e| e.to_string());
-            Message::SearchDone { query, result }
+            Message::SearchDone {
+                source: Source::YouTube,
+                query,
+                result,
+            }
         }
         Job::SearchKind { query, kind } => {
             let result = backend
@@ -96,11 +100,12 @@ pub async fn run_job(job: Job, backend: Backend) -> Message {
                 .await
                 .map(Arc::new)
                 .map_err(|e| e.to_string());
-            Message::Ui(Event::SearchFilterDone {
+            Message::SearchKindDone {
+                source: Source::YouTube,
                 query,
                 kind,
                 result,
-            })
+            }
         }
         Job::HoverDelay(generation) => {
             sleep_without_blocking(super::hint::HOVER_HINT_MS).await;
@@ -199,7 +204,11 @@ pub async fn run_job(job: Job, backend: Backend) -> Message {
                     .map_err(|e| e.to_string()),
                 None => Err(SC_NOT_RUNNING.to_owned()),
             };
-            Message::SearchDone { query, result }
+            Message::SearchDone {
+                source: Source::SoundCloud,
+                query,
+                result,
+            }
         }
         Job::ScSearchKind { query, kind } => {
             let result = match &backend.soundcloud {
@@ -210,23 +219,8 @@ pub async fn run_job(job: Job, backend: Backend) -> Message {
                     .map_err(|e| e.to_string()),
                 None => Err(SC_NOT_RUNNING.to_owned()),
             };
-            Message::Ui(Event::SearchFilterDone {
-                query,
-                kind,
-                result,
-            })
-        }
-        Job::ScGroup { query, kind } => {
-            let result = match &backend.soundcloud {
-                Some(c) => match kind {
-                    Some(kind) => c.search_kind(&query, kind).await,
-                    None => c.search(&query).await,
-                }
-                .map(Arc::new)
-                .map_err(|e| e.to_string()),
-                None => Err(SC_NOT_RUNNING.to_owned()),
-            };
-            Message::ScGroup {
+            Message::SearchKindDone {
+                source: Source::SoundCloud,
                 query,
                 kind,
                 result,

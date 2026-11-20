@@ -53,19 +53,22 @@ pub fn sheet(app: &App) -> Element<'_, Message> {
         ),
     ]
     .align_y(Alignment::Center);
-    let card = container(column![header, vspace(gap::SM), body].width(Length::Fixed(inner)))
-        .padding(gap::XL)
-        .width(Length::Fixed(width))
-        .style(|_| container::Style {
-            background: Some(Background::Color(col(color::surface_container_high()))),
-            border: Border {
-                color: col(color::outline_variant()),
-                width: 1.0,
-                radius: shape::xl().into(),
-            },
-            shadow: shadow(glass::SHADOW_OFFSET_Y, glass::SHADOW_BLUR, glass::SHADOW),
-            ..container::Style::default()
-        });
+    let area = super::listening_area::control(app, inner);
+    let card = container(
+        column![header, vspace(gap::SM), area, vspace(gap::LG), body].width(Length::Fixed(inner)),
+    )
+    .padding(gap::XL)
+    .width(Length::Fixed(width))
+    .style(|_| container::Style {
+        background: Some(Background::Color(col(color::surface_container_high()))),
+        border: Border {
+            color: col(color::outline_variant()),
+            width: 1.0,
+            radius: shape::xl().into(),
+        },
+        shadow: shadow(glass::SHADOW_OFFSET_Y, glass::SHADOW_BLUR, glass::SHADOW),
+        ..container::Style::default()
+    });
     let card = Fx::new(card)
         .passive()
         .entrance(p, 16.0, col(color::surface_container_high()));

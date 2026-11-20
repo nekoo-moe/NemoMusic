@@ -5,8 +5,8 @@ use iced::widget::{Space, button, column, container, row, stack};
 use iced::{Alignment, Border, Color, Element, Length, Padding};
 
 use super::pane_surface;
-use super::sidebar::{library_chips, library_header, library_list, source_chips};
-use crate::gui::app::{App, Message, NAV_ENTRIES};
+use super::sidebar::{library_chips, library_header, library_list};
+use crate::gui::app::{App, Message};
 use crate::gui::assets::Icon;
 use crate::gui::fx::fx;
 use crate::gui::style::{button_flat, col, gap, icon, icon_button, label, label_w, tip};
@@ -38,7 +38,7 @@ fn mark_style(fill: iced::Color) -> container::Style {
 pub(super) fn left_pane(app: &App, width: f32, _h: u32) -> Element<'_, Message> {
     let wide = width >= 200.0;
     let route = app.ui.route();
-    let selected = app.ui.nav.active_entry();
+    let selected = app.nav_selected();
     let accent = app.accent();
 
     let brand: Element<'_, Message> = {
@@ -73,7 +73,7 @@ pub(super) fn left_pane(app: &App, width: f32, _h: u32) -> Element<'_, Message> 
     };
 
     let mut entries = column![].spacing(gap::XS);
-    for entry in NAV_ENTRIES {
+    for &entry in app.source.nav() {
         let on = selected == Some(entry);
         let (glyph, text) = match entry {
             NavEntry::Home => (if on { Icon::HomeFill } else { Icon::Home }, "Home"),
@@ -94,9 +94,6 @@ pub(super) fn left_pane(app: &App, width: f32, _h: u32) -> Element<'_, Message> 
             .push(vspace(gap::LG))
             .push(library_header())
             .push(vspace(gap::SM));
-        if let Some(switch) = source_chips(app) {
-            c = c.push(switch).push(vspace(gap::SM));
-        }
         c = c
             .push(library_chips(app))
             .push(vspace(gap::SM))
@@ -149,7 +146,7 @@ fn nav_stack<'a>(app: &App, entries: Element<'a, Message>) -> Element<'a, Messag
         Space::new().height(Length::Fixed(nav_pill_y(app.micro.nav.value))),
         pill
     ];
-    let count = f32::from(u8::try_from(NAV_ENTRIES.len()).unwrap_or(4));
+    let count = f32::from(u8::try_from(app.source.nav().len()).unwrap_or(4));
     stack![
         Space::new()
             .width(Length::Fill)

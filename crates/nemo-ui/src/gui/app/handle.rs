@@ -151,19 +151,36 @@ impl App {
                 }
                 Vec::new()
             }
-            Message::ScGroup {
+            Message::SearchDone {
+                source,
+                query,
+                result,
+            } => {
+                if let Ok(r) = &result {
+                    self.learn_local(r);
+                }
+                if source != self.source {
+                    // The area was switched while it ran: the answer goes to the area that asked.
+                    self.rest.search.done(&query, result);
+                    return Vec::new();
+                }
+                self.dispatch(Event::SearchDone { query, result })
+            }
+            Message::SearchKindDone {
+                source,
                 query,
                 kind,
                 result,
             } => {
-                self.sc_group_done(&query, kind, result);
-                Vec::new()
-            }
-            Message::SearchDone { query, result } => {
-                if let Ok(r) = &result {
-                    self.learn_local(r);
+                if source != self.source {
+                    self.rest.search.filter_done(&query, kind, result);
+                    return Vec::new();
                 }
-                self.dispatch(Event::SearchDone { query, result })
+                self.dispatch(Event::SearchFilterDone {
+                    query,
+                    kind,
+                    result,
+                })
             }
             Message::Detail { key, result } => {
                 let state = match result {

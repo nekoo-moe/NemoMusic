@@ -19,6 +19,7 @@ use crate::gui::assets::Icon;
 use crate::gui::style::{col, gap, label, label_w, spinner};
 use crate::gui::views::account::{SecretField, notice_box, secret_field};
 use crate::gui::views::kit::{art, filled_button, paragraph, text_button, tile, tonal_button};
+use crate::gui::views::listening_area;
 use crate::gui::views::opt_in::{Extras, OptInActions, OptInPhase, OptInRow, opt_in_row_with};
 use crate::gui::views::settings::appearance::restart;
 use crate::theme::{color, type_scale};
@@ -26,6 +27,8 @@ use crate::theme::{color, type_scale};
 /// The whole section: the opt-in row and, when it applies, the account card.
 pub(super) fn section(app: &App, width: f32) -> Element<'_, Message> {
     let mut page = column![].spacing(gap::LG).width(Length::Fixed(width));
+    // The listening area is chosen here and in the account sheet, nowhere else.
+    page = page.push(group(vec![area_row(app, width)], width));
     // The account comes first while SoundCloud is on: the switch row below it lists what is
     // sent, to which hosts and the risk, which is long.
     if app.sc_open() {
@@ -33,6 +36,14 @@ pub(super) fn section(app: &App, width: f32) -> Element<'_, Message> {
     }
     page = page.push(group(vec![switch_row(app, width)], width));
     page.into()
+}
+
+/// The listening-area card: the same control as the account sheet.
+fn area_row(app: &App, width: f32) -> Element<'_, Message> {
+    container(listening_area::control(app, width - 2.0 * gap::LG))
+        .padding(Padding::from([gap::MD, gap::LG]))
+        .width(Length::Fixed(width))
+        .into()
 }
 
 fn group(rows: Vec<Element<'_, Message>>, width: f32) -> Element<'_, Message> {

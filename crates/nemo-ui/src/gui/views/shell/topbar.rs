@@ -4,9 +4,10 @@ use iced::font::Weight;
 use iced::widget::{Space, button, container, row};
 use iced::{Alignment, Border, Color, Element, Length, Padding};
 use nemo_core::account::AccountState;
+use nemo_core::source_account::SourceAccountState;
 use nemo_core::track::Artwork;
 
-use crate::gui::app::{AccountMsg, App, ArtShape, Message};
+use crate::gui::app::{AccountMsg, App, ArtShape, Message, ScPhase, Source};
 use crate::gui::assets::Icon;
 use crate::gui::style::{animated, col, gap, icon, icon_button, label, label_w, spinner, tip};
 use crate::gui::views::kit::art;
@@ -18,27 +19,15 @@ use crate::theme::{color, shape, type_scale};
 /// The sign-in slot: an avatar when signed in, a "Sign in" pill otherwise.
 fn account_button(app: &App) -> Element<'_, Message> {
     let open = Message::Account(AccountMsg::Open);
+    // In the SoundCloud area the button shows the SoundCloud account, so it never says "Sign
+    // in" to someone who is signed in there.
+    if app.source == Source::SoundCloud
+        && let Some(SourceAccountState::SignedIn(info)) = app.sc_state()
+    {
+        return avatar_button(app, &info.name, &info.avatar, open);
+    }
     match app.backend.account.state() {
-        AccountState::SignedIn(info) => {
-            let face: Element<'_, Message> = if info.avatar.is_empty() {
-                initial_badge(app, &info.name)
-            } else {
-                art(
-                    app,
-                    &Artwork::Remote(info.avatar.clone()),
-                    40,
-                    ArtShape::Circle,
-                )
-            };
-            tip(
-                animated(
-                    button(face).padding(0).on_press(open),
-                    Color::TRANSPARENT,
-                    shape::FULL,
-                ),
-                "Account",
-            )
-        }
+        AccountState::SignedIn(info) => avatar_button(app, &info.name, &info.avatar, open),
         state => {
             let busy = matches!(state, AccountState::SigningIn);
             let ink = col(color::on_surface());
@@ -73,12 +62,44 @@ fn account_button(app: &App) -> Element<'_, Message> {
     }
 }
 
+/// The round avatar that opens the accounts sheet; a name's first letter stands in for a missing
+/// picture.
+fn avatar_button<'a>(
+    app: &App,
+    name: &str,
+    avatar: &[nemo_core::track::Thumbnail],
+    open: Message,
+) -> Element<'a, Message> {
+    let face: Element<'a, Message> = if avatar.is_empty() {
+        initial_badge(app, name)
+    } else {
+        art(app, &Artwork::Remote(avatar.to_vec()), 40, ArtShape::Circle)
+    };
+    tip(
+        animated(
+            button(face).padding(0).on_press(open),
+            Color::TRANSPARENT,
+            shape::FULL,
+        ),
+        "Account",
+    )
+}
+
 /// The Refresh control: reloads the music data of the account. While a reload runs it is
 /// dimmed and does nothing, with no spinner, so nothing moves and reduced motion needs nothing
 /// more.
 fn refresh_button(app: &App) -> Element<'_, Message> {
-    let busy = app.refresh.busy();
-    let enabled = app.ui.youtube_enabled() && app.refresh.ready() && !busy;
+    // It reloads the active listening area only.
+    let (busy, enabled) = if app.source == Source::SoundCloud {
+        let busy = app.sc_lib.phase == ScPhase::Loading;
+        (busy, app.sc_is_signed_in() && !busy)
+    } else {
+        let busy = app.refresh.busy();
+        (
+            busy,
+            app.ui.youtube_enabled() && app.refresh.ready() && !busy,
+        )
+    };
     tip(
         icon_button(
             Icon::Refresh,

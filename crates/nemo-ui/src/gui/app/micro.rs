@@ -8,21 +8,12 @@ use nemo_core::track::{Track, TrackId};
 use super::App;
 use crate::anim::{EFFECTS_FAST, SPATIAL_FAST};
 use crate::motion::{Presence, Spring, emphasized_decelerate};
-use crate::route::NavEntry;
 use crate::theme::motion::SLOW_MS;
 
 /// Fade of an arriving picture, in ms (`design.md` section 9).
 pub const ART_FADE_MS: f32 = 150.0;
 /// Pictures that may fade at once; later arrivals just appear.
 const ART_FADES_MAX: usize = 64;
-/// The sidebar entries that carry the sliding pill, top to bottom.
-pub const NAV_ENTRIES: [NavEntry; 4] = [
-    NavEntry::Home,
-    NavEntry::Explore,
-    NavEntry::Search,
-    NavEntry::Library,
-];
-
 /// Pictures that arrived a moment ago, each with the time since (the keys of the art cache).
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ArtFades {
@@ -66,7 +57,7 @@ impl ArtFades {
 pub struct Targets {
     /// Index of the open Now Playing tab.
     pub tab: usize,
-    /// Index into [`NAV_ENTRIES`] of the sidebar entry that is current, if any.
+    /// Index into the area's sidebar entries of the one that is current, if any.
     pub nav: Option<usize>,
     /// The playing song is liked.
     pub liked: bool,
@@ -217,11 +208,7 @@ impl App {
 
     /// Point the details at the current state. Runs after every update.
     pub(super) fn sync_micro(&mut self) {
-        let nav = self
-            .ui
-            .nav
-            .active_entry()
-            .and_then(|e| NAV_ENTRIES.iter().position(|n| *n == e));
+        let nav = self.nav_selected().and_then(|e| self.source.nav_index(e));
         let tab = super::NpTab::ALL
             .iter()
             .position(|t| *t == self.np_tab)

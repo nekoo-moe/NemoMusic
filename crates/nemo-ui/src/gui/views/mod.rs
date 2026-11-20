@@ -9,6 +9,7 @@ pub mod explore;
 pub mod home;
 pub mod kit;
 pub mod library;
+pub mod listening_area;
 pub mod lyrics;
 pub mod now_playing;
 pub mod np_classic;

@@ -8,7 +8,7 @@ use iced::font::Weight;
 use iced::widget::{Space, button, column, row};
 use iced::{Alignment, Color, Element, Length, Padding};
 
-use super::super::app::{AccountMsg, App, CreateMsg, ListSource, Message, ScMsg, Source};
+use super::super::app::{AccountMsg, App, CreateMsg, ListSource, Message, Source};
 use super::super::assets::Icon;
 use super::super::style::{animated, col, gap, icon, icon_button, label, label_w, tip};
 use super::kit::{
@@ -30,73 +30,9 @@ use collection::{account_data, album_coll, local_tracks, sorted};
 use list::{collections, song_block};
 use section::{account_overview, local_section};
 
-/// The choices of the Library's source switch (the Library shows one service at a time).
-#[must_use]
-pub fn source_labels() -> Vec<&'static str> {
-    vec![Source::YouTube.label(), Source::SoundCloud.label()]
-}
-
-/// The choices of the source switch of Search: the two services and `All` (YouTube Music first,
-/// then a SoundCloud group).
-#[must_use]
-pub fn search_source_labels() -> Vec<&'static str> {
-    vec![
-        Source::YouTube.label(),
-        Source::SoundCloud.label(),
-        Source::All.label(),
-    ]
-}
-
-/// The place of `source` in [`search_source_labels`].
-#[must_use]
-pub const fn search_source_index(source: Source) -> usize {
-    match source {
-        Source::YouTube => 0,
-        Source::SoundCloud => 1,
-        Source::All => 2,
-    }
-}
-
-/// The place of `source` in [`source_labels`].
-#[must_use]
-pub const fn source_index(source: Source) -> usize {
-    match source {
-        Source::SoundCloud => 1,
-        Source::YouTube | Source::All => 0,
-    }
-}
-
-/// The switch between YouTube Music and SoundCloud, drawn only while SoundCloud is on.
-pub(super) fn source_switch(app: &App) -> Option<Element<'_, Message>> {
-    app.sc_open().then(|| {
-        let labels = source_labels();
-        super::kit::sliding_chips(app, &labels, source_index(app.source), 4, |i| {
-            Message::Sc(ScMsg::Source(if i == 1 {
-                Source::SoundCloud
-            } else {
-                Source::YouTube
-            }))
-        })
-    })
-}
-
-/// The same switch on Search, with `All` as the third choice.
-pub(super) fn search_source_switch(app: &App) -> Option<Element<'_, Message>> {
-    app.sc_open().then(|| {
-        let labels = search_source_labels();
-        super::kit::sliding_chips(app, &labels, search_source_index(app.source), 5, |i| {
-            Message::Sc(ScMsg::Source(match i {
-                1 => Source::SoundCloud,
-                2 => Source::All,
-                _ => Source::YouTube,
-            }))
-        })
-    })
-}
-
 /// The Library screen.
 pub fn view(app: &App, w: u32) -> Element<'_, Message> {
-    if app.source == Source::SoundCloud && app.sc_open() {
+    if app.source == Source::SoundCloud {
         return sc::view(app, w);
     }
     let grid = layout::grid_in(w);
@@ -104,7 +40,7 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
     #[allow(clippy::cast_precision_loss)]
     let content_w = grid.content as f32;
     let c = column![
-        header(app, content_w),
+        header(),
         vspace(gap::MD),
         tabs(app, content_w),
         vspace(gap::LG),
@@ -222,18 +158,18 @@ fn tab_body(app: &App, grid: layout::Grid, content_w: f32) -> Element<'_, Messag
 }
 
 /// Title row with the Create playlist button.
-fn header(app: &App, _width: f32) -> Element<'_, Message> {
-    let mut r = row![page_title("Library"), Space::new().width(gap::LG)].align_y(Alignment::Center);
-    if let Some(switch) = source_switch(app) {
-        r = r.push(switch);
-    }
-    r.push(Space::new().width(Length::Fill))
-        .push(tonal_button(
+fn header<'a>() -> Element<'a, Message> {
+    row![
+        page_title("Library"),
+        Space::new().width(Length::Fill),
+        tonal_button(
             "Create playlist",
             Some(Icon::Add),
             Some(Message::Create(CreateMsg::Open)),
-        ))
-        .into()
+        ),
+    ]
+    .align_y(Alignment::Center)
+    .into()
 }
 
 /// Tabs on the left; sort and list or grid on the right.
