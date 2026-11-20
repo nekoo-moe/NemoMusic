@@ -3,6 +3,8 @@
 //!
 //! Nothing here logs or prints. Cookie values only travel from the `WebView2` page to the stdout pipe.
 
+use crate::token::{TOKEN_COOKIE, token_from_value};
+
 /// The page that ends the sign-in flow.
 pub const MUSIC_ORIGIN: &str = "https://music.youtube.com";
 
@@ -17,13 +19,6 @@ pub const SOUNDCLOUD_SIGN_IN_URL: &str = "https://soundcloud.com/signin";
 
 /// The origin whose cookies are read in SoundCloud mode.
 pub const SOUNDCLOUD_ORIGIN: &str = "https://soundcloud.com";
-
-/// Name of SoundCloud's session cookie: its value is the token the web app sends as
-/// `Authorization: OAuth <token>`.
-const TOKEN_COOKIE: &str = "oauth_token";
-
-/// Longest token accepted, in bytes. Real ones are about 40 characters.
-pub const MAX_TOKEN_BYTES: usize = 512;
 
 /// True when `url` is a page of `soundcloud.com` or `www.soundcloud.com` (any path, query or
 /// fragment).
@@ -47,16 +42,6 @@ fn is_soundcloud_domain(domain: Option<&str>) -> bool {
     })
 }
 
-/// Whether `token` looks like a SoundCloud token: printable characters of the sets such tokens
-/// use, nothing that could break a header.
-#[must_use]
-pub fn is_token_shaped(token: &str) -> bool {
-    (8..=MAX_TOKEN_BYTES).contains(&token.len())
-        && token
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b"-_.~+/=%".contains(&b))
-}
-
 /// The value of the `oauth_token` cookie of `soundcloud.com`, and nothing else.
 ///
 /// Each cookie is `(name, value, domain)`. Other cookies, other domains and values that are not
@@ -65,12 +50,11 @@ pub fn is_token_shaped(token: &str) -> bool {
 pub fn soundcloud_token<'a>(
     cookies: impl IntoIterator<Item = (&'a str, &'a str, Option<&'a str>)>,
 ) -> Option<String> {
-    cookies
-        .into_iter()
-        .find(|(name, value, domain)| {
-            *name == TOKEN_COOKIE && is_soundcloud_domain(*domain) && is_token_shaped(value)
-        })
-        .map(|(_, value, _)| value.to_owned())
+    cookies.into_iter().find_map(|(name, value, domain)| {
+        (name == TOKEN_COOKIE && is_soundcloud_domain(domain))
+            .then(|| token_from_value(value))
+            .flatten()
+    })
 }
 
 /// The one stdout line that carries a SoundCloud token.
@@ -199,7 +183,7 @@ mod tests {
         ] {
             assert_eq!(soundcloud_token(list.iter().copied()), None, "{list:?}");
         }
-        let long = "a".repeat(MAX_TOKEN_BYTES + 1);
+        let long = "a".repeat(crate::token::MAX_TOKEN_BYTES + 1);
         let list = [("oauth_token", long.as_str(), None)];
         assert_eq!(soundcloud_token(jar(&list)), None);
     }

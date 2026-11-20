@@ -8,6 +8,11 @@
   - Checks: the tests named in design.md; `cargo fmt`, clippy and tests of `nemo-signin`, `nemo-core`, `nemo-soundcloud`, `nemo-app`.
   - Steering: `product.md` Scope line for `soundcloud` (labelled).
 
+- [x] 1a. Sign-in fix: the window never closed on the owner's Linux build (2026-11-20)
+  - Crate and files: `nemo-signin` (`soundcloud.rs`, `token.rs`, `hook.js`, `lib.rs`), `nemo-soundcloud` (`signin.rs`, `account.rs`), `nemo-core` (`source_account.rs`), `nemo-ui` (account card, setup card, copy).
+  - Does: criteria 6a to 6c. Verified here against the real soundcloud.com in WebKitGTK (GTK Broadway) without an account: cookie manager, `document.cookie`, probes, the 25 s hint, the `check` line and the finish on a client-side `oauth_token` cookie. NOT verified: a real signed-in account, a http-only cookie, the page hook against the real site. The owner runs `NEMO_SIGNIN_DEBUG=1 ./nemo-app`, presses Sign in and sends back the app log.
+  - Depends on: 1
+
 - [x] 2. Settings row, account card, setup Sources step (PR 2)
   - Crate and files: `nemo-ui` (settings, setup, copy), `nemo-app` (bridge).
   - Does: criteria 7 to 10. The switch is stored by `nemo-app` (`Settings.opt_ins`) and read by the UI through `UiSettings.soundcloud`; turning it on shows `Restart now` because the services start with the app; turning it off stops the client at once (`ScClient::set_enabled`).

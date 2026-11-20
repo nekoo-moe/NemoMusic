@@ -61,8 +61,20 @@ pub trait SourceAccount: Send + Sync {
     /// Open the source's own sign-in page in the sign-in window and wait for the user to finish.
     fn sign_in(&self) -> BoxFuture<'_, Result<SourceAccountInfo, SourceAccountError>>;
 
+    /// Whether the sign-in window has waited long without finding a session, so the app offers
+    /// "I am signed in, check again" next to the token paste. Cheap; `false` when no window is
+    /// open and for sources whose window never says so.
+    fn sign_in_hint(&self) -> bool {
+        false
+    }
+
+    /// Ask the open sign-in window to look for the session now. Does nothing without a window.
+    fn recheck_sign_in(&self) {}
+
     /// Sign in with a token the user copied from their own browser (fallback when the window is
-    /// blocked). The value is checked, then kept only in the credential store.
+    /// blocked). The value is checked, then kept only in the credential store. A sign-in window
+    /// that is still open is closed first; its own call then ends with
+    /// [`SourceAccountError::Cancelled`].
     fn sign_in_with_token(
         &self,
         token: Secret<String>,

@@ -106,6 +106,11 @@ pub(super) fn shots(out: &mut Vec<Shot>) {
                 SourceAccountState::SigningIn,
             ));
             out.push(running(
+                n("hint"),
+                page(base, SMALL, ScScene::Hint),
+                SourceAccountState::SigningIn,
+            ));
+            out.push(running(
                 n("error"),
                 page(base, SMALL, ScScene::Error),
                 SourceAccountState::SignedOut,
@@ -131,6 +136,13 @@ pub(super) fn shots(out: &mut Vec<Shot>) {
             format!("setup-sources-soundcloud-off-{t}-960x600"),
             setup(base, ScScene::Off),
         ));
+        if base == BaseMode::Dark {
+            out.push(running(
+                format!("setup-sources-soundcloud-hint-{t}-960x600"),
+                setup(base, ScScene::Hint),
+                SourceAccountState::SigningIn,
+            ));
+        }
         out.push(running(
             format!("setup-sources-soundcloud-sign-in-{t}-960x600"),
             setup(base, ScScene::Account),

@@ -38,6 +38,14 @@ pub const PASTE_HELP: &str = concat!(
 /// Waiting for the sign-in window.
 pub const WAITING: &str =
     "Finish signing in in the window that opened. This page updates by itself.";
+/// The sign-in window found no session for a while.
+pub const STILL_WAITING: &str = "SoundCloud has not given this window a sign-in yet. If the window already shows you signed in, press the button. You can also paste a token instead.";
+/// The same, on the setup card, which has no token field.
+pub const SETUP_STILL_WAITING: &str = "SoundCloud has not given the window a sign-in yet. If the window already shows you signed in, press the button. You can also finish this later in Settings.";
+/// Button that makes the window look for the session now.
+pub const CHECK_AGAIN: &str = "I am signed in, check again";
+/// After "check again" found nothing.
+pub const STILL_NOTHING: &str = "I looked again and found no sign-in. Paste a token instead, or close the window and press Sign in with SoundCloud once more.";
 /// Checking a pasted token.
 pub const CHECKING: &str = "Checking with SoundCloud\u{2026}";
 /// Signing out takes a moment.
