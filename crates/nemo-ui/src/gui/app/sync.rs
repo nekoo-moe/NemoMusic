@@ -62,10 +62,14 @@ impl App {
     /// listed here and has no timer of its own (backdrop-calm spec).
     #[must_use]
     pub fn needs_frames(&self) -> bool {
-        // An unfocused window draws nothing: the music plays on, the screen waits.
+        // While music is playing or lyrics are active, frames always tick so progress,
+        // lyrics and playback state render smoothly across dual monitors and tabs.
+        // When paused, frames only tick while focused and animating.
+        if self.ui.needs_frames() {
+            return true;
+        }
         self.focused
-            && (self.ui.needs_frames()
-                || views::backdrop::moves(self)
+            && (views::backdrop::moves(self)
                 || self.anim.active()
                 || self.account_busy()
                 || self.sc_busy()

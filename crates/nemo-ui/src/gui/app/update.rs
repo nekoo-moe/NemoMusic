@@ -438,6 +438,7 @@ impl App {
             keyboard::listen().filter_map(map_key),
             window::resize_events().map(|(_, size)| Message::Resized(size)),
             iced::event::listen_with(|event, _, _| match event {
+                iced::Event::Window(window::Event::Resized(size)) => Some(Message::Resized(size)),
                 iced::Event::Window(window::Event::Rescaled(factor)) => {
                     Some(Message::Rescaled(factor))
                 }

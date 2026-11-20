@@ -346,6 +346,8 @@ pub struct ScUi {
     /// A sign-in just finished: the library is read once even while YouTube Music is the
     /// listening area (the one read an inactive area gets).
     pub read_after_sign_in: bool,
+    /// Whether the development warning dropdown is expanded.
+    pub warning_open: bool,
 }
 
 impl Default for ScUi {
@@ -363,6 +365,7 @@ impl Default for ScUi {
             confirm_off: false,
             notice: None,
             read_after_sign_in: false,
+            warning_open: true,
         }
     }
 }
@@ -506,6 +509,8 @@ pub enum ScMsg {
     SignedIn(Result<SourceAccountInfo, SourceAccountError>),
     /// A sign-out call finished.
     SignedOut(Result<SignOutReport, SourceAccountError>),
+    /// Toggle development warning dropdown on the SoundCloud card.
+    ToggleWarning,
 }
 
 /// Sections of the Settings screen.

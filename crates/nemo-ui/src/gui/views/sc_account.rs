@@ -8,18 +8,18 @@
 //! shows a token, a cookie or an id.
 
 use iced::font::Weight;
-use iced::widget::{Space, column, row};
-use iced::{Alignment, Element, Length};
+use iced::widget::{Space, column, container, mouse_area, row};
+use iced::{Alignment, Background, Border, Element, Length};
 use nemo_core::source_account::{SourceAccountInfo, SourceAccountState};
 use nemo_core::track::Artwork;
 
 use crate::copy::soundcloud as text;
 use crate::gui::app::{App, ArtShape, Message, ScMsg};
 use crate::gui::assets::Icon;
-use crate::gui::style::{col, gap, label, label_w, spinner};
+use crate::gui::style::{col, gap, icon, label, label_w, spinner};
 use crate::gui::views::account::{SecretField, notice_box, secret_field};
 use crate::gui::views::kit::{art, filled_button, paragraph, text_button, tonal_button};
-use crate::theme::{color, type_scale};
+use crate::theme::{color, shape, type_scale};
 
 /// Where the card is drawn. The sheet has its own heading above the card, so it leaves out the
 /// title lines the Settings page needs.
@@ -53,6 +53,55 @@ pub(in crate::gui::views) fn body(app: &App, width: f32, place: Place) -> Elemen
     }
 }
 
+/// Dropdown yellow warning container for SoundCloud development state.
+pub(in crate::gui::views) fn warning_dropdown<'a>(open: bool, width: f32) -> Element<'a, Message> {
+    let warn_col = col(color::warning());
+    let warn_bg = col(color::warning().with_alpha(0.12));
+    let warn_border = col(color::warning().with_alpha(0.35));
+    let chevron = if open {
+        Icon::ChevronDown
+    } else {
+        Icon::ChevronRight
+    };
+    let inner_w = (width - 2.0 * gap::MD).max(80.0);
+
+    let header = mouse_area(
+        row![
+            icon(Icon::Info, 18.0, warn_col),
+            Space::new().width(gap::SM),
+            label("Development warning", type_scale::LABEL_MD, true, warn_col),
+            Space::new().width(Length::Fill),
+            icon(chevron, 18.0, warn_col),
+        ]
+        .align_y(Alignment::Center),
+    )
+    .on_press(Message::Sc(ScMsg::ToggleWarning));
+
+    let mut c = column![header].spacing(gap::SM);
+    if open {
+        c = c.push(paragraph(
+            "SoundCloud development is currently moving at a snail's pace, so we honestly don't recommend using it because it doesn't work bro (╯°□°)╯︵ ┻━┻ 🐢",
+            type_scale::BODY_SM,
+            col(color::on_surface()),
+            inner_w,
+        ));
+    }
+
+    container(c)
+        .padding(gap::MD)
+        .width(Length::Fixed(width))
+        .style(move |_| container::Style {
+            background: Some(Background::Color(warn_bg)),
+            border: Border {
+                color: warn_border,
+                width: 1.0,
+                radius: shape::lg().into(),
+            },
+            ..container::Style::default()
+        })
+        .into()
+}
+
 fn signed_out<'a>(
     app: &'a App,
     state: &SourceAccountState,
@@ -71,6 +120,7 @@ fn signed_out<'a>(
             col(color::on_surface()),
         ));
     }
+    c = c.push(warning_dropdown(app.sc.warning_open, width));
     if let Some(done) = &sc.notice {
         c = c.push(notice_box(
             Icon::CheckCircle,
@@ -234,6 +284,7 @@ fn signed_in<'a>(
     }
     let mut c = column![
         row![face, Space::new().width(gap::LG), who].align_y(Alignment::Center),
+        warning_dropdown(app.sc.warning_open, width),
         paragraph(text::LOCAL, type_scale::BODY_SM, dim, width),
     ]
     .spacing(gap::LG)

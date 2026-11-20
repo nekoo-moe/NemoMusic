@@ -370,10 +370,10 @@ fn one_frame_clock_drives_the_window_while_a_song_plays() {
 #[test]
 fn the_stop_rules_stop_the_frames() {
     let mut app = playing_app();
-    drop(app.update_core(Message::Focus(false)));
-    assert!(!app.needs_frames(), "unfocused");
-    drop(app.update_core(Message::Focus(true)));
-    assert!(app.needs_frames());
+    assert!(
+        app.needs_frames(),
+        "playing continues frames across monitors and tabs"
+    );
     app.ui.settings.reduce_transparency = true;
     assert!(!moves(&app), "reduce transparency");
     app.ui.settings.reduce_transparency = false;

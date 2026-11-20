@@ -144,6 +144,9 @@ impl App {
                     Err(e) => self.sc.error = Some(text::error(&e)),
                 }
             }
+            ScMsg::ToggleWarning => {
+                self.sc.warning_open = !self.sc.warning_open;
+            }
         }
         Vec::new()
     }

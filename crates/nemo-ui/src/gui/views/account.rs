@@ -21,8 +21,10 @@ use crate::copy::soundcloud as sc_text;
 use crate::state::Event;
 use crate::theme::{color, glass, shape, type_scale};
 
-/// Sheet width.
-const WIDTH: f32 = 440.0;
+/// Sheet width (floating landscape rectangle).
+const WIDTH: f32 = 780.0;
+/// Minimum width to arrange account cards side-by-side in two columns.
+const TWO_COL_BREAKPOINT: f32 = 680.0;
 /// Room kept between the sheet and the window edge, top and bottom.
 const MARGIN: f32 = gap::LG;
 /// Room the scroll bar keeps at the right of the cards, so it never covers a word.
@@ -69,6 +71,7 @@ fn soundcloud_card(app: &App, width: f32) -> Element<'_, Message> {
         sc_account::body(app, inner, Place::Sheet)
     } else {
         column![
+            sc_account::warning_dropdown(app.sc.warning_open, inner),
             paragraph(
                 sc_text::CARD_OFF,
                 type_scale::BODY_MD,
@@ -118,13 +121,28 @@ pub fn sheet(app: &App) -> Element<'_, Message> {
     ]
     .align_y(Alignment::Center);
     let wide = inner - RAIL;
-    let mut content = column![].spacing(gap::LG).width(Length::Fixed(inner));
+    let two_cols = width >= TWO_COL_BREAKPOINT && app.sc_info().is_some();
+    let card_w = if two_cols {
+        ((wide - gap::MD) / 2.0).floor()
+    } else {
+        wide
+    };
+
+    let mut content = column![].spacing(gap::MD).width(Length::Fixed(inner));
     if let Some(area) = super::listening_area::control(app, wide) {
         content = content.push(area);
     }
-    content = content.push(youtube_card(app, wide));
-    if app.sc_info().is_some() {
-        content = content.push(soundcloud_card(app, wide));
+    if two_cols {
+        content = content.push(
+            row![youtube_card(app, card_w), soundcloud_card(app, card_w),]
+                .spacing(gap::MD)
+                .align_y(Alignment::Start),
+        );
+    } else {
+        content = content.push(youtube_card(app, wide));
+        if app.sc_info().is_some() {
+            content = content.push(soundcloud_card(app, wide));
+        }
     }
     let card =
         container(column![header, vspace(gap::SM), scroll(content)].width(Length::Fixed(inner)))
