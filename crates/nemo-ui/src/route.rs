@@ -120,6 +120,7 @@ impl Route {
             Self::Settings => "Settings",
             Self::Album(_) => "Album",
             Self::Artist(_) => "Artist",
+            Self::Playlist(id) if id.0.starts_with("sc:track:") => "Track",
             Self::Playlist(_) => "Playlist",
             Self::Mood { .. } => "Moods and genres",
             Self::NowPlaying => "Now Playing",

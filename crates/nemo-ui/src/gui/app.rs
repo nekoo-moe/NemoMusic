@@ -53,6 +53,8 @@ mod query;
 mod refresh;
 mod sc_library;
 mod sc_search;
+#[cfg(test)]
+mod sc_sidebar_tests;
 mod sc_write;
 mod setup;
 mod skeleton;
@@ -80,6 +82,7 @@ pub use option::{
     AccountLibrary, CreateMsg, FolderPicker, PickFuture, RestartHandler, SleepState, UiHooks,
     UiOptions, WindowHandler,
 };
+pub use sc_library::sc_track_page;
 pub use sc_search::{ScGroup, ScGroupPhase};
 pub use sc_write::{CreateTarget, ScWriteDone, ScWriteJob, ScWriteMsg, ScWriteUi};
 

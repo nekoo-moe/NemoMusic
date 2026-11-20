@@ -266,6 +266,8 @@ pub struct Scenario {
     pub lib_tab: crate::explore::LibTab,
     /// Library list or grid.
     pub lib_layout: crate::explore::LibLayout,
+    /// The sort order of the Library.
+    pub lib_sort: crate::explore::LibSort,
     /// Open the tools panel.
     pub tools: bool,
     /// Open the shortcut sheet.
@@ -374,6 +376,7 @@ impl Default for Scenario {
             repeat: nemo_core::player::RepeatMode::Off,
             content_filter: crate::explore::ContentFilter::All,
             lib_tab: crate::explore::LibTab::Overview,
+            lib_sort: crate::explore::LibSort::default(),
             lib_layout: crate::explore::LibLayout::List,
             tools: false,
             shortcuts: false,
@@ -542,6 +545,7 @@ pub fn build_app(backend: &Backend, scenario: &Scenario) -> App {
     app.content_filter = scenario.content_filter;
     app.lib_tab = scenario.lib_tab;
     app.lib_layout = scenario.lib_layout;
+    app.lib_sort = scenario.lib_sort;
     app.tools_open = scenario.tools;
     app.shortcuts_open = scenario.shortcuts;
     if scenario.create {

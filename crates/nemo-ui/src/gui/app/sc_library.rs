@@ -12,6 +12,14 @@ use super::message::Job;
 use super::model::{ScLibData, ScLibrary, ScMsg, ScPhase, ScTab, Source};
 use crate::copy::soundcloud as text;
 
+/// The page of a SoundCloud track (`sc:track:<number>`), or `None` for a track of another service.
+#[must_use]
+pub fn sc_track_page(track: &nemo_core::track::Track) -> Option<nemo_core::catalog::BrowseId> {
+    let digits = track.id.0.strip_prefix("sc:")?;
+    (!digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit()))
+        .then(|| nemo_core::catalog::BrowseId(format!("sc:track:{digits}")))
+}
+
 impl App {
     /// Someone is signed in to SoundCloud (and SoundCloud is on and running).
     #[must_use]

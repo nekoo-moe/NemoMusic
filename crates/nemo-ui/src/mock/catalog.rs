@@ -141,6 +141,29 @@ impl Catalog for MockCatalog {
         &'a self,
         id: &'a BrowseId,
     ) -> BoxFuture<'a, Result<PlaylistDetail, CatalogError>> {
+        if let Some(n) =
+            id.0.strip_prefix("sc:track:")
+                .and_then(|d| d.parse::<usize>().ok())
+        {
+            // The page of a SoundCloud track: the track, then six suggestions.
+            let tracks: Vec<Track> = (0..7).map(|i| track(n + i * 2)).collect();
+            let result = Ok(PlaylistDetail {
+                summary: PlaylistSummary {
+                    id: id.clone(),
+                    title: tracks[0].title.clone(),
+                    author: tracks[0].artists.first().cloned(),
+                    thumbnails: thumbs(n),
+                },
+                tracks,
+                edit: None,
+                meta: nemo_core::catalog::CollectionMeta {
+                    owner: Some("Velvet Harbor".to_owned()),
+                    track_count: Some(7),
+                    ..nemo_core::catalog::CollectionMeta::default()
+                },
+            });
+            return Box::pin(async move { result });
+        }
         let result = index_of(id, "playlist")
             .filter(|p| *p < PLAYLISTS)
             .map(|p| PlaylistDetail {

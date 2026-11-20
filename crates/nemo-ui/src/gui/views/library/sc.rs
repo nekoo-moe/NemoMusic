@@ -8,7 +8,7 @@ use iced::{Alignment, Element, Length};
 use nemo_core::catalog::{AlbumSummary, ArtistSummary, HistorySection, PlaylistSummary};
 use nemo_core::track::Artwork;
 
-use super::collection::Coll;
+use super::collection::{Coll, sorted};
 use super::list::{collections, song_block};
 use super::note;
 use crate::gui::app::{
@@ -67,9 +67,21 @@ fn tabs(app: &App) -> Element<'_, Message> {
         .iter()
         .position(|t| *t == app.sc_open_tab())
         .unwrap_or(0);
-    sliding_chips(app, &labels, selected, 3, |i| {
+    let chips = sliding_chips(app, &labels, selected, 3, |i| {
         Message::Sc(ScMsg::Tab(ScTab::ALL[i]))
-    })
+    });
+    // The history keeps SoundCloud's order (by day); every other list can be sorted and laid out
+    // as a list or a grid, like the YouTube Music Library.
+    if app.sc_open_tab() == ScTab::History {
+        return chips;
+    }
+    row![
+        chips,
+        Space::new().width(Length::Fill),
+        super::sort_and_layout(app)
+    ]
+    .align_y(Alignment::Center)
+    .into()
 }
 
 /// What the open tab shows.
@@ -117,9 +129,10 @@ fn tab_body(app: &App, grid: layout::Grid, content_w: f32) -> Element<'_, Messag
             if data.likes.is_empty() {
                 return note(app, "No liked tracks yet.", None);
             }
+            // The rows play in the order they are drawn in (`App::tracks_of`).
             song_block(
                 app,
-                data.likes.clone(),
+                app.tracks_of(&ListSource::ScLikes),
                 ListSource::ScLikes,
                 content_w,
                 grid,
@@ -128,7 +141,10 @@ fn tab_body(app: &App, grid: layout::Grid, content_w: f32) -> Element<'_, Messag
         ScTab::Playlists => {
             let list = collections(
                 app,
-                data.playlists.iter().map(playlist_coll).collect(),
+                sorted(
+                    data.playlists.iter().map(playlist_coll).collect(),
+                    app.lib_sort,
+                ),
                 grid,
                 content_w,
                 "No playlists yet.",
@@ -149,14 +165,14 @@ fn tab_body(app: &App, grid: layout::Grid, content_w: f32) -> Element<'_, Messag
         }
         ScTab::Albums => collections(
             app,
-            data.albums.iter().map(album_coll).collect(),
+            sorted(data.albums.iter().map(album_coll).collect(), app.lib_sort),
             grid,
             content_w,
             "No albums yet.",
         ),
         ScTab::Following => collections(
             app,
-            data.artists.iter().map(artist_coll).collect(),
+            sorted(data.artists.iter().map(artist_coll).collect(), app.lib_sort),
             grid,
             content_w,
             "You follow no artists yet.",

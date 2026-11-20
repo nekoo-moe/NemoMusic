@@ -306,6 +306,64 @@ async fn an_artist_page_is_three_requests() {
 }
 
 #[tokio::test]
+async fn a_track_page_is_the_track_then_what_soundcloud_suggests() {
+    let (catalog, fake) = catalog_with(|path| {
+        if path.starts_with("/tracks/7000001/related") {
+            ok(RELATED)
+        } else {
+            ok(TRACK_HLS)
+        }
+    });
+    let page = catalog
+        .playlist(&BrowseId("sc:track:7000001".to_owned()))
+        .await
+        .expect("page");
+    assert_eq!(page.summary.id, BrowseId("sc:track:7000001".to_owned()));
+    assert_eq!(page.tracks[0].id, TrackId("sc:7000001".to_owned()));
+    assert_eq!(page.tracks.len(), 3, "the track and two suggestions");
+    assert_eq!(page.meta.track_count, Some(3));
+    assert_eq!(page.meta.owner.as_deref(), Some("Fixture Artist 1"));
+    assert_eq!(page.summary.title, page.tracks[0].title);
+    assert!(page.edit.is_none(), "a track page is never editable");
+    let urls = api_urls(&fake);
+    assert_eq!(urls.len(), 2, "the track, then its related tracks");
+    assert!(urls[0].starts_with("https://api-v2.soundcloud.com/tracks/7000001?"));
+    assert!(urls[1].contains("/tracks/7000001/related?"));
+}
+
+#[tokio::test]
+async fn a_track_page_whose_suggestions_fail_still_shows_the_track() {
+    let (catalog, _) = catalog_with(|path| {
+        if path.contains("/related") {
+            status(500, "{}")
+        } else {
+            ok(TRACK_HLS)
+        }
+    });
+    let page = catalog
+        .playlist(&BrowseId("sc:track:7000001".to_owned()))
+        .await
+        .expect("page");
+    assert_eq!(page.tracks.len(), 1);
+}
+
+#[tokio::test]
+async fn a_track_page_that_is_gone_is_not_found_and_a_bad_id_asks_nothing() {
+    let (catalog, fake) = catalog_with(|_| status(404, "{}"));
+    assert_eq!(
+        catalog
+            .playlist(&BrowseId("sc:track:7000001".to_owned()))
+            .await,
+        Err(CatalogError::NotFound)
+    );
+    let before = api_urls(&fake).len();
+    for bad in ["sc:track:", "sc:track:12/../me", "sc:track:1:2"] {
+        assert!(catalog.playlist(&BrowseId(bad.to_owned())).await.is_err());
+    }
+    assert_eq!(api_urls(&fake).len(), before, "no request for a bad id");
+}
+
+#[tokio::test]
 async fn related_tracks_take_a_track_id_and_nothing_else() {
     let (catalog, fake) = catalog_with(|_| ok(RELATED));
     let tracks = catalog
@@ -390,7 +448,8 @@ async fn a_429_becomes_rate_limited_and_the_next_call_makes_no_request() {
 #[tokio::test]
 async fn pages_that_other_sources_own_are_not_found() {
     let (catalog, fake) = catalog_with(|_| ok("{}"));
-    for id in ["PL12345", "sc:track:1", "sc:user:1", "sc:playlist:x"] {
+    // A track id has a page of its own now (`a_track_page_is_the_track_then_what_...`).
+    for id in ["PL12345", "sc:user:1", "sc:playlist:x", "sc:track:x"] {
         assert_eq!(
             catalog.playlist(&BrowseId(id.to_owned())).await.map(|_| ()),
             Err(CatalogError::NotFound),

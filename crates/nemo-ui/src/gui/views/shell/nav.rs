@@ -5,7 +5,7 @@ use iced::widget::{Space, button, column, container, row, stack};
 use iced::{Alignment, Border, Color, Element, Length, Padding};
 
 use super::pane_surface;
-use super::sidebar::{library_chips, library_header, library_list};
+use super::sidebar::{library_chips, library_header, library_list, source_chips};
 use crate::gui::app::{App, Message, NAV_ENTRIES};
 use crate::gui::assets::Icon;
 use crate::gui::fx::fx;
@@ -93,7 +93,11 @@ pub(super) fn left_pane(app: &App, width: f32, _h: u32) -> Element<'_, Message> 
         c = c
             .push(vspace(gap::LG))
             .push(library_header())
-            .push(vspace(gap::SM))
+            .push(vspace(gap::SM));
+        if let Some(switch) = source_chips(app) {
+            c = c.push(switch).push(vspace(gap::SM));
+        }
+        c = c
             .push(library_chips(app))
             .push(vspace(gap::SM))
             .push(library_list(app, width - 2.0 * gap::MD, route));
