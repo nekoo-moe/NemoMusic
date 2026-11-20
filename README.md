@@ -114,7 +114,7 @@ cargo run -p nemo-app --release
 Linux notes:
 
 - Sign-in needs a running Secret Service (GNOME Keyring or KWallet). Without one, sign-in is off and nothing is saved.
-- The sign-in window is WebKitGTK. Google may refuse it; "Paste cookie instead" still works. SoundCloud's sign-in with Google, Apple or Facebook uses pop-up windows and may not work in the sign-in window; use SoundCloud's e-mail form there, or paste your `oauth_token` instead.
+- The sign-in window is WebKitGTK. Google may refuse it; "Paste cookie instead" still works. SoundCloud's sign-in with Google, Apple or Facebook uses pop-up windows and may not work in the sign-in window; use SoundCloud's e-mail form there, or paste your `oauth_token` instead. If the SoundCloud window shows you signed in but does not close, wait for "I am signed in, check again" or paste your token; to report it, start the app with `NEMO_SIGNIN_DEBUG=1` (names, flags and lengths of the window's cookies go to the log, never values).
 - `nemo-app` links GTK 3, WebKitGTK 4.1 and libsoup 3 at load time, so their runtime libraries must be installed for the app to start at all, even if you never sign in.
 - Sound goes through ALSA, so PipeWire or PulseAudio may resample. The signal-path view shows this as shared mode, never as bit-perfect. A direct exclusive path is planned later.
 

@@ -23,6 +23,7 @@ use nemo_core::source_account::{
 };
 use serde::{Deserialize, Serialize};
 use tokio::runtime::Handle;
+use tokio::task::AbortHandle;
 
 use crate::client::{ClientError, ScClient};
 use crate::map::thumbnails;
@@ -86,8 +87,16 @@ fn check_error(e: ClientError) -> SourceAccountError {
     }
 }
 
+/// The sign-in window's call while it runs, and the state to go back to when it is stopped.
+struct PendingWindow {
+    abort: AbortHandle,
+    before: SourceAccountState,
+}
+
 struct Shared {
     state: Mutex<SourceAccountState>,
+    /// The open sign-in window's call, if any.
+    pending: Mutex<Option<PendingWindow>>,
     /// The id of the signed-in user, for the account's own list calls.
     user: Mutex<Option<u64>>,
     client: Arc<ScClient>,
@@ -108,6 +117,22 @@ impl Shared {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .clone()
+    }
+
+    /// Stop the sign-in window if its call is still running (the child process ends with it) and
+    /// put the state from before it back. Returns the state to treat as "before" for the next call.
+    fn stop_window(&self) -> Option<SourceAccountState> {
+        let pending = self
+            .pending
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take()?;
+        if pending.abort.is_finished() {
+            return None;
+        }
+        pending.abort.abort();
+        self.set_state(pending.before.clone());
+        Some(pending.before)
     }
 
     fn user(&self) -> Option<u64> {
@@ -287,6 +312,7 @@ impl ScAccount {
     ) -> Self {
         let shared = Arc::new(Shared {
             state: Mutex::new(SourceAccountState::SignedOut),
+            pending: Mutex::new(None),
             user: Mutex::new(None),
             client,
             store,
@@ -342,15 +368,24 @@ impl ScAccount {
         T: Send + 'static,
         F: std::future::Future<Output = Result<T, SourceAccountError>> + Send + 'static,
     {
-        let task = self.handle.spawn(work);
-        Box::pin(async move {
-            task.await.unwrap_or_else(|_| {
-                Err(SourceAccountError::Network(
-                    "request was cancelled".to_owned(),
-                ))
+        join(self.handle.spawn(work))
+    }
+}
+
+/// Wait for a spawned call. A call that was stopped on purpose (the user pasted a token while the
+/// window was open) ends as cancelled.
+fn join<T: Send + 'static>(
+    task: tokio::task::JoinHandle<Result<T, SourceAccountError>>,
+) -> BoxFuture<'static, Result<T, SourceAccountError>> {
+    Box::pin(async move {
+        task.await.unwrap_or_else(|e| {
+            Err(if e.is_cancelled() {
+                SourceAccountError::Cancelled
+            } else {
+                SourceAccountError::Network("request failed".to_owned())
             })
         })
-    }
+    })
 }
 
 impl SourceAccount for ScAccount {
@@ -360,12 +395,33 @@ impl SourceAccount for ScAccount {
 
     fn sign_in(&self) -> BoxFuture<'_, Result<SourceAccountInfo, SourceAccountError>> {
         let shared = Arc::clone(&self.shared);
-        self.run(async move {
-            let before = shared.state();
-            shared.set_state(SourceAccountState::SigningIn);
-            let token = shared.window.token().await;
-            shared.finish(before, token).await
-        })
+        // A second window would share the first one's profile folder: the first one ends.
+        let before = shared.stop_window().unwrap_or_else(|| shared.state());
+        shared.set_state(SourceAccountState::SigningIn);
+        let task = self.handle.spawn({
+            let shared = Arc::clone(&shared);
+            let before = before.clone();
+            async move {
+                let token = shared.window.token().await;
+                shared.finish(before, token).await
+            }
+        });
+        *shared
+            .pending
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = Some(PendingWindow {
+            abort: task.abort_handle(),
+            before,
+        });
+        join(task)
+    }
+
+    fn sign_in_hint(&self) -> bool {
+        self.shared.window.hint()
+    }
+
+    fn recheck_sign_in(&self) {
+        self.shared.window.recheck();
     }
 
     fn sign_in_with_token(
@@ -373,8 +429,9 @@ impl SourceAccount for ScAccount {
         token: Secret<String>,
     ) -> BoxFuture<'_, Result<SourceAccountInfo, SourceAccountError>> {
         let shared = Arc::clone(&self.shared);
+        let stopped = shared.stop_window();
         self.run(async move {
-            let before = shared.state();
+            let before = stopped.unwrap_or_else(|| shared.state());
             shared.set_state(SourceAccountState::SigningIn);
             shared.finish(before, Ok(token)).await
         })
@@ -382,6 +439,7 @@ impl SourceAccount for ScAccount {
 
     fn sign_out(&self) -> BoxFuture<'_, Result<SignOutReport, SourceAccountError>> {
         let shared = Arc::clone(&self.shared);
+        let _ = shared.stop_window();
         self.run(async move { shared.wipe(SourceAccountState::SignedOut) })
     }
 }

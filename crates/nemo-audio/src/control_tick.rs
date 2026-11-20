@@ -80,7 +80,7 @@ impl Core {
             .find(|r| r.token == token)
     }
 
-    fn on_started(&mut self, token: u64, at_frame: u64, base: Duration) {
+    pub(crate) fn on_started(&mut self, token: u64, at_frame: u64, base: Duration) {
         if self.is_current(token) {
             let pos = &self.shared.pos;
             pos.start.store(at_frame, Ordering::SeqCst);

@@ -189,7 +189,7 @@ fn signed_out<'a>(app: &'a App, state: &SourceAccountState, width: f32) -> Eleme
         ));
     }
     if busy {
-        let waiting = if sc.paste {
+        let waiting = if sc.paste && !sc.window {
             text::CHECKING
         } else {
             text::WAITING
@@ -208,11 +208,35 @@ fn signed_out<'a>(app: &'a App, state: &SourceAccountState, width: f32) -> Eleme
             .align_y(Alignment::Center),
         );
     }
-    c.push(sign_in_controls(app, width, !busy)).into()
+    if busy && app.sc_sign_in_hint() {
+        c = c.push(hint_box(app, width));
+    }
+    // A token can be typed while the window waits: it takes over from the window.
+    let can_type = !busy || sc.window;
+    c.push(sign_in_controls(app, width, !busy, can_type)).into()
+}
+
+/// The window found no session for a while: one plain sentence and the way to look again.
+fn hint_box(app: &App, width: f32) -> Element<'_, Message> {
+    let line = if app.sc.rechecked {
+        text::STILL_NOTHING
+    } else {
+        text::STILL_WAITING
+    };
+    column![
+        paragraph(line, type_scale::BODY_MD, col(color::on_surface()), width),
+        tonal_button(
+            text::CHECK_AGAIN,
+            Some(Icon::Refresh),
+            Some(Message::Sc(ScMsg::Recheck)),
+        ),
+    ]
+    .spacing(gap::SM)
+    .into()
 }
 
 /// The sign-in button and the way to the masked field, or the field and its help.
-fn sign_in_controls(app: &App, width: f32, can: bool) -> Element<'_, Message> {
+fn sign_in_controls(app: &App, width: f32, can: bool, can_type: bool) -> Element<'_, Message> {
     let sc = &app.sc;
     if sc.paste {
         let typed = !sc.token.expose().trim().is_empty();
@@ -223,7 +247,7 @@ fn sign_in_controls(app: &App, width: f32, can: bool) -> Element<'_, Message> {
                     placeholder: text::PLACEHOLDER,
                     value: &sc.token,
                     width,
-                    enabled: can,
+                    enabled: can_type,
                 },
                 |s| Message::Sc(ScMsg::PasteInput(s)),
                 Message::Sc(ScMsg::PasteSubmit),
@@ -238,7 +262,7 @@ fn sign_in_controls(app: &App, width: f32, can: bool) -> Element<'_, Message> {
                 tonal_button(
                     text::CHECK_TOKEN,
                     Some(Icon::Key),
-                    (can && typed).then_some(Message::Sc(ScMsg::PasteSubmit)),
+                    (can_type && typed).then_some(Message::Sc(ScMsg::PasteSubmit)),
                 ),
                 Space::new().width(gap::SM),
                 text_button(text::USE_WINDOW, Message::Sc(ScMsg::PasteMode(false))),

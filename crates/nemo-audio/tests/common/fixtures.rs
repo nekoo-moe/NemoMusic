@@ -66,6 +66,43 @@ pub fn counter_index(sample: f32) -> i64 {
     v - 1
 }
 
+/// A stretch of consecutive [`counter_wav`] frames in a capture.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FrameRun {
+    /// Frame number of the first frame of the run.
+    pub first: i64,
+    /// Frame number of the last frame of the run.
+    pub last: i64,
+    /// Silent frames between the previous run and this one (0 for a join without silence).
+    pub silence_before: usize,
+}
+
+/// Read a stereo capture of a [`counter_wav`] track back as runs of consecutive frame numbers.
+/// A frame is silent when its left sample is exactly zero (the counter is never zero). A new
+/// run starts at the first sound, after any silence and at every number that does not follow
+/// the previous one, so a repeat or a hole shows up as an extra run.
+pub fn counter_runs(capture: &[f32]) -> Vec<FrameRun> {
+    let mut runs: Vec<FrameRun> = Vec::new();
+    let mut silent = 0_usize;
+    for frame in capture.chunks_exact(2) {
+        if frame[0] == 0.0 {
+            silent += 1;
+            continue;
+        }
+        let n = counter_index(frame[0]);
+        match runs.last_mut() {
+            Some(run) if silent == 0 && n == run.last + 1 => run.last = n,
+            _ => runs.push(FrameRun {
+                first: n,
+                last: n,
+                silence_before: silent,
+            }),
+        }
+        silent = 0;
+    }
+    runs
+}
+
 fn crc8(data: &[u8]) -> u8 {
     let mut crc = 0_u8;
     for &b in data {

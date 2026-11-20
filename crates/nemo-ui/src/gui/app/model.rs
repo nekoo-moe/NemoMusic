@@ -329,6 +329,13 @@ pub struct ScUi {
     pub token: Secret<String>,
     /// A sign-in or sign-out call is running.
     pub busy: bool,
+    /// The running call is the sign-in window (the token field still works, and a pasted token
+    /// takes over from the window).
+    pub window: bool,
+    /// A token took over from the window: the window's own answer is dropped when it arrives.
+    pub stale_window: bool,
+    /// "I am signed in, check again" was pressed for this window.
+    pub rechecked: bool,
     /// Plain-words error of the last call.
     pub error: Option<String>,
     /// Sign out waits for the confirmation.
@@ -344,6 +351,9 @@ impl Default for ScUi {
             paste: false,
             token: Secret::new(String::new()),
             busy: false,
+            window: false,
+            stale_window: false,
+            rechecked: false,
             error: None,
             confirm_sign_out: false,
             notice: None,
@@ -508,7 +518,11 @@ pub enum ScMsg {
     CancelSignOut,
     /// Confirm sign out.
     SignOut,
-    /// A sign-in call finished.
+    /// Press "I am signed in, check again": the sign-in window looks for the session now.
+    Recheck,
+    /// The sign-in window's call finished.
+    WindowEnded(Result<SourceAccountInfo, SourceAccountError>),
+    /// A sign-in call with a pasted token finished.
     SignedIn(Result<SourceAccountInfo, SourceAccountError>),
     /// A sign-out call finished.
     SignedOut(Result<SignOutReport, SourceAccountError>),

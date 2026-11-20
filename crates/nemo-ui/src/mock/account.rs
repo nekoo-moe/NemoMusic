@@ -167,6 +167,9 @@ impl AccountService for MockAccount {
 pub struct MockScAccount {
     state: Arc<Mutex<SourceAccountState>>,
     delay: Duration,
+    /// A window that was started in `SigningIn` and never answers: it reports the "found nothing
+    /// for a while" hint (the picture of that state).
+    waits_long: bool,
 }
 
 impl MockScAccount {
@@ -180,6 +183,7 @@ impl MockScAccount {
     #[must_use]
     pub fn with_state(state: SourceAccountState) -> Self {
         Self {
+            waits_long: matches!(state, SourceAccountState::SigningIn),
             state: Arc::new(Mutex::new(state)),
             delay: Duration::from_secs(1),
         }
@@ -240,6 +244,10 @@ impl SourceAccount for MockScAccount {
 
     fn sign_in(&self) -> BoxFuture<'_, Result<SourceAccountInfo, SourceAccountError>> {
         self.finish(true)
+    }
+
+    fn sign_in_hint(&self) -> bool {
+        self.waits_long && matches!(*self.lock(), SourceAccountState::SigningIn)
     }
 
     fn sign_in_with_token(
