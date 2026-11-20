@@ -19,7 +19,8 @@ use crate::gui::assets::Icon;
 use crate::gui::style::{col, gap, label, label_w, spinner};
 use crate::gui::views::account::{SecretField, notice_box, secret_field};
 use crate::gui::views::kit::{art, filled_button, paragraph, text_button, tile, tonal_button};
-use crate::gui::views::opt_in::{OptInActions, OptInPhase, OptInRow, opt_in_row};
+use crate::gui::views::opt_in::{Extras, OptInActions, OptInPhase, OptInRow, opt_in_row_with};
+use crate::gui::views::settings::appearance::restart;
 use crate::theme::{color, type_scale};
 
 /// The whole section: the opt-in row and, when it applies, the account card.
@@ -57,7 +58,11 @@ fn phase(app: &App) -> OptInPhase {
 /// One status line under an open switch.
 fn status(app: &App) -> &'static str {
     if !app.sc_running() {
-        return text::STARTS_AFTER_RESTART;
+        return if app.sc_restart_offered() {
+            text::NEEDS_RESTART
+        } else {
+            text::STARTS_AFTER_RESTART
+        };
     }
     match app.sc_state() {
         Some(SourceAccountState::SignedIn(_)) => text::STATUS_SIGNED_IN,
@@ -65,14 +70,15 @@ fn status(app: &App) -> &'static str {
     }
 }
 
-/// The messages of the opt-in row's controls.
-fn actions(delete_now: bool) -> OptInActions {
+/// The messages of the opt-in row's controls. Turning off signs out, so there is no separate
+/// "Delete now".
+fn actions() -> OptInActions {
     OptInActions {
         ask: Message::Sc(ScMsg::Ask),
         turn_on: Message::Sc(ScMsg::TurnOn),
         cancel: Message::Sc(ScMsg::Cancel),
         turn_off: Message::Sc(ScMsg::TurnOff),
-        delete_now: delete_now.then_some(Message::Sc(ScMsg::SignOut)),
+        delete_now: None,
     }
 }
 
@@ -88,22 +94,53 @@ fn switch_row(app: &App, width: f32) -> Element<'_, Message> {
         .into();
     };
     let phase = phase(app);
-    let signed_in_while_off = phase == OptInPhase::Off
-        && matches!(
-            app.backend.soundcloud_account.as_ref().map(|a| a.state()),
-            Some(SourceAccountState::SignedIn(_))
-        );
     let row = OptInRow {
         info,
         phase,
         status: Some(status(app)),
-        stays: Some(if signed_in_while_off {
-            text::STAYS_SIGNED_IN
-        } else {
-            text::STAYS
-        }),
+        // Off: what turning it off did. A failed removal is told here, where the switch is.
+        stays: Some(app.sc.error.as_deref().unwrap_or(text::STAYS)),
     };
-    opt_in_row(row, actions(signed_in_while_off), width)
+    // The same `Restart now` pill as the Window glass card sits under the switch, and its place
+    // only exists while it shows or fades.
+    let pill = (phase == OptInPhase::On && app.surfaces.sc_restart.visible()).then(|| {
+        (
+            restart::slot(app, &app.surfaces.sc_restart, restart::PILL_W),
+            restart::PILL_W,
+        )
+    });
+    let extras = Extras {
+        under_switch: pill,
+        under_header: app.sc.confirm_off.then(|| off_confirm(app, width)),
+    };
+    opt_in_row_with(row, actions(), width, extras)
+}
+
+/// The question that comes with turning the switch off while signed in. It sits right under
+/// the switch, inside the row, so it is seen where the switch was pressed.
+fn off_confirm(app: &App, width: f32) -> Element<'_, Message> {
+    let inner = width - 2.0 * gap::LG;
+    column![
+        paragraph(
+            text::OFF_CONFIRM,
+            type_scale::BODY_MD,
+            col(color::on_surface()),
+            inner,
+        ),
+        row![
+            filled_button(
+                text::OFF_CONFIRM_BUTTON,
+                Icon::Logout,
+                app.accent(),
+                Message::Sc(ScMsg::ConfirmOff),
+            ),
+            Space::new().width(gap::SM),
+            text_button("Cancel", Message::Sc(ScMsg::CancelOff)),
+        ]
+        .align_y(Alignment::Center),
+    ]
+    .spacing(gap::MD)
+    .into()
 }
 
 /// The account card, or the reason there is none.
@@ -124,14 +161,7 @@ fn account_rows(app: &App, width: f32) -> Element<'_, Message> {
             Some(state) => signed_out(app, &state, inner),
         }
     } else {
-        let mut c = column![note(text::STARTS_AFTER_RESTART)].spacing(gap::MD);
-        if app.sc_restart_offered() {
-            c = c.push(tonal_button(
-                text::RESTART,
-                Some(Icon::Refresh),
-                Some(Message::Restart),
-            ));
-        }
+        let c = column![note(text::STARTS_AFTER_RESTART)].spacing(gap::MD);
         c.into()
     };
     container(body)
@@ -363,3 +393,6 @@ fn signed_in<'a>(app: &'a App, info: &SourceAccountInfo, width: f32) -> Element<
     }
     c.into()
 }
+
+#[cfg(test)]
+mod tests;

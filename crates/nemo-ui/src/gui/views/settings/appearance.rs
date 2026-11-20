@@ -20,7 +20,7 @@ use crate::window_glass::GlassState;
 
 mod controls;
 mod preview;
-mod restart;
+pub(in crate::gui::views::settings) mod restart;
 #[cfg(test)]
 mod tests;
 

@@ -34,9 +34,14 @@
   - _Requirements: 13, 14, 15_
   - Depends on: 4
 
-- [x] 6. SoundCloud search results with filter chips (PR 5 of the 2026-11-19 stack; `All` and a track page are left)
+- [x] 6. SoundCloud search results with filter chips (PR 5 of the 2026-11-19 stack; a track page is left)
   - _Requirements: 13, 14, 15_
   - Depends on: 4
+
+- [x] 6a. Owner decisions of 2026-11-20 (PR `feat/nemo-ui-soundcloud-decisions`)
+  - Crate and files: `nemo-soundcloud` (`off.rs`), `nemo-app` (`soundcloud.rs`, `backend.rs`), `nemo-ui` (settings card, `opt_in.rs` extras, `restart.rs` slot, `sc_search.rs`, search views).
+  - Does: criteria 6d, 6e and the `All` part of 13. Off signs out and wipes (confirm sentence, store-only wipe at start); the `Restart now` pill under the SoundCloud switch; `All` in Search is YouTube Music first, then a SoundCloud group, and Videos is hidden for SoundCloud alone.
+  - Depends on: 1a, 6
 
 - [x] 7. Account writes (PR `feat/nemo-soundcloud-writes`, 2026-11-20)
   - Crate and files: `nemo-soundcloud` (`write.rs` the requests, `client/write.rs` the one function `ScClient::write`, `writes.rs` `SoundcloudWrites`), `nemo-core` (`source_writes.rs`, `Catalog::library_playlists_owned`), `nemo-app` (`soundcloud.rs`), `nemo-ui` (`gui/app/sc_write.rs`, the heart, the track menu, the name sheet, Rename, Unfollow, New playlist).

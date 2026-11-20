@@ -189,6 +189,7 @@ pub async fn run_job(job: Job, backend: Backend) -> Message {
                 super::sc_write::ScWriteDone { job, result },
             )))
         }
+        Job::ScTurnOff => Message::Sc(ScMsg::TurnedOff(sc_sign_out(&backend).await)),
         Job::ScSearch(query) => {
             let result = match &backend.soundcloud {
                 Some(c) => c
@@ -214,6 +215,22 @@ pub async fn run_job(job: Job, backend: Backend) -> Message {
                 kind,
                 result,
             })
+        }
+        Job::ScGroup { query, kind } => {
+            let result = match &backend.soundcloud {
+                Some(c) => match kind {
+                    Some(kind) => c.search_kind(&query, kind).await,
+                    None => c.search(&query).await,
+                }
+                .map(Arc::new)
+                .map_err(|e| e.to_string()),
+                None => Err(SC_NOT_RUNNING.to_owned()),
+            };
+            Message::ScGroup {
+                query,
+                kind,
+                result,
+            }
         }
         Job::ScLibrary { generation } => Message::Sc(ScMsg::LibraryLoaded {
             generation,

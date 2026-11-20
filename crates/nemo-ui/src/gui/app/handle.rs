@@ -149,6 +149,14 @@ impl App {
                 }
                 Vec::new()
             }
+            Message::ScGroup {
+                query,
+                kind,
+                result,
+            } => {
+                self.sc_group_done(&query, kind, result);
+                Vec::new()
+            }
             Message::SearchDone { query, result } => {
                 if let Ok(r) = &result {
                     self.learn_local(r);

@@ -63,6 +63,7 @@ impl App {
         self.sc.token = Secret::new(String::new());
         self.sc.error = None;
         self.sc.confirm_sign_out = false;
+        self.sc.confirm_off = false;
         self.ui.text_focused = false;
     }
 
@@ -84,14 +85,17 @@ impl App {
                 };
                 return self.sc_store(state);
             }
-            ScMsg::TurnOff => {
-                self.sc.confirming = false;
+            ScMsg::TurnOff => return self.sc_turn_off(),
+            ScMsg::ConfirmOff => return self.sc_off_now(),
+            ScMsg::CancelOff => self.sc.confirm_off = false,
+            ScMsg::TurnedOff(result) => {
+                self.sc.busy = false;
                 self.sc_reset_page();
-                let state = OptInState {
-                    enabled: false,
-                    ..self.ui.settings.soundcloud
-                };
-                return self.sc_store(state);
+                if result.is_err() {
+                    // The switch goes off anyway; the next start tries to remove the token again.
+                    self.sc.error = Some(text::OFF_NOT_REMOVED.to_owned());
+                }
+                return self.sc_switch_off();
             }
             ScMsg::SignIn => {
                 let jobs = self.sc_sign_in(Job::ScSignIn);
@@ -142,6 +146,55 @@ impl App {
             }
         }
         Vec::new()
+    }
+
+    /// Store the switch as off and forget the page.
+    fn sc_switch_off(&mut self) -> Vec<Job> {
+        self.sc.confirming = false;
+        let error = self.sc.error.take();
+        self.sc_reset_page();
+        self.sc.error = error;
+        let state = OptInState {
+            enabled: false,
+            ..self.ui.settings.soundcloud
+        };
+        self.sc_store(state)
+    }
+
+    /// The switch was turned off (owner decision, 2026-11-20: off also signs out and wipes the
+    /// token). Signed in, the page asks first. A sign-in window that is open is closed with the
+    /// switch. With no account to sign out, the switch goes off at once; a token an earlier
+    /// session kept is removed at the next start (`nemo_soundcloud::off`).
+    fn sc_turn_off(&mut self) -> Vec<Job> {
+        if self.sc.busy {
+            // The sign-in window is closed with the switch; a token being checked is a moment,
+            // then the switch answers again.
+            return if self.sc.window {
+                self.sc_off_now()
+            } else {
+                Vec::new()
+            };
+        }
+        if self.backend.soundcloud_account.is_none() {
+            return self.sc_switch_off();
+        }
+        if matches!(self.sc_state(), Some(SourceAccountState::SignedIn(_))) {
+            self.sc.confirm_off = true;
+            return Vec::new();
+        }
+        self.sc_switch_off()
+    }
+
+    /// Sign out, then turn the switch off (the answer arrives as [`ScMsg::TurnedOff`]).
+    fn sc_off_now(&mut self) -> Vec<Job> {
+        if self.sc.window {
+            // The account closes the window; its answer ("cancelled") is not news.
+            self.sc.window = false;
+            self.sc.stale_window = true;
+        }
+        self.sc.confirm_off = false;
+        self.sc.busy = true;
+        vec![Job::ScTurnOff]
     }
 
     /// Send the typed token. While the sign-in window is still open the token takes over: the
@@ -305,6 +358,112 @@ mod tests {
         assert_eq!(app.ui.settings.soundcloud.confirmed_version, 2);
         send(&mut app, ScMsg::TurnOn);
         assert!(app.sc_open(), "no new panel for the same notice");
+    }
+
+    #[test]
+    fn turning_off_while_signed_in_asks_first_and_cancel_keeps_it_on() {
+        let mut app = app_in(SourceAccountState::SignedIn(
+            crate::mock::MockScAccount::info(),
+        ));
+        assert!(app.sc_open());
+        assert!(
+            send(&mut app, ScMsg::TurnOff).is_empty(),
+            "nothing runs before the answer"
+        );
+        assert!(app.sc.confirm_off && app.sc_open(), "still on, asking");
+        send(&mut app, ScMsg::CancelOff);
+        assert!(!app.sc.confirm_off && app.sc_open());
+    }
+
+    #[test]
+    fn confirming_signs_out_and_only_then_turns_the_switch_off() {
+        let mut app = app_in(SourceAccountState::SignedIn(
+            crate::mock::MockScAccount::info(),
+        ));
+        send(&mut app, ScMsg::TurnOff);
+        let jobs = send(&mut app, ScMsg::ConfirmOff);
+        assert!(matches!(jobs.as_slice(), [Job::ScTurnOff]));
+        assert!(app.sc.busy && !app.sc.confirm_off);
+        assert!(
+            app.sc_open(),
+            "the switch stays on until the sign-out answered"
+        );
+        send(
+            &mut app,
+            ScMsg::TurnedOff(Ok(nemo_core::account::SignOutReport::default())),
+        );
+        assert!(!app.sc_open() && !app.sc.busy && app.sc.error.is_none());
+        assert_eq!(
+            app.ui.settings.soundcloud.confirmed_version, 2,
+            "the notice stays confirmed"
+        );
+    }
+
+    #[test]
+    fn a_token_that_could_not_be_removed_is_said_and_the_switch_still_goes_off() {
+        let mut app = app_in(SourceAccountState::SignedIn(
+            crate::mock::MockScAccount::info(),
+        ));
+        send(&mut app, ScMsg::TurnOff);
+        send(&mut app, ScMsg::ConfirmOff);
+        send(
+            &mut app,
+            ScMsg::TurnedOff(Err(SourceAccountError::Storage("x".to_owned()))),
+        );
+        assert!(!app.sc_open());
+        assert_eq!(app.sc.error.as_deref(), Some(text::OFF_NOT_REMOVED));
+    }
+
+    #[test]
+    fn off_without_a_session_goes_off_at_once() {
+        // Signed out and running.
+        let mut out = app(ScScene::Account, true);
+        assert!(send(&mut out, ScMsg::TurnOff).is_empty());
+        assert!(!out.sc_open() && !out.sc.confirm_off);
+        // On, but the services did not start (no account to sign out).
+        let mut waiting = app(ScScene::Restart, false);
+        assert!(send(&mut waiting, ScMsg::TurnOff).is_empty());
+        assert!(!waiting.sc_open());
+    }
+
+    #[test]
+    fn off_while_the_sign_in_window_is_open_closes_it_without_asking() {
+        let mut app = app(ScScene::Account, true);
+        send(&mut app, ScMsg::SignIn);
+        let jobs = send(&mut app, ScMsg::TurnOff);
+        assert!(matches!(jobs.as_slice(), [Job::ScTurnOff]), "{jobs:?}");
+        assert!(app.sc.stale_window && !app.sc.window);
+        // The window's own answer is dropped, so no "window closed" sentence appears.
+        send(
+            &mut app,
+            ScMsg::WindowEnded(Err(SourceAccountError::Cancelled)),
+        );
+        send(
+            &mut app,
+            ScMsg::TurnedOff(Ok(nemo_core::account::SignOutReport::default())),
+        );
+        assert!(!app.sc_open() && app.sc.error.is_none());
+    }
+
+    #[test]
+    fn off_while_a_pasted_token_is_checked_waits() {
+        let mut app = app(ScScene::Account, true);
+        send(&mut app, ScMsg::PasteMode(true));
+        send(
+            &mut app,
+            ScMsg::PasteInput(Secret::new("2-293232-7000001-synthetic".to_owned())),
+        );
+        send(&mut app, ScMsg::PasteSubmit);
+        assert!(app.sc.busy && !app.sc.window);
+        assert!(send(&mut app, ScMsg::TurnOff).is_empty());
+        assert!(app.sc_open(), "the switch did not move");
+    }
+
+    #[test]
+    fn the_switch_text_says_that_off_signs_out() {
+        assert!(text::STATUS_SIGNED_IN.contains("signs you out and removes your token"));
+        assert!(text::STAYS.contains("signs you out and removes your token"));
+        assert!(text::OFF_CONFIRM.contains("signs you out and removes your token"));
     }
 
     #[test]

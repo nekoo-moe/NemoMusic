@@ -19,7 +19,7 @@ use crate::palette::Seed;
 use crate::refresh::Start;
 use crate::state::{Event, ResolveKind};
 use iced::Size;
-use nemo_core::catalog::{BrowseId, Explore, FeedShelf, SearchResults, Shelf};
+use nemo_core::catalog::{BrowseId, Explore, FeedShelf, SearchKind, SearchResults, Shelf};
 use nemo_core::lyrics::{LyricsCandidate, ProviderId};
 use nemo_core::player::PlayerEvent;
 use nemo_core::secret::Secret;
@@ -65,6 +65,15 @@ pub enum Message {
     },
     /// A SoundCloud account change (a like, a playlist change, an unfollow) or its answer.
     ScWrite(super::sc_write::ScWriteMsg),
+    /// The SoundCloud group of `All` in Search answered.
+    ScGroup {
+        /// The text that was searched.
+        query: String,
+        /// The chip it was searched for.
+        kind: Option<SearchKind>,
+        /// The answer.
+        result: Result<Arc<SearchResults>, String>,
+    },
     /// A detail page answered.
     Detail {
         /// Page.
@@ -355,6 +364,8 @@ pub enum Job {
     ScSignIn,
     /// Sign in to SoundCloud with a pasted token.
     ScSignInToken(Secret<String>),
+    /// Sign out of SoundCloud, then the switch goes off (turning it off wipes the token).
+    ScTurnOff,
     /// Sign out of SoundCloud.
     ScSignOut,
     /// Search SoundCloud (the Search page is set to SoundCloud).
@@ -368,6 +379,13 @@ pub enum Job {
     },
     /// Send one change of the SoundCloud account.
     ScWrite(super::sc_write::ScWriteJob),
+    /// Search SoundCloud for the group under the YouTube Music results (`All` in Search).
+    ScGroup {
+        /// The text.
+        query: String,
+        /// The chip: `None` is the `All` chip.
+        kind: Option<SearchKind>,
+    },
     /// Read the SoundCloud library (likes, playlists, albums, followed artists, history).
     ScLibrary {
         /// The read; its answer carries it back.

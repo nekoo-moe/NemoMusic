@@ -64,19 +64,29 @@ pub const NO_STORE: &str = concat!(
 );
 /// Switched on, but the services start with the app.
 pub const STARTS_AFTER_RESTART: &str = "SoundCloud starts the next time NemoMusic starts.";
+/// Switched on, the services start after a restart, and the pill offers it.
+pub const NEEDS_RESTART: &str = "SoundCloud starts after a restart. The music stops for a moment.";
 /// Button that restarts the app.
 pub const RESTART: &str = "Restart now";
+/// What turning the switch off does, asked while someone is signed in.
+pub const OFF_CONFIRM: &str = "Turning SoundCloud off signs you out and removes your token and the SoundCloud data NemoMusic loaded from this computer. It does not sign you out of soundcloud.com in your browser. You can turn it on and sign in again later.";
+/// The button of that question.
+pub const OFF_CONFIRM_BUTTON: &str = "Turn off and sign out";
+/// The sign-out that came with turning the switch off could not remove the token.
+pub const OFF_NOT_REMOVED: &str = concat!(
+    "SoundCloud is off, but your token could not be removed from ",
+    store!(),
+    ". NemoMusic tries again the next time it starts."
+);
 /// Status line of the switch while off.
 pub const STATUS_OFF: &str = "Off. Nothing is requested from SoundCloud.";
 /// Status line while on and signed in (the card shows the name).
-pub const STATUS_SIGNED_IN: &str = "On. You are signed in.";
+pub const STATUS_SIGNED_IN: &str = "On. You are signed in. Turning SoundCloud off signs you out and removes your token from this computer.";
 /// Status line while on and signed out.
-pub const STATUS_SIGNED_OUT: &str = "On. You are not signed in.";
-/// What stays on this computer while off, when nothing says whether a token was kept.
-pub const STAYS: &str = "A token you signed in with earlier stays in the credential store until you sign out. To remove it, turn SoundCloud on and sign out.";
-/// What stays on this computer while off, with a sign-in kept in this session.
-pub const STAYS_SIGNED_IN: &str =
-    "Your SoundCloud token stays in the credential store until you press Delete now.";
+pub const STATUS_SIGNED_OUT: &str = "On. You are not signed in. Turning SoundCloud off removes any saved sign-in from this computer.";
+/// What turning the switch off does, shown while it is off.
+pub const STAYS: &str =
+    "Turning SoundCloud off signs you out and removes your token from this computer.";
 /// The section when this build has no SoundCloud.
 pub const NOT_IN_THIS_BUILD: &str = "SoundCloud is not part of this build.";
 

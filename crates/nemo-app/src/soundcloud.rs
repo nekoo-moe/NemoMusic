@@ -5,10 +5,11 @@
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, PoisonError};
 
+use nemo_core::account::SignOutReport;
 use nemo_core::catalog::Catalog;
 use nemo_core::secret_store::SecretStore;
 use nemo_core::services::StreamOpener;
-use nemo_core::source_account::SourceAccount;
+use nemo_core::source_account::{SourceAccount, SourceAccountError};
 use nemo_core::source_writes::SourceWrites;
 use nemo_core::url_resolver::UrlResolver;
 use nemo_soundcloud::{
@@ -148,10 +149,7 @@ pub fn build_account(
         vec![nemo_signin::SIGNIN_ARG.into()],
         paths.webview_soundcloud.clone(),
     );
-    let files = AccountFiles {
-        webview_dir: paths.webview_soundcloud.clone(),
-        cache_file: paths.account.join("soundcloud.json"),
-    };
+    let files = account_files(paths);
     let account = ScAccount::new(
         Arc::clone(&parts.client),
         store,
@@ -167,6 +165,58 @@ pub fn build_account(
 /// a signed-in account; without one every write says so and sends nothing.
 pub fn writes_for(parts: &SoundcloudParts) -> Arc<dyn SourceWrites> {
     Arc::new(SoundcloudWrites::new(Arc::clone(&parts.client)))
+}
+
+/// The folders and files a SoundCloud sign-in owns.
+fn account_files(paths: &AppPaths) -> AccountFiles {
+    AccountFiles {
+        webview_dir: paths.webview_soundcloud.clone(),
+        cache_file: paths.account.join("soundcloud.json"),
+    }
+}
+
+/// The store-only wipe (owner decision, 2026-11-20: off signs out and wipes the token). While
+/// the switch is off no account exists, so a token an earlier session kept would stay in the
+/// credential store. When something may be left (the cached name, the window's profile folder or
+/// the retry marker) it is removed on a worker thread; start-up does not wait. The store is not
+/// asked when nothing is left, so an app that never signed in never touches the keyring.
+pub fn wipe_when_off(
+    choices: &BTreeMap<String, OptInChoice>,
+    store: Option<Arc<dyn SecretStore>>,
+    paths: &AppPaths,
+    handle: &Handle,
+) {
+    let files = account_files(paths);
+    let Some(store) = store.filter(|_| wipe_is_due(choices, &files)) else {
+        return;
+    };
+    handle.spawn_blocking(move || {
+        if let Ok(report) = run_wipe(store.as_ref(), &files) {
+            tracing::info!(
+                credentials = report.credentials_removed,
+                files = report.files_removed,
+                "SoundCloud is off: removed what an earlier sign-in left"
+            );
+        } else {
+            tracing::warn!(
+                "SoundCloud is off: the saved sign-in could not be removed; the next start tries again"
+            );
+        }
+    });
+}
+
+/// SoundCloud is switched off (a version bump of the notice does not count: the person did not
+/// turn it off) and a sign-in may have left something.
+fn wipe_is_due(choices: &BTreeMap<String, OptInChoice>, files: &AccountFiles) -> bool {
+    !crate::opt_in_gate::choice(choices, &OPT_IN).enabled
+        && nemo_soundcloud::off::has_leftovers(files)
+}
+
+fn run_wipe(
+    store: &dyn SecretStore,
+    files: &AccountFiles,
+) -> Result<SignOutReport, SourceAccountError> {
+    nemo_soundcloud::off::wipe_stored(store, files)
 }
 
 /// The player's opener: SoundCloud HLS streams go to their reader, everything else to `files`.

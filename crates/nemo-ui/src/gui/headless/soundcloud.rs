@@ -30,6 +30,8 @@ pub enum ScScene {
     Error,
     /// Sign out waits for its confirmation.
     ConfirmSignOut,
+    /// The switch was turned off while signed in: the question waits for its answer.
+    ConfirmOff,
     /// The line after a finished sign-out.
     SignedOutNotice,
 }
@@ -93,6 +95,7 @@ pub(super) fn enter(app: &mut App, scene: ScScene) {
             Message::Sc(ScMsg::SignedIn(Err(SourceAccountError::Rejected))),
         ),
         ScScene::ConfirmSignOut => run(app, Message::Sc(ScMsg::AskSignOut)),
+        ScScene::ConfirmOff => run(app, Message::Sc(ScMsg::TurnOff)),
         ScScene::SignedOutNotice => run(
             app,
             Message::Sc(ScMsg::SignedOut(Ok(SignOutReport {

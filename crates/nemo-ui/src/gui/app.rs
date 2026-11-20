@@ -52,6 +52,7 @@ mod option;
 mod query;
 mod refresh;
 mod sc_library;
+mod sc_search;
 mod sc_write;
 mod setup;
 mod skeleton;
@@ -79,6 +80,7 @@ pub use option::{
     AccountLibrary, CreateMsg, FolderPicker, PickFuture, RestartHandler, SleepState, UiHooks,
     UiOptions, WindowHandler,
 };
+pub use sc_search::{ScGroup, ScGroupPhase};
 pub use sc_write::{CreateTarget, ScWriteDone, ScWriteJob, ScWriteMsg, ScWriteUi};
 
 /// Widget id of the search box.
@@ -147,6 +149,8 @@ pub struct App {
     pub(crate) sc_write: ScWriteUi,
     /// What the name sheet does when confirmed.
     pub(crate) create_target: CreateTarget,
+    /// The SoundCloud groups of `All` in Search.
+    pub(crate) sc_groups: Vec<ScGroup>,
     /// What the SoundCloud switch shows, from the app; `None` when the app has no SoundCloud.
     pub(crate) soundcloud_info: Option<nemo_core::opt_in::OptInInfo>,
     /// Likes the user changed in this session (over what the Liked songs shelf says).
@@ -173,7 +177,7 @@ pub struct App {
     pub(crate) eq_phase: f32,
     /// Sliding selection pill of chip rows: x and width springs (0: Home, 1: Library tabs, 2:
     /// Search filters).
-    pub(crate) chip_pills: [(crate::motion::Spring, crate::motion::Spring); 5],
+    pub(crate) chip_pills: [(crate::motion::Spring, crate::motion::Spring); 6],
     chip_pills_init: bool,
     /// Queue reorder: the two rows that swapped and the offset spring (1 to 0).
     pub(crate) queue_swap: (usize, usize),
@@ -313,6 +317,7 @@ impl App {
             sc_lib: ScLibrary::default(),
             sc_write: ScWriteUi::default(),
             create_target: CreateTarget::default(),
+            sc_groups: Vec::new(),
             soundcloud_info: options.soundcloud_info,
             likes: HashMap::new(),
             last_line: None,
@@ -329,6 +334,10 @@ impl App {
             setup_seen: None,
             eq_phase: 0.0,
             chip_pills: [
+                (
+                    crate::motion::Spring::tuned(0.0, 1400.0, 1.0),
+                    crate::motion::Spring::tuned(0.0, 1400.0, 1.0),
+                ),
                 (
                     crate::motion::Spring::tuned(0.0, 1400.0, 1.0),
                     crate::motion::Spring::tuned(0.0, 1400.0, 1.0),

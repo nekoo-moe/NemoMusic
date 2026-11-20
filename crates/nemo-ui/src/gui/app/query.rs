@@ -219,6 +219,7 @@ impl App {
                 .unwrap_or_default(),
             ListSource::Recent => self.ui.recent.clone(),
             ListSource::ScLikes => self.sc_lib.data.likes.clone(),
+            ListSource::ScSearch => self.sc_group_songs(),
             ListSource::ScHistory(n) => self
                 .sc_lib
                 .data

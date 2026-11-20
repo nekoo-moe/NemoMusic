@@ -235,6 +235,9 @@ pub fn build(
     // SoundCloud exists only when the switch is on and the notice confirmed (soundcloud-full).
     let sc = soundcloud::for_app(&settings.opt_ins, handle, &ytdlp);
     let opener = soundcloud::opener(Arc::new(HttpStreamOpener::default()), sc.as_ref());
+    if sc.is_none() {
+        soundcloud::wipe_when_off(&settings.opt_ins, store.clone(), paths, handle);
+    }
     let sc_account = soundcloud::account_for(sc.as_ref(), store, paths, handle, sc_slot);
 
     let player = Player::spawn(PlayerDeps {
