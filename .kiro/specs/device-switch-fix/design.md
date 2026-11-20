@@ -10,9 +10,9 @@ Keep the design of `output-devices` (carry the decoder, seek it to the played po
 
 ## Data Flow
 
-Control thread: open the new sink (unchanged) -> `Pipeline::halt_output()` of the old pipeline (stops the sink; the callback no longer runs, so `played` is final) -> `stop_and_take_with_events()` (stop flag, join the feeder, collect the jobs and the feeder reports nobody has read) -> apply the unread `Started` reports, so the position is known -> read the position -> seek the first job to the position on a frame boundary -> `Pipeline::start` with the new sink -> load the jobs. The other unread reports (`Finished`, `Skipped`, `Failed`) were lost with the old pipeline before and still are; their frame numbers count the old pipeline. The feeder thread keeps decoding into the old ring for the few milliseconds between the two steps; that audio is never played and is read again from the decoder after the seek.
+Control thread: open the new sink (unchanged) -> `stop_and_take_with_events()` of the old pipeline (stop flag, join the feeder, stop the device, collect the jobs and the feeder reports nobody has read) -> apply the unread `Started` reports, so the position is known -> read the position, now that the device is stopped and `played` is final -> seek the first job to the position on a frame boundary -> `Pipeline::start` with the new sink -> load the jobs. The other unread reports (`Finished`, `Skipped`, `Failed`) were lost with the old pipeline before and still are; their frame numbers count the old pipeline. The feeder thread keeps decoding into the old ring for the few milliseconds between the two steps; that audio is never played and is read again from the decoder after the seek.
 
-The callback code (`make_callback`, `render`, `apply_gain`) is not touched. `Pipeline::halt_output` runs on the control thread and calls `AudioSink::stop`, which every sink already implements and tolerates being called twice (`stop_and_take` calls it again).
+The callback code (`make_callback`, `render`, `apply_gain`) is not touched. The old device plays on while the feeder is joined (up to a few milliseconds), so what it plays in that time is counted: the position is read after the device stopped, not before.
 
 Seek time: `pos` is rounded to the nearest source frame and turned into the earliest time that lands on that frame (`frame_time`, already used for CUE spans). Every switch rounds again to the nearest frame, so the microsecond cut of the stored base does not add up over repeated switches.
 
@@ -22,8 +22,6 @@ Song end: the position belongs to the current song. WHEN the current song has be
 
 ```rust
 impl Pipeline {
-    /// Stop the output device; the callback no longer runs afterwards.
-    pub fn halt_output(&mut self);
     /// `stop_and_take`, and the feeder reports nobody has read.
     pub fn stop_and_take_with_events(self) -> (Vec<Job>, Vec<FeedEvent>);
 }
@@ -33,7 +31,7 @@ impl Pipeline {
 
 ## Error Handling
 
-Unchanged: a failed open of the new sink leaves the old pipeline running (the old output is halted only after the new sink opened, and only when the new pipeline can start; if `Pipeline::start` fails after the halt, the jobs are lost as today and `OutputOpenFailed` is sent).
+Unchanged: a failed open of the new sink leaves the old pipeline running (the old output is stopped only after the new sink opened; if `Pipeline::start` fails after that, the jobs are lost as today and `OutputOpenFailed` is sent).
 
 ## Testing Strategy
 
