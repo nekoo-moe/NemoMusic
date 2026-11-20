@@ -12,6 +12,8 @@
 mod appearance_page;
 #[path = "snapshots/backdrop.rs"]
 mod backdrop;
+#[path = "snapshots/discord_presence.rs"]
+mod discord_presence;
 #[path = "snapshots/feature.rs"]
 mod feature;
 #[path = "snapshots/font_compare.rs"]
@@ -161,6 +163,10 @@ fn main() {
         std::process::exit(1);
     }
     if let Err(e) = lyrics_rebuild::render(&only, &out_dir) {
+        eprintln!("{e}");
+        std::process::exit(1);
+    }
+    if let Err(e) = discord_presence::render(&only, &out_dir) {
         eprintln!("{e}");
         std::process::exit(1);
     }

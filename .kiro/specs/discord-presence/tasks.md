@@ -12,9 +12,9 @@
   - _Requirements: 13, 14, 16, 17, 18, 19, 21_
   - Depends on: 1
 
-- [ ] 3. Settings row, `Hide song names` switch, notice text, README (PR 3)
+- [x] 3. Settings row, `Hide song names` switch, notice text, README (PR 3)
   - Crate and files: `nemo-ui` (`gui/views/settings/discord.rs`, `gui/app/discord.rs`, copy), `nemo-integrations` (`info.rs`), `README.md`.
-  - Does: criteria 10 (switch), 20 and 21; the README egress note `Discord presence adds no host` and the asset names.
+  - Does: criteria 10 (switch), 20 and 21; the README egress note `Discord presence adds no host`; the asset names are in design.md. The row sits in Settings, Privacy, above the list of hosts (`views/settings/discord.rs`); `MockIntegrations` (`nemo-ui/src/mock/integrations.rs`) stands in for the service in tests and shots; the window, the section and the sleep timer are reported from `after_update` and from the focus message (`gui/app/discord.rs`). Shots: `docs/ui/snapshots/discord-privacy-*.png`. NOT verified: the row in a real window, Discord with a real client.
   - _Requirements: 10, 20, 21_
   - Depends on: 2
 
