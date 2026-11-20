@@ -1,0 +1,62 @@
+NemoMusic developer report
+version 0.3.0, linux x86_64, release build
+taken 08:30:00.000 UTC, up 5412 s
+window 960 x 600 px, scale 200%, reduce motion off
+frames avg 16.7 ms, worst 17.1 ms, 60 frames
+
+== Providers ==
+lyrics:lrclib: calls 4, errors 1, last ok 08:29:28.877, last error 404, p50 230 ms, p95 380 ms
+lyrics:simpmusic: calls 3, errors 0, last ok 08:29:26.877, last error -, p50 300 ms, p95 340 ms
+resolver: calls 6, errors 1, last ok 08:29:48.877, last error refused, p50 104 ms, p95 3480 ms
+soundcloud: calls 9, errors 3, last ok 08:28:55.877, last error 429, p50 180 ms, p95 410 ms, resting until 08:30:28.000
+sponsorblock: calls 5, errors 2, last ok 08:27:19.877, last error 404, p50 120 ms, p95 210 ms
+ytdlp: calls 2, errors 0, last ok 08:29:45.877, last error -, p50 3390 ms, p95 3400 ms
+ytm: calls 21, errors 0, last ok 08:29:50.877, last error -, p50 190 ms, p95 700 ms
+
+== Resolver ==
+tier native: ok 3, failed 2
+tier in_process: ok 0, failed 0
+tier yt_dlp: ok 2, failed 0
+cache: memory hits 4, disk hits 1, misses 5, size Unknown
+in-process solver: switched itself off for a day
+yt-dlp: managed copy, build 3f9a0c71be42, version Unknown
+
+== Account ==
+YouTube Music: signed in yes, token yes, size long (256 to 2047), cookies HSID, SAPISID, SID, __Secure-3PAPISID, last stage signin_store ok at 07:30:00.000
+SoundCloud: signed in no, token no, size none stored, cookies -, last stage signin_check rejected at 08:28:57.000
+
+== System ==
+audio: Speakers (USB DAC), 48000 Hz, 24 bit, 2 ch, Shared
+config volume_percent = 80
+config theme = moss
+config in_process_resolver = true
+config music_folders = (set)
+config yt_dlp_path = (set)
+host music.youtube.com x21
+host api-v2.soundcloud.com x9
+host www.youtube.com x6
+host lrclib.net x4
+host sponsor.ajay.app x5
+host api-lyrics.simpmusic.org x3
+
+== Trace (newest first) ==
+08:29:57.877 soundcloud search api-v2.soundcloud.com 429 ms=212 rest=30
+08:29:50.877 ytm search music.youtube.com ok ms=187
+08:29:48.877 resolver stream_url - ok ms=3480 tier=yt_dlp
+08:29:45.877 ytdlp run_fast - ok ms=3390
+08:29:44.877 resolver stream_url - refused ms=104 tier=native
+08:29:44.877 ytm player www.youtube.com 200 ms=98
+08:29:44.877 resolver cache - miss ms=0
+08:29:28.877 lyrics:lrclib lyrics lrclib.net 404 ms=241
+08:29:26.877 lyrics:simpmusic lyrics api-lyrics.simpmusic.org 200 ms=322
+08:29:11.877 ytm home_feed music.youtube.com ok ms=640
+08:28:57.877 soundcloud me api-v2.soundcloud.com 401 ms=156
+08:28:56.877 soundcloud signin_check - rejected ms=0
+08:28:49.877 sponsorblock segments sponsor.ajay.app 404 ms=133
+
+== Log (newest first) ==
+08:29:57.544 WARN nemo_soundcloud::client SoundCloud asked to slow down status=429
+08:29:44.544 INFO nemo_ytm::resolver native resolver rests after repeated refusals
+08:29:11.544 DEBUG nemo_ytm::timing start stage stage="resolve native" ok=false
+08:28:56.544 ERROR nemo_soundcloud::account sign-in was not accepted
+07:29:59.544 INFO nemo_app starting version=0.3.0

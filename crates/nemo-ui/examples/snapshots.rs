@@ -139,6 +139,10 @@ fn main() {
         song_colour::frame_cost();
         return;
     }
+    if let Err(e) = dev_tools::write_report(&only, &out_dir) {
+        eprintln!("{e}");
+        std::process::exit(1);
+    }
     if let Err(e) = np_classic::render(&only, &out_dir) {
         eprintln!("{e}");
         std::process::exit(1);

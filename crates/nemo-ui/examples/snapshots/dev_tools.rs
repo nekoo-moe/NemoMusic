@@ -3,7 +3,7 @@
 //! over Settings, About, where the ten clicks happen.
 
 use nemo_ui::gui::app::SettingsSection;
-use nemo_ui::gui::app::dev::DevTab;
+use nemo_ui::gui::app::dev::{DevTab, UiFacts};
 use nemo_ui::gui::headless::Scenario;
 use nemo_ui::route::Route;
 use nemo_ui::scheme::BaseMode;
@@ -55,4 +55,21 @@ pub(super) fn shots(out: &mut Vec<Shot>) {
             }
         }
     }
+}
+
+/// Write the report that `Copy report` would copy for the invented session, next to the images.
+pub(super) fn write_report(only: &[String], out_dir: &std::path::Path) -> std::io::Result<()> {
+    if !only.is_empty() && !only.iter().any(|n| n == "dev-report-sample") {
+        return Ok(());
+    }
+    let facts = UiFacts {
+        frames: Some("avg 16.7 ms, worst 17.1 ms, 60 frames".to_owned()),
+        window: "960 x 600 px, scale 200%".to_owned(),
+        reduce_motion: false,
+    };
+    let text = nemo_ui::gui::app::dev::report::text(&nemo_ui::mock::sample_snapshot(), &facts);
+    let path = out_dir.join("dev-report-sample.txt");
+    std::fs::write(&path, text)?;
+    println!("wrote {}", path.display());
+    Ok(())
 }
