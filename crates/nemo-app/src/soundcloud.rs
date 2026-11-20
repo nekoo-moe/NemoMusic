@@ -10,10 +10,11 @@ use nemo_core::catalog::Catalog;
 use nemo_core::secret_store::SecretStore;
 use nemo_core::services::StreamOpener;
 use nemo_core::source_account::{SourceAccount, SourceAccountError};
+use nemo_core::source_writes::SourceWrites;
 use nemo_core::url_resolver::UrlResolver;
 use nemo_soundcloud::{
     AccountFiles, OPT_IN, ReqwestHttp, ScAccount, ScClient, ScHttp, ScStreamOpener, SessionCaches,
-    SignInWindow, SoundcloudCatalog, streams,
+    SignInWindow, SoundcloudCatalog, SoundcloudWrites, streams,
 };
 use nemo_ytm::url_resolver::YtDlpUrlResolver;
 use nemo_ytm::ytdlp::YtDlpResolver;
@@ -158,6 +159,12 @@ pub fn build_account(
     );
     account.register_wipe(Arc::new(parts.caches.clone()));
     Some(Arc::new(account))
+}
+
+/// The account's writes (likes, unfollow, playlists) over the one SoundCloud client. They need
+/// a signed-in account; without one every write says so and sends nothing.
+pub fn writes_for(parts: &SoundcloudParts) -> Arc<dyn SourceWrites> {
+    Arc::new(SoundcloudWrites::new(Arc::clone(&parts.client)))
 }
 
 /// The folders and files a SoundCloud sign-in owns.

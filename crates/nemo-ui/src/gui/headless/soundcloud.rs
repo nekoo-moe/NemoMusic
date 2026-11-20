@@ -108,6 +108,88 @@ pub(super) fn enter(app: &mut App, scene: ScScene) {
     }
 }
 
+/// Which state of the SoundCloud writes a snapshot shows (soundcloud-account, task 7). The scene
+/// holds a small library: one playlist of the user's own, one liked, one followed user.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScWriteScene {
+    /// The library only: the page of the scenario's route shows its write buttons.
+    Library,
+    /// The track menu of a SoundCloud track.
+    Menu,
+    /// The track menu listing the playlists to add the track to.
+    PickMenu,
+    /// The sheet that names a new playlist.
+    NewSheet,
+    /// The sheet that renames the user's playlist.
+    RenameSheet,
+}
+
+/// The page id of the user's own playlist in the write scenes. It is an id the mock catalog
+/// knows, so the page loads; the real ids are `sc:playlist:<number>`.
+pub const OWN_PLAYLIST: &str = "mock-playlist-0";
+/// The page id of the followed user in the write scenes (a mock catalog id, too).
+pub const FOLLOWED_USER: &str = "mock-artist-0";
+
+/// A SoundCloud track of the mock catalog.
+fn sc_track() -> nemo_core::track::Track {
+    let mut track = crate::mock::track(0);
+    track.id = nemo_core::track::TrackId("sc:5000002".to_owned());
+    track.origin = nemo_core::audio::Origin::SoundCloud;
+    track.video_id = None;
+    track
+}
+
+/// Bring a started app into `scene`.
+pub(super) fn enter_write(app: &mut App, scene: ScWriteScene) {
+    use nemo_core::catalog::{ArtistSummary, BrowseId, PlaylistSummary};
+    let list = |id: &str, title: &str| PlaylistSummary {
+        id: BrowseId(id.to_owned()),
+        title: title.to_owned(),
+        author: None,
+        thumbnails: Vec::new(),
+    };
+    app.sc_lib.data = std::sync::Arc::new(crate::gui::app::ScLibData {
+        playlists: vec![
+            list(OWN_PLAYLIST, "Night drive"),
+            list("mock-playlist-1", "Slow mornings"),
+            list("mock-playlist-2", "Someone else's mix"),
+        ],
+        own_playlists: 2,
+        artists: vec![ArtistSummary {
+            id: BrowseId(FOLLOWED_USER.to_owned()),
+            name: "Velvet Harbor".to_owned(),
+            thumbnails: Vec::new(),
+        }],
+        ..crate::gui::app::ScLibData::default()
+    });
+    app.sc_lib.phase = crate::gui::app::ScPhase::Done;
+    app.sc_lib.owner = true;
+    let open = |app: &mut App| {
+        run(app, Message::Ui(crate::state::Event::OpenMenu(sc_track())));
+    };
+    match scene {
+        ScWriteScene::Library => {}
+        ScWriteScene::Menu => open(app),
+        ScWriteScene::PickMenu => {
+            open(app);
+            run(
+                app,
+                Message::ScWrite(crate::gui::app::ScWriteMsg::PickPlaylist(true)),
+            );
+        }
+        ScWriteScene::NewSheet => run(
+            app,
+            Message::ScWrite(crate::gui::app::ScWriteMsg::NewPlaylist(None)),
+        ),
+        ScWriteScene::RenameSheet => run(
+            app,
+            Message::ScWrite(crate::gui::app::ScWriteMsg::Rename(BrowseId(
+                OWN_PLAYLIST.to_owned(),
+            ))),
+        ),
+    }
+}
+
 /// Which state of the SoundCloud Library a snapshot shows (soundcloud-account, PR 4). The backend
 /// of the snapshot decides whether SoundCloud runs and whether the account is signed in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

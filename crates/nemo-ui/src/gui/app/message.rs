@@ -63,6 +63,8 @@ pub enum Message {
         /// The answer.
         result: Result<Arc<SearchResults>, String>,
     },
+    /// A SoundCloud account change (a like, a playlist change, an unfollow) or its answer.
+    ScWrite(super::sc_write::ScWriteMsg),
     /// The SoundCloud group of `All` in Search answered.
     ScGroup {
         /// The text that was searched.
@@ -375,6 +377,8 @@ pub enum Job {
         /// The chip.
         kind: nemo_core::catalog::SearchKind,
     },
+    /// Send one change of the SoundCloud account.
+    ScWrite(super::sc_write::ScWriteJob),
     /// Search SoundCloud for the group under the YouTube Music results (`All` in Search).
     ScGroup {
         /// The text.

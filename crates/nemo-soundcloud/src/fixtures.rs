@@ -9,6 +9,7 @@ pub const TRACK_HLS: &str = include_str!("../tests/fixtures/track_hls.json");
 pub const SEARCH_TRACKS: &str = include_str!("../tests/fixtures/search_tracks.json");
 pub const SEARCH_MIXED: &str = include_str!("../tests/fixtures/search_mixed.json");
 pub const SEARCH_USERS: &str = include_str!("../tests/fixtures/search_users.json");
+pub const PLAYLIST_CREATED: &str = include_str!("../tests/fixtures/playlist_created.json");
 pub const PLAYLIST_WITH_STUBS: &str = include_str!("../tests/fixtures/playlist_with_stubs.json");
 pub const TRACKS_BATCH: &str = include_str!("../tests/fixtures/tracks_batch.json");
 pub const USER: &str = include_str!("../tests/fixtures/user.json");

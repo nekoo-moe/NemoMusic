@@ -28,6 +28,7 @@ pub mod secret_store;
 pub mod segment;
 pub mod services;
 pub mod source_account;
+pub mod source_writes;
 pub mod spotify;
 pub mod stats;
 pub mod stream;

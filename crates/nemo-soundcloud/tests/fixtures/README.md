@@ -14,3 +14,11 @@ table (`users/:id/track_likes`, `me/library/all`, `users/:id/followings`, `me/pl
 user object, and `next_href`). The item `type` words (`playlist`, `playlist-like`, `track-repost`) and the
 `played_at` field are the part not checked against a real answer. The 13-digit `played_at` values start
 with 7000 so the fixture lint accepts them as invented.
+
+## Account writes (soundcloud-account, task 7)
+
+`playlist_created.json` was NOT recorded: no signed-in session was available. It is written by hand in
+the shape of the public playlist answer (`playlist_with_stubs.json`), which the web app's model `save`
+also reads back (`i.set(e)` on the answer). That `POST playlists` answers with the playlist object, and
+that it answers 200 or 201, is an assumption; the tests accept any 2xx. The request bodies the tests check
+come from the web app's own script (endpoint table and model `save`), not from a recorded exchange.

@@ -287,6 +287,7 @@ pub fn build(
             account,
             integrations: Arc::new(NoIntegrations),
             notifier: Arc::new(NoNotifier),
+            soundcloud_writes: sc.as_ref().map(soundcloud::writes_for),
             soundcloud: sc.map(|parts| parts.catalog),
             soundcloud_account: sc_account,
             stats: Arc::new(NoStats),

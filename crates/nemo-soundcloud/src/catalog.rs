@@ -71,7 +71,7 @@ pub(crate) fn to_catalog(e: ClientError) -> CatalogError {
         ClientError::Network => CatalogError::Network("could not reach SoundCloud".to_owned()),
         ClientError::Timeout => CatalogError::Network("the request timed out".to_owned()),
         ClientError::Parse => CatalogError::Parse("unexpected answer from SoundCloud".to_owned()),
-        ClientError::SessionEnded => {
+        ClientError::SessionEnded | ClientError::NotSignedIn => {
             CatalogError::Unavailable("Sign in to SoundCloud again".to_owned())
         }
         ClientError::Off => CatalogError::Unavailable("SoundCloud is switched off".to_owned()),
@@ -428,6 +428,22 @@ impl Catalog for SoundcloudCatalog {
                 .into_iter()
                 .chain(lib.liked_playlists)
                 .collect())
+        })
+    }
+
+    fn library_playlists_owned(
+        &self,
+    ) -> BoxFuture<'_, Result<(Vec<PlaylistSummary>, usize), CatalogError>> {
+        Box::pin(async {
+            let lib = self.all_library().await?;
+            let own = lib.playlists.len();
+            Ok((
+                lib.playlists
+                    .into_iter()
+                    .chain(lib.liked_playlists)
+                    .collect(),
+                own,
+            ))
         })
     }
 

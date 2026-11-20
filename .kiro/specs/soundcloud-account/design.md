@@ -52,3 +52,7 @@ Fake `SecretStore` (`MemoryStore`), fake `TokenSource`, fake `ScHttp` with recor
 - A 401 caused by a stale client id and a dead token look the same; the fresh-id repeat tells them apart at the cost of one 3 MB script read when the token is really dead.
 - Polling the cookie jar every second while the window is open costs little and runs only in the window process.
 - Alternatives rejected: reading the cookie from the user's browser profile (reads other sites' data); asking for the password (the app must never see it).
+
+## Account writes (task 7)
+
+`ScClient::write` is the one function every account write goes through. It needs a signed-in session (else `NotSignedIn`, nothing sent), holds the same gate as every read (one request at a time, the least gap, the 429 backoff, the opt-in switch) and waits `WRITE_GAP` (1 s) after the last write started. It sends once: a 5xx or a lost connection is `Network` and is never repeated, because the change may have happened; a 401 or 403 drops the client id and is `Refused` (reads end the session, writes do not). Any 2xx is a confirmed write. `SoundcloudWrites` (the `SourceWrites` of `nemo-core`) parses the ids (digits only, so no id can change a path), reads a playlist's current track ids before an add or remove (stubs included, so no track is dropped) and sends `{"playlist":{"tracks":[...]}}`; a track already (not) in the playlist is `Unchanged` and sends nothing. The UI keeps one change in flight, changes nothing on screen before the answer, and says in one sentence what failed.

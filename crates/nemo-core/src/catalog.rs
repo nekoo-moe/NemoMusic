@@ -338,6 +338,17 @@ pub trait Catalog: Send + Sync {
         Box::pin(async { Err(CatalogError::Unavailable("library playlists".to_owned())) })
     }
 
+    /// [`Catalog::library_playlists`] and how many of them the user made themselves (those come
+    /// first), so a screen knows which ones it may change. The default counts none.
+    fn library_playlists_owned(
+        &self,
+    ) -> BoxFuture<'_, Result<(Vec<PlaylistSummary>, usize), CatalogError>> {
+        Box::pin(async {
+            let all = self.library_playlists().await?;
+            Ok((all, 0))
+        })
+    }
+
     /// The songs the account liked, most recent first. Needs a signed-in session.
     fn liked_songs(&self) -> BoxFuture<'_, Result<Vec<Track>, CatalogError>> {
         Box::pin(async { Err(CatalogError::Unavailable("liked songs".to_owned())) })
