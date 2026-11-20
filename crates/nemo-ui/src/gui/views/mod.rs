@@ -28,7 +28,7 @@ pub mod shell;
 pub mod splash;
 
 use iced::widget::{container, stack};
-use iced::{Alignment, Border, Color, Element, Length, Padding};
+use iced::{Alignment, Element, Length, Padding};
 
 use super::app::{App, Message};
 use super::fx::Fx;
@@ -50,29 +50,9 @@ pub fn root(app: &App) -> Element<'_, Message> {
     } else if np_p >= 0.999 {
         now_playing::view(app, w, h)
     } else {
-        let shell_scale = 1.0 - 0.04 * np_p;
-        let shell_el = Fx::new(shell::view(app, w, h))
-            .passive()
-            .scale(shell_scale);
-
-        let np_scale = 0.94 + 0.06 * np_p;
-        let np_radius = 24.0 * (1.0 - np_p);
-
-        let np_content = container(now_playing::view(app, w, h))
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .clip(true)
-            .style(move |_| container::Style {
-                border: Border {
-                    radius: shape::scaled(np_radius).into(),
-                    ..Border::default()
-                },
-                ..container::Style::default()
-            });
-
-        let mut np_fx = Fx::new(np_content)
-            .scale(np_scale)
-            .entrance(np_p, 32.0, Color::TRANSPARENT);
+        let shell_el = shell::view(app, w, h);
+        let mut np_fx = Fx::new(now_playing::view(app, w, h))
+            .entrance(np_p, 20.0, col(color::surface()));
 
         if !is_np {
             np_fx = np_fx.passive();
