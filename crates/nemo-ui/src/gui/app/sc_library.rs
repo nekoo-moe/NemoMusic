@@ -1,7 +1,7 @@
 //! The SoundCloud library as the app holds it (soundcloud-account criteria 11 and 12): read when
 //! the person opens it signed in, again on Refresh, cleared the moment the account changes.
 //! Nothing is read in the background: a read starts only while SoundCloud is on, someone is
-//! signed in and SoundCloud is the listening area.
+//! signed in and SoundCloud is the listening area, plus one read right after a sign-in.
 
 use std::sync::Arc;
 
@@ -50,7 +50,15 @@ impl App {
                 ..ScLibrary::default()
             };
         }
-        if signed && self.source == Source::SoundCloud && self.sc_lib.phase == ScPhase::Idle {
+        if !signed {
+            self.sc.read_after_sign_in = false;
+        }
+        // One read when SoundCloud is the area, or once right after a sign-in.
+        if signed
+            && self.sc_lib.phase == ScPhase::Idle
+            && (self.source == Source::SoundCloud || self.sc.read_after_sign_in)
+        {
+            self.sc.read_after_sign_in = false;
             return self.sc_load();
         }
         Vec::new()
@@ -165,6 +173,20 @@ mod tests {
         let (mut out, _) = app_with(SourceAccountState::SignedOut);
         let jobs = out.update_core(Message::Sc(ScMsg::Source(Source::SoundCloud)));
         assert_eq!(reads(&jobs), 0, "signed out");
+    }
+
+    #[test]
+    fn a_sign_in_reads_the_library_once_even_while_youtube_music_is_the_area() {
+        let (mut app, _) = app_with(signed_in());
+        assert_eq!(app.source, Source::YouTube);
+        let jobs = app.update_core(Message::Sc(ScMsg::SignedIn(Ok(MockScAccount::info()))));
+        assert_eq!(reads(&jobs), 1, "the one read after a sign-in");
+        assert_eq!(app.source, Source::YouTube, "the area stays");
+        assert_eq!(
+            reads(&app.update_core(Message::TimerTick)),
+            0,
+            "and only one"
+        );
     }
 
     #[test]

@@ -343,6 +343,9 @@ pub struct ScUi {
     pub confirm_off: bool,
     /// Result line of the last sign-out.
     pub notice: Option<String>,
+    /// A sign-in just finished: the library is read once even while YouTube Music is the
+    /// listening area (the one read an inactive area gets).
+    pub read_after_sign_in: bool,
 }
 
 impl Default for ScUi {
@@ -359,6 +362,7 @@ impl Default for ScUi {
             confirm_sign_out: false,
             confirm_off: false,
             notice: None,
+            read_after_sign_in: false,
         }
     }
 }

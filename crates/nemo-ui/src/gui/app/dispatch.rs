@@ -116,17 +116,19 @@ impl App {
             jobs.push(Job::Library);
         }
         // Only the active area loads in the background (source-workspaces): YouTube Music's
-        // account data, Home and Explore wait while SoundCloud is the area, and start when the
-        // person switches back.
-        let youtube = self.ui.youtube_enabled() && self.source == Source::YouTube;
-        if youtube {
+        // start-up load, Home and Explore wait while SoundCloud is the area, and start when the
+        // person switches back. The reload after a sign-in or sign-out is the one read an
+        // inactive area still gets.
+        if self.ui.youtube_enabled() {
             if self.refresh.ready() {
                 jobs.extend(self.watch_account());
-            } else {
+            } else if self.source == Source::YouTube {
                 // The start-up load. Later account changes reload through `self.refresh`.
                 self.refresh.begin(Owner::of(&self.backend.account.state()));
                 jobs.push(Job::AccountData);
             }
+        }
+        if self.ui.youtube_enabled() && self.source == Source::YouTube {
             jobs.extend(self.pump_explore());
             if self.home.phase == HomePhase::Idle {
                 self.home.phase = HomePhase::Loading;

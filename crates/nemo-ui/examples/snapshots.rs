@@ -40,6 +40,8 @@ mod skeleton;
 mod song_colour;
 #[path = "snapshots/soundcloud_account.rs"]
 mod soundcloud_account;
+#[path = "snapshots/source_workspaces.rs"]
+mod source_workspaces;
 #[path = "snapshots/startup.rs"]
 mod startup;
 #[path = "snapshots/state.rs"]
@@ -106,6 +108,7 @@ fn scenarios() -> Vec<Shot> {
     soundcloud_account::search_shots(&mut out);
     soundcloud_account::sidebar_shots(&mut out);
     soundcloud_account::write_shots(&mut out);
+    source_workspaces::shots(&mut out);
     skeleton::shots(&mut out);
     out.extend(wave_lyrics::shots());
     out.extend(syllable_motion::shots());

@@ -16,7 +16,7 @@ The control is one shared view (`views/listening_area.rs`), drawn in the account
 - Fall back (`watch_source`, after every update): SoundCloud is the area but is not signed in (nor being checked) -> `apply_source(YouTube)`.
 - Search: `Job::Search` and `Job::SearchKind` answer as `source: YouTube`, the SoundCloud jobs as `SoundCloud`. An answer for the area that is not on screen is applied to `App::rest.search` (a pure `SearchState`), never to the visible one.
 - Pages: `Event::Go` of Home, Explore or a mood page in the SoundCloud area is replaced by the landing page (`Source::allows`). Detail pages open in either area.
-- Background loads: `pump_loads` starts YouTube Music's account data, Home feed and Explore only while YouTube Music is the area. `refresh_msg` reloads only the active area.
+- Background loads: `pump_loads` starts YouTube Music's start-up account load, Home feed and Explore only while YouTube Music is the area; the reload after a YouTube Music sign-in or sign-out still runs in either area. SoundCloud's library is read when it is the area, and once right after a SoundCloud sign-in (`ScUi::read_after_sign_in`). `refresh_msg` reloads only the active area.
 - The `Create playlist` button of the sidebar opens the SoundCloud name sheet in the SoundCloud area.
 
 Sidebar highlight: `App::nav_selected` returns the entry `Nav::active_entry` gives if the area offers it, and `None` for a detail page of the other service. A page opened from Now Playing therefore lights nothing, and the pill fades out.
