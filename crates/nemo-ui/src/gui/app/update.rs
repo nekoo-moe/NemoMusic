@@ -348,6 +348,10 @@ impl App {
         if matches!(message, Message::Restart) {
             return self.restart();
         }
+        let focus_step = match &message {
+            Message::AreaKey { forward, .. } => Some(*forward),
+            _ => None,
+        };
         let before = (self.mini, self.fullscreen);
         let copy = match &message {
             Message::CopyLink(t) => t.video_id.as_ref().map(|v| link_of(v.as_str())),
@@ -355,6 +359,14 @@ impl App {
         };
         let jobs = self.update_core(message);
         let mut tasks = vec![self.jobs_to_task(jobs)];
+        // The arrow keys move the pick; the ring follows it to the next or the earlier choice.
+        if let Some(forward) = focus_step {
+            tasks.push(if forward {
+                iced::widget::operation::focus_next()
+            } else {
+                iced::widget::operation::focus_previous()
+            });
+        }
         if let Some(url) = copy {
             tasks.push(iced::clipboard::write(url));
             tasks.push(Task::done(Message::Ui(Event::Notice(

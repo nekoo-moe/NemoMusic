@@ -31,7 +31,7 @@ Being built (feature wave, approved specs in `.kiro/specs/`):
 - Ten-band equalizer, AutoEq profiles, delay, reverb and crossfade, all off by default (DSP code merged, UI next)
 - ReplayGain and loudness scan for local files, off by default (merged, UI next)
 - Offline cache: save songs, albums and playlists, plus capped smart downloads
-- SoundCloud as a second source: search, fast playback, then your account (likes, playlists, following, history), opt-in
+- SoundCloud as a second listening area next to YouTube Music: search, fast playback, then your account (likes, playlists, following, history), opt-in. You choose the area in Your accounts or in Settings; the sidebar, Library and Search show one service at a time, and the song that plays keeps playing when you switch
 - Search all of YouTube, channels, live stations, comments and dislikes
 - Several accounts, preferred audio language, Premium quality (opt-in)
 - Own synced lyrics editor, romanization, lyrics translation (opt-in AI)

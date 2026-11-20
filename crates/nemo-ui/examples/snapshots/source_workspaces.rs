@@ -205,3 +205,22 @@ pub fn account_shots(out: &mut Vec<Shot>) {
         SourceAccountState::Expired,
     ));
 }
+
+/// Key frames of the sidebar list after a switch to SoundCloud (`ENTRANCE_MS` is 240): the new
+/// rows fade in over the pane, the caption and the entries are already there.
+pub fn motion_shots(out: &mut Vec<Shot>) {
+    for ms in [0_u32, 60, 120, 240] {
+        out.push(running(
+            format!("area-switch-{ms}ms-dark-1366x697"),
+            Scenario {
+                soundcloud: Some(ScScene::Account),
+                sc_library: Some(ScLibraryScene::Tab(ScTab::Likes)),
+                area: Some(Source::SoundCloud),
+                area_ms: Some(ms),
+                full_motion: true,
+                ..base_scenario(BaseMode::Dark, LARGE, Route::Home)
+            },
+            signed_in(),
+        ));
+    }
+}

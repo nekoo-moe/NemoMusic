@@ -326,6 +326,9 @@ pub struct Scenario {
     pub sc_write: Option<soundcloud::ScWriteScene>,
     /// Start in this listening area (source-workspaces): chosen before anything else is typed.
     pub area: Option<crate::gui::app::Source>,
+    /// With `area` and `full_motion`: draw this many ms after the switch (a key frame of the
+    /// sidebar list fade).
+    pub area_ms: Option<u32>,
 }
 
 /// Which state of the sign-in sheet a snapshot shows.
@@ -403,6 +406,7 @@ impl Default for Scenario {
             sc_library: None,
             sc_write: None,
             area: None,
+            area_ms: None,
             restart_ms: None,
         }
     }
@@ -622,6 +626,18 @@ pub fn build_app(backend: &Backend, scenario: &Scenario) -> App {
         // Past the 150 ms wait, this far into the shimmer sweep.
         app.skeletons.skip_waits();
         app.skeletons.seek(phase);
+    }
+    if let Some(ms) = scenario.area_ms {
+        // A key frame of the sidebar list fade: start it again (the switch settled with
+        // everything else above) and step the clock in frames of at most 16 ms.
+        app.anim.restart_page();
+        app.anim.restart_list();
+        let mut left = f32::from(u16::try_from(ms).unwrap_or(0));
+        while left > 0.0 {
+            let dt = left.min(16.0);
+            app.anim.step(dt);
+            left -= dt;
+        }
     }
     if let Some((next, ms)) = scenario.bloom {
         run(

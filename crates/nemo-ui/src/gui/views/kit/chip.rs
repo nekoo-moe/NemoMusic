@@ -84,6 +84,20 @@ pub fn sliding_chips<'a>(
     slot: usize,
     pick: fn(usize) -> Message,
 ) -> Element<'a, Message> {
+    sliding_chips_with(app, labels, selected, slot, pick, None)
+}
+
+/// [`sliding_chips`] as a radio group: with `arrows` set, Left and Right on a focused chip send
+/// `arrows(i, right)` for chip `i` (`None` at either end), and are not passed on to the
+/// shortcuts, so they never seek the song.
+pub fn sliding_chips_with<'a>(
+    app: &App,
+    labels: &[&'a str],
+    selected: usize,
+    slot: usize,
+    pick: fn(usize) -> Message,
+    arrows: Option<fn(usize, bool) -> Option<Message>>,
+) -> Element<'a, Message> {
     let accent = app.accent();
     let (x, w) = {
         let (sx, sw) = &app.chip_pills[slot];
@@ -118,11 +132,13 @@ pub fn sliding_chips<'a>(
         )
         .padding(0)
         .on_press(pick(i));
-        chips = chips.push(
-            fx(b.style(button_outlined(Color::TRANSPARENT, outline, shape::FULL)))
-                .layer(ink)
-                .radius(shape::FULL),
-        );
+        let mut chip = fx(b.style(button_outlined(Color::TRANSPARENT, outline, shape::FULL)))
+            .layer(ink)
+            .radius(shape::FULL);
+        if let Some(step) = arrows {
+            chip = chip.arrows(move |right| step(i, right));
+        }
+        chips = chips.push(chip);
     }
     // A stack takes the size of its first layer, so give it the width of the whole row.
     let total: f32 = labels.iter().map(|t| chip_width(t)).sum::<f32>()

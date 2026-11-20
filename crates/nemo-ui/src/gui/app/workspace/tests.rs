@@ -235,3 +235,59 @@ fn home_and_explore_are_not_in_the_soundcloud_area() {
         assert_eq!(app.ui.route(), &Route::Library, "sent to the landing page");
     }
 }
+
+#[test]
+fn the_arrow_keys_of_the_control_switch_like_a_press() {
+    let mut app = app();
+    let _ = app.update_core(Message::AreaKey {
+        to: Source::SoundCloud,
+        forward: true,
+    });
+    assert_eq!(app.source, Source::SoundCloud);
+    assert_eq!(app.ui.route(), &Route::Library);
+    let _ = app.update_core(Message::AreaKey {
+        to: Source::YouTube,
+        forward: false,
+    });
+    assert_eq!(app.source, Source::YouTube);
+    assert_eq!(app.ui.route(), &Route::Home);
+}
+
+#[test]
+fn the_sidebar_list_fades_in_after_a_switch_and_not_with_reduced_motion() {
+    let mut app = build_app(
+        &mock_backend_soundcloud(signed_in()),
+        &Scenario {
+            soundcloud: Some(ScScene::Account),
+            full_motion: true,
+            ..Scenario::default()
+        },
+    );
+    assert!(
+        (app.anim.list() - 1.0).abs() < 1e-6,
+        "nothing moves at start"
+    );
+    let _ = pick(&mut app, Source::SoundCloud);
+    assert!(
+        app.anim.list() < 0.01 && app.anim.active(),
+        "the swap fades in"
+    );
+    let reduced = build_app(
+        &mock_backend_soundcloud(signed_in()),
+        &Scenario {
+            soundcloud: Some(ScScene::Account),
+            settings: UiSettings {
+                reduce_motion: true,
+                ..UiSettings::default()
+            },
+            ..Scenario::default()
+        },
+    );
+    let mut reduced = reduced;
+    let _ = pick(&mut reduced, Source::SoundCloud);
+    assert!(
+        (reduced.anim.list() - 1.0).abs() < 1e-6,
+        "instant under Reduce motion"
+    );
+    assert!(!reduced.anim.active(), "and no frame is asked for");
+}

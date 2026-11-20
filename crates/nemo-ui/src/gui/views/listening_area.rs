@@ -9,7 +9,7 @@
 use iced::Element;
 use iced::widget::column;
 
-use super::kit::{paragraph, sliding_chips};
+use super::kit::{paragraph, sliding_chips_with};
 use crate::copy::soundcloud as text;
 use crate::gui::app::{App, Message, ScMsg};
 use crate::gui::style::{col, gap, label};
@@ -24,6 +24,20 @@ fn pick(i: usize) -> Message {
     Message::Sc(ScMsg::Source(
         Source::ALL.get(i).copied().unwrap_or_default(),
     ))
+}
+
+/// What Left and Right send from the focused choice `i`: the neighbour, with its direction so the
+/// focus can follow. `None` at either end.
+fn step(i: usize, right: bool) -> Option<Message> {
+    let to = if right {
+        i.checked_add(1)?
+    } else {
+        i.checked_sub(1)?
+    };
+    Some(Message::AreaKey {
+        to: *Source::ALL.get(to)?,
+        forward: right,
+    })
 }
 
 /// The sentence that stands in for the control, when SoundCloud is not offered.
@@ -62,7 +76,14 @@ fn choices(app: &App, width: f32) -> Element<'_, Message> {
     let labels = Source::ALL.map(Source::label);
     column![
         title,
-        sliding_chips(app, &labels, app.source.index(), PILL_SLOT, pick),
+        sliding_chips_with(
+            app,
+            &labels,
+            app.source.index(),
+            PILL_SLOT,
+            pick,
+            Some(step)
+        ),
         paragraph(text::AREA_HELP, type_scale::BODY_SM, dim, width),
     ]
     .spacing(gap::SM)
@@ -72,6 +93,25 @@ fn choices(app: &App, width: f32) -> Element<'_, Message> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn left_and_right_pick_the_neighbour_and_stop_at_the_ends() {
+        assert!(matches!(
+            step(0, true),
+            Some(Message::AreaKey {
+                to: Source::SoundCloud,
+                forward: true
+            })
+        ));
+        assert!(matches!(
+            step(1, false),
+            Some(Message::AreaKey {
+                to: Source::YouTube,
+                forward: false
+            })
+        ));
+        assert!(step(0, false).is_none() && step(1, true).is_none());
+    }
 
     #[test]
     fn a_choice_sends_its_area_and_a_stray_index_falls_back_to_youtube_music() {
