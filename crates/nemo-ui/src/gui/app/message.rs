@@ -166,6 +166,8 @@ pub enum Message {
     Account(AccountMsg),
     /// The SoundCloud page and the SoundCloud card of the setup flow.
     Sc(ScMsg),
+    /// The Discord presence row of Settings, Privacy.
+    Discord(super::DiscordMsg),
     /// Load a detail page again after an error.
     RetryDetail(DetailKey),
     /// Like or un-like a song (opens the sign-in sheet when nobody is signed in).
