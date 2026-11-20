@@ -98,18 +98,13 @@ impl App {
             }
     }
 
-    /// The sidebar list waits for what its source shows: YouTube Music's account library (local
-    /// albums would be rows), SoundCloud's library, or either when the source is both.
+    /// The sidebar list waits for what its area shows: YouTube Music's account library (local
+    /// albums would be rows) or SoundCloud's library.
     pub(crate) fn sidebar_loading(&self) -> bool {
-        let soundcloud = self.sc_open() && self.source.has_soundcloud();
-        let youtube = !soundcloud || self.source != super::model::Source::SoundCloud;
-        let sc_waiting = soundcloud
-            && self.sc_is_signed_in()
-            && matches!(
-                self.sc_lib.phase,
-                super::model::ScPhase::Idle | super::model::ScPhase::Loading
-            );
-        (youtube && self.library_loading() && self.local_albums.is_empty()) || sc_waiting
+        if self.source == super::model::Source::SoundCloud {
+            return self.sc_library_pending();
+        }
+        self.library_loading() && self.local_albums.is_empty()
     }
 
     /// The sidebar list waits for the account library and has no rows (local albums would be

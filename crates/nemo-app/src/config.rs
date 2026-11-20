@@ -111,6 +111,9 @@ pub struct Settings {
     /// The order picked on album and playlist pages: page key (`album:<id>`, `playlist:<id>`)
     /// to the order's label; a page in its default order has no entry (collection-sort-meta).
     pub collection_sorts: BTreeMap<String, String>,
+    /// The listening area as its label (`YouTube Music` or `SoundCloud`); empty or unknown means
+    /// YouTube Music (source-workspaces).
+    pub listening_area: String,
 }
 
 /// Stored animated-cover switches. A missing field is off.
@@ -163,6 +166,7 @@ impl Default for Settings {
             effects: StoredEffects::default(),
             transition: StoredTransition::default(),
             collection_sorts: BTreeMap::new(),
+            listening_area: String::new(),
         }
     }
 }

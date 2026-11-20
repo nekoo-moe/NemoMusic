@@ -49,6 +49,7 @@ pub mod splash;
 pub mod state;
 pub mod theme;
 pub mod window_glass;
+pub mod workspace;
 
 pub use settings::{AnimatedCoverSettings, GlassTier, NowPlayingStyle, UiSettings};
 pub use window_glass::WindowLook;

@@ -1,7 +1,7 @@
 //! The SoundCloud library as the app holds it (soundcloud-account criteria 11 and 12): read when
 //! the person opens it signed in, again on Refresh, cleared the moment the account changes.
 //! Nothing is read in the background: a read starts only while SoundCloud is on, someone is
-//! signed in and the Library is set to show SoundCloud.
+//! signed in and SoundCloud is the listening area.
 
 use std::sync::Arc;
 
@@ -27,7 +27,7 @@ impl App {
         matches!(self.sc_state(), Some(SourceAccountState::SignedIn(_)))
     }
 
-    /// The SoundCloud library is the one on screen: the Library shows it and it waits for data.
+    /// The SoundCloud library is the one on screen: SoundCloud is the area and it waits for data.
     #[must_use]
     pub(crate) fn sc_library_pending(&self) -> bool {
         self.sc_is_signed_in()
@@ -50,7 +50,7 @@ impl App {
                 ..ScLibrary::default()
             };
         }
-        if signed && self.source.has_soundcloud() && self.sc_lib.phase == ScPhase::Idle {
+        if signed && self.source == Source::SoundCloud && self.sc_lib.phase == ScPhase::Idle {
             return self.sc_load();
         }
         Vec::new()
@@ -74,23 +74,10 @@ impl App {
         self.sc_load()
     }
 
-    /// The messages of the Library's source switch and SoundCloud tabs.
+    /// The messages of the listening-area switch and the SoundCloud tabs.
     pub(super) fn sc_library_msg(&mut self, msg: ScMsg) -> Vec<Job> {
         match msg {
-            ScMsg::Source(source) => {
-                if self.source == source {
-                    return Vec::new();
-                }
-                self.source = source;
-                let mut jobs = self.sc_watch();
-                if matches!(self.ui.route(), crate::route::Route::Search(_)) {
-                    // The answers on screen belong to the other service.
-                    self.ui.search.forget_answers();
-                    self.sc_groups.clear();
-                    jobs.extend(self.dispatch(crate::state::Event::SearchRetry));
-                }
-                return jobs;
-            }
+            ScMsg::Source(source) => return self.switch_source(source),
             ScMsg::Tab(tab) => self.sc_tab = tab,
             ScMsg::Reload => return self.sc_reload(),
             ScMsg::LibraryLoaded { generation, result } => {

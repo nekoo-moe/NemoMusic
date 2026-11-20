@@ -30,6 +30,10 @@ impl App {
     pub(super) fn create_msg(&mut self, msg: CreateMsg) -> Vec<Job> {
         match msg {
             CreateMsg::Open => {
+                // In the SoundCloud area the sheet creates a SoundCloud playlist.
+                if self.source == super::model::Source::SoundCloud {
+                    return self.sc_write_msg(super::sc_write::ScWriteMsg::NewPlaylist(None));
+                }
                 if !self.signed_in() {
                     return self.account_msg(AccountMsg::Open);
                 }

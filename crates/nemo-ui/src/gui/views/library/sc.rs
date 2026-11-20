@@ -38,7 +38,7 @@ pub(super) fn view(app: &App, w: u32) -> Element<'_, Message> {
     #[allow(clippy::cast_precision_loss)]
     let content_w = grid.content as f32;
     let c = column![
-        header(app),
+        header(),
         vspace(gap::MD),
         tabs(app),
         vspace(gap::LG),
@@ -53,12 +53,8 @@ pub(super) fn view(app: &App, w: u32) -> Element<'_, Message> {
     page(grid.content, c)
 }
 
-fn header(app: &App) -> Element<'_, Message> {
-    let mut r = row![page_title("Library"), Space::new().width(gap::LG)].align_y(Alignment::Center);
-    if let Some(switch) = super::source_switch(app) {
-        r = r.push(switch);
-    }
-    r.into()
+fn header<'a>() -> Element<'a, Message> {
+    row![page_title("Library")].align_y(Alignment::Center).into()
 }
 
 fn tabs(app: &App) -> Element<'_, Message> {

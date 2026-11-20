@@ -123,6 +123,22 @@ pub const NEW_PLAYLIST_HINT: &str = "It is private. You can change that on sound
 /// The unfollow went through.
 pub const UNFOLLOWED: &str = "You no longer follow this user.";
 
+/// Title of the control that picks the listening area (source-workspaces spec).
+pub const AREA_TITLE: &str = "Listening area";
+/// Under the control while both areas are offered.
+pub const AREA_HELP: &str = "The sidebar, Library, Search and the pages you open follow this choice. What is playing is not touched.";
+/// Under the title while SoundCloud is off: there is nothing to choose between.
+pub const AREA_NEEDS_ON: &str = "Only YouTube Music for now. Turn on SoundCloud in Settings and sign in to add it as a second listening area.";
+/// Under the title while SoundCloud is on and nobody is signed in.
+pub const AREA_NEEDS_SIGN_IN: &str =
+    "Only YouTube Music for now. Sign in to SoundCloud to add it as a second listening area.";
+/// The SoundCloud card of the account sheet while SoundCloud is off.
+pub const CARD_OFF: &str = "SoundCloud is off. Turn it on to search, play and see your own library from SoundCloud.";
+/// The button of that card.
+pub const CARD_TURN_ON: &str = "Turn on SoundCloud in Settings";
+/// The quiet line under the brand while SoundCloud is the listening area.
+pub const AREA_CAPTION: &str = "SoundCloud";
+
 /// A change went through: added to `playlist`.
 #[must_use]
 pub fn added_to(playlist: &str) -> String {

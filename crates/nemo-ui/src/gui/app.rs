@@ -65,6 +65,7 @@ mod subscribe;
 mod surfaces;
 mod sync;
 mod update;
+mod workspace;
 
 pub use art::{
     ArtEntry, ArtFit, ArtShape, ArtSpec, CanvasView, CoverView, MeshView, TILE_RADIUS, art_fit,
@@ -72,7 +73,7 @@ pub use art::{
 };
 pub use job::{art_key, run_job};
 pub use message::{AccountBundle, CoverBuilt, ExploreMsg, Job, Message, RefreshData};
-pub use micro::{ART_FADE_MS, Micro, NAV_ENTRIES};
+pub use micro::{ART_FADE_MS, Micro};
 pub use model::{
     AccountMsg, AccountUi, CompactTab, DetailData, DetailKey, DetailKind, DetailState, HomeFilter,
     HomePhase, HomeState, LibFilter, ListSource, NpTab, ScLibData, ScLibrary, ScMsg, ScPhase,
@@ -83,7 +84,6 @@ pub use option::{
     UiOptions, WindowHandler,
 };
 pub use sc_library::sc_track_page;
-pub use sc_search::{ScGroup, ScGroupPhase};
 pub use sc_write::{CreateTarget, ScWriteDone, ScWriteJob, ScWriteMsg, ScWriteUi};
 
 /// Widget id of the search box.
@@ -152,8 +152,8 @@ pub struct App {
     pub(crate) sc_write: ScWriteUi,
     /// What the name sheet does when confirmed.
     pub(crate) create_target: CreateTarget,
-    /// The SoundCloud groups of `All` in Search.
-    pub(crate) sc_groups: Vec<ScGroup>,
+    /// What the area that is not active remembers: its search box and answers, and its sort.
+    pub(crate) rest: workspace::Remembered,
     /// What the SoundCloud switch shows, from the app; `None` when the app has no SoundCloud.
     pub(crate) soundcloud_info: Option<nemo_core::opt_in::OptInInfo>,
     /// Likes the user changed in this session (over what the Liked songs shelf says).
@@ -179,8 +179,8 @@ pub struct App {
     /// Phase of the equaliser bars on the playing row.
     pub(crate) eq_phase: f32,
     /// Sliding selection pill of chip rows: x and width springs (0: Home, 1: Library tabs, 2:
-    /// Search filters).
-    pub(crate) chip_pills: [(crate::motion::Spring, crate::motion::Spring); 6],
+    /// Search filters, 3: SoundCloud library tabs, 4: the listening area switch).
+    pub(crate) chip_pills: [(crate::motion::Spring, crate::motion::Spring); 5],
     chip_pills_init: bool,
     /// Queue reorder: the two rows that swapped and the offset spring (1 to 0).
     pub(crate) queue_swap: (usize, usize),
@@ -320,7 +320,7 @@ impl App {
             sc_lib: ScLibrary::default(),
             sc_write: ScWriteUi::default(),
             create_target: CreateTarget::default(),
-            sc_groups: Vec::new(),
+            rest: workspace::Remembered::default(),
             soundcloud_info: options.soundcloud_info,
             likes: HashMap::new(),
             last_line: None,
@@ -337,10 +337,6 @@ impl App {
             setup_seen: None,
             eq_phase: 0.0,
             chip_pills: [
-                (
-                    crate::motion::Spring::tuned(0.0, 1400.0, 1.0),
-                    crate::motion::Spring::tuned(0.0, 1400.0, 1.0),
-                ),
                 (
                     crate::motion::Spring::tuned(0.0, 1400.0, 1.0),
                     crate::motion::Spring::tuned(0.0, 1400.0, 1.0),
@@ -428,6 +424,7 @@ impl App {
         color::set_active(app.scheme_fade.current());
         app.sync_pane_alpha();
         app.lyric_sources = app.backend.lyrics.providers();
+        app.start_source();
         shape::set_scale_percent(options.settings.corner_style.percent());
         let mut jobs = Vec::new();
         // The reducer starts without a current track; feeding the snapshot requests cover and

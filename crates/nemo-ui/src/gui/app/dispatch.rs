@@ -3,7 +3,7 @@
 use super::super::views;
 use super::art::ArtEntry;
 use super::message::{Job, Message};
-use super::model::{DetailKey, DetailState, HomePhase};
+use super::model::{DetailKey, DetailState, HomePhase, Source};
 use super::{ART_PARALLEL, App, GATE_MESSAGE, ROWS_STEP};
 use crate::refresh::Owner;
 use crate::state::{Effect, Event};
@@ -13,6 +13,11 @@ impl App {
     /// Run an event through the reducer and its effects; returns jobs to start.
     pub fn dispatch(&mut self, event: Event) -> Vec<Job> {
         let mut jobs = Vec::new();
+        // A page the area does not have (Home and Explore in SoundCloud) opens its landing page.
+        let event = match event {
+            Event::Go(route) if !self.source.allows(&route) => Event::Go(self.source.landing()),
+            other => other,
+        };
         let mut pending = VecDeque::from([event]);
         while let Some(ev) = pending.pop_front() {
             for fx in self.ui.apply(ev) {
@@ -38,7 +43,6 @@ impl App {
                         if self.search_is_soundcloud() {
                             jobs.push(Job::ScSearch(query));
                         } else if self.ui.youtube_enabled() {
-                            jobs.extend(self.sc_group_start(&query, None));
                             jobs.push(Job::Search(query));
                         } else {
                             // Nothing leaves the computer before the notice is accepted.
@@ -52,7 +56,6 @@ impl App {
                         if self.search_is_soundcloud() {
                             jobs.push(Job::ScSearchKind { query, kind });
                         } else if self.ui.youtube_enabled() {
-                            jobs.extend(self.sc_group_start(&query, Some(kind)));
                             jobs.push(Job::SearchKind { query, kind });
                         } else {
                             pending.push_back(Event::SearchFilterDone {
@@ -85,7 +88,7 @@ impl App {
     /// Start whatever the current state asks for and has not asked for yet: the library listing,
     /// Home shelves (after the notice), the detail page of the route, and pictures in view.
     pub(super) fn after_update(&mut self) -> Vec<Job> {
-        let mut jobs = Vec::new();
+        let mut jobs = self.watch_source();
         if *self.ui.route() != self.last_route {
             self.last_route = self.ui.route().clone();
             self.sort_menu = None;
@@ -112,7 +115,11 @@ impl App {
             self.library_requested = true;
             jobs.push(Job::Library);
         }
-        if self.ui.youtube_enabled() {
+        // Only the active area loads in the background (source-workspaces): YouTube Music's
+        // account data, Home and Explore wait while SoundCloud is the area, and start when the
+        // person switches back.
+        let youtube = self.ui.youtube_enabled() && self.source == Source::YouTube;
+        if youtube {
             if self.refresh.ready() {
                 jobs.extend(self.watch_account());
             } else {
@@ -120,11 +127,11 @@ impl App {
                 self.refresh.begin(Owner::of(&self.backend.account.state()));
                 jobs.push(Job::AccountData);
             }
-        }
-        jobs.extend(self.pump_explore());
-        if self.ui.youtube_enabled() && self.home.phase == HomePhase::Idle {
-            self.home.phase = HomePhase::Loading;
-            jobs.push(Job::HomeFeed);
+            jobs.extend(self.pump_explore());
+            if self.home.phase == HomePhase::Idle {
+                self.home.phase = HomePhase::Loading;
+                jobs.push(Job::HomeFeed);
+            }
         }
         if let Some(key) = DetailKey::of(self.ui.route())
             && !self.details.contains_key(&key)

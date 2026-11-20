@@ -13,8 +13,7 @@ use nemo_core::track::Track;
 use std::hash::Hash;
 use std::sync::Arc;
 
-/// Every SoundCloud page id starts with this (the SoundCloud crate's `BrowseId`s).
-pub const SOUNDCLOUD_ID_PREFIX: &str = "sc:";
+pub use crate::workspace::{SOUNDCLOUD_ID_PREFIX, Source};
 
 /// Progress of the Home shelves.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -138,8 +137,6 @@ pub enum ListSource {
     ScLikes,
     /// The tracks of history section number `n` of the SoundCloud account.
     ScHistory(usize),
-    /// The SoundCloud songs under the YouTube Music results of `All` in Search.
-    ScSearch,
 }
 
 /// Lower area of compact Now Playing.
@@ -366,39 +363,6 @@ impl Default for ScUi {
     }
 }
 
-/// Which service the Library (and later Search) shows (soundcloud-account spec).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum Source {
-    /// YouTube Music, local files and everything as before.
-    #[default]
-    YouTube,
-    /// The signed-in SoundCloud library.
-    SoundCloud,
-    /// Both, each in its own group.
-    All,
-}
-
-impl Source {
-    /// The choices in switch order.
-    pub const ALL: [Self; 3] = [Self::YouTube, Self::SoundCloud, Self::All];
-
-    /// The text of the switch.
-    #[must_use]
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::YouTube => "YouTube Music",
-            Self::SoundCloud => "SoundCloud",
-            Self::All => "All",
-        }
-    }
-
-    /// `true` when SoundCloud results belong on screen.
-    #[must_use]
-    pub const fn has_soundcloud(self) -> bool {
-        matches!(self, Self::SoundCloud | Self::All)
-    }
-}
-
 /// Tabs of the SoundCloud library.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ScTab {
@@ -488,7 +452,7 @@ pub struct ScLibrary {
 /// Messages of the SoundCloud page and of the SoundCloud card of the setup flow.
 #[derive(Debug, Clone)]
 pub enum ScMsg {
-    /// Choose which service the Library shows.
+    /// Switch the listening area (the whole window follows it).
     Source(Source),
     /// Open a tab of the SoundCloud library.
     Tab(ScTab),

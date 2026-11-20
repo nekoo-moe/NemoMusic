@@ -3,7 +3,7 @@
 
 use super::App;
 use super::message::{AccountBundle, Job, RefreshData};
-use super::model::HomePhase;
+use super::model::{HomePhase, Source};
 use crate::refresh::{Answer, FAILED_NOTICE, Owner, Step};
 use crate::state::Event;
 use std::sync::Arc;
@@ -29,26 +29,23 @@ impl App {
 
     /// The Refresh button, `F5` and `Ctrl+R`. A press while a reload runs does nothing.
     pub(super) fn refresh_msg(&mut self) -> Vec<Job> {
-        // SoundCloud reloads beside YouTube Music, but only what the person has on screen.
-        let mut jobs = if self.source.has_soundcloud() {
-            self.sc_reload()
-        } else {
-            Vec::new()
-        };
-        if !self.ui.youtube_enabled() {
-            return jobs;
+        // Only the active area reloads (source-workspaces).
+        if self.source == Source::SoundCloud {
+            return self.sc_reload();
         }
-        let youtube: Vec<Job> = self
+        if !self.ui.youtube_enabled() {
+            return Vec::new();
+        }
+        let jobs: Vec<Job> = self
             .refresh
             .request()
             .map(Job::Refresh)
             .into_iter()
             .collect();
-        if !youtube.is_empty() {
+        if !jobs.is_empty() {
             // Explore reloads beside it, on its own (real-explore spec).
             self.explore.reload();
         }
-        jobs.extend(youtube);
         jobs
     }
 

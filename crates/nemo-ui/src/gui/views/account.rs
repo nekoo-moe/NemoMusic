@@ -53,7 +53,10 @@ pub fn sheet(app: &App) -> Element<'_, Message> {
         ),
     ]
     .align_y(Alignment::Center);
-    let card = container(column![header, vspace(gap::SM), body].width(Length::Fixed(inner)))
+    let area = super::listening_area::control(app, inner);
+    let card = container(
+        column![header, vspace(gap::SM), area, vspace(gap::LG), body].width(Length::Fixed(inner)),
+    )
         .padding(gap::XL)
         .width(Length::Fixed(width))
         .style(|_| container::Style {

@@ -229,7 +229,6 @@ impl App {
                 );
                 likes
             }
-            ListSource::ScSearch => self.sc_group_songs(),
             ListSource::ScHistory(n) => self
                 .sc_lib
                 .data

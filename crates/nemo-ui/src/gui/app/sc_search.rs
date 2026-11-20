@@ -1,113 +1,15 @@
-//! `All` in Search (soundcloud-account, owner decision 2026-11-20): YouTube Music's results first,
-//! then a SoundCloud group. The two searches run side by side; the YouTube Music answer goes
-//! through the search reducer as before, the SoundCloud answer is kept here, one entry per text
-//! and chip, and drawn below.
-
-use std::sync::Arc;
-
-use nemo_core::catalog::{SearchKind, SearchResults};
-use nemo_core::track::Track;
+//! Search in the SoundCloud listening area (source-workspaces spec): the box, the chips and the
+//! results belong to SoundCloud alone, and a search typed there is not run in YouTube Music.
 
 use super::App;
-use super::message::Job;
 use super::model::Source;
 
-/// Where the SoundCloud group of one search stands.
-#[derive(Debug, Clone)]
-pub enum ScGroupPhase {
-    /// The search runs.
-    Loading,
-    /// The answer.
-    Done(Arc<SearchResults>),
-    /// SoundCloud did not answer. The group says so in a fixed sentence.
-    Failed,
-}
-
-/// The SoundCloud group of `All` for one text and chip.
-#[derive(Debug, Clone)]
-pub struct ScGroup {
-    /// The text searched.
-    pub query: String,
-    /// The chip: `None` is the `All` chip.
-    pub kind: Option<SearchKind>,
-    /// What it shows.
-    pub phase: ScGroupPhase,
-}
-
 impl App {
-    /// The Search page is set to SoundCloud alone: its searches go to SoundCloud and need no
-    /// YouTube Music notice. `All` counts as SoundCloud alone while the YouTube Music notice is
-    /// not accepted, so the page still has something to show.
+    /// The Search page belongs to SoundCloud: its searches go to SoundCloud and need no YouTube
+    /// Music notice.
     #[must_use]
     pub fn search_is_soundcloud(&self) -> bool {
-        self.sc_open()
-            && (self.source == Source::SoundCloud
-                || (self.source == Source::All && !self.ui.youtube_enabled()))
-    }
-
-    /// The Search page is set to `All`: YouTube Music first, then a SoundCloud group.
-    #[must_use]
-    pub fn search_is_all(&self) -> bool {
-        self.sc_open() && self.source == Source::All && self.ui.youtube_enabled()
-    }
-
-    /// Start the SoundCloud group of a search of `query` and chip `kind`, when the page is set to
-    /// `All`. SoundCloud has no videos, so that chip has no group. Groups of other texts go.
-    pub(super) fn sc_group_start(&mut self, query: &str, kind: Option<SearchKind>) -> Option<Job> {
-        if !self.search_is_all() || kind == Some(SearchKind::Videos) {
-            return None;
-        }
-        self.sc_groups
-            .retain(|g| g.query == query && g.kind != kind);
-        self.sc_groups.push(ScGroup {
-            query: query.to_owned(),
-            kind,
-            phase: ScGroupPhase::Loading,
-        });
-        Some(Job::ScGroup {
-            query: query.to_owned(),
-            kind,
-        })
-    }
-
-    /// The answer of a group search. One that no group waits for (the text moved on, the source
-    /// changed) is dropped.
-    pub(super) fn sc_group_done(
-        &mut self,
-        query: &str,
-        kind: Option<SearchKind>,
-        result: Result<Arc<SearchResults>, String>,
-    ) {
-        let waiting = self.sc_groups.iter_mut().find(|g| {
-            g.query == query && g.kind == kind && matches!(g.phase, ScGroupPhase::Loading)
-        });
-        if let Some(group) = waiting {
-            group.phase = match result {
-                Ok(r) => ScGroupPhase::Done(r),
-                Err(_) => ScGroupPhase::Failed,
-            };
-        }
-    }
-
-    /// The group of the text and chip on screen, if the page is set to `All` and it was started.
-    #[must_use]
-    pub fn sc_group_now(&self) -> Option<&ScGroup> {
-        if !self.search_is_all() {
-            return None;
-        }
-        let kind = self.ui.search.filter;
-        self.sc_groups
-            .iter()
-            .find(|g| g.kind == kind && g.query == self.ui.search.query())
-    }
-
-    /// The SoundCloud songs of the group on screen (what a row of that group plays from).
-    #[must_use]
-    pub(super) fn sc_group_songs(&self) -> Vec<Track> {
-        match self.sc_group_now().map(|g| &g.phase) {
-            Some(ScGroupPhase::Done(r)) => r.songs.clone(),
-            _ => Vec::new(),
-        }
+        self.sc_open() && self.source == Source::SoundCloud
     }
 }
 

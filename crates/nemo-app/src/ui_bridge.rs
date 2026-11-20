@@ -11,6 +11,7 @@ use nemo_core::services::PlayerControl;
 use nemo_ui::collection_sort::{CollectionSort, MAX_REMEMBERED};
 use nemo_ui::scheme::{AccentIntensity, BaseMode, CornerStyle, ThemeChoice};
 use nemo_ui::settings::OptInState;
+use nemo_ui::workspace::Source;
 use nemo_ui::{
     AnimatedCoverSettings, GlassTier as UiGlass, NowPlayingStyle, UiOptions, UiSettings,
 };
@@ -76,6 +77,8 @@ pub fn to_ui(s: &Settings) -> UiSettings {
                 confirmed_version: c.confirmed_version,
             })
             .unwrap_or_default(),
+        // An empty or unknown label (an older or newer file) is YouTube Music.
+        listening_area: Source::from_label(&s.listening_area).unwrap_or_default(),
     }
 }
 
@@ -119,6 +122,9 @@ pub fn apply_ui(s: &mut Settings, ui: &UiSettings) {
         .iter()
         .map(|(k, v)| (k.clone(), v.label().to_owned()))
         .collect();
+    ui.listening_area
+        .label()
+        .clone_into(&mut s.listening_area);
     // A row the user never touched has no entry, so the feature's default holds.
     if ui.soundcloud != OptInState::default() || s.opt_ins.contains_key(SOUNDCLOUD_ID) {
         s.opt_ins.insert(
@@ -371,6 +377,23 @@ mod tests {
             &nemo_soundcloud::OPT_IN
         ));
         assert_eq!(to_ui(&stored), off);
+    }
+
+    #[test]
+    fn the_listening_area_round_trips_and_an_unknown_label_is_youtube_music() {
+        let mut stored = Settings::default();
+        assert_eq!(to_ui(&stored).listening_area, Source::YouTube);
+        let ui = UiSettings {
+            listening_area: Source::SoundCloud,
+            ..to_ui(&stored)
+        };
+        apply_ui(&mut stored, &ui);
+        assert_eq!(stored.listening_area, "SoundCloud");
+        assert_eq!(to_ui(&stored).listening_area, Source::SoundCloud);
+        for odd in ["", "All", "soundcloud", "Spotify"] {
+            odd.clone_into(&mut stored.listening_area);
+            assert_eq!(to_ui(&stored).listening_area, Source::YouTube, "{odd:?}");
+        }
     }
 
     #[test]
