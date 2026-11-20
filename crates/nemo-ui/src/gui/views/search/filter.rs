@@ -14,17 +14,24 @@ use super::no_results;
 use super::section::{self, Frame};
 use crate::state::Event;
 
-/// The label of a chip.
+/// The localized label of a chip.
 #[must_use]
-pub(super) fn label(kind: Option<SearchKind>) -> &'static str {
-    match kind {
-        None => "All",
-        Some(SearchKind::Songs) => "Songs",
-        Some(SearchKind::Videos) => "Videos",
-        Some(SearchKind::Albums) => "Albums",
-        Some(SearchKind::Artists) => "Artists",
-        Some(SearchKind::Playlists) => "Community playlists",
-        Some(SearchKind::Channels) => "Channels",
+pub(crate) fn label_localized(kind: Option<SearchKind>, lang: crate::settings::Language) -> &'static str {
+    match (kind, lang) {
+        (None, crate::settings::Language::Vietnamese) => "Tất cả",
+        (None, crate::settings::Language::English) => "All",
+        (Some(SearchKind::Songs), crate::settings::Language::Vietnamese) => "Bài hát",
+        (Some(SearchKind::Songs), crate::settings::Language::English) => "Songs",
+        (Some(SearchKind::Videos), crate::settings::Language::Vietnamese) => "Video",
+        (Some(SearchKind::Videos), crate::settings::Language::English) => "Videos",
+        (Some(SearchKind::Albums), crate::settings::Language::Vietnamese) => "Album",
+        (Some(SearchKind::Albums), crate::settings::Language::English) => "Albums",
+        (Some(SearchKind::Artists), crate::settings::Language::Vietnamese) => "Nghệ sĩ",
+        (Some(SearchKind::Artists), crate::settings::Language::English) => "Artists",
+        (Some(SearchKind::Playlists), crate::settings::Language::Vietnamese) => "Danh sách phát cộng đồng",
+        (Some(SearchKind::Playlists), crate::settings::Language::English) => "Community playlists",
+        (Some(SearchKind::Channels), crate::settings::Language::Vietnamese) => "Kênh",
+        (Some(SearchKind::Channels), crate::settings::Language::English) => "Channels",
     }
 }
 
@@ -41,10 +48,16 @@ fn kinds(with_videos: bool) -> Vec<Option<SearchKind>> {
         .collect()
 }
 
-/// The labels of the chips, All first.
+/// The localized labels of the chips, All first.
 #[must_use]
+pub(crate) fn labels_localized(with_videos: bool, lang: crate::settings::Language) -> Vec<&'static str> {
+    kinds(with_videos).into_iter().map(|k| label_localized(k, lang)).collect()
+}
+
+/// The English labels of the chips, All first (tests).
+#[cfg(test)]
 pub(crate) fn labels(with_videos: bool) -> Vec<&'static str> {
-    kinds(with_videos).into_iter().map(label).collect()
+    labels_localized(with_videos, crate::settings::Language::English)
 }
 
 /// Position of the chip of `picked` in [`labels`]. A chip that is not there (Videos for
@@ -83,7 +96,7 @@ pub(super) fn chips(app: &App, picked: Option<SearchKind>) -> Element<'_, Messag
     };
     sliding_chips(
         app,
-        &labels(with_videos),
+        &labels_localized(with_videos, app.ui.settings.language),
         index(with_videos, picked),
         2,
         pick,
@@ -97,7 +110,7 @@ pub(super) fn filtered<'a>(app: &'a App, kind: SearchKind, frame: &Frame) -> Ele
         return blank();
     };
     match &answer.result {
-        Ok(r) if r.count(kind) == 0 => no_results(search.query()),
+        Ok(r) if r.count(kind) == 0 => no_results(search.query(), app.ui.settings.language),
         Ok(r) => section::section(app, r, kind, frame, 0).unwrap_or_else(blank),
         Err(e) => status(
             Icon::Info,

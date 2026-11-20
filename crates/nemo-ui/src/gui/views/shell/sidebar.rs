@@ -19,12 +19,13 @@ use crate::theme::{color, shape, type_scale};
 /// Height of a library row.
 const LIB_ROW_H: f32 = LIST_ITEM_H;
 
-pub(super) fn library_header<'a>() -> Element<'a, Message> {
+pub(super) fn library_header(app: &App) -> Element<'_, Message> {
+    let lang = app.ui.settings.language;
     row![
         container(icon(Icon::Library, 24.0, col(color::on_surface_variant())))
             .padding(Padding::from([0.0, gap::SM])),
         label(
-            "Your library",
+            crate::i18n::t(lang, "Your library", "Thư viện của bạn"),
             type_scale::TITLE_SM,
             true,
             col(color::on_surface())
@@ -39,7 +40,7 @@ pub(super) fn library_header<'a>() -> Element<'a, Message> {
                 Color::TRANSPARENT,
                 Some(Message::Create(crate::gui::app::CreateMsg::Open)),
             ),
-            "Create playlist",
+            crate::i18n::t(lang, "Create playlist", "Tạo danh sách phát"),
         ),
         tip(
             icon_button(
@@ -50,7 +51,7 @@ pub(super) fn library_header<'a>() -> Element<'a, Message> {
                 Color::TRANSPARENT,
                 Some(Message::Ui(Event::Go(Route::Library))),
             ),
-            "Open library",
+            crate::i18n::t(lang, "Open library", "Mở thư viện"),
         ),
     ]
     .align_y(Alignment::Center)
@@ -60,11 +61,12 @@ pub(super) fn library_header<'a>() -> Element<'a, Message> {
 
 pub(super) fn library_chips(app: &App) -> Element<'_, Message> {
     let accent = app.accent();
+    let lang = app.ui.settings.language;
     let mut r = row![].spacing(gap::SM);
     for f in LibFilter::ALL {
         let on = app.lib_filter == Some(f);
         r = r.push(chip_padded(
-            f.label(),
+            f.label_localized(lang),
             on,
             accent,
             Message::LibFilter(if on { None } else { Some(f) }),
@@ -92,6 +94,7 @@ fn library_rows(app: &App) -> Vec<LibRow> {
     let mut playlists: Vec<LibRow> = Vec::new();
     let mut artists: Vec<LibRow> = Vec::new();
     let mut albums: Vec<LibRow> = Vec::new();
+    let lang = app.ui.settings.language;
     let album_row = |a: &AlbumSummary| LibRow {
         kind: LibFilter::Albums,
         title: a.title.clone(),
@@ -102,7 +105,7 @@ fn library_rows(app: &App) -> Vec<LibRow> {
     let artist_row = |a: &ArtistSummary| LibRow {
         kind: LibFilter::Artists,
         title: a.name.clone(),
-        subtitle: "Artist".to_owned(),
+        subtitle: crate::i18n::t(lang, "Artist", "Nghệ sĩ").to_owned(),
         artwork: Artwork::Remote(a.thumbnails.clone()),
         route: Route::Artist(a.id.clone()),
     };
@@ -110,7 +113,8 @@ fn library_rows(app: &App) -> Vec<LibRow> {
         kind: LibFilter::Playlists,
         title: p.title.clone(),
         subtitle: format!(
-            "Playlist \u{b7} {}",
+            "{} \u{b7} {}",
+            crate::i18n::t(lang, "Playlist", "Danh sách phát"),
             p.author
                 .clone()
                 .unwrap_or_else(|| "YouTube Music".to_owned())
@@ -127,14 +131,16 @@ fn library_rows(app: &App) -> Vec<LibRow> {
         albums.extend(app.local_albums.iter().map(album_row));
     } else if app.sc_is_signed_in() {
         let data = app.sc_data();
+        let pl_str = crate::i18n::t(lang, "Playlist", "Danh sách phát");
+        let ar_str = crate::i18n::t(lang, "Artist", "Nghệ sĩ");
         playlists.extend(data.playlists.iter().map(|p| {
             let mut row = playlist_row(p);
-            row.subtitle = sc_subtitle("Playlist", p.author.as_deref());
+            row.subtitle = sc_subtitle(pl_str, p.author.as_deref());
             row
         }));
         artists.extend(data.artists.iter().map(|a| {
             let mut row = artist_row(a);
-            row.subtitle = sc_subtitle("Artist", None);
+            row.subtitle = sc_subtitle(ar_str, None);
             row
         }));
         albums.extend(data.albums.iter().map(|a| {
@@ -173,25 +179,58 @@ fn sc_subtitle(kind: &str, whose: Option<&str>) -> String {
 
 /// What the list says when it has no rows.
 fn empty_hint(app: &App) -> &'static str {
+    let lang = app.ui.settings.language;
     if app.source == Source::SoundCloud {
         return if !app.sc_is_signed_in() {
-            "Sign in to SoundCloud in Settings to see your playlists, artists and albums here."
+            crate::i18n::t(
+                lang,
+                "Sign in to SoundCloud in Settings to see your playlists, artists and albums here.",
+                "Đăng nhập SoundCloud trong Cài đặt để xem danh sách phát, nghệ sĩ và album tại đây.",
+            )
         } else if app.sc_lib.phase == crate::gui::app::ScPhase::Failed {
-            "Could not load your SoundCloud library. Press Refresh (F5) to try again."
+            crate::i18n::t(
+                lang,
+                "Could not load your SoundCloud library. Press Refresh (F5) to try again.",
+                "Không thể tải thư viện SoundCloud của bạn. Nhấn Làm mới (F5) để thử lại.",
+            )
         } else if app.sc_lib.phase == crate::gui::app::ScPhase::Done {
-            "Nothing saved on SoundCloud yet."
+            crate::i18n::t(
+                lang,
+                "Nothing saved on SoundCloud yet.",
+                "Chưa có nội dung nào được lưu trên SoundCloud.",
+            )
         } else {
-            "Loading your SoundCloud library\u{2026}"
+            crate::i18n::t(
+                lang,
+                "Loading your SoundCloud library\u{2026}",
+                "Đang tải thư viện SoundCloud của bạn\u{2026}",
+            )
         };
     }
     if !app.signed_in() {
-        "Sign in to YouTube Music to see your playlists, albums and artists here."
+        crate::i18n::t(
+            lang,
+            "Sign in to YouTube Music to see your playlists, albums and artists here.",
+            "Đăng nhập YouTube Music để xem danh sách phát, album và nghệ sĩ tại đây.",
+        )
     } else if app.account_lists().is_some() {
-        "Nothing saved here yet."
+        crate::i18n::t(
+            lang,
+            "Nothing saved here yet.",
+            "Chưa có nội dung nào được lưu tại đây.",
+        )
     } else if app.library_failed {
-        "Could not load your library. Press Refresh (F5) to try again."
+        crate::i18n::t(
+            lang,
+            "Could not load your library. Press Refresh (F5) to try again.",
+            "Không thể tải thư viện của bạn. Nhấn Làm mới (F5) để thử lại.",
+        )
     } else {
-        "Loading your library\u{2026}"
+        crate::i18n::t(
+            lang,
+            "Loading your library\u{2026}",
+            "Đang tải thư viện của bạn\u{2026}",
+        )
     }
 }
 

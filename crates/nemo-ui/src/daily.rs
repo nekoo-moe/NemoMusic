@@ -69,6 +69,21 @@ impl DayContext {
             _ => "Good night",
         }
     }
+
+    /// Localized greeting according to the chosen language.
+    #[must_use]
+    pub fn greeting_localized(self, lang: crate::settings::Language) -> &'static str {
+        match (self.hour, lang) {
+            (5..=11, crate::settings::Language::Vietnamese) => "Chào buổi sáng",
+            (5..=11, crate::settings::Language::English) => "Good morning",
+            (12..=17, crate::settings::Language::Vietnamese) => "Chào buổi chiều",
+            (12..=17, crate::settings::Language::English) => "Good afternoon",
+            (18..=21, crate::settings::Language::Vietnamese) => "Chào buổi tối",
+            (18..=21, crate::settings::Language::English) => "Good evening",
+            (_, crate::settings::Language::Vietnamese) => "Chúc ngủ ngon",
+            (_, crate::settings::Language::English) => "Good night",
+        }
+    }
 }
 
 /// Which section this is.
@@ -101,6 +116,83 @@ pub struct DailySection {
     pub tracks: Vec<Track>,
     /// Albums (new releases).
     pub albums: Vec<AlbumSummary>,
+}
+
+impl DailySection {
+    /// Localized title of this daily section.
+    #[must_use]
+    pub fn title_localized(&self, lang: crate::settings::Language) -> String {
+        match (&self.kind, lang) {
+            (DailyKind::DailyMix, crate::settings::Language::Vietnamese) => {
+                "Danh sách kết hợp hàng ngày".to_owned()
+            }
+            (DailyKind::DailyMix, crate::settings::Language::English) => {
+                "Your daily mix".to_owned()
+            }
+            (DailyKind::Because(name), crate::settings::Language::Vietnamese) => {
+                format!("Vì bạn đã nghe {name}")
+            }
+            (DailyKind::Because(name), crate::settings::Language::English) => {
+                format!("Because you listened to {name}")
+            }
+            (DailyKind::Rediscover, crate::settings::Language::Vietnamese) => {
+                "Khám phá lại".to_owned()
+            }
+            (DailyKind::Rediscover, crate::settings::Language::English) => "Rediscover".to_owned(),
+            (DailyKind::MoodOfDay(name), _) => name.clone(),
+            (DailyKind::NewForYou, crate::settings::Language::Vietnamese) => {
+                "Mới dành cho bạn".to_owned()
+            }
+            (DailyKind::NewForYou, crate::settings::Language::English) => "New for you".to_owned(),
+            (DailyKind::NewReleases, crate::settings::Language::Vietnamese) => {
+                "Bản phát hành mới".to_owned()
+            }
+            (DailyKind::NewReleases, crate::settings::Language::English) => {
+                "New releases".to_owned()
+            }
+        }
+    }
+
+    /// Localized tag/honest source line.
+    #[must_use]
+    pub fn tag_localized(&self, lang: crate::settings::Language) -> &'static str {
+        match (&self.kind, lang) {
+            (DailyKind::DailyMix, crate::settings::Language::Vietnamese) => {
+                "Tạo từ bài hát yêu thích và lịch sử nghe"
+            }
+            (DailyKind::DailyMix, crate::settings::Language::English) => {
+                "Made from your likes and history"
+            }
+            (DailyKind::Because(_), crate::settings::Language::Vietnamese) => {
+                "Bài hát của nghệ sĩ này từ lịch sử của bạn"
+            }
+            (DailyKind::Because(_), crate::settings::Language::English) => {
+                "Songs by this artist from your history"
+            }
+            (DailyKind::Rediscover, crate::settings::Language::Vietnamese) => {
+                "Bài hát yêu thích bạn chưa nghe gần đây"
+            }
+            (DailyKind::Rediscover, crate::settings::Language::English) => {
+                "Liked songs you have not played lately"
+            }
+            (DailyKind::MoodOfDay(_), crate::settings::Language::Vietnamese) => {
+                "Tâm trạng được chọn cho hôm nay"
+            }
+            (DailyKind::MoodOfDay(_), crate::settings::Language::English) => "The mood of the day",
+            (DailyKind::NewForYou, crate::settings::Language::Vietnamese) => {
+                "Bản phát hành mới từ các nghệ sĩ bạn theo dõi"
+            }
+            (DailyKind::NewForYou, crate::settings::Language::English) => {
+                "New releases from artists you follow"
+            }
+            (DailyKind::NewReleases, crate::settings::Language::Vietnamese) => {
+                "Album và đĩa đơn mới từ YouTube Music"
+            }
+            (DailyKind::NewReleases, crate::settings::Language::English) => {
+                "New albums and singles from YouTube Music"
+            }
+        }
+    }
 }
 
 fn next(state: &mut u64) -> u64 {

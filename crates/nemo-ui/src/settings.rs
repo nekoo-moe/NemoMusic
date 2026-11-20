@@ -46,6 +46,17 @@ impl NowPlayingStyle {
             Self::AppleMusic => "Apple Music",
         }
     }
+
+    /// Localized label for the settings control.
+    #[must_use]
+    pub const fn label_localized(self, lang: Language) -> &'static str {
+        match (self, lang) {
+            (Self::Classic, Language::Vietnamese) => "Cổ điển",
+            (Self::Classic, Language::English) => "Classic",
+            (Self::M3Expressive, _) => "Material 3 Expressive",
+            (Self::AppleMusic, _) => "Apple Music",
+        }
+    }
 }
 
 /// User interface language.

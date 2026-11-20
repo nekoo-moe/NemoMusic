@@ -20,7 +20,7 @@ mod section;
 mod skeleton;
 mod top;
 
-pub(crate) use filter::{index as filter_index, labels as filter_labels};
+pub(crate) use filter::{index as filter_index, labels_localized as filter_labels_localized};
 
 /// The Search screen.
 pub fn view(app: &App, w: u32) -> Element<'_, Message> {
@@ -29,10 +29,11 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
     #[allow(clippy::cast_precision_loss)]
     let content_w = grid.content as f32;
     let search = &app.ui.search;
+    let lang = app.ui.settings.language;
 
     // The page searches the listening area it is in; nothing here chooses a service.
     let mut c = column![
-        page_title("Search"),
+        page_title(crate::i18n::t(lang, "Search", "Tìm kiếm")),
         vspace(gap::LG),
         query_box(app, content_w)
     ]
@@ -42,9 +43,13 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
     if !app.ui.youtube_enabled() && !app.search_is_soundcloud() {
         c = c.push(status(
             Icon::Info,
-            "YouTube Music is waiting",
-            "Read the short notice to search YouTube Music. Your own files work without it.",
-            Some(("Review notice", Message::Ui(Event::TosReview))),
+            crate::i18n::t(lang, "YouTube Music is waiting", "YouTube Music đang chờ"),
+            crate::i18n::t(
+                lang,
+                "Read the short notice to search YouTube Music. Your own files work without it.",
+                "Đọc thông báo ngắn để tìm kiếm trên YouTube Music. Các tệp cục bộ vẫn hoạt động bình thường."
+            ),
+            Some((crate::i18n::t(lang, "Review notice", "Xem thông báo"), Message::Ui(Event::TosReview))),
         ));
         return page(grid.content, c);
     }
@@ -52,11 +57,19 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
     if search.query().is_empty() {
         c = c.push(status(
             Icon::Search,
-            "Find something to play",
+            crate::i18n::t(lang, "Find something to play", "Tìm nội dung để phát"),
             if app.search_is_soundcloud() {
-                "Search SoundCloud tracks, albums, artists and playlists. Press Enter to play the top track."
+                crate::i18n::t(
+                    lang,
+                    "Search SoundCloud tracks, albums, artists and playlists. Press Enter to play the top track.",
+                    "Tìm kiếm bài hát, album, nghệ sĩ và danh sách phát trên SoundCloud. Nhấn Enter để phát kết quả hàng đầu."
+                )
             } else {
-                "Search songs, albums, artists and playlists. Press Enter to play the top song."
+                crate::i18n::t(
+                    lang,
+                    "Search songs, albums, artists and playlists. Press Enter to play the top song.",
+                    "Tìm bài hát, album, nghệ sĩ và danh sách phát. Nhấn Enter để phát bài hát hàng đầu."
+                )
             },
             None,
         ));
@@ -87,9 +100,10 @@ fn all<'a>(app: &'a App, frame: &section::Frame) -> Element<'a, Message> {
     let search = &app.ui.search;
     let mut c = column![];
     let results = search.results.as_ref();
+    let lang = app.ui.settings.language;
     if let Some(r) = results {
         if r.is_empty() && !search.loading {
-            c = c.push(no_results(search.query()));
+            c = c.push(no_results(search.query(), lang));
         }
         if let Some(top) = &r.top {
             c = c.push(top::top_card(app, top, frame.width));
@@ -103,9 +117,9 @@ fn all<'a>(app: &'a App, frame: &section::Frame) -> Element<'a, Message> {
     } else if let Some(e) = &search.error {
         c = c.push(status(
             Icon::Info,
-            "Search did not work",
-            format!("{e} Check your connection and try again."),
-            Some(("Try again", Message::Ui(Event::SearchRetry))),
+            crate::i18n::t(lang, "Search did not work", "Tìm kiếm không thành công"),
+            format!("{e} {}", crate::i18n::t(lang, "Check your connection and try again.", "Kiểm tra kết nối mạng và thử lại.")),
+            Some((crate::i18n::t(lang, "Try again", "Thử lại"), Message::Ui(Event::SearchRetry))),
         ));
     } else {
         // Pending: the skeleton comes after its 150 ms wait.
@@ -117,20 +131,23 @@ fn all<'a>(app: &'a App, frame: &section::Frame) -> Element<'a, Message> {
         // An older answer stays on screen; say why it is stale.
         c = c.push(vspace(gap::LG)).push(status(
             Icon::Info,
-            "Search did not work",
-            format!("{e} Showing the previous results."),
-            Some(("Try again", Message::Ui(Event::SearchRetry))),
+            crate::i18n::t(lang, "Search did not work", "Tìm kiếm không thành công"),
+            format!("{e} {}", crate::i18n::t(lang, "Showing the previous results.", "Hiển thị kết quả trước đó.")),
+            Some((crate::i18n::t(lang, "Try again", "Thử lại"), Message::Ui(Event::SearchRetry))),
         ));
     }
     c.into()
 }
 
 /// The empty answer.
-pub(super) fn no_results(query: &str) -> Element<'_, Message> {
+pub(super) fn no_results(query: &str, lang: crate::settings::Language) -> Element<'_, Message> {
     status(
         Icon::Search,
-        format!("No results for \u{201c}{query}\u{201d}"),
-        "Check the spelling or try fewer words.",
+        match lang {
+            crate::settings::Language::Vietnamese => format!("Không tìm thấy kết quả cho \u{201c}{query}\u{201d}"),
+            crate::settings::Language::English => format!("No results for \u{201c}{query}\u{201d}"),
+        },
+        crate::i18n::t(lang, "Check the spelling or try fewer words.", "Kiểm tra lỗi chính tả hoặc thử ít từ hơn."),
         None,
     )
 }
@@ -138,10 +155,14 @@ pub(super) fn no_results(query: &str) -> Element<'_, Message> {
 /// The query box: a pill, height 48, glyph on the left, "Searching" hint on the right. The pill
 /// gets a 2 px accent ring while it has focus.
 fn query_box(app: &App, width: f32) -> Element<'_, Message> {
+    let lang = app.ui.settings.language;
     let dim = col(color::on_surface_variant());
     let ring = col(app.accent().primary);
     let width = width.min(560.0);
-    let input = text_input("Search songs, albums, artists", &app.ui.search.input)
+    let input = text_input(
+        crate::i18n::t(lang, "Search songs, albums, artists", "Tìm bài hát, album, nghệ sĩ"),
+        &app.ui.search.input,
+    )
         .id(SEARCH_ID)
         .on_input(|t| Message::Ui(Event::SearchInput(t)))
         .on_submit(Message::Ui(Event::SearchSubmit))
@@ -170,7 +191,13 @@ fn query_box(app: &App, width: f32) -> Element<'_, Message> {
             }
         });
     let hint: Element<'_, Message> = if app.ui.search.loading {
-        label("Searching\u{2026}", type_scale::BODY_SM, false, dim).into()
+        label(
+            crate::i18n::t(lang, "Searching\u{2026}", "Đang tìm kiếm\u{2026}"),
+            type_scale::BODY_SM,
+            false,
+            dim
+        )
+        .into()
     } else {
         Space::new().into()
     };

@@ -66,6 +66,7 @@ fn action<'a>(
 pub fn tools_panel(app: &App) -> Element<'_, Message> {
     let accent = app.accent();
     let dim = col(color::on_surface_variant());
+    let lang = app.ui.settings.language;
     let w = 360.0;
 
     // Sleep timer.
@@ -73,7 +74,7 @@ pub fn tools_panel(app: &App) -> Element<'_, Message> {
     let mut sleep_col = column![].spacing(gap::SM);
     for (i, c) in SleepChoice::ALL.iter().enumerate() {
         let on = app.sleep.as_ref().is_some_and(|s| s.choice == *c);
-        let text = c.label();
+        let text = c.label_localized(lang).clone();
         // Chips are owned strings; leak-free by building the label inline.
         sleep_row = sleep_row.push(owned_chip(text, on, accent, Message::Sleep(Some(*c))));
         if i == 2 {
@@ -85,22 +86,28 @@ pub fn tools_panel(app: &App) -> Element<'_, Message> {
     let sleep_status: Element<'_, Message> = match &app.sleep {
         Some(s) => {
             let text = match s.deadline {
-                Some(d) => format!(
-                    "Pauses in {}",
-                    timer_left(d.saturating_duration_since(Instant::now()))
-                ),
-                None => "Pauses when this song ends".to_owned(),
+                Some(d) => match lang {
+                    crate::settings::Language::Vietnamese => format!(
+                        "Tạm dừng sau {}",
+                        timer_left(d.saturating_duration_since(Instant::now()))
+                    ),
+                    crate::settings::Language::English => format!(
+                        "Pauses in {}",
+                        timer_left(d.saturating_duration_since(Instant::now()))
+                    ),
+                },
+                None => crate::i18n::t(lang, "Pauses when this song ends", "Tạm dừng khi bài hát này kết thúc").to_owned(),
             };
             row![
                 label(text, type_scale::BODY_SM, false, col(color::on_surface())),
                 Space::new().width(Length::Fill),
-                text_button("Turn off", Message::Sleep(None)),
+                text_button(crate::i18n::t(lang, "Turn off", "Tắt"), Message::Sleep(None)),
             ]
             .align_y(Alignment::Center)
             .into()
         }
         None => label(
-            "Off. Playback pauses by itself when it ends.",
+            crate::i18n::t(lang, "Off. Playback pauses by itself when it ends.", "Đang tắt. Tự động tạm dừng khi kết thúc."),
             type_scale::BODY_SM,
             false,
             dim,
@@ -114,7 +121,7 @@ pub fn tools_panel(app: &App) -> Element<'_, Message> {
     for s in SPEEDS {
         let on = app.speed_percent == s;
         let text = if s == 100 {
-            "Off".to_owned()
+            crate::i18n::t(lang, "Off", "Tắt").to_owned()
         } else {
             format!("{}x", f64::from(s) / 100.0)
         };
@@ -125,11 +132,23 @@ pub fn tools_panel(app: &App) -> Element<'_, Message> {
         });
     }
     let speed_note = if !wired {
-        "Off. A different speed resamples the audio and ends bit-perfect output, so it needs engine support first."
+        crate::i18n::t(
+            lang,
+            "Off. A different speed resamples the audio and ends bit-perfect output, so it needs engine support first.",
+            "Đang tắt. Tốc độ khác sẽ lấy mẫu lại âm thanh và mất chuẩn bit-perfect, do đó cần hỗ trợ từ engine trước."
+        )
     } else if app.speed_percent == 100 {
-        "Off keeps the audio bit-perfect."
+        crate::i18n::t(
+            lang,
+            "Off keeps the audio bit-perfect.",
+            "Tắt để giữ âm thanh chuẩn bit-perfect."
+        )
     } else {
-        "Speed is on: the audio is resampled and is not bit-perfect."
+        crate::i18n::t(
+            lang,
+            "Speed is on: the audio is resampled and is not bit-perfect.",
+            "Đang bật tốc độ: âm thanh được lấy mẫu lại và không còn bit-perfect."
+        )
     };
 
     // Room for the scrollbar at the right.
@@ -137,7 +156,7 @@ pub fn tools_panel(app: &App) -> Element<'_, Message> {
     let body = column![
         row![
             label(
-                "Tools",
+                crate::i18n::t(lang, "Tools", "Công cụ"),
                 type_scale::TITLE_SM,
                 true,
                 col(color::on_surface())
@@ -164,13 +183,13 @@ pub fn tools_panel(app: &App) -> Element<'_, Message> {
     let body = column![
         body,
         lyrics,
-        heading("Sleep timer"),
+        heading(crate::i18n::t(lang, "Sleep timer", "Hẹn giờ tắt")),
         vspace(gap::SM),
         sleep_col,
         vspace(gap::SM),
         sleep_status,
         vspace(gap::LG),
-        heading("Playback speed"),
+        heading(crate::i18n::t(lang, "Playback speed", "Tốc độ phát")),
         vspace(gap::SM),
         speed_row,
         vspace(gap::SM),
@@ -178,14 +197,14 @@ pub fn tools_panel(app: &App) -> Element<'_, Message> {
         vspace(gap::LG),
         action(
             Icon::FullScreen,
-            "Full-screen Now Playing",
+            crate::i18n::t(lang, "Full-screen Now Playing", "Toàn màn hình Now Playing"),
             Some("F"),
             Message::ToggleFullScreen
         ),
-        action(Icon::Mini, "Mini player", Some("M"), Message::ToggleMini),
+        action(Icon::Mini, crate::i18n::t(lang, "Mini player", "Trình phát thu nhỏ"), Some("M"), Message::ToggleMini),
         action(
             Icon::Keyboard,
-            "Keyboard shortcuts",
+            crate::i18n::t(lang, "Keyboard shortcuts", "Phím tắt bàn phím"),
             Some("?"),
             Message::Shortcuts(true)
         ),

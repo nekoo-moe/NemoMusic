@@ -49,6 +49,27 @@ impl ThemeChoice {
         }
     }
 
+    /// Localized menu label.
+    #[must_use]
+    pub const fn label_localized(self, lang: crate::settings::Language) -> &'static str {
+        match (self, lang) {
+            (Self::Dynamic, crate::settings::Language::Vietnamese) => "Động",
+            (Self::Dynamic, crate::settings::Language::English) => "Dynamic",
+            (Self::Ocean, crate::settings::Language::Vietnamese) => "Đại dương",
+            (Self::Ocean, crate::settings::Language::English) => "Ocean",
+            (Self::Sakura, crate::settings::Language::Vietnamese) => "Hoa anh đào",
+            (Self::Sakura, crate::settings::Language::English) => "Sakura",
+            (Self::Forest, crate::settings::Language::Vietnamese) => "Rừng xanh",
+            (Self::Forest, crate::settings::Language::English) => "Forest",
+            (Self::Sunset, crate::settings::Language::Vietnamese) => "Hoàng hôn",
+            (Self::Sunset, crate::settings::Language::English) => "Sunset",
+            (Self::Lavender, crate::settings::Language::Vietnamese) => "Oải hương",
+            (Self::Lavender, crate::settings::Language::English) => "Lavender",
+            (Self::Mono, crate::settings::Language::Vietnamese) => "Đơn sắc",
+            (Self::Mono, crate::settings::Language::English) => "Mono",
+        }
+    }
+
     /// One line under the swatch.
     #[must_use]
     pub const fn note(self) -> &'static str {
@@ -60,6 +81,27 @@ impl ThemeChoice {
             Self::Sunset => "Warm orange",
             Self::Lavender => "Quiet violet",
             Self::Mono => "No colour",
+        }
+    }
+
+    /// Localized one line under the swatch.
+    #[must_use]
+    pub const fn note_localized(self, lang: crate::settings::Language) -> &'static str {
+        match (self, lang) {
+            (Self::Dynamic, crate::settings::Language::Vietnamese) => "Từ ảnh bìa",
+            (Self::Dynamic, crate::settings::Language::English) => "From the cover",
+            (Self::Ocean, crate::settings::Language::Vietnamese) => "Xanh lam dịu",
+            (Self::Ocean, crate::settings::Language::English) => "Cool blue",
+            (Self::Sakura, crate::settings::Language::Vietnamese) => "Hồng phấn nhẹ",
+            (Self::Sakura, crate::settings::Language::English) => "Soft pink",
+            (Self::Forest, crate::settings::Language::Vietnamese) => "Xanh lá thanh bình",
+            (Self::Forest, crate::settings::Language::English) => "Calm green",
+            (Self::Sunset, crate::settings::Language::Vietnamese) => "Cam ấm áp",
+            (Self::Sunset, crate::settings::Language::English) => "Warm orange",
+            (Self::Lavender, crate::settings::Language::Vietnamese) => "Tím tĩnh lặng",
+            (Self::Lavender, crate::settings::Language::English) => "Quiet violet",
+            (Self::Mono, crate::settings::Language::Vietnamese) => "Không màu",
+            (Self::Mono, crate::settings::Language::English) => "No colour",
         }
     }
 
@@ -102,6 +144,19 @@ impl BaseMode {
             Self::Dark => "Dark",
             Self::Amoled => "AMOLED black",
             Self::Light => "Light",
+        }
+    }
+
+    /// Localized menu label.
+    #[must_use]
+    pub const fn label_localized(self, lang: crate::settings::Language) -> &'static str {
+        match (self, lang) {
+            (Self::Dark, crate::settings::Language::Vietnamese) => "Tối",
+            (Self::Dark, crate::settings::Language::English) => "Dark",
+            (Self::Amoled, crate::settings::Language::Vietnamese) => "Đen AMOLED",
+            (Self::Amoled, crate::settings::Language::English) => "AMOLED black",
+            (Self::Light, crate::settings::Language::Vietnamese) => "Sáng",
+            (Self::Light, crate::settings::Language::English) => "Light",
         }
     }
 
@@ -158,6 +213,19 @@ impl AccentIntensity {
         }
     }
 
+    /// Localized label.
+    #[must_use]
+    pub const fn label_localized(self, lang: crate::settings::Language) -> &'static str {
+        match (self, lang) {
+            (Self::Soft, crate::settings::Language::Vietnamese) => "Dịu nhẹ",
+            (Self::Soft, crate::settings::Language::English) => "Soft",
+            (Self::Standard, crate::settings::Language::Vietnamese) => "Tiêu chuẩn",
+            (Self::Standard, crate::settings::Language::English) => "Standard",
+            (Self::Vivid, crate::settings::Language::Vietnamese) => "Sống động",
+            (Self::Vivid, crate::settings::Language::English) => "Vivid",
+        }
+    }
+
     /// Chroma factor.
     #[must_use]
     pub const fn factor(self) -> f64 {
@@ -192,6 +260,19 @@ impl CornerStyle {
             Self::Sharp => "Sharp",
             Self::Soft => "Soft",
             Self::Round => "Round",
+        }
+    }
+
+    /// Localized label.
+    #[must_use]
+    pub const fn label_localized(self, lang: crate::settings::Language) -> &'static str {
+        match (self, lang) {
+            (Self::Sharp, crate::settings::Language::Vietnamese) => "Vuông",
+            (Self::Sharp, crate::settings::Language::English) => "Sharp",
+            (Self::Soft, crate::settings::Language::Vietnamese) => "Mềm",
+            (Self::Soft, crate::settings::Language::English) => "Soft",
+            (Self::Round, crate::settings::Language::Vietnamese) => "Bo tròn",
+            (Self::Round, crate::settings::Language::English) => "Round",
         }
     }
 

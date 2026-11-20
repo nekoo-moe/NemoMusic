@@ -174,6 +174,19 @@ impl NpTab {
             Self::Info => "Info",
         }
     }
+
+    /// Localized tab label.
+    #[must_use]
+    pub const fn label_localized(self, lang: crate::settings::Language) -> &'static str {
+        match (self, lang) {
+            (Self::Lyrics, crate::settings::Language::Vietnamese) => "Lời bài hát",
+            (Self::Lyrics, crate::settings::Language::English) => "Lyrics",
+            (Self::Queue, crate::settings::Language::Vietnamese) => "Hàng đợi",
+            (Self::Queue, crate::settings::Language::English) => "Queue",
+            (Self::Info, crate::settings::Language::Vietnamese) => "Thông tin",
+            (Self::Info, crate::settings::Language::English) => "Info",
+        }
+    }
 }
 
 /// Filter chips on Home: they keep only shelf items of one kind.
@@ -250,6 +263,19 @@ impl LibFilter {
             Self::Playlists => "Playlists",
             Self::Artists => "Artists",
             Self::Albums => "Albums",
+        }
+    }
+
+    /// Localized chip label.
+    #[must_use]
+    pub const fn label_localized(self, lang: crate::settings::Language) -> &'static str {
+        match (self, lang) {
+            (Self::Playlists, crate::settings::Language::Vietnamese) => "Danh sách phát",
+            (Self::Playlists, crate::settings::Language::English) => "Playlists",
+            (Self::Artists, crate::settings::Language::Vietnamese) => "Nghệ sĩ",
+            (Self::Artists, crate::settings::Language::English) => "Artists",
+            (Self::Albums, crate::settings::Language::Vietnamese) => "Album",
+            (Self::Albums, crate::settings::Language::English) => "Albums",
         }
     }
 }
@@ -408,6 +434,23 @@ impl ScTab {
             Self::Albums => "Albums",
             Self::Following => "Following",
             Self::History => "History",
+        }
+    }
+
+    /// The localized chip text.
+    #[must_use]
+    pub const fn label_localized(self, lang: crate::settings::Language) -> &'static str {
+        match (self, lang) {
+            (Self::Likes, crate::settings::Language::Vietnamese) => "Yêu thích",
+            (Self::Likes, crate::settings::Language::English) => "Likes",
+            (Self::Playlists, crate::settings::Language::Vietnamese) => "Danh sách phát",
+            (Self::Playlists, crate::settings::Language::English) => "Playlists",
+            (Self::Albums, crate::settings::Language::Vietnamese) => "Album",
+            (Self::Albums, crate::settings::Language::English) => "Albums",
+            (Self::Following, crate::settings::Language::Vietnamese) => "Đang theo dõi",
+            (Self::Following, crate::settings::Language::English) => "Following",
+            (Self::History, crate::settings::Language::Vietnamese) => "Lịch sử",
+            (Self::History, crate::settings::Language::English) => "History",
         }
     }
 }

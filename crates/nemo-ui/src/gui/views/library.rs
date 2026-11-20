@@ -40,7 +40,7 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
     #[allow(clippy::cast_precision_loss)]
     let content_w = grid.content as f32;
     let c = column![
-        header(),
+        header(app),
         vspace(gap::MD),
         tabs(app, content_w),
         vspace(gap::LG),
@@ -64,6 +64,7 @@ fn tab_body(app: &App, grid: layout::Grid, content_w: f32) -> Element<'_, Messag
     let mut c = column![].width(Length::Fill);
     let data = account_data(app);
     let signed_in = app.signed_in();
+    let lang = app.ui.settings.language;
     match app.lib_tab {
         LibTab::Overview => {
             if signed_in {
@@ -75,9 +76,17 @@ fn tab_body(app: &App, grid: layout::Grid, content_w: f32) -> Element<'_, Messag
                     c = c.push(account_overview(app, &data, grid, content_w));
                 } else {
                     let line = if app.library_failed {
-                        "Could not load your library. Press Refresh (F5) to try again."
+                        crate::i18n::t(
+                            lang,
+                            "Could not load your library. Press Refresh (F5) to try again.",
+                            "Không thể tải thư viện của bạn. Nhấn Làm mới (F5) để thử lại."
+                        )
                     } else {
-                        "Nothing saved in your account yet."
+                        crate::i18n::t(
+                            lang,
+                            "Nothing saved in your account yet.",
+                            "Chưa có nội dung nào được lưu trong tài khoản của bạn."
+                        )
                     };
                     c = c.push(note(app, line, None));
                 }
@@ -93,7 +102,11 @@ fn tab_body(app: &App, grid: layout::Grid, content_w: f32) -> Element<'_, Messag
                     sorted(data.playlists, app.lib_sort),
                     grid,
                     content_w,
-                    "No playlists in your account yet.",
+                    crate::i18n::t(
+                        lang,
+                        "No playlists in your account yet.",
+                        "Chưa có danh sách phát nào trong tài khoản của bạn."
+                    ),
                 ));
             } else {
                 c = c.push(sign_in_note(app, content_w));
@@ -107,7 +120,7 @@ fn tab_body(app: &App, grid: layout::Grid, content_w: f32) -> Element<'_, Messag
                 sorted(all, app.lib_sort),
                 grid,
                 content_w,
-                "No albums yet.",
+                crate::i18n::t(lang, "No albums yet.", "Chưa có album nào."),
             ));
         }
         LibTab::Artists => {
@@ -117,7 +130,7 @@ fn tab_body(app: &App, grid: layout::Grid, content_w: f32) -> Element<'_, Messag
                     sorted(data.artists, app.lib_sort),
                     grid,
                     content_w,
-                    "No followed artists yet.",
+                    crate::i18n::t(lang, "No followed artists yet.", "Chưa theo dõi nghệ sĩ nào."),
                 ));
             } else {
                 c = c.push(sign_in_note(app, content_w));
@@ -133,7 +146,7 @@ fn tab_body(app: &App, grid: layout::Grid, content_w: f32) -> Element<'_, Messag
                     |t| format::artists(&t.artists),
                 );
                 c = c
-                    .push(section_title("Liked songs"))
+                    .push(section_title(crate::i18n::t(lang, "Liked songs", "Bài hát đã thích")))
                     .push(vspace(gap::SM))
                     .push(song_block(app, liked, ListSource::Account, content_w, grid))
                     .push(vspace(gap::XL));
@@ -143,11 +156,11 @@ fn tab_body(app: &App, grid: layout::Grid, content_w: f32) -> Element<'_, Messag
             let local = local_tracks(app);
             if !local.is_empty() {
                 c = c
-                    .push(section_title("On this computer"))
+                    .push(section_title(crate::i18n::t(lang, "On this computer", "Trên máy tính này")))
                     .push(vspace(gap::SM))
                     .push(song_block(app, local, ListSource::Library, content_w, grid));
             } else if signed_in && app.local_tracks.is_empty() {
-                c = c.push(note(app, "No songs yet.", None));
+                c = c.push(note(app, crate::i18n::t(lang, "No songs yet.", "Chưa có bài hát nào."), None));
             }
         }
         LibTab::Local => {
@@ -158,12 +171,13 @@ fn tab_body(app: &App, grid: layout::Grid, content_w: f32) -> Element<'_, Messag
 }
 
 /// Title row with the Create playlist button.
-fn header<'a>() -> Element<'a, Message> {
+fn header(app: &App) -> Element<'_, Message> {
+    let lang = app.ui.settings.language;
     row![
-        page_title("Library"),
+        page_title(crate::i18n::t(lang, "Library", "Thư viện")),
         Space::new().width(Length::Fill),
         tonal_button(
-            "Create playlist",
+            crate::i18n::t(lang, "Create playlist", "Tạo danh sách phát"),
             Some(Icon::Add),
             Some(Message::Create(CreateMsg::Open)),
         ),
@@ -174,8 +188,9 @@ fn header<'a>() -> Element<'a, Message> {
 
 /// Tabs on the left; sort and list or grid on the right.
 fn tabs(app: &App, width: f32) -> Element<'_, Message> {
+    let lang = app.ui.settings.language;
     let mut r = row![].spacing(gap::SM).align_y(Alignment::Center);
-    let labels: Vec<&str> = LibTab::ALL.iter().map(|t| t.label()).collect();
+    let labels: Vec<&str> = LibTab::ALL.iter().map(|t| t.label_localized(lang)).collect();
     let selected = LibTab::ALL
         .iter()
         .position(|t| *t == app.lib_tab)
@@ -195,8 +210,12 @@ pub(super) fn sort_and_layout(app: &App) -> Element<'_, Message> {
     let accent = app.accent();
     let dim = col(color::on_surface_variant());
     let ink = col(color::on_surface());
+    let lang = app.ui.settings.language;
     let mut r = row![].spacing(gap::SM).align_y(Alignment::Center);
-    let sort_label = format!("Sort: {}", app.lib_sort.label());
+    let sort_label = match lang {
+        crate::settings::Language::Vietnamese => format!("Sắp xếp: {}", app.lib_sort.label_localized(lang)),
+        crate::settings::Language::English => format!("Sort: {}", app.lib_sort.label_localized(lang)),
+    };
     let sort = button(
         row![
             icon(Icon::Sort, 18.0, ink),
@@ -211,11 +230,11 @@ pub(super) fn sort_and_layout(app: &App) -> Element<'_, Message> {
     .on_press(Message::LibSort(app.lib_sort.next()));
     r = r.push(tip(
         animated(sort, Color::TRANSPARENT, shape::FULL),
-        "Change the sort order",
+        crate::i18n::t(lang, "Change the sort order", "Thay đổi thứ tự sắp xếp"),
     ));
     for (layout_, glyph, tip_text) in [
-        (LibLayout::List, Icon::List, "List"),
-        (LibLayout::Grid, Icon::Grid, "Grid"),
+        (LibLayout::List, Icon::List, crate::i18n::t(lang, "List", "Danh sách")),
+        (LibLayout::Grid, Icon::Grid, crate::i18n::t(lang, "Grid", "Lưới")),
     ] {
         let on = app.lib_layout == layout_;
         r = r.push(tip(
@@ -265,9 +284,14 @@ fn note<'a>(app: &App, text: &'a str, action: Option<(&'a str, Message)>) -> Ele
 
 /// The signed-out prompt: the account sections need a sign-in.
 fn sign_in_note(app: &App, _width: f32) -> Element<'_, Message> {
+    let lang = app.ui.settings.language;
     note(
         app,
-        "Sign in to see the playlists, albums, artists and liked songs of your YouTube Music account.",
-        Some(("Sign in", Message::Account(AccountMsg::Open))),
+        crate::i18n::t(
+            lang,
+            "Sign in to see the playlists, albums, artists and liked songs of your YouTube Music account.",
+            "Đăng nhập để xem danh sách phát, album, nghệ sĩ và bài hát đã thích trong tài khoản YouTube Music của bạn."
+        ),
+        Some((crate::i18n::t(lang, "Sign in", "Đăng nhập"), Message::Account(AccountMsg::Open))),
     )
 }

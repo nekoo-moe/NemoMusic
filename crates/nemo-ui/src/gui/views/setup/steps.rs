@@ -157,7 +157,7 @@ fn reduce_motion_row(app: &App, width: f32) -> Element<'_, Message> {
         width,
         title,
         None,
-        switch_with(app.ui.settings.reduce_motion, |on| {
+        switch_with(app.ui.settings.language, app.ui.settings.reduce_motion, |on| {
             Message::Ui(Event::Setting(SettingChange::ReduceMotion(on)))
         }),
     )
@@ -185,7 +185,8 @@ fn choice_row<'a>(
 /// The four pick-one rows of the Look step.
 fn look_choices(app: &App, width: f32) -> Vec<Element<'_, Message>> {
     let s = &app.ui.settings;
-    let lt = crate::i18n::look_text(s.language);
+    let lang = s.language;
+    let lt = crate::i18n::look_text(lang);
     vec![
         choice_row(
             width,
@@ -193,9 +194,9 @@ fn look_choices(app: &App, width: f32) -> Vec<Element<'_, Message>> {
             segmented(
                 app,
                 &[
-                    (BaseMode::Dark, "Dark", Some(Icon::DarkMode)),
-                    (BaseMode::Amoled, "AMOLED black", Some(Icon::Tune)),
-                    (BaseMode::Light, "Light", Some(Icon::LightMode)),
+                    (BaseMode::Dark, BaseMode::Dark.label_localized(lang), Some(Icon::DarkMode)),
+                    (BaseMode::Amoled, BaseMode::Amoled.label_localized(lang), Some(Icon::Tune)),
+                    (BaseMode::Light, BaseMode::Light.label_localized(lang), Some(Icon::LightMode)),
                 ],
                 s.base,
                 SettingChange::Base,
@@ -207,9 +208,9 @@ fn look_choices(app: &App, width: f32) -> Vec<Element<'_, Message>> {
             segmented(
                 app,
                 &[
-                    (AccentIntensity::Soft, "Soft", None),
-                    (AccentIntensity::Standard, "Standard", None),
-                    (AccentIntensity::Vivid, "Vivid", None),
+                    (AccentIntensity::Soft, AccentIntensity::Soft.label_localized(lang), None),
+                    (AccentIntensity::Standard, AccentIntensity::Standard.label_localized(lang), None),
+                    (AccentIntensity::Vivid, AccentIntensity::Vivid.label_localized(lang), None),
                 ],
                 s.accent_intensity,
                 SettingChange::AccentIntensity,
@@ -221,9 +222,9 @@ fn look_choices(app: &App, width: f32) -> Vec<Element<'_, Message>> {
             segmented(
                 app,
                 &[
-                    (CornerStyle::Sharp, "Sharp", None),
-                    (CornerStyle::Soft, "Soft", None),
-                    (CornerStyle::Round, "Round", None),
+                    (CornerStyle::Sharp, CornerStyle::Sharp.label_localized(lang), None),
+                    (CornerStyle::Soft, CornerStyle::Soft.label_localized(lang), None),
+                    (CornerStyle::Round, CornerStyle::Round.label_localized(lang), None),
                 ],
                 s.corner_style,
                 SettingChange::CornerStyle,
@@ -235,8 +236,8 @@ fn look_choices(app: &App, width: f32) -> Vec<Element<'_, Message>> {
             segmented(
                 app,
                 &[
-                    (NowPlayingStyle::Classic, "Classic", None),
-                    (NowPlayingStyle::M3Expressive, "Material 3 Expressive", None),
+                    (NowPlayingStyle::Classic, NowPlayingStyle::Classic.label_localized(lang), None),
+                    (NowPlayingStyle::M3Expressive, NowPlayingStyle::M3Expressive.label_localized(lang), None),
                 ],
                 s.now_playing_style,
                 SettingChange::NowPlayingStyle,
@@ -249,7 +250,8 @@ fn look_choices(app: &App, width: f32) -> Vec<Element<'_, Message>> {
 /// their stored values shown as `On` or `Off`.
 pub(super) fn playback(app: &App, width: f32) -> Element<'_, Message> {
     let s = &app.ui.settings;
-    let pt = crate::i18n::playback_text(s.language);
+    let lang = s.language;
+    let pt = crate::i18n::playback_text(lang);
     let rows = vec![
         setting_row(
             width,
@@ -259,7 +261,7 @@ pub(super) fn playback(app: &App, width: f32) -> Element<'_, Message> {
                 pt.sponsorblock_help,
                 copy::SPONSORBLOCK_LICENSE
             )),
-            switch_with(s.sponsorblock, |on| {
+            switch_with(lang, s.sponsorblock, |on| {
                 Message::Ui(Event::Setting(SettingChange::SponsorBlock(on)))
             }),
         ),
@@ -267,7 +269,7 @@ pub(super) fn playback(app: &App, width: f32) -> Element<'_, Message> {
             width,
             pt.adblock_label,
             Some(pt.adblock_help.to_owned()),
-            switch_with(s.block_ads, |on| {
+            switch_with(lang, s.block_ads, |on| {
                 Message::Ui(Event::Setting(SettingChange::BlockAds(on)))
             }),
         ),

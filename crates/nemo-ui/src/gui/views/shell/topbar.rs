@@ -18,6 +18,7 @@ use crate::theme::{color, shape, type_scale};
 
 /// The sign-in slot: an avatar when signed in, a "Sign in" pill otherwise.
 fn account_button(app: &App) -> Element<'_, Message> {
+    let lang = app.ui.settings.language;
     let open = Message::Account(AccountMsg::Open);
     // In the SoundCloud area the button shows the SoundCloud account, so it never says "Sign
     // in" to someone who is signed in there.
@@ -42,9 +43,9 @@ fn account_button(app: &App) -> Element<'_, Message> {
                     Space::new().width(gap::SM),
                     label_w(
                         if busy {
-                            "Signing in\u{2026}"
+                            crate::i18n::t(lang, "Signing in\u{2026}", "Đang đăng nhập\u{2026}")
                         } else {
-                            "Sign in"
+                            crate::i18n::t(lang, "Sign in", "Đăng nhập")
                         },
                         type_scale::BODY_MD,
                         Weight::Medium,
@@ -81,7 +82,7 @@ fn avatar_button<'a>(
             Color::TRANSPARENT,
             shape::FULL,
         ),
-        "Account",
+        crate::i18n::t(app.ui.settings.language, "Account", "Tài khoản"),
     )
 }
 
@@ -109,7 +110,7 @@ fn refresh_button(app: &App) -> Element<'_, Message> {
             col(color::surface_container_highest()),
             enabled.then_some(Message::Refresh),
         ),
-        crate::refresh::tooltip(busy),
+        crate::refresh::tooltip_localized(busy, app.ui.settings.language),
     )
 }
 
@@ -185,13 +186,14 @@ pub(super) fn top_bar(app: &App, center_w: u32) -> Element<'_, Message> {
         ));
     }
     r = r.push(Space::new().width(Length::Fill));
+    let lang = app.ui.settings.language;
     let search_pill = {
         let wide = center_w >= 900;
         let inner: Element<'_, Message> = if wide {
             row![
                 icon(Icon::Search, 20.0, dim),
                 Space::new().width(gap::SM),
-                label("Search", type_scale::BODY_MD, false, dim),
+                label(crate::i18n::t(lang, "Search", "Tìm kiếm"), type_scale::BODY_MD, false, dim),
                 Space::new().width(Length::Fixed(72.0)),
             ]
             .align_y(Alignment::Center)
@@ -214,7 +216,7 @@ pub(super) fn top_bar(app: &App, center_w: u32) -> Element<'_, Message> {
                 col(color::surface_container_highest()),
                 shape::FULL,
             ),
-            "Search (Ctrl+K)",
+            crate::i18n::t(lang, "Search (Ctrl+K)", "Tìm kiếm (Ctrl+K)"),
         )
     };
     r = r.push(search_pill);
@@ -228,7 +230,7 @@ pub(super) fn top_bar(app: &App, center_w: u32) -> Element<'_, Message> {
             col(color::surface_container_highest()),
             Some(Message::Ui(Event::Go(Route::Settings))),
         ),
-        "Settings",
+        crate::i18n::t(lang, "Settings", "Cài đặt"),
     ));
     r = r.push(tip(
         icon_button(
@@ -244,9 +246,9 @@ pub(super) fn top_bar(app: &App, center_w: u32) -> Element<'_, Message> {
             Some(Message::TogglePane),
         ),
         if app.pane_open {
-            "Hide Now Playing"
+            crate::i18n::t(lang, "Hide Now Playing", "Ẩn Now Playing")
         } else {
-            "Show Now Playing"
+            crate::i18n::t(lang, "Show Now Playing", "Hiện Now Playing")
         },
     ));
     r.padding(Padding::from([0.0, gap::LG]))

@@ -121,8 +121,9 @@ fn with_timing<'a>(app: &'a App, page: Element<'a, Message>, top: f32) -> Elemen
 }
 
 fn titles(app: &App, width: f32, centered: bool) -> Element<'_, Message> {
+    let lang = app.ui.settings.language;
     let (title, artist) = app.ui.snapshot.current.as_ref().map_or_else(
-        || ("Nothing playing".to_owned(), String::new()),
+        || (crate::i18n::t(lang, "Nothing playing", "Chưa phát bài nào").to_owned(), String::new()),
         |t| (t.title.clone(), format::artists(&t.artists)),
     );
     let (ts, as_) = if centered {
@@ -240,8 +241,8 @@ fn compact(app: &App, w: u32, h: u32) -> Element<'_, Message> {
         Space::new().height(gap::SM),
         container(
             row![
-                tab("Lyrics", CompactTab::Lyrics),
-                tab("Queue", CompactTab::Queue)
+                tab(crate::i18n::t(app.ui.settings.language, "Lyrics", "Lời bài hát"), CompactTab::Lyrics),
+                tab(crate::i18n::t(app.ui.settings.language, "Queue", "Hàng đợi"), CompactTab::Queue)
             ]
             .spacing(gap::SM)
         )
@@ -263,7 +264,7 @@ fn compact_lyrics(app: &App, width: f32) -> Element<'_, Message> {
         return lyr::lyrics_status(app, width);
     };
     if doc.instrumental {
-        return lyr::status_text("Instrumental", None);
+        return lyr::status_text(crate::i18n::t(app.ui.settings.language, "Instrumental", "Không lời"), None);
     }
     column![
         lyr::three_lines(app, doc, width),

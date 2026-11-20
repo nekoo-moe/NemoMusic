@@ -63,6 +63,7 @@ fn empty(app: &App, width: f32) -> Element<'_, Message> {
     let pad = gap::LG;
     let inner = width - 2.0 * pad;
     let dim = col(color::on_surface_variant());
+    let lang = app.ui.settings.language;
     let mark = container(icon(Icon::Note, 28.0, col(accent.on_primary_container)))
         .width(Length::Fixed(56.0))
         .height(Length::Fixed(56.0))
@@ -80,14 +81,18 @@ fn empty(app: &App, width: f32) -> Element<'_, Message> {
         mark,
         vspace(gap::MD),
         label(
-            "Nothing playing",
+            crate::i18n::t(lang, "Nothing playing", "Chưa phát bài nào"),
             type_scale::TITLE_MD,
             true,
             col(color::on_surface())
         ),
         vspace(gap::XS),
         label(
-            "Pick a song and its cover, lyrics and queue show up here.",
+            crate::i18n::t(
+                lang,
+                "Pick a song and its cover, lyrics and queue show up here.",
+                "Chọn một bài hát để xem ảnh bìa, lời bài hát và hàng đợi tại đây."
+            ),
             type_scale::BODY_MD,
             false,
             dim
@@ -103,7 +108,7 @@ fn empty(app: &App, width: f32) -> Element<'_, Message> {
     let recent = &app.ui.recent;
     if !recent.is_empty() {
         c = c
-            .push(label("Play it again", type_scale::LABEL_MD, true, dim))
+            .push(label(crate::i18n::t(lang, "Play it again", "Nghe lại"), type_scale::LABEL_MD, true, dim))
             .push(vspace(gap::SM));
         for (i, track) in recent.iter().enumerate().take(4) {
             c = c.push(quick_pick(app, track, ListSource::Recent, i, inner, i));
@@ -116,7 +121,7 @@ fn empty(app: &App, width: f32) -> Element<'_, Message> {
     {
         {
             c = c
-                .push(label("Start with", type_scale::LABEL_MD, true, dim))
+                .push(label(crate::i18n::t(lang, "Start with", "Bắt đầu với"), type_scale::LABEL_MD, true, dim))
                 .push(vspace(gap::SM))
                 .push(card_view(
                     app,
@@ -198,7 +203,7 @@ fn playing(app: &App, width: f32) -> Element<'_, Message> {
                 Color::TRANSPARENT,
                 Some(Message::Ui(Event::OpenMenu(track.clone()))),
             ),
-            "More",
+            crate::i18n::t(app.ui.settings.language, "More", "Thêm"),
         ),
         tip(
             icon_button(
@@ -209,7 +214,7 @@ fn playing(app: &App, width: f32) -> Element<'_, Message> {
                 Color::TRANSPARENT,
                 Some(Message::Ui(Event::Go(Route::NowPlaying))),
             ),
-            "Full window",
+            crate::i18n::t(app.ui.settings.language, "Full window", "Toàn màn hình"),
         ),
     ];
     let artist_w = inner - 3.0 * 40.0 - gap::SM;
@@ -299,10 +304,13 @@ fn playing(app: &App, width: f32) -> Element<'_, Message> {
 /// The live lyric line: the current line of synced lyrics, or why there is none.
 fn live_line(app: &App, width: f32) -> Element<'_, Message> {
     let st = type_scale::TITLE_SM;
+    let lang = app.ui.settings.language;
     let (text, live) = match &app.ui.lyrics {
-        LyricsState::Ready(doc) if doc.instrumental => ("Instrumental".to_owned(), false),
+        LyricsState::Ready(doc) if doc.instrumental => {
+            (crate::i18n::t(lang, "Instrumental", "Không lời").to_owned(), false)
+        }
         LyricsState::Ready(doc) if doc.granularity == Granularity::Unsynced => {
-            ("These lyrics are not synced".to_owned(), false)
+            (crate::i18n::t(lang, "These lyrics are not synced", "Lời bài hát chưa được khớp thời gian").to_owned(), false)
         }
         LyricsState::Ready(doc) => match app.ui.active_lyric().and_then(|i| doc.lines.get(i)) {
             Some(l) => (l.text.clone(), true),
@@ -341,6 +349,7 @@ fn tabs(
     width: f32,
 ) -> Element<'_, Message> {
     let tab_w = (width - 2.0 * gap::XS) / 3.0;
+    let lang = app.ui.settings.language;
     let mut r = row![].spacing(0);
     for t in NpTab::ALL {
         let on = app.np_tab == t;
@@ -350,7 +359,7 @@ fn tabs(
             col(color::on_surface_variant())
         };
         let b = button(
-            container(label_w(t.label(), type_scale::BODY_MD, Weight::Medium, ink))
+            container(label_w(t.label_localized(lang), type_scale::BODY_MD, Weight::Medium, ink))
                 .width(Length::Fixed(tab_w))
                 .height(Length::Fixed(36.0))
                 .center_x(Length::Fixed(tab_w))
@@ -419,6 +428,7 @@ fn info_tab(app: &App, width: f32) -> Element<'_, Message> {
     };
     let dim = col(color::on_surface_variant());
     let ink = col(color::on_surface());
+    let lang = app.ui.settings.language;
     let pair = |name: &'static str, value: String| -> Element<'_, Message> {
         column![
             label(name, type_scale::LABEL_MD, false, dim),
@@ -428,25 +438,25 @@ fn info_tab(app: &App, width: f32) -> Element<'_, Message> {
         .into()
     };
     let mut c = column![
-        pair("Title", track.title.clone()),
-        pair("Artist", format::artists(&track.artists)),
+        pair(crate::i18n::t(lang, "Title", "Tiêu đề"), track.title.clone()),
+        pair(crate::i18n::t(lang, "Artist", "Nghệ sĩ"), format::artists(&track.artists)),
     ]
     .spacing(gap::MD)
     .width(Length::Fixed(width));
     if let Some(album) = &track.album {
-        c = c.push(pair("Album", album.clone()));
+        c = c.push(pair(crate::i18n::t(lang, "Album", "Album"), album.clone()));
     }
     c = c.push(pair(
-        "Source",
+        crate::i18n::t(lang, "Source", "Nguồn phát"),
         match track.origin {
-            nemo_core::audio::Origin::Local => "Your music folder".to_owned(),
-            nemo_core::audio::Origin::YoutubeMusic => "YouTube Music (lossy)".to_owned(),
-            nemo_core::audio::Origin::SoundCloud => "SoundCloud (lossy)".to_owned(),
+            nemo_core::audio::Origin::Local => crate::i18n::t(lang, "Your music folder", "Thư mục nhạc của bạn").to_owned(),
+            nemo_core::audio::Origin::YoutubeMusic => crate::i18n::t(lang, "YouTube Music (lossy)", "YouTube Music (nén)").to_owned(),
+            nemo_core::audio::Origin::SoundCloud => crate::i18n::t(lang, "SoundCloud (lossy)", "SoundCloud (nén)").to_owned(),
         },
     ));
     c = c.push(
         column![
-            label("Quality", type_scale::LABEL_MD, false, dim),
+            label(crate::i18n::t(lang, "Quality", "Chất lượng"), type_scale::LABEL_MD, false, dim),
             badge(app, width),
         ]
         .spacing(gap::XS),

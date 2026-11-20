@@ -130,6 +130,21 @@ impl ContentFilter {
             Self::Podcasts => "Podcasts",
         }
     }
+
+    /// Localized chip label.
+    #[must_use]
+    pub const fn label_localized(self, lang: crate::settings::Language) -> &'static str {
+        match (self, lang) {
+            (Self::All, crate::settings::Language::Vietnamese) => "Tất cả",
+            (Self::All, crate::settings::Language::English) => "All",
+            (Self::Music, crate::settings::Language::Vietnamese) => "Âm nhạc",
+            (Self::Music, crate::settings::Language::English) => "Music",
+            (Self::Videos, crate::settings::Language::Vietnamese) => "Video",
+            (Self::Videos, crate::settings::Language::English) => "Videos",
+            (Self::Podcasts, crate::settings::Language::Vietnamese) => "Podcast",
+            (Self::Podcasts, crate::settings::Language::English) => "Podcasts",
+        }
+    }
 }
 
 /// Tabs of the Library page.
@@ -173,6 +188,25 @@ impl LibTab {
             Self::Local => "Local",
         }
     }
+
+    /// Localized tab label.
+    #[must_use]
+    pub const fn label_localized(self, lang: crate::settings::Language) -> &'static str {
+        match (self, lang) {
+            (Self::Overview, crate::settings::Language::Vietnamese) => "Tổng quan",
+            (Self::Overview, crate::settings::Language::English) => "Overview",
+            (Self::Playlists, crate::settings::Language::Vietnamese) => "Danh sách phát",
+            (Self::Playlists, crate::settings::Language::English) => "Playlists",
+            (Self::Songs, crate::settings::Language::Vietnamese) => "Bài hát",
+            (Self::Songs, crate::settings::Language::English) => "Songs",
+            (Self::Albums, crate::settings::Language::Vietnamese) => "Album",
+            (Self::Albums, crate::settings::Language::English) => "Albums",
+            (Self::Artists, crate::settings::Language::Vietnamese) => "Nghệ sĩ",
+            (Self::Artists, crate::settings::Language::English) => "Artists",
+            (Self::Local, crate::settings::Language::Vietnamese) => "Tệp cục bộ",
+            (Self::Local, crate::settings::Language::English) => "Local",
+        }
+    }
 }
 
 /// Sort orders of the Library page.
@@ -198,6 +232,19 @@ impl LibSort {
             Self::Recent => "Recent",
             Self::Title => "Title",
             Self::Artist => "Artist",
+        }
+    }
+
+    /// Localized label.
+    #[must_use]
+    pub const fn label_localized(self, lang: crate::settings::Language) -> &'static str {
+        match (self, lang) {
+            (Self::Recent, crate::settings::Language::Vietnamese) => "Gần đây",
+            (Self::Recent, crate::settings::Language::English) => "Recent",
+            (Self::Title, crate::settings::Language::Vietnamese) => "Tiêu đề",
+            (Self::Title, crate::settings::Language::English) => "Title",
+            (Self::Artist, crate::settings::Language::Vietnamese) => "Nghệ sĩ",
+            (Self::Artist, crate::settings::Language::English) => "Artist",
         }
     }
 
@@ -263,6 +310,17 @@ impl SleepChoice {
         match self {
             Self::Minutes(m) => format!("{m} min"),
             Self::EndOfSong => "End of song".to_owned(),
+        }
+    }
+
+    /// Localized menu label.
+    #[must_use]
+    pub fn label_localized(self, lang: crate::settings::Language) -> String {
+        match (self, lang) {
+            (Self::Minutes(m), crate::settings::Language::Vietnamese) => format!("{m} phút"),
+            (Self::Minutes(m), crate::settings::Language::English) => format!("{m} min"),
+            (Self::EndOfSong, crate::settings::Language::Vietnamese) => "Hết bài".to_owned(),
+            (Self::EndOfSong, crate::settings::Language::English) => "End of song".to_owned(),
         }
     }
 

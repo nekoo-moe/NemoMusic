@@ -35,6 +35,7 @@ fn framed(phase: OptInPhase, width: f32) -> Element<'static, Message> {
         phase,
         status: Some("Connected as your Last.fm account"),
         stays: Some("Plays not sent yet stay in the queue on this computer."),
+        lang: nemo_ui::settings::Language::English,
     };
     container(tile(
         opt_in_row(row, actions, width),

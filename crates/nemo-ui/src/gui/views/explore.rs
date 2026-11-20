@@ -80,11 +80,16 @@ struct Tile {
 /// The Explore screen. `w` is the width of the centre pane.
 pub fn view(app: &App, w: u32) -> Element<'_, Message> {
     let grid = layout::grid_in(w);
+    let lang = app.ui.settings.language;
     let mut c = column![
-        page_title("Explore"),
+        page_title(crate::i18n::t(lang, "Explore", "Khám phá")),
         vspace(gap::XS),
         label(
-            "New releases, charts, moods and genres from YouTube Music.",
+            crate::i18n::t(
+                lang,
+                "New releases, charts, moods and genres from YouTube Music.",
+                "Bản phát hành mới, bảng xếp hạng, tâm trạng và thể loại từ YouTube Music."
+            ),
             type_scale::BODY_MD,
             false,
             col(color::on_surface_variant())
@@ -92,7 +97,7 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
     ]
     .width(Length::Fill);
     if let Some(line) = app.explore.notice() {
-        c = c.push(vspace(gap::SM)).push(notice(line));
+        c = c.push(vspace(gap::SM)).push(notice(line, lang));
     }
     c = c.push(vspace(gap::LG));
     let body = swap(
@@ -102,7 +107,12 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
             Some(e) => real(app, grid, e),
             None if app.explore.shows_fallback() => fallback(app, grid),
             None if !app.ui.youtube_enabled() => {
-                status(Icon::Explore, "Explore is waiting", GATE_MESSAGE, None)
+                status(
+                    Icon::Explore,
+                    crate::i18n::t(lang, "Explore is waiting", "Khám phá đang chờ"),
+                    GATE_MESSAGE,
+                    None
+                )
             }
             // Loading: the skeleton comes after its 150 ms wait.
             None => blank(),
@@ -113,7 +123,7 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
 }
 
 /// The one short line of a failed load, with Retry.
-fn notice(line: &'static str) -> Element<'static, Message> {
+fn notice(line: &'static str, lang: crate::settings::Language) -> Element<'static, Message> {
     row![
         label(
             line,
@@ -122,7 +132,7 @@ fn notice(line: &'static str) -> Element<'static, Message> {
             col(color::on_surface_variant())
         ),
         Space::new().width(gap::SM),
-        text_button("Retry", Message::Explore(ExploreMsg::Retry)),
+        text_button(crate::i18n::t(lang, "Retry", "Thử lại"), Message::Explore(ExploreMsg::Retry)),
     ]
     .align_y(Alignment::Center)
     .into()
@@ -132,9 +142,10 @@ fn notice(line: &'static str) -> Element<'static, Message> {
 fn real<'a>(app: &'a App, grid: layout::Grid, e: &'a Explore) -> Element<'a, Message> {
     let mut c = column![].width(Length::Fill);
     let releases = album_cards(&e.new_releases);
+    let lang = app.ui.settings.language;
     if !releases.is_empty() {
         c = c
-            .push(section_title("New albums and singles"))
+            .push(section_title(crate::i18n::t(lang, "New albums and singles", "Album & đĩa đơn mới")))
             .push(vspace(gap::MD))
             .push(card_grid(app, grid, releases, RELEASE_ROWS, 0))
             .push(vspace(gap::XXL));
@@ -156,7 +167,7 @@ fn real<'a>(app: &'a App, grid: layout::Grid, e: &'a Explore) -> Element<'a, Mes
             .collect()
     };
     c = c
-        .push(section_title("Moods and genres"))
+        .push(section_title(crate::i18n::t(lang, "Moods and genres", "Tâm trạng & thể loại")))
         .push(vspace(gap::MD))
         .push(tiles(grid, tiles_in))
         .push(vspace(gap::XXL));
@@ -178,7 +189,7 @@ fn real<'a>(app: &'a App, grid: layout::Grid, e: &'a Explore) -> Element<'a, Mes
 /// shelves.
 fn fallback(app: &App, grid: layout::Grid) -> Element<'_, Message> {
     let mut c = column![
-        section_title("Moods and genres"),
+        section_title(crate::i18n::t(app.ui.settings.language, "Moods and genres", "Tâm trạng & thể loại")),
         vspace(gap::MD),
         tiles(grid, search_tiles()),
         vspace(gap::XXL),

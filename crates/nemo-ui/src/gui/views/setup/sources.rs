@@ -73,21 +73,30 @@ fn youtube(app: &App, inner: f32) -> Element<'_, Message> {
     let mut c = column![title(st.yt_title), dim(st.yt_body, inner)]
         .spacing(gap::SM)
         .width(Length::Fixed(inner));
+    let lang = app.ui.settings.language;
     let state = app.backend.account.state();
     if let AccountState::SignedIn(info) = state {
+        let signed_in_text = match lang {
+            crate::settings::Language::Vietnamese => format!("Đã đăng nhập với tên {}", info.name),
+            crate::settings::Language::English => format!("Signed in as {}", info.name),
+        };
         return c
             .push(status_line(
                 Icon::CheckCircle,
-                format!("Signed in as {}", info.name),
+                signed_in_text,
                 inner,
             ))
             .into();
     }
     if !app.ui.settings.tos_acknowledged {
         return c
-            .push(dim(text::YT_NEEDS_NOTICE, inner))
+            .push(dim(crate::i18n::t(
+                lang,
+                text::YT_NEEDS_NOTICE,
+                "Chấp nhận thông báo ở bước trước để sử dụng YouTube Music.",
+            ), inner))
             .push(text_button(
-                "Back to the notice",
+                crate::i18n::t(lang, "Back to the notice", "Quay lại thông báo"),
                 Message::Ui(Event::Setup(SetupEvent::Back)),
             ))
             .into();
@@ -99,7 +108,11 @@ fn youtube(app: &App, inner: f32) -> Element<'_, Message> {
                     spinner(24.0, col(app.accent().primary), app.spin),
                     Space::new().width(gap::MD),
                     paragraph(
-                        copy::ACCOUNT_WAITING,
+                        crate::i18n::t(
+                            lang,
+                            copy::ACCOUNT_WAITING,
+                            "Hoàn tất đăng nhập trong cửa sổ vừa mở. Trang này sẽ tự cập nhật.",
+                        ),
                         type_scale::BODY_MD,
                         col(color::on_surface()),
                         inner - 24.0 - gap::MD,
@@ -112,7 +125,11 @@ fn youtube(app: &App, inner: f32) -> Element<'_, Message> {
     if let Some(error) = &app.account.error {
         c = c
             .push(status_line(Icon::Info, error.clone(), inner))
-            .push(dim(text::YT_FAILED_WAY, inner));
+            .push(dim(crate::i18n::t(
+                lang,
+                text::YT_FAILED_WAY,
+                "Bạn cũng có thể dùng YouTube Music mà không cần tài khoản.",
+            ), inner));
     }
     if app.ui.setup.without_account() {
         c = c.push(status_line(
@@ -138,7 +155,7 @@ fn youtube(app: &App, inner: f32) -> Element<'_, Message> {
     if app.account.error.is_some() {
         // Its own row: the three buttons do not fit side by side at the minimum window.
         c = c.push(text_button(
-            "More ways to sign in",
+            crate::i18n::t(lang, "More ways to sign in", "Thêm cách đăng nhập"),
             Message::Account(AccountMsg::Open),
         ));
     }
@@ -148,10 +165,16 @@ fn youtube(app: &App, inner: f32) -> Element<'_, Message> {
 /// The SoundCloud card: what it is, then the switch's own confirmation, or sign-in once it runs.
 /// The panel and the sign-in are the ones of Settings; this card only starts them.
 fn soundcloud(app: &App, inner: f32) -> Element<'_, Message> {
+    let lang = app.ui.settings.language;
+    let st = crate::i18n::sources_text(lang);
     let Some(info) = app.sc_info() else {
         return column![
-            title(text::SC_TITLE),
-            dim(copy::soundcloud::NOT_IN_THIS_BUILD, inner)
+            title(st.sc_title),
+            dim(crate::i18n::t(
+                lang,
+                copy::soundcloud::NOT_IN_THIS_BUILD,
+                "SoundCloud không được hỗ trợ trong bản dựng này.",
+            ), inner)
         ]
         .spacing(gap::SM)
         .into();
@@ -163,6 +186,7 @@ fn soundcloud(app: &App, inner: f32) -> Element<'_, Message> {
                 phase: OptInPhase::Confirming,
                 status: None,
                 stays: None,
+                lang,
             },
             OptInActions {
                 ask: Message::Sc(ScMsg::Ask),
@@ -175,15 +199,15 @@ fn soundcloud(app: &App, inner: f32) -> Element<'_, Message> {
         );
     }
     let mut c = column![
-        title(text::SC_TITLE),
-        dim(copy::soundcloud::SETUP_BODY, inner)
+        title(st.sc_title),
+        dim(st.sc_body, inner)
     ]
     .spacing(gap::SM)
     .width(Length::Fixed(inner));
     if !app.sc_open() {
         return c
             .push(tonal_button(
-                copy::soundcloud::SETUP_TURN_ON,
+                crate::i18n::t(lang, copy::soundcloud::SETUP_TURN_ON, "Bật SoundCloud"),
                 None,
                 Some(Message::Sc(ScMsg::Ask)),
             ))
@@ -192,35 +216,53 @@ fn soundcloud(app: &App, inner: f32) -> Element<'_, Message> {
     match app.sc_state() {
         _ if !app.sc_running() => c.push(status_line(
             Icon::Check,
-            copy::soundcloud::SETUP_AFTER_RESTART.to_owned(),
+            crate::i18n::t(
+                lang,
+                copy::soundcloud::SETUP_AFTER_RESTART,
+                "SoundCloud đã bật. Dịch vụ sẽ bắt đầu vào lần tới NemoMusic mở; sau đó hãy đăng nhập từ Cài đặt.",
+            ).to_owned(),
             inner,
         )),
-        Some(SourceAccountState::SignedIn(info)) => c.push(status_line(
-            Icon::CheckCircle,
-            format!("Signed in as {}", info.name),
-            inner,
-        )),
+        Some(SourceAccountState::SignedIn(info)) => {
+            let sc_signed_in = match lang {
+                crate::settings::Language::Vietnamese => format!("Đã đăng nhập với tên {}", info.name),
+                crate::settings::Language::English => format!("Signed in as {}", info.name),
+            };
+            c.push(status_line(
+                Icon::CheckCircle,
+                sc_signed_in,
+                inner,
+            ))
+        }
         Some(_) => {
             if let Some(error) = &app.sc.error {
                 c = c.push(status_line(Icon::Info, error.clone(), inner));
             }
             c = c.push(tonal_button(
-                copy::soundcloud::SIGN_IN,
+                st.sc_sign_in,
                 Some(Icon::Login),
                 (!app.sc.busy).then_some(Message::Sc(ScMsg::SignIn)),
             ));
             if app.sc_sign_in_hint() {
                 c = c
-                    .push(dim(copy::soundcloud::SETUP_STILL_WAITING, inner))
+                    .push(dim(crate::i18n::t(
+                        lang,
+                        copy::soundcloud::SETUP_STILL_WAITING,
+                        "SoundCloud chưa nhận diện được phiên đăng nhập. Nếu cửa sổ đã hiển thị bạn đăng nhập, hãy nhấn nút kiểm tra lại.",
+                    ), inner))
                     .push(tonal_button(
-                        copy::soundcloud::CHECK_AGAIN,
+                        crate::i18n::t(lang, copy::soundcloud::CHECK_AGAIN, "Kiểm tra lại"),
                         Some(Icon::Refresh),
                         Some(Message::Sc(ScMsg::Recheck)),
                     ));
             }
             c
         }
-        None => c.push(dim(copy::soundcloud::NO_STORE, inner)),
+        None => c.push(dim(crate::i18n::t(
+            lang,
+            copy::soundcloud::NO_STORE,
+            "Đăng nhập bị tắt vì máy tính không có kho lưu trữ bảo mật để lưu token.",
+        ), inner)),
     }
     .into()
 }
@@ -228,7 +270,8 @@ fn soundcloud(app: &App, inner: f32) -> Element<'_, Message> {
 /// The local music card: the folders already listed, `Add a folder` when the app has a picker,
 /// and `Skip`.
 fn local(app: &App, inner: f32) -> Element<'_, Message> {
-    let st = crate::i18n::sources_text(app.ui.settings.language);
+    let lang = app.ui.settings.language;
+    let st = crate::i18n::sources_text(lang);
     let mut c = column![title(st.local_title), dim(st.local_body, inner)]
         .spacing(gap::SM)
         .width(Length::Fixed(inner));
@@ -241,7 +284,11 @@ fn local(app: &App, inner: f32) -> Element<'_, Message> {
         ));
     }
     if !app.has_add_folder() {
-        c = c.push(dim(text::LOCAL_NO_PICKER, inner));
+        c = c.push(dim(crate::i18n::t(
+            lang,
+            text::LOCAL_NO_PICKER,
+            "Chưa hỗ trợ chọn thư mục trực tiếp. Thư mục được liệt kê trong settings.json.",
+        ), inner));
     }
     let mut actions = row![].spacing(gap::SM).align_y(Alignment::Center);
     if app.has_add_folder() {
@@ -250,12 +297,17 @@ fn local(app: &App, inner: f32) -> Element<'_, Message> {
     if app.ui.setup.folders_skipped() {
         c = c.push(status_line(
             Icon::Check,
-            text::LOCAL_SKIPPED.to_owned(),
+            crate::i18n::t(
+                lang,
+                text::LOCAL_SKIPPED,
+                "Hiện chưa thêm thư mục nào. Bạn có thể thêm sau.",
+            )
+            .to_owned(),
             inner,
         ));
-    } else {
+    } else if app.music_folders.is_empty() {
         actions = actions.push(text_button(
-            crate::i18n::t(app.ui.settings.language, "Skip", "Bỏ qua"),
+            crate::i18n::t(lang, "Skip", "Bỏ qua"),
             Message::Ui(Event::Setup(SetupEvent::SkipFolders)),
         ));
     }

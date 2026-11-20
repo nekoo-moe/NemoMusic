@@ -23,7 +23,7 @@ pub use tools::tools_panel;
 
 /// The keyboard shortcut sheet.
 pub fn shortcuts_sheet(app: &App) -> Element<'_, Message> {
-    let _ = app;
+    let lang = app.ui.settings.language;
     let dim = col(color::on_surface_variant());
     // Rows are 32 high with no extra gap, so all of them and the note fit a 697 px window.
     let mut list = column![];
@@ -56,7 +56,7 @@ pub fn shortcuts_sheet(app: &App) -> Element<'_, Message> {
     let body = column![
         row![
             label(
-                "Keyboard shortcuts",
+                crate::i18n::t(lang, "Keyboard shortcuts", "Phím tắt bàn phím"),
                 type_scale::TITLE_MD,
                 true,
                 col(color::on_surface())
@@ -76,7 +76,7 @@ pub fn shortcuts_sheet(app: &App) -> Element<'_, Message> {
         list,
         vspace(gap::MD),
         label(
-            "Single letters are off while you type in a text field.",
+            crate::i18n::t(lang, "Single letters are off while you type in a text field.", "Phím chữ đơn bị vô hiệu hóa khi bạn đang nhập văn bản."),
             type_scale::BODY_SM,
             false,
             dim
@@ -98,7 +98,8 @@ pub fn shortcuts_sheet(app: &App) -> Element<'_, Message> {
 pub fn create_sheet(app: &App) -> Element<'_, Message> {
     let accent = app.accent();
     let dim = col(color::on_surface_variant());
-    let name = text_input("Playlist name", &app.create_name)
+    let lang = app.ui.settings.language;
+    let name = text_input(crate::i18n::t(lang, "Playlist name", "Tên danh sách phát"), &app.create_name)
         .on_input(|s| Message::Create(CreateMsg::Name(s)))
         .on_submit(Message::Create(CreateMsg::Confirm))
         .font(font(false))
@@ -126,16 +127,20 @@ pub fn create_sheet(app: &App) -> Element<'_, Message> {
     let ready = !app.create_name.trim().is_empty();
     let (title, hint, go) = match &app.create_target {
         CreateTarget::Account => (
-            "Create playlist",
-            "It is created in your YouTube Music account when signed in.",
-            "Create",
+            crate::i18n::t(lang, "Create playlist", "Tạo danh sách phát"),
+            crate::i18n::t(lang, "It is created in your YouTube Music account when signed in.", "Danh sách sẽ được tạo trong tài khoản YouTube Music của bạn khi đã đăng nhập."),
+            crate::i18n::t(lang, "Create", "Tạo"),
         ),
         CreateTarget::SoundCloud(_) => (
-            "New SoundCloud playlist",
-            crate::copy::soundcloud::NEW_PLAYLIST_HINT,
-            "Create",
+            crate::i18n::t(lang, "New SoundCloud playlist", "Danh sách phát SoundCloud mới"),
+            crate::i18n::t(lang, crate::copy::soundcloud::NEW_PLAYLIST_HINT, "Danh sách sẽ được tạo công khai trên SoundCloud."),
+            crate::i18n::t(lang, "Create", "Tạo"),
         ),
-        CreateTarget::Rename(_) => ("Rename playlist", "", "Rename"),
+        CreateTarget::Rename(_) => (
+            crate::i18n::t(lang, "Rename playlist", "Đổi tên danh sách phát"),
+            "",
+            crate::i18n::t(lang, "Rename", "Đổi tên"),
+        ),
     };
     let create: Element<'_, Message> = if ready {
         let b = button(
@@ -168,7 +173,7 @@ pub fn create_sheet(app: &App) -> Element<'_, Message> {
         row![
             create,
             Space::new().width(gap::SM),
-            text_button("Cancel", Message::Create(CreateMsg::Close)),
+            text_button(crate::i18n::t(lang, "Cancel", "Hủy"), Message::Create(CreateMsg::Close)),
         ]
         .align_y(Alignment::Center),
     ]
@@ -211,7 +216,7 @@ pub fn mini_player(app: &App) -> Element<'_, Message> {
             ),
         ]
         .into(),
-        None => label("Nothing playing", type_scale::TITLE_SM, true, dim).into(),
+        None => label(crate::i18n::t(app.ui.settings.language, "Nothing playing", "Chưa phát bài nào"), type_scale::TITLE_SM, true, dim).into(),
     };
     let controls = row![
         icon_button(
@@ -245,7 +250,7 @@ pub fn mini_player(app: &App) -> Element<'_, Message> {
                 Color::TRANSPARENT,
                 Some(Message::ToggleMini),
             ),
-            "Back to the full window",
+            crate::i18n::t(app.ui.settings.language, "Back to the full window", "Trở lại cửa sổ đầy đủ"),
         ),
     ]
     .spacing(gap::XS)
@@ -273,9 +278,10 @@ pub fn mini_player(app: &App) -> Element<'_, Message> {
 
 /// Header chip row of Home: All, Music, Videos, Podcasts, with a sliding selection pill.
 pub fn content_chips(app: &App) -> Element<'_, Message> {
+    let lang = app.ui.settings.language;
     let labels: Vec<&str> = crate::explore::ContentFilter::ALL
         .iter()
-        .map(|f| f.label())
+        .map(|f| f.label_localized(lang))
         .collect();
     let selected = crate::explore::ContentFilter::ALL
         .iter()

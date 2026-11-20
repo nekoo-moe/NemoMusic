@@ -56,6 +56,36 @@ pub fn helper(s: &LyricsProviderStatus) -> String {
     text
 }
 
+/// Localized helper text of one source: hosts, default state and risk note.
+#[must_use]
+pub fn helper_localized(s: &LyricsProviderStatus, lang: crate::settings::Language) -> String {
+    let mut text = match lang {
+        crate::settings::Language::Vietnamese => format!(
+            "Truy vấn {}. {}",
+            s.hosts.join(", "),
+            if s.default_enabled {
+                "Bật mặc định."
+            } else {
+                "Tắt cho đến khi bạn bật."
+            }
+        ),
+        crate::settings::Language::English => format!(
+            "Asks {}. {}",
+            s.hosts.join(", "),
+            if s.default_enabled {
+                "On by default."
+            } else {
+                "Off until you turn it on."
+            }
+        ),
+    };
+    if let Some(risk) = s.risk_note {
+        let risk_word = crate::i18n::t(lang, "Risk", "Rủi ro");
+        text = format!("{text} {risk_word}: {risk}");
+    }
+    text
+}
+
 fn tag<'a>(text: &'static str) -> Element<'a, Message> {
     let ink = col(color::on_surface_variant());
     container(label(text, type_scale::LABEL_SM, false, ink))
@@ -71,7 +101,11 @@ fn tag<'a>(text: &'static str) -> Element<'a, Message> {
         .into()
 }
 
-fn setting_source_row<'a>(s: &LyricsProviderStatus, width: f32) -> Element<'a, Message> {
+fn setting_source_row<'a>(
+    s: &LyricsProviderStatus,
+    lang: crate::settings::Language,
+    width: f32,
+) -> Element<'a, Message> {
     let text_w = (width - CONTROL_W - 3.0 * gap::LG).max(160.0);
     let id = s.id;
     let title = row![
@@ -88,7 +122,7 @@ fn setting_source_row<'a>(s: &LyricsProviderStatus, width: f32) -> Element<'a, M
     let text = column![
         title,
         paragraph(
-            helper(s),
+            helper_localized(s, lang),
             type_scale::BODY_SM,
             col(color::on_surface_variant()),
             text_w
@@ -100,7 +134,7 @@ fn setting_source_row<'a>(s: &LyricsProviderStatus, width: f32) -> Element<'a, M
         Space::new().height(32.0),
         text,
         Space::new().width(Length::Fill),
-        container(switch_with(s.enabled, move |v| Message::SetLyricsSource(
+        container(switch_with(lang, s.enabled, move |v| Message::SetLyricsSource(
             id, v
         )))
         .width(Length::Fixed(CONTROL_W))
@@ -113,8 +147,14 @@ fn setting_source_row<'a>(s: &LyricsProviderStatus, width: f32) -> Element<'a, M
 
 /// The intro line and one row per source.
 pub fn sources(app: &App, width: f32) -> Vec<Element<'_, Message>> {
-    let intro = container(paragraph(
+    let lang = app.ui.settings.language;
+    let intro_text = crate::i18n::t(
+        lang,
         "Sources are asked best timing first: syllable, then word, then line. The best answer is shown by itself; pick another one for a song in the Tools panel.",
+        "Các nguồn được ưu tiên theo độ khớp thời gian tốt nhất: từng âm tiết, từng từ, rồi đến từng câu. Kết quả tốt nhất được hiển thị tự động; bạn có thể chọn nguồn khác cho bài hát trong bảng Công cụ.",
+    );
+    let intro = container(paragraph(
+        intro_text,
         type_scale::BODY_SM,
         col(color::on_surface_variant()),
         (width - 2.0 * gap::LG).max(160.0),
@@ -124,7 +164,7 @@ pub fn sources(app: &App, width: f32) -> Vec<Element<'_, Message>> {
         .chain(
             sorted(&app.lyric_sources)
                 .into_iter()
-                .map(|s| setting_source_row(s, width)),
+                .map(|s| setting_source_row(s, lang, width)),
         )
         .collect()
 }
@@ -183,11 +223,14 @@ fn source_row<'a>(
 /// per-song pick, then every source that answered for this song, best first, with its level.
 /// Empty while no source answered.
 pub fn tools_section(app: &App, width: f32) -> Option<Element<'_, Message>> {
+    let lang = app.ui.settings.language;
     let best = app.lyric_candidates.first()?;
-    let mut c = column![heading("Lyrics source"), vspace(gap::SM)].width(Length::Fixed(width));
+    let section_title = crate::i18n::t(lang, "Lyrics source", "Nguồn lời bài hát");
+    let best_label = crate::i18n::t(lang, "Best (auto)", "Tự động (tốt nhất)");
+    let mut c = column![heading(section_title), vspace(gap::SM)].width(Length::Fixed(width));
     c = c.push(source_row(
         app,
-        "Best (auto)".to_owned(),
+        best_label.to_owned(),
         level_tag(best.granularity),
         (!app.lyric_pinned, false),
         Message::LyricsAuto,
@@ -208,9 +251,17 @@ pub fn tools_section(app: &App, width: f32) -> Option<Element<'_, Message>> {
         ));
     }
     let note = if app.lyric_pinned {
-        "Your pick is kept for this song."
+        crate::i18n::t(
+            lang,
+            "Your pick is kept for this song.",
+            "Lựa chọn của bạn được lưu cho bài hát này.",
+        )
     } else {
-        "The best timing is picked by itself: syllable, then word, then line."
+        crate::i18n::t(
+            lang,
+            "The best timing is picked by itself: syllable, then word, then line.",
+            "Độ khớp thời gian tốt nhất được chọn tự động: từng âm tiết, từng từ, rồi đến từng câu.",
+        )
     };
     Some(
         c.push(vspace(gap::XS))

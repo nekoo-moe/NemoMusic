@@ -88,18 +88,17 @@ pub(super) fn left_pane(app: &App, width: f32, _h: u32) -> Element<'_, Message> 
         }
     };
 
+    let lang = app.ui.settings.language;
     let mut entries = column![].spacing(gap::XS);
     for &entry in app.source.nav() {
         let on = selected == Some(entry);
-        let (glyph, text) = match entry {
-            NavEntry::Home => (if on { Icon::HomeFill } else { Icon::Home }, "Home"),
-            NavEntry::Explore => (Icon::Explore, "Explore"),
-            NavEntry::Search => (if on { Icon::SearchFill } else { Icon::Search }, "Search"),
-            _ => (
-                if on { Icon::LibraryFill } else { Icon::Library },
-                "Library",
-            ),
+        let glyph = match entry {
+            NavEntry::Home => if on { Icon::HomeFill } else { Icon::Home },
+            NavEntry::Explore => Icon::Explore,
+            NavEntry::Search => if on { Icon::SearchFill } else { Icon::Search },
+            _ => if on { Icon::LibraryFill } else { Icon::Library },
         };
+        let text = entry.label_localized(lang);
         entries = entries.push(nav_pill(app, glyph, text, on, entry.route(), wide));
     }
     let nav = column![brand, vspace(gap::SM), nav_stack(app, entries.into())].spacing(gap::XS);
@@ -108,7 +107,7 @@ pub(super) fn left_pane(app: &App, width: f32, _h: u32) -> Element<'_, Message> 
     if wide {
         c = c
             .push(vspace(gap::LG))
-            .push(library_header())
+            .push(library_header(app))
             .push(vspace(gap::SM));
         c = c
             .push(library_chips(app))
@@ -129,7 +128,7 @@ pub(super) fn left_pane(app: &App, width: f32, _h: u32) -> Element<'_, Message> 
                     Color::TRANSPARENT,
                     Some(Message::Ui(Event::Go(Route::Settings))),
                 ),
-                "Settings",
+                crate::i18n::t(lang, "Settings", "Cài đặt"),
             ))
             .width(Length::Fill)
             .center_x(Length::Fill)

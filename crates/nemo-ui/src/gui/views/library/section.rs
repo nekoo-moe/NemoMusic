@@ -23,11 +23,12 @@ pub(super) fn account_overview<'a>(
     grid: layout::Grid,
     content_w: f32,
 ) -> Element<'a, Message> {
+    let lang = app.ui.settings.language;
     let mut c = column![].width(Length::Fill);
     let sections = [
-        ("Playlists", sorted(data.playlists.clone(), app.lib_sort)),
-        ("Albums", sorted(data.albums.clone(), app.lib_sort)),
-        ("Artists", sorted(data.artists.clone(), app.lib_sort)),
+        (crate::i18n::t(lang, "Playlists", "Danh sách phát"), sorted(data.playlists.clone(), app.lib_sort)),
+        (crate::i18n::t(lang, "Albums", "Album"), sorted(data.albums.clone(), app.lib_sort)),
+        (crate::i18n::t(lang, "Artists", "Nghệ sĩ"), sorted(data.artists.clone(), app.lib_sort)),
     ];
     for (i, (title, items)) in sections.into_iter().enumerate() {
         if items.is_empty() {
@@ -49,7 +50,7 @@ pub(super) fn account_overview<'a>(
         );
         liked.truncate(6);
         c = c
-            .push(section_title("Liked songs"))
+            .push(section_title(crate::i18n::t(lang, "Liked songs", "Bài hát đã thích")))
             .push(vspace(gap::SM))
             .push(song_block(app, liked, ListSource::Account, content_w, grid))
             .push(vspace(gap::XL));
@@ -66,8 +67,9 @@ pub(super) fn local_section(
     album_rows: usize,
     song_limit: usize,
 ) -> Element<'_, Message> {
+    let lang = app.ui.settings.language;
     let mut c = column![
-        section_title("On this computer"),
+        section_title(crate::i18n::t(lang, "On this computer", "Trên máy tính này")),
         vspace(gap::SM),
         folders_note(app, content_w),
         vspace(gap::LG),
@@ -77,9 +79,17 @@ pub(super) fn local_section(
     let tracks = local_tracks(app);
     if albums.is_empty() && tracks.is_empty() {
         let text = if app.library_loaded {
-            "No music files found yet. Add a folder in Settings."
+            crate::i18n::t(
+                lang,
+                "No music files found yet. Add a folder in Settings.",
+                "Chưa tìm thấy tệp nhạc nào. Thêm thư mục trong Cài đặt."
+            )
         } else {
-            "Looking for your music\u{2026}"
+            crate::i18n::t(
+                lang,
+                "Looking for your music\u{2026}",
+                "Đang tìm kiếm nhạc của bạn\u{2026}"
+            )
         };
         return c.push(note(app, text, None)).into();
     }
@@ -100,8 +110,9 @@ pub(super) fn local_section(
 /// The "Music folders" note: where local music comes from, and where to change it.
 fn folders_note(app: &App, width: f32) -> Element<'_, Message> {
     let dim = col(color::on_surface_variant());
+    let lang = app.ui.settings.language;
     let list = if app.music_folders.is_empty() {
-        "No folders added yet.".to_owned()
+        crate::i18n::t(lang, "No folders added yet.", "Chưa thêm thư mục nào.").to_owned()
     } else {
         app.music_folders.join("   \u{b7}   ")
     };
@@ -111,7 +122,7 @@ fn folders_note(app: &App, width: f32) -> Element<'_, Message> {
             Space::new().width(gap::MD),
             column![
                 label(
-                    "Music folders",
+                    crate::i18n::t(lang, "Music folders", "Thư mục nhạc"),
                     type_scale::BODY_MD,
                     true,
                     col(color::on_surface())
@@ -120,7 +131,7 @@ fn folders_note(app: &App, width: f32) -> Element<'_, Message> {
             ],
             Space::new().width(Length::Fill),
             text_button(
-                "Manage in Settings",
+                crate::i18n::t(lang, "Manage in Settings", "Quản lý trong Cài đặt"),
                 Message::SettingsSectionGo(SettingsSection::Library),
             ),
         ]

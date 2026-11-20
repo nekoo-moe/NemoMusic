@@ -17,28 +17,41 @@ use crate::theme::{color, type_scale};
 
 pub(super) fn playback(app: &App, width: f32) -> Vec<Element<'_, Message>> {
     let s = &app.ui.settings;
+    let lang = s.language;
     let volume = app.ui.snapshot.volume_percent;
+    let pt = crate::i18n::playback_text(lang);
+    let sb_help = match lang {
+        crate::settings::Language::Vietnamese => {
+            "Dữ liệu từ SponsorBlock: Dữ liệu SponsorBlock của Ajay Ramachandran, CC BY-NC-SA 4.0, được lấy trực tiếp từ sponsor.ajay.app. NemoMusic duy trì phi thương mại khi sử dụng dữ liệu này.".to_owned()
+        }
+        crate::settings::Language::English => {
+            format!("{}. {}", copy::SPONSORBLOCK_SOURCE, copy::SPONSORBLOCK_LICENSE)
+        }
+    };
     vec![
         setting_row(
             width,
-            copy::SPONSORBLOCK_LABEL,
-            Some(format!(
-                "{}. {}",
-                copy::SPONSORBLOCK_SOURCE,
-                copy::SPONSORBLOCK_LICENSE
-            )),
-            switch(s.sponsorblock, SettingChange::SponsorBlock),
+            pt.sponsorblock_label,
+            Some(sb_help),
+            switch(app, s.sponsorblock, SettingChange::SponsorBlock),
         ),
         setting_row(
             width,
-            copy::ADBLOCK_LABEL,
-            Some(copy::ADBLOCK_HELPER.to_owned()),
-            switch(s.block_ads, SettingChange::BlockAds),
+            pt.adblock_label,
+            Some(pt.adblock_help.to_owned()),
+            switch(app, s.block_ads, SettingChange::BlockAds),
         ),
         setting_row(
             width,
-            "Volume",
-            Some("At 100% NemoMusic applies no gain at all.".to_owned()),
+            crate::i18n::t(lang, "Volume", "Âm lượng"),
+            Some(
+                crate::i18n::t(
+                    lang,
+                    "At 100% NemoMusic applies no gain at all.",
+                    "Ở mức 100%, NemoMusic không áp dụng mức khuếch đại nào.",
+                )
+                .to_owned(),
+            ),
             row![
                 slider(0..=100_u8, volume, |v| Message::Ui(Event::Setting(
                     SettingChange::Volume(v)
@@ -68,19 +81,34 @@ pub(super) fn playback(app: &App, width: f32) -> Vec<Element<'_, Message>> {
 }
 
 pub(super) fn audio_output(app: &App, width: f32) -> Vec<Element<'_, Message>> {
+    let lang = app.ui.settings.language;
     let dim = col(color::on_surface_variant());
     let Some(path) = app.ui.snapshot.signal_path.as_ref() else {
         return vec![setting_row(
             width,
-            "Signal path",
-            Some("Nothing is playing. The path appears when a song starts.".to_owned()),
+            crate::i18n::t(lang, "Signal path", "Đường truyền tín hiệu"),
+            Some(
+                crate::i18n::t(
+                    lang,
+                    "Nothing is playing. The path appears when a song starts.",
+                    "Đang không phát nhạc. Thông tin đường truyền sẽ hiển thị khi phát bài hát.",
+                )
+                .to_owned(),
+            ),
             Space::new().into(),
         )];
     };
     let mut rows: Vec<Element<'_, Message>> = vec![setting_row(
         width,
-        "Quality",
-        Some("Read from the player. Nothing here can be changed.".to_owned()),
+        crate::i18n::t(lang, "Quality", "Chất lượng"),
+        Some(
+            crate::i18n::t(
+                lang,
+                "Read from the player. Nothing here can be changed.",
+                "Đọc từ trình phát. Không thể thay đổi tại đây.",
+            )
+            .to_owned(),
+        ),
         label(
             signal::badge_label(Some(path)),
             type_scale::BODY_SM,
@@ -114,6 +142,7 @@ pub(super) fn audio_output(app: &App, width: f32) -> Vec<Element<'_, Message>> {
 }
 
 pub(super) fn lyrics(app: &App, width: f32) -> Vec<Element<'_, Message>> {
+    let lang = app.ui.settings.language;
     let offset = if app.ui.snapshot.current.is_some() {
         format::offset_seconds(app.ui.lyrics_offset_ms)
     } else {
@@ -121,10 +150,14 @@ pub(super) fn lyrics(app: &App, width: f32) -> Vec<Element<'_, Message>> {
     };
     let mut rows = vec![setting_row(
         width,
-        "Timing offset",
+        crate::i18n::t(lang, "Timing offset", "Độ lệch thời gian"),
         Some(
-            "Set per song on Now Playing, from -10.0 to +10.0 s in 50 ms steps. Press [ and ] while a song plays. Shown here: the current song."
-                .to_owned(),
+            crate::i18n::t(
+                lang,
+                "Set per song on Now Playing, from -10.0 to +10.0 s in 50 ms steps. Press [ and ] while a song plays. Shown here: the current song.",
+                "Đặt cho từng bài trong Now Playing, từ -10.0 đến +10.0 giây với bước 50 ms. Nhấn [ và ] khi đang phát nhạc. Hiển thị tại đây: bài hát hiện tại.",
+            )
+            .to_owned(),
         ),
         label(offset, type_scale::BODY_MD, false, col(color::on_surface())).into(),
     )];
@@ -133,13 +166,21 @@ pub(super) fn lyrics(app: &App, width: f32) -> Vec<Element<'_, Message>> {
 }
 
 pub(super) fn library(app: &App, width: f32) -> Vec<Element<'_, Message>> {
+    let lang = app.ui.settings.language;
     let dim = col(color::on_surface_variant());
     let mut rows: Vec<Element<'_, Message>> = Vec::new();
     if app.music_folders.is_empty() {
         rows.push(setting_row(
             width,
-            "Music folders",
-            Some("No folders added yet. NemoMusic reads the files in them and keeps the list on this computer.".to_owned()),
+            crate::i18n::t(lang, "Music folders", "Thư mục nhạc"),
+            Some(
+                crate::i18n::t(
+                    lang,
+                    "No folders added yet. NemoMusic reads the files in them and keeps the list on this computer.",
+                    "Chưa thêm thư mục nào. NemoMusic đọc các tệp bên trong và lưu danh sách trên máy tính này.",
+                )
+                .to_owned(),
+            ),
             Space::new().into(),
         ));
     } else {
@@ -153,9 +194,13 @@ pub(super) fn library(app: &App, width: f32) -> Vec<Element<'_, Message>> {
     }
     if app.has_add_folder() {
         rows.push(
-            row![tonal_button("Add folder", None, Some(Message::AddFolder))]
-                .padding(Padding::from([gap::SM, gap::LG]))
-                .into(),
+            row![tonal_button(
+                crate::i18n::t(lang, "Add folder", "Thêm thư mục"),
+                None,
+                Some(Message::AddFolder),
+            )]
+            .padding(Padding::from([gap::SM, gap::LG]))
+            .into(),
         );
     }
     rows

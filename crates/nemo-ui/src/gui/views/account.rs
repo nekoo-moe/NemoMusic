@@ -117,7 +117,7 @@ fn soundcloud_card(app: &App, width: f32) -> Element<'_, Message> {
             sc_account::body(app, inner, Place::Sheet)
         } else {
             column![
-                sc_account::warning_box(inner),
+                sc_account::warning_box(app.ui.settings.language, inner),
                 paragraph(
                     sc_text::CARD_OFF,
                     type_scale::BODY_MD,
@@ -157,10 +157,11 @@ pub fn sheet(app: &App) -> Element<'_, Message> {
         (h as f32 - 2.0 * MARGIN).max(MIN_HEIGHT),
     );
     let inner = width - 2.0 * gap::XL;
+    let lang = app.ui.settings.language;
 
     let header = row![
         label(
-            copy::ACCOUNTS_TITLE,
+            crate::i18n::t(lang, copy::ACCOUNTS_TITLE, "Tài khoản của bạn"),
             type_scale::TITLE_LG,
             true,
             col(color::on_surface())
@@ -287,12 +288,13 @@ fn signed_out(app: &App, service_busy: bool, width: f32) -> Element<'_, Message>
         copy::ACCOUNT_TOS.to_owned(),
         width,
     ));
+    let lang = app.ui.settings.language;
     if !acknowledged {
         c = c.push(
             row![
                 label(copy::ACCOUNT_NEEDS_NOTICE, type_scale::BODY_SM, false, dim),
                 Space::new().width(Length::Fill),
-                text_button("Review notice", Message::Ui(Event::TosReview)),
+                text_button(crate::i18n::t(lang, "Review notice", "Xem thông báo"), Message::Ui(Event::TosReview)),
             ]
             .align_y(Alignment::Center),
         );
@@ -339,7 +341,7 @@ fn signed_out(app: &App, service_busy: bool, width: f32) -> Element<'_, Message>
         c = c.push(
             row![
                 tonal_button(
-                    "Check cookie",
+                    crate::i18n::t(lang, "Check cookie", "Kiểm tra cookie"),
                     Some(Icon::Key),
                     (can && !acc.cookie.expose().trim().is_empty())
                         .then_some(Message::Account(AccountMsg::CookieSubmit)),
@@ -480,6 +482,7 @@ fn signed_in<'a>(app: &'a App, info: &AccountInfo, width: f32) -> Element<'a, Me
             width,
         ));
     }
+    let lang = app.ui.settings.language;
     if acc.confirm_sign_out {
         c = c.push(paragraph(
             copy::ACCOUNT_SIGN_OUT_CONFIRM,
@@ -490,13 +493,13 @@ fn signed_in<'a>(app: &'a App, info: &AccountInfo, width: f32) -> Element<'a, Me
         c = c.push(
             row![
                 filled_button(
-                    "Sign out",
+                    crate::i18n::t(lang, "Sign out", "Đăng xuất"),
                     Icon::Logout,
                     app.accent(),
                     Message::Account(AccountMsg::SignOut)
                 ),
                 Space::new().width(gap::SM),
-                text_button("Cancel", Message::Account(AccountMsg::CancelSignOut)),
+                text_button(crate::i18n::t(lang, "Cancel", "Hủy"), Message::Account(AccountMsg::CancelSignOut)),
             ]
             .align_y(Alignment::Center),
         );
@@ -506,7 +509,7 @@ fn signed_in<'a>(app: &'a App, info: &AccountInfo, width: f32) -> Element<'a, Me
                 spinner(24.0, col(app.accent().primary), app.spin),
                 Space::new().width(gap::MD),
                 label(
-                    "Signing out\u{2026}",
+                    crate::i18n::t(lang, "Signing out\u{2026}", "Đang đăng xuất\u{2026}"),
                     type_scale::BODY_MD,
                     false,
                     col(color::on_surface())
@@ -516,7 +519,7 @@ fn signed_in<'a>(app: &'a App, info: &AccountInfo, width: f32) -> Element<'a, Me
         );
     } else {
         c = c.push(tonal_button(
-            "Sign out",
+            crate::i18n::t(lang, "Sign out", "Đăng xuất"),
             Some(Icon::Logout),
             Some(Message::Account(AccountMsg::AskSignOut)),
         ));

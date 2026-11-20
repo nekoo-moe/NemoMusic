@@ -71,17 +71,33 @@ fn phase(app: &App) -> OptInPhase {
 }
 
 /// One status line under an open switch.
-fn status(app: &App) -> &'static str {
+fn status(app: &App, lang: crate::settings::Language) -> &'static str {
     if !app.sc_running() {
         return if app.sc_restart_offered() {
-            text::NEEDS_RESTART
+            crate::i18n::t(
+                lang,
+                text::NEEDS_RESTART,
+                "SoundCloud sẽ khởi chạy sau khi khởi động lại. Âm nhạc sẽ tạm dừng trong giây lát.",
+            )
         } else {
-            text::STARTS_AFTER_RESTART
+            crate::i18n::t(
+                lang,
+                text::STARTS_AFTER_RESTART,
+                "SoundCloud sẽ khởi chạy vào lần tiếp theo NemoMusic mở.",
+            )
         };
     }
     match app.sc_state() {
-        Some(SourceAccountState::SignedIn(_)) => text::STATUS_SIGNED_IN,
-        _ => text::STATUS_SIGNED_OUT,
+        Some(SourceAccountState::SignedIn(_)) => crate::i18n::t(
+            lang,
+            text::STATUS_SIGNED_IN,
+            "Bật. Bạn đã đăng nhập. Tắt SoundCloud sẽ đăng xuất và xóa token của bạn khỏi máy tính này.",
+        ),
+        _ => crate::i18n::t(
+            lang,
+            text::STATUS_SIGNED_OUT,
+            "Bật. Bạn chưa đăng nhập. Tắt SoundCloud sẽ xóa mọi thông tin đăng nhập đã lưu khỏi máy tính này.",
+        ),
     }
 }
 
@@ -98,9 +114,14 @@ fn actions() -> OptInActions {
 }
 
 fn switch_row(app: &App, width: f32) -> Element<'_, Message> {
+    let lang = app.ui.settings.language;
     let Some(info) = app.sc_info() else {
         return container(paragraph(
-            text::NOT_IN_THIS_BUILD,
+            crate::i18n::t(
+                lang,
+                text::NOT_IN_THIS_BUILD,
+                "SoundCloud không được hỗ trợ trong bản dựng này.",
+            ),
             type_scale::BODY_MD,
             col(color::on_surface_variant()),
             width - 2.0 * gap::LG,
@@ -109,12 +130,18 @@ fn switch_row(app: &App, width: f32) -> Element<'_, Message> {
         .into();
     };
     let phase = phase(app);
+    let stays_text = app.sc.error.as_deref().unwrap_or(crate::i18n::t(
+        lang,
+        text::STAYS,
+        "Tắt SoundCloud sẽ đăng xuất và xóa token của bạn khỏi máy tính này.",
+    ));
     let row = OptInRow {
         info,
         phase,
-        status: Some(status(app)),
+        status: Some(status(app, lang)),
         // Off: what turning it off did. A failed removal is told here, where the switch is.
-        stays: Some(app.sc.error.as_deref().unwrap_or(text::STAYS)),
+        stays: Some(stays_text),
+        lang,
     };
     // The same `Restart now` pill as the Window glass card sits under the switch, and its place
     // only exists while it shows or fades.
@@ -134,23 +161,35 @@ fn switch_row(app: &App, width: f32) -> Element<'_, Message> {
 /// The question that comes with turning the switch off while signed in. It sits right under
 /// the switch, inside the row, so it is seen where the switch was pressed.
 fn off_confirm(app: &App, width: f32) -> Element<'_, Message> {
+    let lang = app.ui.settings.language;
     let inner = width - 2.0 * gap::LG;
+    let confirm_body = crate::i18n::t(
+        lang,
+        text::OFF_CONFIRM,
+        "Tắt SoundCloud sẽ đăng xuất và xóa token cũng như dữ liệu SoundCloud mà NemoMusic đã tải trên máy tính này. Thao tác này không đăng xuất soundcloud.com trên trình duyệt của bạn. Bạn có thể bật lại và đăng nhập sau.",
+    );
+    let confirm_btn = crate::i18n::t(
+        lang,
+        text::OFF_CONFIRM_BUTTON,
+        "Tắt và đăng xuất",
+    );
+    let cancel_btn = crate::i18n::t(lang, "Cancel", "Hủy");
     column![
         paragraph(
-            text::OFF_CONFIRM,
+            confirm_body,
             type_scale::BODY_MD,
             col(color::on_surface()),
             inner,
         ),
         row![
             filled_button(
-                text::OFF_CONFIRM_BUTTON,
+                confirm_btn,
                 Icon::Logout,
                 app.accent(),
                 Message::Sc(ScMsg::ConfirmOff),
             ),
             Space::new().width(gap::SM),
-            text_button("Cancel", Message::Sc(ScMsg::CancelOff)),
+            text_button(cancel_btn, Message::Sc(ScMsg::CancelOff)),
         ]
         .align_y(Alignment::Center),
     ]

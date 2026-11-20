@@ -52,6 +52,8 @@ pub struct OptInRow<'a> {
     pub status: Option<&'a str>,
     /// While off: what stays on this computer, such as "Your scrobble queue stays here."
     pub stays: Option<&'a str>,
+    /// Display language.
+    pub lang: crate::settings::Language,
 }
 
 /// The messages the row's controls send. The caller builds them; the row only draws.
@@ -133,7 +135,7 @@ pub fn opt_in_row_with<'a>(
     } = extras;
     let inner = (width - 2.0 * gap::LG).max(MIN_TEXT_W);
     let on = row.phase == OptInPhase::On;
-    let switch = switch(on, actions.ask.clone(), actions.turn_off.clone());
+    let switch = switch(row.lang, on, actions.ask.clone(), actions.turn_off.clone());
     let stacked = under.is_some();
     let (control, control_w) = match under {
         Some((below, w)) => (
@@ -172,9 +174,9 @@ pub fn opt_in_row_with<'a>(
     }
     let delete_now = actions.delete_now.clone();
     match row.phase {
-        OptInPhase::Confirming => body = body.push(panel(row.info, actions, inner)),
+        OptInPhase::Confirming => body = body.push(panel(row.lang, row.info, actions, inner)),
         OptInPhase::On => {
-            body = body.push(facts(row.info, inner));
+            body = body.push(facts(row.lang, row.info, inner));
             if let Some(status) = row.status {
                 body = body.push(paragraph(
                     status,
@@ -185,7 +187,7 @@ pub fn opt_in_row_with<'a>(
             }
         }
         OptInPhase::Off => {
-            body = body.push(facts(row.info, inner));
+            body = body.push(facts(row.lang, row.info, inner));
             if let Some(stays) = row.stays {
                 body = body.push(paragraph(
                     stays,
@@ -195,7 +197,8 @@ pub fn opt_in_row_with<'a>(
                 ));
             }
             if let Some(message) = delete_now {
-                body = body.push(tonal_button(copy::OPT_IN_DELETE_NOW, None, Some(message)));
+                let del_txt = crate::i18n::t(row.lang, copy::OPT_IN_DELETE_NOW, "Xóa ngay");
+                body = body.push(tonal_button(del_txt, None, Some(message)));
             }
         }
     }
@@ -207,7 +210,7 @@ pub fn opt_in_row_with<'a>(
 
 /// The switch with its `On` / `Off` text (state is never colour alone). Only the toggle is
 /// focusable, so Enter or Space lands on it.
-fn switch<'a>(on: bool, ask: Message, turn_off: Message) -> Element<'a, Message> {
+fn switch<'a>(lang: crate::settings::Language, on: bool, ask: Message, turn_off: Message) -> Element<'a, Message> {
     let toggle = toggler(on)
         .on_toggle(move |v| if v { ask.clone() } else { turn_off.clone() })
         .size(24.0)
@@ -215,9 +218,14 @@ fn switch<'a>(on: bool, ask: Message, turn_off: Message) -> Element<'a, Message>
     let target = container(toggle)
         .height(Length::Fixed(40.0))
         .align_y(Alignment::Center);
+    let switch_text = crate::i18n::t(
+        lang,
+        if on { "On" } else { "Off" },
+        if on { "Bật" } else { "Tắt" },
+    );
     iced::widget::row![
         label(
-            if on { "On" } else { "Off" },
+            switch_text,
             type_scale::BODY_MD,
             false,
             col(color::on_surface_variant()),
@@ -230,7 +238,7 @@ fn switch<'a>(on: bool, ask: Message, turn_off: Message) -> Element<'a, Message>
 }
 
 /// "What is sent", "To" and "Risk", each a heading over its wrapped text.
-fn facts<'a>(info: &'a OptInInfo, width: f32) -> Element<'a, Message> {
+fn facts<'a>(lang: crate::settings::Language, info: &'a OptInInfo, width: f32) -> Element<'a, Message> {
     let fact = |heading: &'static str, text: String| -> Element<'a, Message> {
         column![
             label(
@@ -244,25 +252,30 @@ fn facts<'a>(info: &'a OptInInfo, width: f32) -> Element<'a, Message> {
         .spacing(gap::XS)
         .into()
     };
+    let sends_title = crate::i18n::t(lang, copy::OPT_IN_SENDS, "Dữ liệu gửi đi");
+    let to_title = crate::i18n::t(lang, copy::OPT_IN_TO, "Gửi đến");
+    let risk_title = crate::i18n::t(lang, copy::OPT_IN_RISK, "Rủi ro");
     column![
-        fact(copy::OPT_IN_SENDS, info.sends.to_owned()),
-        fact(copy::OPT_IN_TO, hosts_text(info)),
-        fact(copy::OPT_IN_RISK, info.risk.to_owned()),
+        fact(sends_title, info.sends.to_owned()),
+        fact(to_title, hosts_text(info)),
+        fact(risk_title, info.risk.to_owned()),
     ]
     .spacing(gap::MD)
     .into()
 }
 
 /// The confirmation panel: the same three texts, then "Turn on" and "Cancel" drawn alike.
-fn panel(info: &OptInInfo, actions: OptInActions, width: f32) -> Element<'_, Message> {
+fn panel(lang: crate::settings::Language, info: &OptInInfo, actions: OptInActions, width: f32) -> Element<'_, Message> {
     let text_w = (width - 2.0 * gap::LG).max(MIN_TEXT_W);
+    let on_txt = crate::i18n::t(lang, copy::OPT_IN_TURN_ON, "Bật");
+    let cancel_txt = crate::i18n::t(lang, copy::OPT_IN_CANCEL, "Hủy");
     let buttons = iced::widget::row![
-        tonal_button(copy::OPT_IN_TURN_ON, None, Some(actions.turn_on)),
-        tonal_button(copy::OPT_IN_CANCEL, None, Some(actions.cancel)),
+        tonal_button(on_txt, None, Some(actions.turn_on)),
+        tonal_button(cancel_txt, None, Some(actions.cancel)),
     ]
     .spacing(gap::SM);
     tile(
-        column![facts(info, text_w), buttons]
+        column![facts(lang, info, text_w), buttons]
             .spacing(gap::LG)
             .padding(gap::LG)
             .width(Length::Fixed(width)),

@@ -77,6 +77,25 @@ impl NavEntry {
         }
     }
 
+    /// Localized label shown in the sidebar.
+    #[must_use]
+    pub const fn label_localized(self, lang: crate::settings::Language) -> &'static str {
+        match (self, lang) {
+            (Self::Home, crate::settings::Language::Vietnamese) => "Trang chủ",
+            (Self::Home, crate::settings::Language::English) => "Home",
+            (Self::Explore, crate::settings::Language::Vietnamese) => "Khám phá",
+            (Self::Explore, crate::settings::Language::English) => "Explore",
+            (Self::Search, crate::settings::Language::Vietnamese) => "Tìm kiếm",
+            (Self::Search, crate::settings::Language::English) => "Search",
+            (Self::Library, crate::settings::Language::Vietnamese) => "Thư viện",
+            (Self::Library, crate::settings::Language::English) => "Library",
+            (Self::Queue, crate::settings::Language::Vietnamese) => "Hàng đợi",
+            (Self::Queue, crate::settings::Language::English) => "Queue",
+            (Self::Settings, crate::settings::Language::Vietnamese) => "Cài đặt",
+            (Self::Settings, crate::settings::Language::English) => "Settings",
+        }
+    }
+
     /// The route this entry opens.
     #[must_use]
     pub fn route(self) -> Route {

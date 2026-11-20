@@ -21,6 +21,17 @@ pub const fn tooltip(busy: bool) -> &'static str {
     }
 }
 
+/// Localized tooltip of the Refresh control.
+#[must_use]
+pub const fn tooltip_localized(busy: bool, lang: crate::settings::Language) -> &'static str {
+    match (busy, lang) {
+        (true, crate::settings::Language::Vietnamese) => "Đang làm mới dữ liệu nhạc\u{2026}",
+        (true, crate::settings::Language::English) => "Refreshing your music\u{2026}",
+        (false, crate::settings::Language::Vietnamese) => "Làm mới (F5)",
+        (false, crate::settings::Language::English) => "Refresh (F5)",
+    }
+}
+
 /// Whose data the screen shows, as far as a reload cares.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Owner {

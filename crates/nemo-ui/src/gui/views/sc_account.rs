@@ -54,12 +54,16 @@ pub(in crate::gui::views) fn body(app: &App, width: f32, place: Place) -> Elemen
 }
 
 /// Notice box with SoundCloud development warning.
-pub(in crate::gui::views) fn warning_box<'a>(width: f32) -> Element<'a, Message> {
+pub(in crate::gui::views) fn warning_box<'a>(lang: crate::settings::Language, width: f32) -> Element<'a, Message> {
     notice_box(
         Icon::Info,
         col(color::warning()),
         col(color::warning().with_alpha(0.12)),
-        "SoundCloud development is currently moving at a snail's pace, so we honestly don't recommend using it because it doesn't work bro (╯°□°)╯︵ ┻━┻ 🐢".to_owned(),
+        crate::i18n::t(
+            lang,
+            "SoundCloud development is currently moving at a snail's pace, so we honestly don't recommend using it because it doesn't work bro (╯°□°)╯︵ ┻━┻ 🐢",
+            "SoundCloud đang được phát triển chậm như rùa bò, nên thật lòng chúng tôi không khuyến khích bạn sử dụng vì nó không chạy đâu bro (╯°□°)╯︵ ┻━┻ 🐢",
+        ).to_owned(),
         width,
     )
 }
@@ -73,6 +77,7 @@ fn signed_out<'a>(
     let sc = &app.sc;
     let busy = sc.busy || matches!(state, SourceAccountState::SigningIn);
     let dim = col(color::on_surface_variant());
+    let lang = app.ui.settings.language;
     let mut c = column![].spacing(gap::MD).width(Length::Fixed(width));
     if place == Place::Settings {
         c = c.push(label(
@@ -82,7 +87,7 @@ fn signed_out<'a>(
             col(color::on_surface()),
         ));
     }
-    c = c.push(warning_box(width));
+    c = c.push(warning_box(lang, width));
     if let Some(done) = &sc.notice {
         c = c.push(notice_box(
             Icon::CheckCircle,
@@ -149,6 +154,7 @@ fn signed_out<'a>(
 
 /// The window found no session for a while: one plain sentence and the way to look again.
 fn hint_box(app: &App, width: f32) -> Element<'_, Message> {
+    let lang = app.ui.settings.language;
     let line = if app.sc.rechecked {
         text::STILL_NOTHING
     } else {
@@ -157,7 +163,7 @@ fn hint_box(app: &App, width: f32) -> Element<'_, Message> {
     column![
         paragraph(line, type_scale::BODY_MD, col(color::on_surface()), width),
         tonal_button(
-            text::CHECK_AGAIN,
+            crate::i18n::t(lang, text::CHECK_AGAIN, "Kiểm tra lại"),
             Some(Icon::Refresh),
             Some(Message::Sc(ScMsg::Recheck)),
         ),
@@ -169,6 +175,7 @@ fn hint_box(app: &App, width: f32) -> Element<'_, Message> {
 /// The sign-in button and the way to the masked field, or the field and its help.
 fn sign_in_controls(app: &App, width: f32, can: bool, can_type: bool) -> Element<'_, Message> {
     let sc = &app.sc;
+    let lang = app.ui.settings.language;
     if sc.paste {
         let typed = !sc.token.expose().trim().is_empty();
         return column![
@@ -191,11 +198,14 @@ fn sign_in_controls(app: &App, width: f32, can: bool, can_type: bool) -> Element
             ),
             row![
                 tonal_button(
-                    text::CHECK_TOKEN,
+                    crate::i18n::t(lang, text::CHECK_TOKEN, "Kiểm tra mã"),
                     Some(Icon::Key),
                     (can_type && typed).then_some(Message::Sc(ScMsg::PasteSubmit)),
                 ),
-                text_button(text::USE_WINDOW, Message::Sc(ScMsg::PasteMode(false))),
+                text_button(
+                    crate::i18n::t(lang, text::USE_WINDOW, "Sử dụng cửa sổ đăng nhập"),
+                    Message::Sc(ScMsg::PasteMode(false))
+                ),
             ]
             .spacing(gap::SM)
             .align_y(Alignment::Center)
@@ -207,11 +217,14 @@ fn sign_in_controls(app: &App, width: f32, can: bool, can_type: bool) -> Element
     }
     row![
         tonal_button(
-            text::SIGN_IN,
+            crate::i18n::t(lang, text::SIGN_IN, "Đăng nhập với SoundCloud"),
             Some(Icon::Login),
             can.then_some(Message::Sc(ScMsg::SignIn)),
         ),
-        text_button(text::PASTE, Message::Sc(ScMsg::PasteMode(true))),
+        text_button(
+            crate::i18n::t(lang, text::PASTE, "Dán mã token để thay thế"),
+            Message::Sc(ScMsg::PasteMode(true))
+        ),
     ]
     .spacing(gap::SM)
     .align_y(Alignment::Center)
@@ -228,6 +241,7 @@ fn signed_in<'a>(
 ) -> Element<'a, Message> {
     let sc = &app.sc;
     let dim = col(color::on_surface_variant());
+    let lang = app.ui.settings.language;
     let face = art(
         app,
         &Artwork::Remote(info.avatar.clone()),
@@ -246,7 +260,7 @@ fn signed_in<'a>(
     }
     let mut c = column![
         row![face, Space::new().width(gap::LG), who].align_y(Alignment::Center),
-        warning_box(width),
+        warning_box(lang, width),
         paragraph(text::LOCAL, type_scale::BODY_SM, dim, width),
     ]
     .spacing(gap::LG)
@@ -271,13 +285,13 @@ fn signed_in<'a>(
             .push(
                 row![
                     filled_button(
-                        "Sign out",
+                        crate::i18n::t(lang, "Sign out", "Đăng xuất"),
                         Icon::Logout,
                         app.accent(),
                         Message::Sc(ScMsg::SignOut)
                     ),
                     Space::new().width(gap::SM),
-                    text_button("Cancel", Message::Sc(ScMsg::CancelSignOut)),
+                    text_button(crate::i18n::t(lang, "Cancel", "Hủy"), Message::Sc(ScMsg::CancelSignOut)),
                 ]
                 .align_y(Alignment::Center),
             );
@@ -287,7 +301,7 @@ fn signed_in<'a>(
                 spinner(24.0, col(app.accent().primary), app.spin),
                 Space::new().width(gap::MD),
                 label(
-                    text::SIGNING_OUT,
+                    crate::i18n::t(lang, text::SIGNING_OUT, "Đang đăng xuất\u{2026}"),
                     type_scale::BODY_MD,
                     false,
                     col(color::on_surface())
@@ -297,7 +311,7 @@ fn signed_in<'a>(
         );
     } else {
         c = c.push(tonal_button(
-            "Sign out",
+            crate::i18n::t(lang, "Sign out", "Đăng xuất"),
             Some(Icon::Logout),
             Some(Message::Sc(ScMsg::AskSignOut)),
         ));

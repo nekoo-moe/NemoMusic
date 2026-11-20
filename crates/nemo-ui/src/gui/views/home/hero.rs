@@ -23,6 +23,7 @@ struct Hero {
 
 fn hero_info(app: &App) -> Option<Hero> {
     use crate::daily::DailyKind;
+    let lang = app.ui.settings.language;
     if let Some((i, sec)) = app
         .daily_sections
         .iter()
@@ -30,13 +31,20 @@ fn hero_info(app: &App) -> Option<Hero> {
         .find(|(_, s)| matches!(s.kind, DailyKind::DailyMix) && !s.tracks.is_empty())
     {
         return Some(Hero {
-            tag: sec.tag.to_owned(),
-            title: sec.title.clone(),
-            subtitle: format!(
-                "{} \u{b7} {} and more",
-                sec.tracks[0].title,
-                format::artists(&sec.tracks[0].artists)
-            ),
+            tag: sec.tag_localized(lang).to_owned(),
+            title: sec.title_localized(lang),
+            subtitle: match lang {
+                crate::settings::Language::Vietnamese => format!(
+                    "{} \u{b7} {} và nhiều bài khác",
+                    sec.tracks[0].title,
+                    format::artists(&sec.tracks[0].artists)
+                ),
+                crate::settings::Language::English => format!(
+                    "{} \u{b7} {} and more",
+                    sec.tracks[0].title,
+                    format::artists(&sec.tracks[0].artists)
+                ),
+            },
             artwork: sec.tracks[0].artwork.clone(),
             play: Message::PlayAt {
                 source: ListSource::Daily(i),
@@ -57,7 +65,7 @@ fn hero_info(app: &App) -> Option<Hero> {
             .next()
         {
             return Some(Hero {
-                tag: "A suggestion to start with".to_owned(),
+                tag: crate::i18n::t(lang, "A suggestion to start with", "Gợi ý để bắt đầu").to_owned(),
                 title: t.title.clone(),
                 subtitle: format::artists(&t.artists),
                 artwork: t.artwork.clone(),
@@ -74,9 +82,10 @@ fn hero_info(app: &App) -> Option<Hero> {
 /// The time-of-day greeting and the hero banner card.
 pub(super) fn greeting(app: &App, content_w: f32) -> Element<'_, Message> {
     use crate::gui::style::{button_flat, vertical_gradient};
+    let lang = app.ui.settings.language;
     let mut c = column![
         label(
-            app.day.greeting(),
+            app.day.greeting_localized(lang),
             type_scale::HEADLINE_MD,
             true,
             col(color::on_surface())
@@ -109,7 +118,12 @@ pub(super) fn greeting(app: &App, content_w: f32) -> Element<'_, Message> {
                 col(accent.on_primary_container.with_alpha(0.85))
             ),
             vspace(gap::LG),
-            crate::gui::views::kit::filled_button("Play", Icon::Play, accent, h.play.clone()),
+            crate::gui::views::kit::filled_button(
+                crate::i18n::t(lang, "Play", "Phát"),
+                Icon::Play,
+                accent,
+                h.play.clone()
+            ),
         ]
         .width(Length::Fixed(text_w));
         let body = row![

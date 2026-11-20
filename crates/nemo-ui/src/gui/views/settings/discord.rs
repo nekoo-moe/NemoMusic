@@ -50,17 +50,35 @@ fn actions() -> OptInActions {
 fn card(app: &App, width: f32) -> Option<Element<'_, Message>> {
     let info = app.discord_info.as_ref()?;
     let phase = phase(app);
+    let lang = app.ui.settings.language;
+    let status_on = crate::i18n::t(
+        lang,
+        text::STATUS_ON,
+        "Hiển thị khi ứng dụng Discord đang chạy trên máy tính này. Khi Discord không chạy, không có gì được hiển thị hoặc gửi đi.",
+    );
+    let status_stays = crate::i18n::t(
+        lang,
+        text::STAYS,
+        "Không có thông tin nào được hiển thị trên Discord khi tùy chọn này tắt.",
+    );
     let row = OptInRow {
         info,
         phase,
-        status: Some(text::STATUS_ON),
-        stays: Some(text::STAYS),
+        status: Some(status_on),
+        stays: Some(status_stays),
+        lang,
     };
+    let hide_title = crate::i18n::t(lang, text::HIDE_TITLE, "Ẩn tên bài hát trên Discord");
+    let hide_helper = crate::i18n::t(
+        lang,
+        text::HIDE_HELPER,
+        "Discord sẽ chỉ hiển thị rằng bạn đang nghe nhạc trên NemoMusic: không hiển thị tiêu đề, nghệ sĩ, ảnh bìa hay thời gian.",
+    );
     let hide = setting_row(
         width,
-        text::HIDE_TITLE,
-        Some(text::HIDE_HELPER.to_owned()),
-        switch_with(app.discord_hidden(), |on| {
+        hide_title,
+        Some(hide_helper.to_owned()),
+        switch_with(lang, app.discord_hidden(), |on| {
             Message::Discord(DiscordMsg::Hide(on))
         }),
     );

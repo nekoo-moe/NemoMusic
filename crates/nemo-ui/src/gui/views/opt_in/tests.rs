@@ -35,6 +35,7 @@ fn state(phase: OptInPhase) -> OptInRow<'static> {
         phase,
         status: Some("Connected"),
         stays: Some("Your scrobble queue stays on this computer."),
+        lang: crate::settings::Language::English,
     }
 }
 

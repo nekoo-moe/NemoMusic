@@ -93,6 +93,7 @@ fn track<'a>(on: bool, dim: f32, press: Option<Message>) -> Element<'a, Message>
 
 /// A switch with its state as text (`On`, `Off` or `Overridden`): state is never colour alone.
 pub(super) fn switch<'a>(
+    lang: crate::settings::Language,
     on: bool,
     mode: SwitchMode,
     change: fn(bool) -> SettingChange,
@@ -102,10 +103,13 @@ pub(super) fn switch<'a>(
     } else {
         1.0
     };
-    let text = match (mode, on) {
-        (SwitchMode::Overridden, _) => "Overridden",
-        (_, true) => "On",
-        (_, false) => "Off",
+    let text = match (mode, on, lang) {
+        (SwitchMode::Overridden, _, crate::settings::Language::Vietnamese) => "Bị ghi đè",
+        (SwitchMode::Overridden, _, crate::settings::Language::English) => "Overridden",
+        (_, true, crate::settings::Language::Vietnamese) => "Bật",
+        (_, true, crate::settings::Language::English) => "On",
+        (_, false, crate::settings::Language::Vietnamese) => "Tắt",
+        (_, false, crate::settings::Language::English) => "Off",
     };
     let press = (mode != SwitchMode::Disabled).then(|| Message::Ui(Event::Setting(change(!on))));
     row![

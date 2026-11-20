@@ -128,7 +128,7 @@ pub fn synced_list<'a>(app: &'a App, doc: &'a LyricsDoc, width: f32) -> Element<
     if !app.ui.lyrics_following() {
         layers.push(
             container(super::now_playing::pill_button(
-                "Back to current line",
+                crate::i18n::t(app.ui.settings.language, "Back to current line", "Trở lại dòng hiện tại"),
                 Message::Ui(Event::LyricsFollow),
             ))
             .width(Length::Fill)
@@ -161,7 +161,10 @@ pub fn unsynced(doc: &LyricsDoc, st: TextStyle) -> Element<'_, Message> {
 /// The lyrics body for the right pane or the wide full-screen layout.
 pub fn body(app: &App, width: f32) -> Element<'_, Message> {
     match &app.ui.lyrics {
-        LyricsState::Ready(doc) if doc.instrumental => status_text("Instrumental", None),
+        LyricsState::Ready(doc) if doc.instrumental => status_text(
+            crate::i18n::t(app.ui.settings.language, "Instrumental", "Không lời"),
+            None
+        ),
         LyricsState::Ready(doc) if doc.granularity == Granularity::Unsynced => {
             unsynced(doc, unsynced_style(app.ui.lyric_metrics))
         }
@@ -213,7 +216,7 @@ fn loading_line(app: &App) -> Element<'_, Message> {
     let m = app.ui.lyric_metrics;
     let top = (crate::lyrics_view::ANCHOR * app.ui.lyric_viewport_h - m.gap).max(0.0);
     let line = Shimmer {
-        text: "Looking for lyrics\u{2026}".to_owned(),
+        text: crate::i18n::t(app.ui.settings.language, "Looking for lyrics\u{2026}", "Đang tìm lời bài hát\u{2026}").to_owned(),
         metrics: m,
         phase: enter::shimmer_phase(app.ui.lyric_loading_ms),
         ink: col(color::on_surface()),
@@ -234,6 +237,7 @@ fn loading_line(app: &App) -> Element<'_, Message> {
 /// sentence and the providers that were asked; nothing else is drawn under it.
 pub fn lyrics_status(app: &App, width: f32) -> Element<'_, Message> {
     let dim = col(color::on_surface_variant());
+    let lang = app.ui.settings.language;
     let (glyph, title, detail) = match &app.ui.lyrics {
         LyricsState::Missing(tried) => {
             let names: Vec<&str> = tried
@@ -243,12 +247,19 @@ pub fn lyrics_status(app: &App, width: f32) -> Element<'_, Message> {
                 .collect();
             (
                 Icon::MusicOff,
-                "No lyrics for this song",
-                (!names.is_empty()).then(|| format!("Looked at {}", names.join(", "))),
+                crate::i18n::t(lang, "No lyrics for this song", "Không có lời bài hát cho bản nhạc này"),
+                (!names.is_empty()).then(|| match lang {
+                    crate::settings::Language::Vietnamese => format!("Đã tìm tại {}", names.join(", ")),
+                    crate::settings::Language::English => format!("Looked at {}", names.join(", ")),
+                }),
             )
         }
         LyricsState::Loading => return loading_line(app),
-        _ => (Icon::MusicOff, "No lyrics for this song", None),
+        _ => (
+            Icon::MusicOff,
+            crate::i18n::t(lang, "No lyrics for this song", "Không có lời bài hát cho bản nhạc này"),
+            None
+        ),
     };
     let mut c = column![
         icon(glyph, 32.0, dim),

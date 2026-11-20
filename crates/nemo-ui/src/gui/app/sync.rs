@@ -133,22 +133,23 @@ impl App {
 
     pub(super) fn sync_chips(&mut self) {
         use super::super::views::kit::chip_geometry;
-        let home: Vec<&str> = ContentFilter::ALL.iter().map(|f| f.label()).collect();
+        let lang = self.ui.settings.language;
+        let home: Vec<&str> = ContentFilter::ALL.iter().map(|f| f.label_localized(lang)).collect();
         let home_sel = ContentFilter::ALL
             .iter()
             .position(|f| *f == self.content_filter)
             .unwrap_or(0);
-        let lib: Vec<&str> = LibTab::ALL.iter().map(|t| t.label()).collect();
+        let lib: Vec<&str> = LibTab::ALL.iter().map(|t| t.label_localized(lang)).collect();
         let lib_sel = LibTab::ALL
             .iter()
             .position(|t| *t == self.lib_tab)
             .unwrap_or(0);
         let with_videos = !self.search_is_soundcloud();
-        let search = super::super::views::search::filter_labels(with_videos);
+        let search = super::super::views::search::filter_labels_localized(with_videos, lang);
         let search_sel =
             super::super::views::search::filter_index(with_videos, self.ui.search.filter);
         // The SoundCloud library tabs (soundcloud-account spec).
-        let sc_tabs: Vec<&str> = super::model::ScTab::ALL.iter().map(|t| t.label()).collect();
+        let sc_tabs: Vec<&str> = super::model::ScTab::ALL.iter().map(|t| t.label_localized(lang)).collect();
         let sc_sel = super::model::ScTab::ALL
             .iter()
             .position(|t| *t == self.sc_tab)

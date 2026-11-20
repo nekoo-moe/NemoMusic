@@ -42,10 +42,19 @@ fn step(i: usize, right: bool) -> Option<Message> {
 
 /// The sentence that stands in for the control, when SoundCloud is not offered.
 fn only_youtube(app: &App) -> &'static str {
+    let lang = app.ui.settings.language;
     if app.sc_open() {
-        text::AREA_NEEDS_SIGN_IN
+        crate::i18n::t(
+            lang,
+            text::AREA_NEEDS_SIGN_IN,
+            "Hiện chỉ phát YouTube Music. Đăng nhập SoundCloud để thêm làm khu vực nghe nhạc thứ hai."
+        )
     } else {
-        text::AREA_NEEDS_ON
+        crate::i18n::t(
+            lang,
+            text::AREA_NEEDS_ON,
+            "Hiện chỉ phát YouTube Music. Bật SoundCloud trong Cài đặt để thêm làm khu vực nghe nhạc thứ hai."
+        )
     }
 }
 
@@ -59,8 +68,9 @@ pub fn control(app: &App, width: f32) -> Option<Element<'_, Message>> {
 
 fn choices(app: &App, width: f32) -> Element<'_, Message> {
     let dim = col(color::on_surface_variant());
+    let lang = app.ui.settings.language;
     let title = label(
-        text::AREA_TITLE,
+        crate::i18n::t(lang, text::AREA_TITLE, "Khu vực nghe nhạc"),
         type_scale::TITLE_SM,
         true,
         col(color::on_surface()),
@@ -84,7 +94,12 @@ fn choices(app: &App, width: f32) -> Element<'_, Message> {
             pick,
             Some(step)
         ),
-        paragraph(text::AREA_HELP, type_scale::BODY_SM, dim, width),
+        paragraph(
+            crate::i18n::t(lang, text::AREA_HELP, "NemoMusic chỉ hiển thị nội dung từ khu vực đang hoạt động."),
+            type_scale::BODY_SM,
+            dim,
+            width
+        ),
     ]
     .spacing(gap::SM)
     .into()
