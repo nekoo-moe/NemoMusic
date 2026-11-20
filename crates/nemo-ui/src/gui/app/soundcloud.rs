@@ -93,7 +93,18 @@ impl App {
                 };
                 return self.sc_store(state);
             }
-            ScMsg::SignIn => return self.sc_sign_in(Job::ScSignIn),
+            ScMsg::SignIn => {
+                let jobs = self.sc_sign_in(Job::ScSignIn);
+                self.sc.window = !jobs.is_empty();
+                self.sc.rechecked = false;
+                return jobs;
+            }
+            ScMsg::Recheck => {
+                if let Some(account) = &self.backend.soundcloud_account {
+                    account.recheck_sign_in();
+                    self.sc.rechecked = true;
+                }
+            }
             ScMsg::PasteMode(on) => {
                 self.sc.paste = on;
                 self.sc.error = None;
@@ -103,19 +114,20 @@ impl App {
                 self.ui.text_focused = on;
             }
             ScMsg::PasteInput(text) => self.sc.token = text,
-            ScMsg::PasteSubmit => {
-                if !self.sc.token.expose().trim().is_empty() {
-                    // The token leaves the page state here; only the account keeps it.
-                    let token = std::mem::replace(&mut self.sc.token, Secret::new(String::new()));
-                    return self.sc_sign_in(Job::ScSignInToken(token));
-                }
-            }
+            ScMsg::PasteSubmit => return self.sc_paste_submit(),
             ScMsg::AskSignOut => self.sc.confirm_sign_out = true,
             ScMsg::CancelSignOut => self.sc.confirm_sign_out = false,
             ScMsg::SignOut => {
                 self.sc.busy = true;
                 self.sc.confirm_sign_out = false;
                 return vec![Job::ScSignOut];
+            }
+            ScMsg::WindowEnded(result) => {
+                // A pasted token took over from the window: its answer ("cancelled") is not news.
+                if !std::mem::take(&mut self.sc.stale_window) {
+                    self.sc.window = false;
+                    self.sc_signed_in(result);
+                }
             }
             ScMsg::SignedIn(result) => self.sc_signed_in(result),
             ScMsg::SignedOut(result) => {
@@ -130,6 +142,42 @@ impl App {
             }
         }
         Vec::new()
+    }
+
+    /// Send the typed token. While the sign-in window is still open the token takes over: the
+    /// account closes the window, and the window's own answer is dropped when it arrives.
+    fn sc_paste_submit(&mut self) -> Vec<Job> {
+        let over_window = self.sc.busy && self.sc.window;
+        if self.sc.token.expose().trim().is_empty() || (self.sc.busy && !over_window) {
+            return Vec::new();
+        }
+        if over_window {
+            self.sc.busy = false;
+            self.sc.window = false;
+            self.sc.stale_window = true;
+        }
+        // The token leaves the page state here; only the account keeps it.
+        let token = std::mem::replace(&mut self.sc.token, Secret::new(String::new()));
+        self.sc_sign_in(Job::ScSignInToken(token))
+    }
+
+    /// The sign-in window waited long without finding a session: the page then offers "I am
+    /// signed in, check again" next to the token paste.
+    #[must_use]
+    pub fn sc_sign_in_hint(&self) -> bool {
+        self.sc.busy
+            && self.sc.window
+            && self
+                .backend
+                .soundcloud_account
+                .as_ref()
+                .is_some_and(|a| a.sign_in_hint())
+    }
+
+    /// `true` while a SoundCloud sign-in or sign-out runs, here or in the account.
+    #[must_use]
+    pub fn sc_busy(&self) -> bool {
+        self.sc.busy || matches!(self.sc_state(), Some(SourceAccountState::SigningIn))
     }
 
     /// Start `job` when SoundCloud is on and running and no call is open.
@@ -209,6 +257,22 @@ mod tests {
 
     fn send(app: &mut App, msg: ScMsg) -> Vec<Job> {
         app.update_core(Message::Sc(msg))
+    }
+
+    /// A running SoundCloud whose account is in `state`.
+    fn app_in(state: SourceAccountState) -> App {
+        build_app(
+            &mock_backend_soundcloud(state),
+            &Scenario {
+                soundcloud: Some(ScScene::Account),
+                ..Scenario::default()
+            },
+        )
+    }
+
+    fn typed(app: &mut App, text: &str) {
+        send(app, ScMsg::PasteMode(true));
+        send(app, ScMsg::PasteInput(Secret::new(text.to_owned())));
     }
 
     #[test]
@@ -308,6 +372,107 @@ mod tests {
             })),
         );
         assert!(!app.sc.paste && app.sc.error.is_none() && !app.sc.busy);
+    }
+
+    #[test]
+    fn a_token_pasted_while_the_window_is_open_takes_over_and_the_window_answer_is_dropped() {
+        let mut app = app(ScScene::Account, true);
+        assert!(matches!(
+            send(&mut app, ScMsg::SignIn).as_slice(),
+            [Job::ScSignIn]
+        ));
+        assert!(app.sc.busy && app.sc.window);
+        typed(&mut app, "2-293232-7000001-synthetic");
+        let jobs = send(&mut app, ScMsg::PasteSubmit);
+        assert!(matches!(jobs.as_slice(), [Job::ScSignInToken(_)]));
+        assert!(app.sc.busy && !app.sc.window && app.sc.stale_window);
+
+        // The window's own answer ("cancelled") arrives and changes nothing on the page.
+        send(
+            &mut app,
+            ScMsg::WindowEnded(Err(SourceAccountError::Cancelled)),
+        );
+        assert!(app.sc.busy && !app.sc.stale_window && app.sc.error.is_none());
+
+        // The token's answer decides.
+        send(&mut app, ScMsg::SignedIn(Err(SourceAccountError::Rejected)));
+        assert!(!app.sc.busy && app.sc.error.is_some());
+    }
+
+    #[test]
+    fn the_window_answer_can_arrive_after_the_token_answer() {
+        let mut app = app(ScScene::Account, true);
+        send(&mut app, ScMsg::SignIn);
+        typed(&mut app, "2-293232-7000001-synthetic");
+        send(&mut app, ScMsg::PasteSubmit);
+        send(&mut app, ScMsg::SignedIn(Err(SourceAccountError::Rejected)));
+        send(
+            &mut app,
+            ScMsg::WindowEnded(Err(SourceAccountError::Cancelled)),
+        );
+        let error = app.sc.error.clone().expect("the refusal stays");
+        assert!(error.contains("did not accept"), "{error}");
+        assert!(!app.sc.busy && !app.sc.stale_window);
+    }
+
+    #[test]
+    fn a_token_is_not_sent_while_another_token_is_being_checked() {
+        let mut app = app(ScScene::Account, true);
+        typed(&mut app, "2-293232-7000001-synthetic");
+        assert_eq!(send(&mut app, ScMsg::PasteSubmit).len(), 1);
+        send(
+            &mut app,
+            ScMsg::PasteInput(Secret::new("2-293232-7000002-other".to_owned())),
+        );
+        assert!(send(&mut app, ScMsg::PasteSubmit).is_empty());
+        assert_eq!(app.sc.token.expose(), "2-293232-7000002-other");
+    }
+
+    #[test]
+    fn a_window_that_ends_on_its_own_is_shown_as_before() {
+        let mut app = app(ScScene::Account, true);
+        send(&mut app, ScMsg::SignIn);
+        send(
+            &mut app,
+            ScMsg::WindowEnded(Err(SourceAccountError::Cancelled)),
+        );
+        assert!(!app.sc.busy && !app.sc.window);
+        assert!(app.sc.error.is_some(), "a closed window is told");
+    }
+
+    #[test]
+    fn the_hint_shows_only_while_the_window_waits_and_check_again_asks_the_window() {
+        let mut app = app_in(SourceAccountState::SigningIn);
+        assert!(!app.sc_sign_in_hint(), "no window of ours is open");
+        send(&mut app, ScMsg::SignIn);
+        // The mock account says the window found nothing for a long time.
+        assert!(app.sc.window && app.sc_sign_in_hint());
+        assert!(!app.sc.rechecked);
+        assert!(send(&mut app, ScMsg::Recheck).is_empty());
+        assert!(app.sc.rechecked, "the page says it looked again");
+        // A new sign-in starts without that memory.
+        send(
+            &mut app,
+            ScMsg::WindowEnded(Err(SourceAccountError::Cancelled)),
+        );
+        send(&mut app, ScMsg::SignIn);
+        assert!(!app.sc.rechecked);
+        // A token check is not a window: no hint for it.
+        let mut checking = app_in(SourceAccountState::SigningIn);
+        checking.sc.busy = true;
+        assert!(!checking.sc_sign_in_hint());
+    }
+
+    #[test]
+    fn a_sign_in_keeps_the_frames_coming_so_the_spinner_turns() {
+        let mut app = app_in(SourceAccountState::SignedOut);
+        assert!(!app.sc_busy());
+        send(&mut app, ScMsg::SignIn);
+        assert!(app.sc_busy());
+        let account_busy = app.account_busy();
+        assert!(!account_busy, "the Google account is not what is busy");
+        app.focused = true;
+        assert!(app.needs_frames());
     }
 
     #[test]

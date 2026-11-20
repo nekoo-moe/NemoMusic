@@ -188,7 +188,10 @@ impl App {
             self.eq_phase = (self.eq_phase + dt.min(100.0) / 170.0) % (std::f32::consts::TAU * 8.0);
         }
         color::set_active(self.scheme_fade.current());
-        if (self.ui.is_buffering() || self.account_busy()) && !self.ui.reduced_motion && !held {
+        if (self.ui.is_buffering() || self.account_busy() || self.sc_busy())
+            && !self.ui.reduced_motion
+            && !held
+        {
             // One calm turn per 1.2 s.
             self.spin = (self.spin + dt.min(100.0) / 1200.0 * std::f32::consts::TAU)
                 % std::f32::consts::TAU;

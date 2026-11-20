@@ -24,6 +24,8 @@ pub enum ScScene {
     Paste,
     /// A sign-in call is running.
     Busy,
+    /// The sign-in window found no session for a while (the backend's account is `SigningIn`).
+    Hint,
     /// A failed sign-in and its plain-words error.
     Error,
     /// Sign out waits for its confirmation.
@@ -82,6 +84,10 @@ pub(super) fn enter(app: &mut App, scene: ScScene) {
             );
         }
         ScScene::Busy => app.sc.busy = true,
+        ScScene::Hint => {
+            app.sc.busy = true;
+            app.sc.window = true;
+        }
         ScScene::Error => run(
             app,
             Message::Sc(ScMsg::SignedIn(Err(SourceAccountError::Rejected))),

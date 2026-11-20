@@ -176,7 +176,7 @@ pub async fn run_job(job: Job, backend: Backend) -> Message {
             backend.account.sign_in_with_cookie(cookie).await,
         )),
         Job::SignOut => Message::Account(AccountMsg::SignedOut(backend.account.sign_out().await)),
-        Job::ScSignIn => Message::Sc(ScMsg::SignedIn(sc_sign_in(&backend, None).await)),
+        Job::ScSignIn => Message::Sc(ScMsg::WindowEnded(sc_sign_in(&backend, None).await)),
         Job::ScSignInToken(token) => {
             Message::Sc(ScMsg::SignedIn(sc_sign_in(&backend, Some(token)).await))
         }
