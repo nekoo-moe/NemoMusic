@@ -18,6 +18,23 @@ use crate::theme::{color, shape, type_scale};
 /// Height of a nav pill.
 const PILL_H: f32 = 48.0;
 
+/// Side of the brand mark in the sidebar, in px. The note is half of it, as in the setup mark.
+const MARK_SIDE: f32 = 36.0;
+// A radius of at least half the side makes the square a circle.
+const _: () = assert!(shape::FULL >= MARK_SIDE / 2.0);
+
+/// The brand mark: a disc in the accent, the same shape as the splash and the setup mark.
+fn mark_style(fill: iced::Color) -> container::Style {
+    container::Style {
+        background: Some(fill.into()),
+        border: Border {
+            radius: shape::FULL.into(),
+            ..Border::default()
+        },
+        ..container::Style::default()
+    }
+}
+
 pub(super) fn left_pane(app: &App, width: f32, _h: u32) -> Element<'_, Message> {
     let wide = width >= 200.0;
     let route = app.ui.route();
@@ -25,19 +42,12 @@ pub(super) fn left_pane(app: &App, width: f32, _h: u32) -> Element<'_, Message> 
     let accent = app.accent();
 
     let brand: Element<'_, Message> = {
-        let mark = container(icon(Icon::Note, 20.0, col(accent.on_primary)))
-            .width(Length::Fixed(36.0))
-            .height(Length::Fixed(36.0))
-            .center_x(Length::Fixed(36.0))
-            .center_y(Length::Fixed(36.0))
-            .style(move |_| container::Style {
-                background: Some(col(accent.primary).into()),
-                border: Border {
-                    radius: shape::md().into(),
-                    ..Border::default()
-                },
-                ..container::Style::default()
-            });
+        let mark = container(icon(Icon::Note, MARK_SIDE / 2.0, col(accent.on_primary)))
+            .width(Length::Fixed(MARK_SIDE))
+            .height(Length::Fixed(MARK_SIDE))
+            .center_x(Length::Fixed(MARK_SIDE))
+            .center_y(Length::Fixed(MARK_SIDE))
+            .style(move |_| mark_style(col(accent.primary)));
         if wide {
             row![
                 mark,
@@ -213,5 +223,20 @@ mod tests {
             nav_pill_y(-0.2).abs() < 1e-6,
             "a spring tail never goes above the first"
         );
+    }
+}
+
+#[cfg(test)]
+mod mark_tests {
+    use super::*;
+
+    #[test]
+    fn the_sidebar_mark_is_a_disc_like_the_splash_and_setup_mark() {
+        let style = mark_style(Color::from_rgb(0.9, 0.4, 0.5));
+        assert_eq!(
+            style.border.radius,
+            Border::default().rounded(shape::FULL).radius
+        );
+        assert!(style.background.is_some());
     }
 }
