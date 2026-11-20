@@ -33,6 +33,8 @@ pub struct Surfaces {
     pub restart: Presence,
     /// The same pill under the SoundCloud switch.
     pub sc_restart: Presence,
+    /// The hidden developer panel.
+    pub dev: Presence,
     /// The toast drawn now (it stays while the toast fades out).
     toast_shown: Option<Toast>,
     /// The track of the menu drawn now.
@@ -52,6 +54,7 @@ impl Default for Surfaces {
             tos: Presence::popup(),
             restart: Presence::popup(),
             sc_restart: Presence::popup(),
+            dev: Presence::popup(),
             toast_shown: None,
             menu_shown: None,
         }
@@ -59,7 +62,7 @@ impl Default for Surfaces {
 }
 
 impl Surfaces {
-    fn all(&mut self) -> [&mut Presence; 10] {
+    fn all(&mut self) -> [&mut Presence; 11] {
         [
             &mut self.toast,
             &mut self.menu,
@@ -71,6 +74,7 @@ impl Surfaces {
             &mut self.tos,
             &mut self.restart,
             &mut self.sc_restart,
+            &mut self.dev,
         ]
     }
 
@@ -101,6 +105,7 @@ impl Surfaces {
             &self.shortcuts,
             &self.tos,
             &self.restart,
+            &self.dev,
         ]
         .iter()
         .all(|p| p.is_settled())
@@ -178,6 +183,7 @@ impl App {
         s.tos.set(tos, r);
         s.restart.set(restart, r);
         s.sc_restart.set(sc_restart, r);
+        s.dev.set(self.dev.open, r);
     }
 
     /// Rewind the page entrance and the enter of every open surface to `ms` after they started

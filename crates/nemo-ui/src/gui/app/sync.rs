@@ -79,6 +79,7 @@ impl App {
                 || !self.queue_anim.is_settled()
                 || !self.setup_anim.is_settled()
                 || !self.surfaces.settled()
+                || self.dev.moving()
                 || self.skeletons.needs_frames(self.ui.reduced_motion))
     }
 
@@ -178,6 +179,7 @@ impl App {
 
     pub(super) fn sync_anim(&mut self) {
         self.sync_chips();
+        self.sync_dev();
         self.sync_surfaces();
         // The queue flag and the pane tab stay one fact.
         if self.ui.queue_open && !(self.pane_open && self.np_tab == NpTab::Queue) {

@@ -326,6 +326,9 @@ pub struct Scenario {
     pub sc_write: Option<soundcloud::ScWriteScene>,
     /// Search this service (soundcloud-account, PR 5): chosen before the search text is typed.
     pub search_source: Option<crate::gui::app::Source>,
+    /// Open the hidden developer panel on this tab (dev-tools spec). The backend decides what it
+    /// reads; use [`crate::mock::mock_backend_dev`].
+    pub dev: Option<crate::gui::app::dev::DevTab>,
 }
 
 /// Which state of the sign-in sheet a snapshot shows.
@@ -403,6 +406,7 @@ impl Default for Scenario {
             sc_library: None,
             sc_write: None,
             search_source: None,
+            dev: None,
             restart_ms: None,
         }
     }
@@ -616,6 +620,9 @@ pub fn build_app(backend: &Backend, scenario: &Scenario) -> App {
                 true,
             ))),
         );
+    }
+    if let Some(tab) = scenario.dev {
+        app.open_dev_for_snapshot(tab);
     }
     app.finish_animations();
     if let Some(phase) = scenario.skeleton_phase {

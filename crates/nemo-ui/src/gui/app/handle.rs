@@ -2,6 +2,7 @@
 
 use super::account::shuffle;
 use super::art::ArtEntry;
+use super::dev::DevMsg;
 use super::message::{Job, Message};
 use super::model::{AccountMsg, DetailData, DetailKey, DetailState, HomePhase, ListSource, NpTab};
 use super::option::{CreateMsg, SleepState};
@@ -28,6 +29,9 @@ impl App {
             }
             Message::Key(key, mods) => match keys::map(key, mods, self.ui.text_focused) {
                 // Esc closes the sign-in sheet first.
+                // Esc closes the developer panel before anything under it.
+                Some(keys::KeyAction::Close) if self.dev.open => self.dev_msg(DevMsg::Close),
+                Some(keys::KeyAction::DevTools) => self.dev_msg(DevMsg::Toggle),
                 Some(keys::KeyAction::Close) if self.account.open => {
                     self.account_msg(AccountMsg::Close)
                 }
@@ -380,6 +384,7 @@ impl App {
                 self.shortcuts_open = false;
                 Vec::new()
             }
+            Message::Dev(msg) => self.dev_msg(msg),
             Message::Shortcuts(on) => {
                 self.shortcuts_open = on;
                 self.tools_open = false;
@@ -476,7 +481,11 @@ impl App {
             Message::Refresh => self.refresh_msg(),
             Message::Refreshed { generation, data } => self.on_refreshed(generation, data),
             // `Restart` is answered in `App::update`, with a task that closes the window.
-            Message::TimerTick | Message::Noop | Message::Restart => Vec::new(),
+            Message::TimerTick => {
+                self.dev_tick();
+                Vec::new()
+            }
+            Message::Noop | Message::Restart => Vec::new(),
         }
     }
 
