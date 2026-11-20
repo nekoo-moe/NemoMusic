@@ -29,6 +29,8 @@ pub mod records;
 pub mod signin;
 pub mod stream;
 pub mod wipe;
+pub mod write;
+pub mod writes;
 
 #[cfg(test)]
 mod fake;
@@ -48,3 +50,5 @@ pub use opt_in::OPT_IN;
 pub use signin::{SignInWindow, TokenSource};
 pub use stream::{ScStreamResolver, streams};
 pub use wipe::SessionCaches;
+pub use write::WriteCall;
+pub use writes::SoundcloudWrites;

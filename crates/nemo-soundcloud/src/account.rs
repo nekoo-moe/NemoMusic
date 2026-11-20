@@ -69,9 +69,10 @@ impl Me {
 /// A [`ClientError`] of the sign-in check as the error the user reads.
 fn check_error(e: ClientError) -> SourceAccountError {
     match e {
-        ClientError::SessionEnded | ClientError::Refused | ClientError::NotFound => {
-            SourceAccountError::Rejected
-        }
+        ClientError::SessionEnded
+        | ClientError::Refused
+        | ClientError::NotFound
+        | ClientError::NotSignedIn => SourceAccountError::Rejected,
         ClientError::RateLimited => {
             SourceAccountError::Network("SoundCloud asked to slow down; try again later".to_owned())
         }

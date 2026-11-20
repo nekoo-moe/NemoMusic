@@ -28,7 +28,22 @@ pub const MAX_JSON_BYTES: usize = 4 * 1024 * 1024;
 /// it was about 3 MB on 2026-11-19.
 pub const MAX_SCRIPT_BYTES: usize = 8 * 1024 * 1024;
 
-/// One GET request.
+/// The method of a request. Everything the client reads is a GET; only the signed-in account's
+/// writes (`write.rs`) use the others.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ScMethod {
+    /// A read.
+    #[default]
+    Get,
+    /// Replace or set something (a like, a playlist's tracks or title).
+    Put,
+    /// Create something (a playlist).
+    Post,
+    /// Remove something (an unlike, an unfollow).
+    Delete,
+}
+
+/// One request. Reads are GETs without a body.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScRequest {
     /// Full address. It can hold the client id: never log it.
@@ -38,16 +53,22 @@ pub struct ScRequest {
     /// The session token, sent as `Authorization: OAuth <token>` (criterion 9). Only API calls
     /// carry one; never log it.
     pub authorization: Option<Secret<String>>,
+    /// The method; a GET unless the request is a write.
+    pub method: ScMethod,
+    /// A JSON body, sent with `Content-Type: application/json`. Only writes have one.
+    pub body: Option<Vec<u8>>,
 }
 
 impl ScRequest {
-    /// A request without a token.
+    /// A GET without a token.
     #[must_use]
     pub fn new(url: String, max_bytes: usize) -> Self {
         Self {
             url,
             max_bytes,
             authorization: None,
+            method: ScMethod::Get,
+            body: None,
         }
     }
 }
@@ -85,7 +106,7 @@ pub enum ScHttpError {
 #[error("could not build the HTTP client")]
 pub struct InitError;
 
-/// One GET, so tests can inject a fake. [`ReqwestHttp`] is the real one.
+/// One request, so tests can inject a fake. [`ReqwestHttp`] is the real one.
 pub trait ScHttp: Send + Sync {
     /// Send `request` and read the whole body (up to `max_bytes`).
     fn send(&self, request: ScRequest) -> BoxFuture<'_, Result<ScAnswer, ScHttpError>>;
@@ -151,7 +172,17 @@ fn authorization(token: &Secret<String>) -> Option<HeaderValue> {
 }
 
 async fn fetch(client: reqwest::Client, request: ScRequest) -> Result<ScAnswer, ScHttpError> {
-    let mut call = client.get(&request.url);
+    let mut call = match request.method {
+        ScMethod::Get => client.get(&request.url),
+        ScMethod::Put => client.put(&request.url),
+        ScMethod::Post => client.post(&request.url),
+        ScMethod::Delete => client.delete(&request.url),
+    };
+    if let Some(body) = request.body.clone() {
+        call = call
+            .header(reqwest::header::CONTENT_TYPE, "application/json")
+            .body(body);
+    }
     if let Some(token) = &request.authorization {
         // `reqwest` drops this header again when a redirect leaves the host.
         call = call.header(
