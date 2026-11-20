@@ -300,3 +300,55 @@ pub(super) fn search_shots(out: &mut Vec<Shot>) {
         signed_in(),
     ));
 }
+
+/// The sidebar source switch, the SoundCloud track page and the sort and layout of the SoundCloud
+/// Library (soundcloud-account, PR 4).
+pub(super) fn sidebar_shots(out: &mut Vec<Shot>) {
+    use nemo_ui::explore::{LibLayout, LibSort};
+    use nemo_ui::gui::app::{ScTab, Source};
+    use nemo_ui::gui::headless::soundcloud::ScLibraryScene;
+
+    let dark = |size: (u32, u32), route: Route| Scenario {
+        route,
+        size,
+        settings: UiSettings {
+            base: BaseMode::Dark,
+            tos_acknowledged: true,
+            ..UiSettings::default()
+        },
+        ..Scenario::default()
+    };
+    // The list with `All`: YouTube Music's rows, then SoundCloud's.
+    out.push(running(
+        "soundcloud-sidebar-all-dark-1366x697".to_owned(),
+        Scenario {
+            sc_library: Some(ScLibraryScene::Tab(ScTab::Playlists)),
+            search_source: Some(Source::All),
+            ..dark(LARGE, Route::Library)
+        },
+        signed_in(),
+    ));
+    // Sorted by title and as a grid.
+    out.push(running(
+        "soundcloud-library-playlists-grid-title-dark-960x600".to_owned(),
+        Scenario {
+            sc_library: Some(ScLibraryScene::Tab(ScTab::Playlists)),
+            lib_layout: LibLayout::Grid,
+            lib_sort: LibSort::Title,
+            ..dark(SMALL, Route::Library)
+        },
+        signed_in(),
+    ));
+    // A track page: the track, then what SoundCloud suggests.
+    out.push(running(
+        "soundcloud-track-page-dark-960x1000".to_owned(),
+        Scenario {
+            soundcloud: Some(ScScene::Account),
+            ..dark(
+                (960, 1000),
+                Route::Playlist(nemo_core::catalog::BrowseId("sc:track:5000002".to_owned())),
+            )
+        },
+        signed_in(),
+    ));
+}

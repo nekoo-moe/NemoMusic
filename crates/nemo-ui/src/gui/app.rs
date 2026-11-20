@@ -52,6 +52,8 @@ mod option;
 mod query;
 mod refresh;
 mod sc_library;
+#[cfg(test)]
+mod sc_sidebar_tests;
 mod setup;
 mod skeleton;
 #[cfg(test)]

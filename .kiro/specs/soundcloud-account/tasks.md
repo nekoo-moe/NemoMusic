@@ -30,11 +30,14 @@
   - _Requirements: 13, 14, 15_
   - Depends on: 2, 3
 
-- [ ] 5. Playlist, user and track pages (PR 5)
+- [x] 5. Playlist, user and track pages (PR 5; the track page and the sidebar switch in PR `feat/nemo-ui-soundcloud-sidebar`, 2026-11-20)
+  - Crate and files: `nemo-soundcloud` (`catalog.rs` `track_page`), `nemo-ui` (sidebar chips and rows, `Track page` menu entry, Sort and layout on the SoundCloud Library).
+  - Does: criterion 13 (the sidebar source switch, the track page, Sort and list or grid). The track page is a `PlaylistDetail` of the track and its related tracks under the id `sc:track:<number>`, so no new route is needed.
+  - Verified only against fixtures: the track and related answers are the recorded fixtures; no signed-in session was needed for this page.
   - _Requirements: 13, 14, 15_
   - Depends on: 4
 
-- [x] 6. SoundCloud search results with filter chips (PR 5 of the 2026-11-19 stack; `All` and a track page are left)
+- [x] 6. SoundCloud search results with filter chips (PR 5 of the 2026-11-19 stack)
   - _Requirements: 13, 14, 15_
   - Depends on: 4
 

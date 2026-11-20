@@ -448,7 +448,8 @@ async fn a_429_becomes_rate_limited_and_the_next_call_makes_no_request() {
 #[tokio::test]
 async fn pages_that_other_sources_own_are_not_found() {
     let (catalog, fake) = catalog_with(|_| ok("{}"));
-    for id in ["PL12345", "sc:track:1", "sc:user:1", "sc:playlist:x"] {
+    // A track id has a page of its own now (`a_track_page_is_the_track_then_what_...`).
+    for id in ["PL12345", "sc:user:1", "sc:playlist:x", "sc:track:x"] {
         assert_eq!(
             catalog.playlist(&BrowseId(id.to_owned())).await.map(|_| ()),
             Err(CatalogError::NotFound),

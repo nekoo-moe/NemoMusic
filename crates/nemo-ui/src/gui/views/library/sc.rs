@@ -63,9 +63,21 @@ fn tabs(app: &App) -> Element<'_, Message> {
         .iter()
         .position(|t| *t == app.sc_open_tab())
         .unwrap_or(0);
-    sliding_chips(app, &labels, selected, 3, |i| {
+    let chips = sliding_chips(app, &labels, selected, 3, |i| {
         Message::Sc(ScMsg::Tab(ScTab::ALL[i]))
-    })
+    });
+    // The history keeps SoundCloud's order (by day); every other list can be sorted and laid out
+    // as a list or a grid, like the YouTube Music Library.
+    if app.sc_open_tab() == ScTab::History {
+        return chips;
+    }
+    row![
+        chips,
+        Space::new().width(Length::Fill),
+        super::sort_and_layout(app)
+    ]
+    .align_y(Alignment::Center)
+    .into()
 }
 
 /// What the open tab shows.
