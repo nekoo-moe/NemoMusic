@@ -5,7 +5,7 @@
   - Does: criteria 1 to 14.
   - _Requirements: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14_
 
-- [ ] 2. `Your accounts` sheet with the SoundCloud card (PR 2)
+- [x] 2. `Your accounts` sheet with the SoundCloud card (PR 2)
   - Crate and files: `nemo-ui` (`views/account.rs`, shared SoundCloud account pieces moved out of `views/settings/soundcloud.rs`).
   - Does: criteria 15 to 17.
   - _Requirements: 15, 16, 17_

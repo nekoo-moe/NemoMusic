@@ -18,6 +18,7 @@ pub mod overlays;
 pub mod pane;
 pub mod panels;
 pub mod queue;
+pub mod sc_account;
 pub mod search;
 pub mod settings;
 pub mod settings_lyrics;

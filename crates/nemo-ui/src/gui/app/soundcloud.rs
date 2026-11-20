@@ -58,7 +58,7 @@ impl App {
     }
 
     /// Forget what a sign-in left in the page: the typed token, errors, the confirmation.
-    fn sc_reset_page(&mut self) {
+    pub(super) fn sc_reset_page(&mut self) {
         self.sc.paste = false;
         self.sc.token = Secret::new(String::new());
         self.sc.error = None;
