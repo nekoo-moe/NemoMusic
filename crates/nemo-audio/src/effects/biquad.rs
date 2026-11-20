@@ -26,9 +26,12 @@ const FREQ_MIN_HZ: f64 = 1.0;
 /// range of `f64`.
 const STATE_FLOOR: f64 = 1e-30;
 /// Probe points per octave of [`auto_preamp`] before it refines each local peak.
-const PROBES_PER_OCTAVE: f64 = 48.0;
-/// Lowest probe above 0 Hz, in Hz.
-const PROBE_MIN_HZ: f64 = 5.0;
+const PROBES_PER_OCTAVE: f64 = 96.0;
+/// Lowest probe above 0 Hz, in Hz: a quarter of the lowest filter frequency.
+const PROBE_MIN_HZ: f64 = 0.25;
+/// Highest probe, as the analog frequency `tan(w / 2)`: 16 times the one of the highest filter
+/// (0.49 times the rate). Above it every response is a smooth tail up to Nyquist.
+const PROBE_MAX_ANALOG: f64 = 512.0;
 /// Golden-section steps per local peak; 40 steps narrow the interval by about 10^8.
 const REFINE_STEPS: usize = 40;
 /// Slack, in tenths of a dB, before the peak is rounded up, so a band of exactly +4.0 dB
@@ -249,7 +252,8 @@ impl Biquad {
 /// equalizer is off or nothing rises above 0 dB.
 ///
 /// Runs on the control thread, never in the callback: it probes the response from 0 Hz to
-/// the Nyquist frequency on a log grid of 48 points per octave and refines each local peak.
+/// the Nyquist frequency on a grid of 96 points per octave of the analog frequency and refines
+/// each local peak, the ones at the two ends of the grid included.
 #[must_use]
 #[allow(
     clippy::cast_possible_truncation,
@@ -269,37 +273,46 @@ pub fn auto_preamp(settings: &EqSettings, rate: u32) -> u16 {
     let preamp_db = f64::from(settings.preamp_tenth_db) / 10.0;
     let response =
         |freq: f64| preamp_db + bank.iter().map(|c| c.gain_db_at(freq, rate)).sum::<f64>();
-    let peak = peak_db(&response, f64::from(rate.max(1)) / 2.0);
+    let peak = peak_db(&response, rate);
     let tenths = (peak * 10.0 - ROUNDING_SLACK_TENTHS).ceil();
     tenths.clamp(0.0, f64::from(u16::MAX)) as u16
 }
 
-/// The highest value of `response` between 0 Hz and `nyquist`.
-fn peak_db(response: &dyn Fn(f64) -> f64, nyquist: f64) -> f64 {
-    let grid = probe_grid(nyquist);
+/// The highest value of `response` between 0 Hz and the Nyquist frequency of `rate`.
+fn peak_db(response: &dyn Fn(f64) -> f64, rate: u32) -> f64 {
+    let grid = probe_grid(rate);
     let values: Vec<f64> = grid.iter().map(|&f| response(f)).collect();
     let mut peak = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-    for (freqs, near) in grid.windows(3).zip(values.windows(3)) {
-        if let ([lo, _, hi], [left, mid, right]) = (freqs, near)
-            && mid >= left
-            && mid >= right
-        {
-            peak = peak.max(refine(response, *lo, *hi));
+    for (i, &mid) in values.iter().enumerate() {
+        // A peak is above its left neighbour and not below its right one, so a flat stretch
+        // is refined once. The two ends have one neighbour only: a peak between 0 Hz and the
+        // first probe shows as the value at 0 Hz being the higher of the two.
+        let rises = i.checked_sub(1).is_none_or(|j| mid > values[j]);
+        let falls = values.get(i + 1).is_none_or(|&right| mid >= right);
+        if rises && falls {
+            let lo = grid[i.saturating_sub(1)];
+            let hi = grid[(i + 1).min(grid.len() - 1)];
+            peak = peak.max(refine(response, lo, hi));
         }
     }
     peak
 }
 
-/// 0 Hz, a log grid from [`PROBE_MIN_HZ`], and `nyquist`.
-fn probe_grid(nyquist: f64) -> Vec<f64> {
+/// 0 Hz, a log grid in the analog frequency `tan(w / 2)` from [`PROBE_MIN_HZ`] to
+/// [`PROBE_MAX_ANALOG`] turned back into Hz, and the Nyquist frequency, in rising order. The
+/// bilinear transform squeezes a filter's features by `1 + tan^2(w / 2)` near Nyquist (a
+/// factor of about 12 at 18 kHz and 44.1 kHz), so a grid in Hz steps over them there; in the
+/// analog frequency they keep their width relative to their centre.
+fn probe_grid(rate: u32) -> Vec<f64> {
+    let rate = f64::from(rate.max(1));
     let step = 2_f64.powf(1.0 / PROBES_PER_OCTAVE);
+    let mut analog = (PI * PROBE_MIN_HZ / rate).tan();
     let mut grid = vec![0.0];
-    let mut freq = PROBE_MIN_HZ;
-    while freq < nyquist {
-        grid.push(freq);
-        freq *= step;
+    while analog < PROBE_MAX_ANALOG {
+        grid.push(rate / PI * analog.atan());
+        analog *= step;
     }
-    grid.push(nyquist);
+    grid.push(rate / 2.0);
     grid
 }
 
