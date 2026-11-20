@@ -39,6 +39,7 @@ pub mod plain;
 pub mod score;
 pub mod service;
 pub mod simpmusic;
+mod trace;
 pub mod ttml;
 pub mod unison;
 

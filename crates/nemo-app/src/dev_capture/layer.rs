@@ -12,8 +12,8 @@ use tracing_subscriber::layer::{Context, Layer};
 use super::redact::Redactor;
 use super::ring::{CapturedEvent, DevRing};
 
-/// The target of provider trace events (`nemo_core::dev::TRACE_TARGET`).
-pub const TRACE_TARGET: &str = "nemo_trace";
+/// The target of provider trace events.
+pub const TRACE_TARGET: &str = nemo_core::dev::TRACE_TARGET;
 
 /// The structured fields the ring keeps. Anything else is dropped at capture.
 pub const ALLOWED_FIELDS: [&str; 16] = [

@@ -63,6 +63,7 @@ impl OffMarker {
             hours = OFF_FOR.as_secs() / 3600,
             "the in-process resolver switched itself off: its streams were refused"
         );
+        crate::trace::solver_off(OFF_FOR);
         let Some(path) = &self.file else { return };
         let until = now
             .checked_add(OFF_FOR)

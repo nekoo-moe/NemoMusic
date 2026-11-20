@@ -7,15 +7,17 @@
 //! CC BY-NC-SA 4.0: it is never stored in the repo, and tests use synthetic fixtures only.
 
 use std::fmt::Write as _;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use nemo_core::BoxFuture;
+use nemo_core::dev::host_of;
 use nemo_core::segment::{Segment, SegmentCategory, SegmentError, SegmentSource};
 use nemo_core::track::VideoId;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
 use crate::http::{InitError, USER_AGENT, https_redirects, parse_retry_after};
+use crate::trace;
 
 /// Base URL of the public API.
 pub const BASE_URL: &str = "https://sponsor.ajay.app";
@@ -274,7 +276,13 @@ impl HttpGet for ReqwestHttp {
     fn get<'a>(&'a self, url: &'a str) -> BoxFuture<'a, Result<HttpResponse, String>> {
         let client = self.client.clone();
         let url = url.to_owned();
-        let task = self.handle.spawn(fetch(client, url));
+        let task = self.handle.spawn(async move {
+            let (began, host) = (Instant::now(), host_of(&url).to_owned());
+            let answer = fetch(client, url).await;
+            let status = answer.as_ref().map(|a| a.status).map_err(String::as_str);
+            trace::http("sponsorblock", "segments", &host, status, began);
+            answer
+        });
         Box::pin(async move {
             task.await
                 .unwrap_or_else(|_| Err("request was cancelled".to_owned()))

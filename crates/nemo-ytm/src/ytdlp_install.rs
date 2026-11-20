@@ -17,11 +17,14 @@ use std::fmt::Write as _;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use sha2::{Digest, Sha256};
 
+use nemo_core::dev::host_of;
+
 use crate::http::{USER_AGENT, https_redirects};
+use crate::trace;
 
 /// Release asset with the onedir build for 64-bit Windows.
 pub const ASSET: &str = "yt-dlp_win.zip";
@@ -92,11 +95,17 @@ fn download(
     name: &str,
     cap: u64,
 ) -> Result<Vec<u8>, InstallError> {
+    let began = Instant::now();
+    let host = host_of(RELEASE_BASE);
     let response = client
         .get(format!("{RELEASE_BASE}{name}"))
         .send()
-        .map_err(|_| InstallError::Download(format!("{name}: request failed")))?;
+        .map_err(|_| {
+            trace::http("ytdlp", "install_download", host, Err("failed"), began);
+            InstallError::Download(format!("{name}: request failed"))
+        })?;
     let status = response.status().as_u16();
+    trace::http("ytdlp", "install_download", host, Ok(status), began);
     if status != 200 {
         return Err(InstallError::Download(format!("{name}: HTTP {status}")));
     }

@@ -32,6 +32,7 @@ use tokio::sync::OnceCell;
 use crate::cipher::CipherResolver;
 use crate::innertube::{ANDROID_VR, ClientProfile, InnertubeResolver, VISIONOS};
 use crate::timing;
+use crate::trace;
 use crate::ytdlp::YtDlpResolver;
 
 /// A cached stream is used only while it is valid for at least this long.
@@ -215,6 +216,7 @@ impl CachedResolver {
         let began = Instant::now();
         let alive = kept.check.alive(&stream).await;
         timing::stage("stored stream check", began, alive);
+        trace::stored_check(alive, began);
         if alive {
             return Some(stream);
         }
@@ -249,17 +251,23 @@ impl CachedResolver {
     ) -> Answer {
         let key = CacheKey::new(&video, &request);
         let slot = Self::slot(&slots, &key);
+        let cached = slot.initialized();
         let answer = slot
             .get_or_init(|| async {
                 if let Some(kept) = Self::from_disk(persisted.as_ref(), &video, &request).await {
+                    trace::cache("disk");
                     return Ok(kept);
                 }
+                trace::cache("miss");
                 let answer = inner.resolve_with(&video, &request).await;
                 Self::remember(persisted.as_ref(), &video, &request, &answer);
                 answer
             })
             .await
             .clone();
+        if cached {
+            trace::cache("hit");
+        }
         let keep = answer.as_ref().is_ok_and(|s| usable(s, SystemTime::now()));
         if !keep {
             let mut map = slots.lock().unwrap_or_else(PoisonError::into_inner);
@@ -487,6 +495,7 @@ impl FallbackResolver {
         began: Instant,
     ) -> Answer {
         timing::stage("resolve native", began, answer.is_ok());
+        trace::tier("native", &answer, began);
         match answer {
             Ok(stream) => {
                 self.rest.record(Outcome::Answered);
@@ -509,6 +518,7 @@ impl FallbackResolver {
 
     fn after_fallback(&self, video: &VideoId, answer: Answer, began: Instant) -> Answer {
         timing::stage("resolve yt-dlp", began, answer.is_ok());
+        trace::tier("yt_dlp", &answer, began);
         if let Err(e) = &answer {
             // Fixed texts only (no URL, no id): the reason behind "could not get the stream".
             tracing::warn!(error = %e, "no stream from the native path or yt-dlp");
@@ -550,6 +560,7 @@ impl FallbackResolver {
         fallback_began: Instant,
     ) -> Answer {
         timing::stage("resolve native", began, answer.is_ok());
+        trace::tier("native", &answer, began);
         self.rest.record(Outcome::of(&answer));
         if let Ok(stream) = answer {
             drop(fallback);

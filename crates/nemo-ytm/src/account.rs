@@ -208,10 +208,15 @@ impl Shared {
     async fn complete(&self, raw: &Secret<String>) -> Result<AccountInfo, AccountError> {
         let cookie = normalize_cookie(raw.expose()).ok_or(AccountError::Rejected)?;
         let cookie = Secret::new(cookie);
-        let info = self.backend.probe(cookie.clone()).await?;
-        self.vault
+        let probed = self.backend.probe(cookie.clone()).await;
+        crate::trace::signin("signin_check", &probed);
+        let info = probed?;
+        let saved = self
+            .vault
             .save(cookie.expose())
-            .map_err(|e| AccountError::Storage(e.0.to_owned()))?;
+            .map_err(|e| AccountError::Storage(e.0.to_owned()));
+        crate::trace::signin("signin_store", &saved);
+        saved?;
         if let Some(dir) = self.config.cache_file.parent() {
             let _ = std::fs::create_dir_all(dir);
         }
@@ -227,6 +232,7 @@ impl Shared {
         before: AccountState,
         cookie: Result<Secret<String>, AccountError>,
     ) -> Result<AccountInfo, AccountError> {
+        crate::trace::signin("signin_window", &cookie);
         let result = match cookie {
             Ok(cookie) => self.complete(&cookie).await,
             Err(err) => Err(err),

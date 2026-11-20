@@ -271,6 +271,7 @@ impl Job {
             let began = Instant::now();
             let answer = Self::timed(self.run_with(fast_args(video))).await;
             timing::stage("yt-dlp fast run", began, answer.is_ok());
+            crate::trace::ytdlp("run_fast", &answer, began);
             match answer {
                 Err(StreamError::ResolverMissing) => return Err(StreamError::ResolverMissing),
                 Ok(stream) => return Ok(stream),
@@ -280,6 +281,7 @@ impl Job {
         let began = Instant::now();
         let answer = Self::timed(self.run_with(args(video))).await;
         timing::stage("yt-dlp full run", began, answer.is_ok());
+        crate::trace::ytdlp("run_full", &answer, began);
         answer
     }
 
@@ -385,6 +387,7 @@ impl YtDlpResolver {
             Err(_) => false,
         };
         timing::stage("yt-dlp warm-up", began, ok);
+        crate::trace::ytdlp_warm_up(ok, began);
         ok
     }
 }

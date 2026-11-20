@@ -9,7 +9,7 @@
 //! read: its field names are unverified (ADR 0002), so word-synced records fall back to their
 //! line-synced `syncedLyrics`.
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use nemo_core::BoxFuture;
 use nemo_core::lyrics::{
@@ -22,6 +22,7 @@ use crate::lrc::parse_lrc;
 use crate::pick::{Candidate, pick_best};
 use crate::plain::parse_plain;
 use crate::score::score_match;
+use crate::trace;
 
 /// Provider id shown in the UI.
 pub const LRCLIB_ID: ProviderId = ProviderId::new("LRCLIB");
@@ -207,6 +208,19 @@ impl LrclibProvider {
 
     /// GET a URL. `Ok(None)` on 404. Never logs the URL (it carries the track metadata).
     async fn request(&self, url: Url) -> Result<Option<String>, LyricsError> {
+        let began = Instant::now();
+        let host = url.host_str().unwrap_or("unknown").to_owned();
+        let result = self.read(url).await;
+        let status = match &result {
+            Ok(Some(_)) => Ok(200),
+            Ok(None) => Ok(404),
+            Err(e) => Err(e),
+        };
+        trace::call("lyrics:lrclib", &host, status, began);
+        result
+    }
+
+    async fn read(&self, url: Url) -> Result<Option<String>, LyricsError> {
         let resp = self
             .client
             .get(url)

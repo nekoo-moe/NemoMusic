@@ -172,7 +172,7 @@ impl YtmCatalog {
     /// Development aid: describe the raw browse page of `browse_id`; shapes and counts only.
     pub async fn diagnose_browse(&self, browse_id: String) -> String {
         let inner = Arc::clone(&self.inner);
-        self.run(async move {
+        self.run("diagnose_browse", async move {
             let api = inner.api().await?;
             Ok(crate::diagnostics::browse_report(api, &browse_id).await)
         })
@@ -180,12 +180,12 @@ impl YtmCatalog {
         .unwrap_or_else(|e| format!("could not connect ({e})"))
     }
 
-    fn run<T, F>(&self, work: F) -> BoxFuture<'static, Result<T, CatalogError>>
+    fn run<T, F>(&self, op: &'static str, work: F) -> BoxFuture<'static, Result<T, CatalogError>>
     where
         T: Send + 'static,
         F: Future<Output = Result<T, CatalogError>> + Send + 'static,
     {
-        let task = self.handle.spawn(work);
+        let task = self.handle.spawn(crate::trace::catalog("ytm", op, work));
         Box::pin(async move {
             task.await
                 .unwrap_or_else(|_| Err(CatalogError::Network("request was cancelled".to_owned())))
@@ -208,7 +208,7 @@ impl Catalog for YtmCatalog {
             return Box::pin(async { Ok(SearchResults::default()) });
         }
         let inner = Arc::clone(&self.inner);
-        self.run(async move { inner.search(text).await })
+        self.run("search", async move { inner.search(text).await })
     }
 
     fn search_kind<'a>(
@@ -221,14 +221,17 @@ impl Catalog for YtmCatalog {
             return Box::pin(async { Ok(SearchResults::default()) });
         }
         let inner = Arc::clone(&self.inner);
-        self.run(async move { inner.search_kind(text, kind).await })
+        self.run(
+            "search_kind",
+            async move { inner.search_kind(text, kind).await },
+        )
     }
 
     fn album<'a>(&'a self, id: &'a BrowseId) -> BoxFuture<'a, Result<AlbumDetail, CatalogError>> {
         match checked(id) {
             Ok(id) => {
                 let inner = Arc::clone(&self.inner);
-                self.run(async move { inner.album(id).await })
+                self.run("album", async move { inner.album(id).await })
             }
             Err(e) => Box::pin(async move { Err(e) }),
         }
@@ -238,7 +241,7 @@ impl Catalog for YtmCatalog {
         match checked(id) {
             Ok(id) => {
                 let inner = Arc::clone(&self.inner);
-                self.run(async move { inner.artist(id).await })
+                self.run("artist", async move { inner.artist(id).await })
             }
             Err(e) => Box::pin(async move { Err(e) }),
         }
@@ -251,7 +254,7 @@ impl Catalog for YtmCatalog {
         match checked(id) {
             Ok(id) => {
                 let inner = Arc::clone(&self.inner);
-                self.run(async move { inner.playlist(id).await })
+                self.run("playlist", async move { inner.playlist(id).await })
             }
             Err(e) => Box::pin(async move { Err(e) }),
         }
@@ -259,12 +262,16 @@ impl Catalog for YtmCatalog {
 
     fn home_feed(&self) -> BoxFuture<'_, Result<HomeFeed, CatalogError>> {
         let inner = Arc::clone(&self.inner);
-        self.run(async move { pages::home_feed(inner.api().await?).await })
+        self.run("home_feed", async move {
+            pages::home_feed(inner.api().await?).await
+        })
     }
 
     fn explore(&self) -> BoxFuture<'_, Result<Explore, CatalogError>> {
         let inner = Arc::clone(&self.inner);
-        self.run(async move { pages::explore(inner.api().await?).await })
+        self.run("explore", async move {
+            pages::explore(inner.api().await?).await
+        })
     }
 
     fn mood_playlists<'a>(
@@ -273,7 +280,9 @@ impl Catalog for YtmCatalog {
     ) -> BoxFuture<'a, Result<Vec<FeedShelf>, CatalogError>> {
         let inner = Arc::clone(&self.inner);
         let id = id.clone();
-        self.run(async move { pages::mood_playlists(inner.api().await?, &id).await })
+        self.run("mood_playlists", async move {
+            pages::mood_playlists(inner.api().await?, &id).await
+        })
     }
 
     fn podcast<'a>(
@@ -282,7 +291,9 @@ impl Catalog for YtmCatalog {
     ) -> BoxFuture<'a, Result<PodcastDetail, CatalogError>> {
         let inner = Arc::clone(&self.inner);
         let id = id.clone();
-        self.run(async move { pages::podcast(inner.api().await?, &id).await })
+        self.run("podcast", async move {
+            pages::podcast(inner.api().await?, &id).await
+        })
     }
 }
 #[cfg(test)]
