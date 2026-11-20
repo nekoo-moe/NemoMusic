@@ -147,6 +147,9 @@ impl App {
             ScMsg::ToggleWarning => {
                 self.sc.warning_open = !self.sc.warning_open;
             }
+            ScMsg::ToggleDropdown => {
+                self.sc.dropdown_open = !self.sc.dropdown_open;
+            }
         }
         Vec::new()
     }

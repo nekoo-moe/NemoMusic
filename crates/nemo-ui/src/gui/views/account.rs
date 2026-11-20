@@ -5,12 +5,12 @@
 
 use iced::font::Weight;
 use iced::widget::{Space, column, container, mouse_area, opaque, row, stack, text_input};
-use iced::{Alignment, Background, Border, Color, Element, Length, Padding};
+use iced::{Alignment, Background, Border, Color, Element, Length, Padding, mouse};
 use nemo_core::account::{AccountInfo, AccountState};
 use nemo_core::secret::Secret;
 use nemo_core::track::Artwork;
 
-use super::super::app::{AccountMsg, App, ArtShape, Message, SettingsSection};
+use super::super::app::{AccountMsg, App, ArtShape, Message, ScMsg, SettingsSection};
 use super::super::assets::{Icon, font};
 use super::super::fx::Fx;
 use super::super::style::{col, gap, icon, icon_button, label, label_w, scroll, shadow, spinner};
@@ -22,9 +22,7 @@ use crate::state::Event;
 use crate::theme::{color, glass, shape, type_scale};
 
 /// Sheet width (floating landscape rectangle).
-const WIDTH: f32 = 780.0;
-/// Minimum width to arrange account cards side-by-side in two columns.
-const TWO_COL_BREAKPOINT: f32 = 680.0;
+const WIDTH: f32 = 600.0;
 /// Room kept between the sheet and the window edge, top and bottom.
 const MARGIN: f32 = gap::LG;
 /// Room the scroll bar keeps at the right of the cards, so it never covers a word.
@@ -64,29 +62,87 @@ fn youtube_card(app: &App, width: f32) -> Element<'_, Message> {
 }
 
 /// The SoundCloud card: the same pieces as the Settings card, or one sentence and the way to
-/// Settings while SoundCloud is off.
+/// The SoundCloud card: a collapsible dropdown card with a development warning and sign-in controls.
 fn soundcloud_card(app: &App, width: f32) -> Element<'_, Message> {
     let inner = width - 2.0 * gap::LG;
-    let body: Element<'_, Message> = if app.sc_open() {
-        sc_account::body(app, inner, Place::Sheet)
+    let open = app.sc.dropdown_open;
+    let chevron = if open {
+        Icon::ChevronDown
     } else {
-        column![
-            sc_account::warning_dropdown(app.sc.warning_open, inner),
-            paragraph(
-                sc_text::CARD_OFF,
-                type_scale::BODY_MD,
-                col(color::on_surface_variant()),
-                inner
-            ),
-            text_button(
-                sc_text::CARD_TURN_ON,
-                Message::SettingsSectionGo(SettingsSection::SoundCloud)
-            ),
-        ]
-        .spacing(gap::SM)
-        .into()
+        Icon::ChevronRight
     };
-    account_card(sc_text::TITLE, body, width)
+
+    let title_row = mouse_area(
+        row![
+            label(
+                sc_text::TITLE,
+                type_scale::TITLE_SM,
+                true,
+                col(color::on_surface())
+            ),
+            Space::new().width(gap::SM),
+            container(
+                row![
+                    icon(Icon::Info, 12.0, col(color::warning())),
+                    Space::new().width(4.0),
+                    label(
+                        "Development",
+                        type_scale::LABEL_SM,
+                        false,
+                        col(color::warning())
+                    ),
+                ]
+                .align_y(Alignment::Center),
+            )
+            .padding(Padding::from([2.0, 8.0]))
+            .style(|_| container::Style {
+                background: Some(Background::Color(col(color::warning().with_alpha(0.12)))),
+                border: Border {
+                    color: col(color::warning().with_alpha(0.30)),
+                    width: 1.0,
+                    radius: shape::sm().into(),
+                },
+                ..container::Style::default()
+            }),
+            Space::new().width(Length::Fill),
+            icon(chevron, 18.0, col(color::on_surface_variant())),
+        ]
+        .align_y(Alignment::Center),
+    )
+    .interaction(mouse::Interaction::Pointer)
+    .on_press(Message::Sc(ScMsg::ToggleDropdown));
+
+    let content: Element<'_, Message> = if open {
+        let body: Element<'_, Message> = if app.sc_open() {
+            sc_account::body(app, inner, Place::Sheet)
+        } else {
+            column![
+                sc_account::warning_box(inner),
+                paragraph(
+                    sc_text::CARD_OFF,
+                    type_scale::BODY_MD,
+                    col(color::on_surface_variant()),
+                    inner
+                ),
+                text_button(
+                    sc_text::CARD_TURN_ON,
+                    Message::SettingsSectionGo(SettingsSection::SoundCloud)
+                ),
+            ]
+            .spacing(gap::SM)
+            .into()
+        };
+        column![title_row, body].spacing(gap::MD).into()
+    } else {
+        column![title_row].into()
+    };
+
+    tile(
+        container(content)
+            .padding(gap::LG)
+            .width(Length::Fixed(width)),
+        color::surface_container(),
+    )
 }
 
 /// The sheet over a scrim: `Your accounts`, the `Listening area` control, then one card for each
@@ -121,28 +177,14 @@ pub fn sheet(app: &App) -> Element<'_, Message> {
     ]
     .align_y(Alignment::Center);
     let wide = inner - RAIL;
-    let two_cols = width >= TWO_COL_BREAKPOINT && app.sc_info().is_some();
-    let card_w = if two_cols {
-        ((wide - gap::MD) / 2.0).floor()
-    } else {
-        wide
-    };
 
     let mut content = column![].spacing(gap::MD).width(Length::Fixed(inner));
     if let Some(area) = super::listening_area::control(app, wide) {
         content = content.push(area);
     }
-    if two_cols {
-        content = content.push(
-            row![youtube_card(app, card_w), soundcloud_card(app, card_w),]
-                .spacing(gap::MD)
-                .align_y(Alignment::Start),
-        );
-    } else {
-        content = content.push(youtube_card(app, wide));
-        if app.sc_info().is_some() {
-            content = content.push(soundcloud_card(app, wide));
-        }
+    content = content.push(youtube_card(app, wide));
+    if app.sc_info().is_some() {
+        content = content.push(soundcloud_card(app, wide));
     }
     let card =
         container(column![header, vspace(gap::SM), scroll(content)].width(Length::Fixed(inner)))

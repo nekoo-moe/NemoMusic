@@ -348,6 +348,8 @@ pub struct ScUi {
     pub read_after_sign_in: bool,
     /// Whether the development warning dropdown is expanded.
     pub warning_open: bool,
+    /// Whether the SoundCloud dropdown card is expanded.
+    pub dropdown_open: bool,
 }
 
 impl Default for ScUi {
@@ -366,6 +368,7 @@ impl Default for ScUi {
             notice: None,
             read_after_sign_in: false,
             warning_open: true,
+            dropdown_open: false,
         }
     }
 }
@@ -511,6 +514,8 @@ pub enum ScMsg {
     SignedOut(Result<SignOutReport, SourceAccountError>),
     /// Toggle development warning dropdown on the SoundCloud card.
     ToggleWarning,
+    /// Toggle the SoundCloud dropdown card.
+    ToggleDropdown,
 }
 
 /// Sections of the Settings screen.
@@ -560,6 +565,22 @@ impl SettingsSection {
             Self::Appearance => "Appearance",
             Self::Privacy => "Privacy",
             Self::About => "About",
+        }
+    }
+
+    /// Menu label and title according to user language.
+    #[must_use]
+    pub const fn label_localized(self, lang: crate::settings::Language) -> &'static str {
+        match (self, lang) {
+            (Self::Playback, crate::settings::Language::Vietnamese) => "Phát nhạc",
+            (Self::AudioOutput, crate::settings::Language::Vietnamese) => "Đầu ra âm thanh",
+            (Self::Lyrics, crate::settings::Language::Vietnamese) => "Lời bài hát",
+            (Self::Library, crate::settings::Language::Vietnamese) => "Thư viện",
+            (Self::SoundCloud, crate::settings::Language::Vietnamese) => "SoundCloud",
+            (Self::Appearance, crate::settings::Language::Vietnamese) => "Giao diện",
+            (Self::Privacy, crate::settings::Language::Vietnamese) => "Quyền riêng tư",
+            (Self::About, crate::settings::Language::Vietnamese) => "Giới thiệu",
+            _ => self.label(),
         }
     }
 }

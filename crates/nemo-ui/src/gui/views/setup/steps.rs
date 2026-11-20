@@ -8,12 +8,12 @@ use super::super::settings::control::{segmented, setting_row};
 use super::super::settings::{song_colour_rows, switch_with};
 use super::panel::display;
 use super::reveal::{rise, rise_all};
-use crate::copy::{self, setup as text};
+use crate::copy;
 use crate::gui::app::{App, Message};
 use crate::gui::assets::Icon;
 use crate::gui::style::{col, gap, icon, label};
 use crate::scheme::{AccentIntensity, BaseMode, CornerStyle};
-use crate::settings::{NowPlayingStyle, SettingChange};
+use crate::settings::{Language, NowPlayingStyle, SettingChange};
 use crate::setup::summary;
 use crate::state::Event;
 use crate::theme::{color, type_scale};
@@ -21,6 +21,11 @@ use crate::theme::{color, type_scale};
 /// Body width from which the Look step has two columns.
 const TWO_COLUMNS_AT: f32 = 740.0;
 use nemo_core::account::AccountState;
+
+const LANGUAGES: [(Language, &str, Option<Icon>); 2] = [
+    (Language::English, "English", None),
+    (Language::Vietnamese, "Tiếng Việt", None),
+];
 
 /// A step's headline in `font.display` with one sentence under it.
 pub(super) fn heading<'a>(
@@ -69,6 +74,8 @@ pub(super) fn has_two_columns(width: f32) -> bool {
 /// setup takes.
 pub(super) fn welcome(app: &App, width: f32) -> Element<'_, Message> {
     let accent = app.accent();
+    let lang = app.ui.settings.language;
+    let t = crate::i18n::welcome_text(lang);
     let fact = |glyph: Icon, title: &'static str, line: &'static str| {
         row![
             icon(glyph, 24.0, col(accent.primary)),
@@ -86,20 +93,26 @@ pub(super) fn welcome(app: &App, width: f32) -> Element<'_, Message> {
         ]
         .align_y(Alignment::Start)
     };
+    let lang_row = row![
+        label(
+            t.language_label,
+            type_scale::BODY_MD,
+            true,
+            col(color::on_surface())
+        ),
+        Space::new().width(gap::MD),
+        segmented(app, &LANGUAGES, lang, SettingChange::Language),
+    ]
+    .align_y(Alignment::Center);
+
     column![
-        heading(text::WELCOME_TITLE, Some(text::WELCOME[0]), width),
-        vspace(gap::XL),
-        rise(
-            app,
-            0,
-            fact(Icon::Lock, text::WELCOME_LOCAL_TITLE, text::WELCOME[1]).into()
-        ),
+        heading(t.title, Some(t.headline), width),
         vspace(gap::LG),
-        rise(
-            app,
-            1,
-            fact(Icon::Timer, text::WELCOME_TIME_TITLE, text::WELCOME[2]).into()
-        ),
+        lang_row,
+        vspace(gap::LG),
+        rise(app, 0, fact(Icon::Lock, t.local_title, t.local_body).into()),
+        vspace(gap::LG),
+        rise(app, 1, fact(Icon::Timer, t.time_title, t.time_body).into()),
     ]
     .width(Length::Fixed(width))
     .into()
@@ -108,6 +121,8 @@ pub(super) fn welcome(app: &App, width: f32) -> Element<'_, Message> {
 /// Look: the song colours and heartbeat, the surface, accent strength, corners, Now Playing style
 /// and reduced motion. Every pick goes through `Event::Setting`, so it applies at once.
 pub(super) fn look(app: &App, width: f32) -> Element<'_, Message> {
+    let lang = app.ui.settings.language;
+    let lt = crate::i18n::look_text(lang);
     let two = has_two_columns(width);
     let col_w = if two {
         ((width - gap::LG) / 2.0).floor()
@@ -124,7 +139,7 @@ pub(super) fn look(app: &App, width: f32) -> Element<'_, Message> {
         column(rise_all(app, switches.into_iter().chain(choices))).into()
     };
     column![
-        heading(text::LOOK_TITLE, Some(text::LOOK_HELP), width),
+        heading(lt.title, Some(lt.help), width),
         vspace(gap::MD),
         body,
     ]
@@ -133,9 +148,14 @@ pub(super) fn look(app: &App, width: f32) -> Element<'_, Message> {
 }
 
 fn reduce_motion_row(app: &App, width: f32) -> Element<'_, Message> {
+    let title = crate::i18n::t(
+        app.ui.settings.language,
+        "Reduce motion",
+        "Giảm chuyển động",
+    );
     setting_row(
         width,
-        "Reduce motion",
+        title,
         None,
         switch_with(app.ui.settings.reduce_motion, |on| {
             Message::Ui(Event::Setting(SettingChange::ReduceMotion(on)))
@@ -165,10 +185,11 @@ fn choice_row<'a>(
 /// The four pick-one rows of the Look step.
 fn look_choices(app: &App, width: f32) -> Vec<Element<'_, Message>> {
     let s = &app.ui.settings;
+    let lt = crate::i18n::look_text(s.language);
     vec![
         choice_row(
             width,
-            "Surface",
+            lt.surface,
             segmented(
                 app,
                 &[
@@ -182,7 +203,7 @@ fn look_choices(app: &App, width: f32) -> Vec<Element<'_, Message>> {
         ),
         choice_row(
             width,
-            "Accent intensity",
+            lt.accent,
             segmented(
                 app,
                 &[
@@ -196,7 +217,7 @@ fn look_choices(app: &App, width: f32) -> Vec<Element<'_, Message>> {
         ),
         choice_row(
             width,
-            "Corners",
+            lt.corners,
             segmented(
                 app,
                 &[
@@ -210,7 +231,7 @@ fn look_choices(app: &App, width: f32) -> Vec<Element<'_, Message>> {
         ),
         choice_row(
             width,
-            "Now Playing",
+            lt.now_playing,
             segmented(
                 app,
                 &[
@@ -228,13 +249,14 @@ fn look_choices(app: &App, width: f32) -> Vec<Element<'_, Message>> {
 /// their stored values shown as `On` or `Off`.
 pub(super) fn playback(app: &App, width: f32) -> Element<'_, Message> {
     let s = &app.ui.settings;
+    let pt = crate::i18n::playback_text(s.language);
     let rows = vec![
         setting_row(
             width,
-            copy::SPONSORBLOCK_LABEL,
+            pt.sponsorblock_label,
             Some(format!(
                 "{}. {}",
-                copy::SPONSORBLOCK_SOURCE,
+                pt.sponsorblock_help,
                 copy::SPONSORBLOCK_LICENSE
             )),
             switch_with(s.sponsorblock, |on| {
@@ -243,15 +265,15 @@ pub(super) fn playback(app: &App, width: f32) -> Element<'_, Message> {
         ),
         setting_row(
             width,
-            copy::ADBLOCK_LABEL,
-            Some(copy::ADBLOCK_HELPER.to_owned()),
+            pt.adblock_label,
+            Some(pt.adblock_help.to_owned()),
             switch_with(s.block_ads, |on| {
                 Message::Ui(Event::Setting(SettingChange::BlockAds(on)))
             }),
         ),
     ];
     column![
-        heading(text::PLAYBACK_TITLE, Some(text::PLAYBACK_HELP), width),
+        heading(pt.title, Some(pt.help), width),
         vspace(gap::MD),
         column(rise_all(app, rows)),
     ]
@@ -261,6 +283,8 @@ pub(super) fn playback(app: &App, width: f32) -> Element<'_, Message> {
 
 /// Done: one line per choice, then `More options in Settings`.
 pub(super) fn done(app: &App, width: f32) -> Element<'_, Message> {
+    let lang = app.ui.settings.language;
+    let dt = crate::i18n::done_text(lang);
     let name = match app.backend.account.state() {
         AccountState::SignedIn(info) => Some(info.name),
         _ => None,
@@ -292,12 +316,12 @@ pub(super) fn done(app: &App, width: f32) -> Element<'_, Message> {
         );
     }
     column![
-        heading(text::DONE_TITLE, None, width),
+        heading(dt.title, None, width),
         vspace(gap::MD),
         column(rise_all(app, rows)),
         vspace(gap::MD),
         paragraph(
-            text::DONE_MORE,
+            dt.more,
             type_scale::BODY_SM,
             col(color::on_surface_variant()),
             width,

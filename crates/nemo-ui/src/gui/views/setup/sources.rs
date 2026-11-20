@@ -20,6 +20,7 @@ use nemo_core::account::AccountState;
 use nemo_core::source_account::SourceAccountState;
 
 pub(super) fn view(app: &App, width: f32) -> Element<'_, Message> {
+    let st = crate::i18n::sources_text(app.ui.settings.language);
     let two = has_two_columns(width);
     let col_w = if two {
         ((width - gap::LG) / 2.0).floor()
@@ -27,7 +28,7 @@ pub(super) fn view(app: &App, width: f32) -> Element<'_, Message> {
         width
     };
     let inner = col_w - 2.0 * gap::MD;
-    let head = heading(text::SOURCES_TITLE, Some(text::SOURCES_HELP), width);
+    let head = heading(st.title, Some(st.help), width);
     let yt = card(youtube(app, inner), col_w);
     let sc = card(soundcloud(app, inner), col_w);
     let local = card(local(app, inner), col_w);
@@ -68,7 +69,8 @@ fn dim(text: &str, width: f32) -> Element<'_, Message> {
 /// The YouTube Music card. Everything it shows comes from the account service as plain
 /// sentences: no token, cookie or id.
 fn youtube(app: &App, inner: f32) -> Element<'_, Message> {
-    let mut c = column![title("YouTube Music"), dim(text::YT_BODY, inner)]
+    let st = crate::i18n::sources_text(app.ui.settings.language);
+    let mut c = column![title(st.yt_title), dim(st.yt_body, inner)]
         .spacing(gap::SM)
         .width(Length::Fixed(inner));
     let state = app.backend.account.state();
@@ -115,12 +117,12 @@ fn youtube(app: &App, inner: f32) -> Element<'_, Message> {
     if app.ui.setup.without_account() {
         c = c.push(status_line(
             Icon::Check,
-            text::YT_WITHOUT_ACCOUNT.to_owned(),
+            st.yt_using_without.to_owned(),
             inner,
         ));
     }
     let mut actions = row![tonal_button(
-        "Sign in with Google",
+        st.yt_sign_in,
         Some(Icon::Login),
         Some(Message::Account(AccountMsg::SignIn)),
     )]
@@ -128,7 +130,7 @@ fn youtube(app: &App, inner: f32) -> Element<'_, Message> {
     .align_y(Alignment::Center);
     if !app.ui.setup.without_account() {
         actions = actions.push(text_button(
-            "Use without an account",
+            st.yt_no_account,
             Message::Ui(Event::Setup(SetupEvent::UseWithoutAccount)),
         ));
     }
@@ -226,7 +228,8 @@ fn soundcloud(app: &App, inner: f32) -> Element<'_, Message> {
 /// The local music card: the folders already listed, `Add a folder` when the app has a picker,
 /// and `Skip`.
 fn local(app: &App, inner: f32) -> Element<'_, Message> {
-    let mut c = column![title("Local music"), dim(text::LOCAL_BODY, inner)]
+    let st = crate::i18n::sources_text(app.ui.settings.language);
+    let mut c = column![title(st.local_title), dim(st.local_body, inner)]
         .spacing(gap::SM)
         .width(Length::Fixed(inner));
     for folder in app.music_folders.iter().take(3) {
@@ -242,7 +245,7 @@ fn local(app: &App, inner: f32) -> Element<'_, Message> {
     }
     let mut actions = row![].spacing(gap::SM).align_y(Alignment::Center);
     if app.has_add_folder() {
-        actions = actions.push(tonal_button("Add a folder", None, Some(Message::AddFolder)));
+        actions = actions.push(tonal_button(st.local_btn, None, Some(Message::AddFolder)));
     }
     if app.ui.setup.folders_skipped() {
         c = c.push(status_line(
@@ -252,7 +255,7 @@ fn local(app: &App, inner: f32) -> Element<'_, Message> {
         ));
     } else {
         actions = actions.push(text_button(
-            "Skip",
+            crate::i18n::t(app.ui.settings.language, "Skip", "Bỏ qua"),
             Message::Ui(Event::Setup(SetupEvent::SkipFolders)),
         ));
     }

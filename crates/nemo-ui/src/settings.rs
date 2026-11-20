@@ -48,6 +48,36 @@ impl NowPlayingStyle {
     }
 }
 
+/// User interface language.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum Language {
+    /// English.
+    #[default]
+    English,
+    /// Vietnamese (Tiếng Việt).
+    Vietnamese,
+}
+
+impl Language {
+    /// All available languages.
+    pub const ALL: [Self; 2] = [Self::English, Self::Vietnamese];
+
+    /// Display label for UI choice controls.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::English => "English",
+            Self::Vietnamese => "Tiếng Việt",
+        }
+    }
+
+    /// True if Vietnamese.
+    #[must_use]
+    pub const fn is_vietnamese(self) -> bool {
+        matches!(self, Self::Vietnamese)
+    }
+}
+
 /// Animated-cover sources the user turned on. Every switch is off by default; nothing is
 /// requested while a switch is off.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -125,6 +155,8 @@ pub struct UiSettings {
     /// The listening area the window follows (owner, 2026-11-19; source-workspaces spec).
     /// YouTube Music by default; the app falls back to it when SoundCloud is off or signed out.
     pub listening_area: Source,
+    /// UI display language (English or Tiếng Việt).
+    pub language: Language,
 }
 
 impl Default for UiSettings {
@@ -152,6 +184,7 @@ impl Default for UiSettings {
             collection_sorts: BTreeMap::new(),
             soundcloud: OptInState::default(),
             listening_area: Source::default(),
+            language: Language::default(),
         }
     }
 }
@@ -193,6 +226,8 @@ pub enum SettingChange {
     SoundCloud(OptInState),
     /// The listening area: YouTube Music or SoundCloud.
     ListeningArea(Source),
+    /// Display language.
+    Language(Language),
 }
 
 impl UiSettings {
@@ -216,6 +251,7 @@ impl UiSettings {
             SettingChange::WindowGlassOpacity(v) => self.window_glass_opacity = clamp_opacity(v),
             SettingChange::SoundCloud(v) => self.soundcloud = v,
             SettingChange::ListeningArea(v) => self.listening_area = v,
+            SettingChange::Language(v) => self.language = v,
         }
     }
 

@@ -51,7 +51,7 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
         menu = menu.push(animated(
             button(
                 container(label(
-                    s.label(),
+                    s.label_localized(app.ui.settings.language),
                     type_scale::BODY_MD,
                     on,
                     col(if on {
@@ -83,10 +83,14 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
         // Appearance is its own cards under a live preview.
         SettingsSection::Appearance => appearance::page(app, right_w),
         SettingsSection::Privacy => discord::page(app, privacy(right_w), right_w),
-        SettingsSection::About => group(about(right_w), right_w),
+        SettingsSection::About => group(about(app, right_w), right_w),
     };
-    let right =
-        column![page_title(section.label()), vspace(gap::LG), body].width(Length::Fixed(right_w));
+    let right = column![
+        page_title(section.label_localized(app.ui.settings.language)),
+        vspace(gap::LG),
+        body
+    ]
+    .width(Length::Fixed(right_w));
     page(
         grid.content,
         row![menu, Space::new().width(gap::XL), right].align_y(Alignment::Start),

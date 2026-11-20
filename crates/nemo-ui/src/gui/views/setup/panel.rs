@@ -81,14 +81,14 @@ pub(super) fn brand_panel(app: &App, current: SetupStep, width: f32) -> Element<
         display("NemoMusic", type_scale::TITLE_MD, col(color::on_surface())),
     ]
     .align_y(Alignment::Center);
-    let count = SetupStep::ALL.len();
-    let place = format!("Step {} of {count}", current.index() + 1);
+    let lang = app.ui.settings.language;
+    let place = crate::i18n::step_place(current, lang);
     let body = column![
         brand,
         Space::new().height(gap::XL),
         label(place, type_scale::LABEL_SM, false, dim),
         display(
-            current.title(),
+            current.title_localized(lang),
             type_scale::HEADLINE_LG,
             col(color::on_surface())
         )

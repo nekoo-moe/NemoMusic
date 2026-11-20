@@ -125,7 +125,7 @@ pub(super) fn stepper(app: &App, current: SetupStep) -> Element<'_, Message> {
                 marker(step, shown),
                 Space::new().width(gap::MD),
                 label(
-                    step.title(),
+                    step.title_localized(app.ui.settings.language),
                     type_scale::BODY_MD,
                     now == State::Current,
                     ink

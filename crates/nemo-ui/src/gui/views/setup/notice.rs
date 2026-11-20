@@ -5,13 +5,13 @@ use iced::widget::{Space, button, column, container, row};
 use iced::{Alignment, Element, Length, Padding};
 
 use super::super::kit::{paragraph, text_button, vspace};
-use super::super::overlays::notice_checkbox;
+use super::super::overlays::notice_checkbox_localized;
 use super::reveal::rise;
 use super::steps::heading;
-use crate::copy::{self, setup as text};
 use crate::gui::app::{App, Message};
 use crate::gui::assets::Icon;
 use crate::gui::style::{animated, button_flat, col, gap, icon, label};
+use crate::i18n;
 use crate::setup::SetupEvent;
 use crate::state::Event;
 use crate::theme::{color, shape, type_scale};
@@ -20,9 +20,12 @@ use crate::theme::{color, shape, type_scale};
 const BUTTON_H: f32 = 48.0;
 
 pub(super) fn view(app: &App, width: f32) -> Element<'_, Message> {
-    let mut c = column![heading(text::NOTICE_TITLE, None, width), vspace(gap::MD)]
-        .width(Length::Fixed(width));
-    for (i, p) in copy::TOS_NOTICE.into_iter().enumerate() {
+    let lang = app.ui.settings.language;
+    let nt = i18n::notice_text(lang);
+
+    let mut c =
+        column![heading(nt.title, None, width), vspace(gap::MD)].width(Length::Fixed(width));
+    for (i, p) in nt.paragraphs.into_iter().enumerate() {
         let text = paragraph(p, type_scale::BODY_MD, col(color::on_surface()), width);
         c = c.push(rise(app, i, text)).push(vspace(gap::MD));
     }
@@ -33,7 +36,7 @@ pub(super) fn view(app: &App, width: f32) -> Element<'_, Message> {
                 icon(Icon::CheckCircle, 20.0, ink),
                 Space::new().width(gap::SM),
                 label(
-                    text::NOTICE_ACCEPTED,
+                    nt.accepted,
                     type_scale::BODY_MD,
                     true,
                     col(color::on_surface())
@@ -44,18 +47,22 @@ pub(super) fn view(app: &App, width: f32) -> Element<'_, Message> {
         return c.into();
     }
     let checked = app.ui.tos_checked;
-    let n = copy::TOS_NOTICE.len();
+    let n = nt.paragraphs.len();
     c = c
-        .push(rise(app, n, notice_checkbox(checked)))
+        .push(rise(
+            app,
+            n,
+            notice_checkbox_localized(checked, nt.checkbox),
+        ))
         .push(vspace(gap::LG))
         .push(rise(
             app,
             n + 1,
             row![
-                continue_button(app, checked),
+                continue_button(app, checked, nt.continue_btn),
                 Space::new().width(gap::SM),
                 text_button(
-                    "Not now",
+                    nt.not_now_btn,
                     Message::Ui(Event::Setup(SetupEvent::NoticeLater))
                 ),
             ]
@@ -64,7 +71,7 @@ pub(super) fn view(app: &App, width: f32) -> Element<'_, Message> {
         ))
         .push(vspace(gap::MD))
         .push(label(
-            text::NOTICE_FOOT,
+            nt.foot,
             type_scale::BODY_SM,
             false,
             col(color::on_surface_variant()),
@@ -73,7 +80,7 @@ pub(super) fn view(app: &App, width: f32) -> Element<'_, Message> {
 }
 
 /// `Continue`: filled in the accent once the box is ticked, flat and inert before.
-fn continue_button(app: &App, checked: bool) -> Element<'_, Message> {
+fn continue_button<'a>(app: &App, checked: bool, btn_text: &'a str) -> Element<'a, Message> {
     let accent = app.accent();
     let ink = if checked {
         col(accent.on_primary)
@@ -81,7 +88,7 @@ fn continue_button(app: &App, checked: bool) -> Element<'_, Message> {
         col(color::disabled())
     };
     let b = button(
-        container(label("Continue", type_scale::BODY_MD, true, ink))
+        container(label(btn_text, type_scale::BODY_MD, true, ink))
             .padding(Padding::from([0.0, gap::XXL]))
             .height(Length::Fixed(BUTTON_H))
             .align_y(Alignment::Center),

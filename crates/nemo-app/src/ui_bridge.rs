@@ -13,7 +13,7 @@ use nemo_ui::scheme::{AccentIntensity, BaseMode, CornerStyle, ThemeChoice};
 use nemo_ui::settings::OptInState;
 use nemo_ui::workspace::Source;
 use nemo_ui::{
-    AnimatedCoverSettings, GlassTier as UiGlass, NowPlayingStyle, UiOptions, UiSettings,
+    AnimatedCoverSettings, GlassTier as UiGlass, Language, NowPlayingStyle, UiOptions, UiSettings,
 };
 
 use crate::config::{GlassTier, OptInChoice, Settings, StoredDevice};
@@ -79,6 +79,10 @@ pub fn to_ui(s: &Settings) -> UiSettings {
             .unwrap_or_default(),
         // An empty or unknown label (an older or newer file) is YouTube Music.
         listening_area: Source::from_label(&s.listening_area).unwrap_or_default(),
+        language: match s.language.as_str() {
+            "vi" | "Vietnamese" | "Tiếng Việt" => Language::Vietnamese,
+            _ => Language::English,
+        },
     }
 }
 
@@ -123,6 +127,7 @@ pub fn apply_ui(s: &mut Settings, ui: &UiSettings) {
         .map(|(k, v)| (k.clone(), v.label().to_owned()))
         .collect();
     ui.listening_area.label().clone_into(&mut s.listening_area);
+    ui.language.label().clone_into(&mut s.language);
     // A row the user never touched has no entry, so the feature's default holds.
     if ui.soundcloud != OptInState::default() || s.opt_ins.contains_key(SOUNDCLOUD_ID) {
         s.opt_ins.insert(
@@ -569,5 +574,19 @@ mod tests {
         assert!(!add_music_folder(&mut s, folder.clone()), "listed once");
         assert!(!add_music_folder(&mut s, PathBuf::from("relative")));
         assert_eq!(s.music_folders, [folder]);
+    }
+
+    #[test]
+    fn language_round_trip() {
+        let s = Settings {
+            language: "Tiếng Việt".to_owned(),
+            ..Settings::default()
+        };
+        let ui = to_ui(&s);
+        assert_eq!(ui.language, Language::Vietnamese);
+
+        let mut back = Settings::default();
+        apply_ui(&mut back, &ui);
+        assert_eq!(back.language, "Tiếng Việt");
     }
 }

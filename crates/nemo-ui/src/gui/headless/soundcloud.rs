@@ -73,6 +73,7 @@ pub(super) fn options(scene: ScScene, options: &mut UiOptions) {
 
 /// Bring the page of a started app into `scene`.
 pub(super) fn enter(app: &mut App, scene: ScScene) {
+    app.sc.dropdown_open = true;
     match scene {
         ScScene::Off | ScScene::Restart | ScScene::Account => {}
         ScScene::Confirming => run(app, Message::Sc(ScMsg::Ask)),

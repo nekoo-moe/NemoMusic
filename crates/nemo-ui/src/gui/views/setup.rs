@@ -147,15 +147,17 @@ fn transition<'a>(app: &App, body: Element<'a, Message>) -> Element<'a, Message>
 
 /// `Skip setup` on the left, `Back` and the forward button on the right.
 fn footer(app: &App, step: SetupStep) -> Element<'_, Message> {
+    let lang = app.ui.settings.language;
+    let nav = crate::i18n::setup_nav(lang);
     let mut r = row![
-        text_button("Skip setup", Message::Ui(Event::Setup(SetupEvent::Skip))),
+        text_button(nav.skip, Message::Ui(Event::Setup(SetupEvent::Skip))),
         Space::new().width(Length::Fill),
     ]
     .align_y(Alignment::Center)
     .spacing(gap::SM);
     if step != SetupStep::Welcome {
         r = r.push(text_button(
-            "Back",
+            nav.back,
             Message::Ui(Event::Setup(SetupEvent::Back)),
         ));
     }
@@ -168,16 +170,18 @@ fn footer(app: &App, step: SetupStep) -> Element<'_, Message> {
 /// on the notice step until the notice has an answer.
 fn next_button(app: &App, step: SetupStep) -> Element<'_, Message> {
     let accent = app.accent();
+    let lang = app.ui.settings.language;
+    let nav = crate::i18n::setup_nav(lang);
     match step {
         SetupStep::Done => filled_button(
-            "Start listening",
+            crate::i18n::done_text(lang).start_button,
             Icon::Play,
             accent,
             Message::Ui(Event::Setup(SetupEvent::Finish)),
         ),
-        SetupStep::Notice if !app.ui.notice_decided() => tonal_button("Next", None, None),
+        SetupStep::Notice if !app.ui.notice_decided() => tonal_button(nav.next, None, None),
         _ => filled_button(
-            "Next",
+            nav.next,
             Icon::ArrowForward,
             accent,
             Message::Ui(Event::Setup(SetupEvent::Next)),

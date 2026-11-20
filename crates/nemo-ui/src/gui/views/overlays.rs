@@ -244,8 +244,13 @@ pub fn track_menu<'a>(app: &'a App, track: &'a Track) -> Element<'a, Message> {
 /// The notice checkbox: never pre-ticked, `Message::Ui(Event::TosCheck)` on toggle. Shared by the
 /// first-run sheet and the setup flow.
 pub fn notice_checkbox<'a>(checked: bool) -> Element<'a, Message> {
+    notice_checkbox_localized(checked, copy::TOS_CHECKBOX)
+}
+
+/// The notice checkbox with custom label.
+pub fn notice_checkbox_localized(checked: bool, label_text: &str) -> Element<'_, Message> {
     checkbox(checked)
-        .label(copy::TOS_CHECKBOX)
+        .label(label_text)
         .on_toggle(|on| Message::Ui(Event::TosCheck(on)))
         .font(font(false))
         .text_size(f32::from(type_scale::BODY_MD.size))

@@ -27,6 +27,7 @@ pub mod format;
 pub mod frame_stats;
 pub mod heartbeat;
 pub mod home;
+pub mod i18n;
 pub mod keys;
 pub mod layout;
 pub mod lru;
@@ -51,7 +52,7 @@ pub mod theme;
 pub mod window_glass;
 pub mod workspace;
 
-pub use settings::{AnimatedCoverSettings, GlassTier, NowPlayingStyle, UiSettings};
+pub use settings::{AnimatedCoverSettings, GlassTier, Language, NowPlayingStyle, UiSettings};
 pub use window_glass::WindowLook;
 
 #[cfg(feature = "gui")]

@@ -62,6 +62,12 @@ impl SetupStep {
         }
     }
 
+    /// Name of the step localized according to user language.
+    #[must_use]
+    pub const fn title_localized(self, lang: crate::settings::Language) -> &'static str {
+        crate::i18n::step_title(self, lang)
+    }
+
     /// The step after this one, if any.
     #[must_use]
     pub fn next(self) -> Option<Self> {

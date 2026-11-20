@@ -114,6 +114,8 @@ pub struct Settings {
     /// The listening area as its label (`YouTube Music` or `SoundCloud`); empty or unknown means
     /// YouTube Music (source-workspaces).
     pub listening_area: String,
+    /// Display language ("English" or "Tiếng Việt", empty = default English).
+    pub language: String,
 }
 
 /// Stored animated-cover switches. A missing field is off.
@@ -167,6 +169,7 @@ impl Default for Settings {
             transition: StoredTransition::default(),
             collection_sorts: BTreeMap::new(),
             listening_area: String::new(),
+            language: String::new(),
         }
     }
 }
