@@ -38,7 +38,7 @@ impl Default for Timing {
 #[derive(Debug, Clone)]
 pub enum Input {
     /// A play event.
-    Play(PlayHookEvent),
+    Play(Box<PlayHookEvent>),
     /// The window got or lost the focus.
     Window {
         /// It has the focus.
@@ -74,13 +74,24 @@ pub enum Action {
     Disconnect,
 }
 
+/// How far the connection to Discord is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Phase {
+    /// The switch is off.
+    Off,
+    /// On, not connected, and no attempt runs: the next one is at `retry_at`.
+    Waiting,
+    /// On, and an attempt runs.
+    Connecting,
+    /// On and connected.
+    Connected,
+}
+
 /// The state machine. See the module text.
 #[derive(Debug)]
 pub struct Engine {
     timing: Timing,
-    on: bool,
-    connected: bool,
-    connecting: bool,
+    phase: Phase,
     private: bool,
     session: Session,
     away: AwayRule,
@@ -99,9 +110,7 @@ impl Engine {
     pub const fn new(timing: Timing, wall: i64) -> Self {
         Self {
             timing,
-            on: false,
-            connected: false,
-            connecting: false,
+            phase: Phase::Off,
             private: false,
             session: Session::new(wall),
             away: AwayRule::new(timing.away_after),
@@ -137,69 +146,66 @@ impl Engine {
     /// How long until the engine needs a [`Input::Tick`], if it does.
     #[must_use]
     pub fn wake_in(&self, now: Instant) -> Option<Duration> {
-        if !self.on {
-            return None;
+        match self.phase {
+            Phase::Off | Phase::Connecting => None,
+            Phase::Connected => [self.limiter.wait(now), self.away.wake_in(now)]
+                .into_iter()
+                .flatten()
+                .min(),
+            Phase::Waiting => self.retry_at.map(|at| at.saturating_duration_since(now)),
         }
-        if self.connected {
-            let waits = [self.limiter.wait(now), self.away.wake_in(now)];
-            return waits.into_iter().flatten().min();
-        }
-        if self.connecting {
-            return None;
-        }
-        self.retry_at.map(|at| at.saturating_duration_since(now))
     }
 
     fn switch(&mut self, now: Instant, on: bool, out: &mut Vec<Action>) {
-        if on == self.on {
+        if on == (self.phase != Phase::Off) {
             return;
         }
-        self.on = on;
-        self.connecting = false;
+        let was_connected = self.phase == Phase::Connected;
         self.wanted = None;
         self.last_sent = None;
         self.limiter = RateLimiter::new(self.timing.min_gap);
         if on {
-            self.connected = false;
+            self.phase = Phase::Waiting;
             self.retry_at = Some(now);
         } else {
-            if self.connected {
+            if was_connected {
                 out.push(Action::Clear);
             }
             out.push(Action::Disconnect);
-            self.connected = false;
+            self.phase = Phase::Off;
             self.retry_at = None;
         }
     }
 
     fn on_connected(&mut self, now: Instant, ok: bool) {
-        self.connecting = false;
+        if self.phase == Phase::Off {
+            return;
+        }
         self.wanted = None;
         self.last_sent = None;
         self.limiter.drop_pending();
-        if ok && self.on {
-            self.connected = true;
+        if ok {
+            self.phase = Phase::Connected;
             self.retry_at = None;
             self.limiter.reset();
         } else {
-            self.connected = false;
-            self.retry_at = self.on.then(|| now + self.timing.retry);
+            self.phase = Phase::Waiting;
+            self.retry_at = Some(now + self.timing.retry);
         }
     }
 
     fn drive(&mut self, now: Instant, out: &mut Vec<Action>) {
-        if !self.on {
-            return;
-        }
-        if !self.connected {
-            if !self.connecting && self.retry_at.is_some_and(|at| now >= at) {
-                self.connecting = true;
-                self.retry_at = None;
-                out.push(Action::Connect);
+        match self.phase {
+            Phase::Off | Phase::Connecting => {}
+            Phase::Waiting => {
+                if self.retry_at.is_some_and(|at| now >= at) {
+                    self.phase = Phase::Connecting;
+                    self.retry_at = None;
+                    out.push(Action::Connect);
+                }
             }
-            return;
+            Phase::Connected => self.refresh(now, out),
         }
-        self.refresh(now, out);
     }
 
     fn refresh(&mut self, now: Instant, out: &mut Vec<Action>) {

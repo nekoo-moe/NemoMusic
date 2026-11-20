@@ -153,10 +153,11 @@ impl Worker {
         while !self.done.load(Ordering::SeqCst) && Instant::now() < until {
             thread::sleep(Duration::from_millis(5));
         }
-        if let Some(thread) = self.thread.take() {
-            if self.done.load(Ordering::SeqCst) && thread.join().is_err() {
-                tracing::warn!("the Discord presence thread panicked");
-            }
+        if let Some(thread) = self.thread.take()
+            && self.done.load(Ordering::SeqCst)
+            && thread.join().is_err()
+        {
+            tracing::warn!("the Discord presence thread panicked");
         }
     }
 }
@@ -284,4 +285,4 @@ fn run(config: &Config, mailbox: &Mailbox) {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

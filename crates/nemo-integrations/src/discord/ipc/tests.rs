@@ -105,3 +105,169 @@ fn without_a_runtime_dir_only_the_temp_dirs_remain_and_nothing_repeats() {
     assert_eq!(paths.len(), 10);
     assert_eq!(paths[0], PathBuf::from("/tmp/discord-ipc-0"));
 }
+
+/// A fake Discord on a Unix socket: answers `READY`, then every command with an empty answer.
+#[cfg(unix)]
+mod fake_server {
+    use std::io::Write;
+    use std::os::unix::net::UnixListener;
+    use std::path::PathBuf;
+    use std::sync::{Arc, Mutex};
+    use std::thread::{self, JoinHandle};
+
+    use super::super::{OP_FRAME, OP_PING, encode, read_frame};
+    use crate::store::tests::TempDir;
+
+    /// What the server read: `(opcode, body)` per frame.
+    pub type Log = Arc<Mutex<Vec<(u32, String)>>>;
+
+    pub struct Server {
+        pub dir: TempDir,
+        pub log: Log,
+        pub thread: JoinHandle<()>,
+    }
+
+    impl Server {
+        pub fn path(&self) -> PathBuf {
+            self.dir.0.join("discord-ipc-0")
+        }
+
+        /// Start a server. It handles one connection, pings before each answer when `ping` is
+        /// set, and stops after `answers` commands (closing the socket), or after it read the
+        /// client's last frame when `linger` is set.
+        pub fn start(ping: bool, answers: usize, linger: bool) -> Self {
+            let dir = TempDir::new("ipc");
+            std::fs::create_dir_all(&dir.0).expect("dir");
+            let listener = UnixListener::bind(dir.0.join("discord-ipc-0")).expect("bind");
+            let log: Log = Arc::default();
+            let seen = Arc::clone(&log);
+            let thread = thread::spawn(move || {
+                let Ok((mut stream, _)) = listener.accept() else {
+                    return;
+                };
+                let Ok((op, body)) = read_frame(&mut stream) else {
+                    return;
+                };
+                seen.lock()
+                    .expect("lock")
+                    .push((op, String::from_utf8_lossy(&body).into()));
+                let ready = br#"{"cmd":"DISPATCH","evt":"READY","data":{}}"#;
+                if stream.write_all(&encode(OP_FRAME, ready)).is_err() {
+                    return;
+                }
+                for _ in 0..answers {
+                    let Ok((op, body)) = read_frame(&mut stream) else {
+                        return;
+                    };
+                    seen.lock()
+                        .expect("lock")
+                        .push((op, String::from_utf8_lossy(&body).into()));
+                    if ping && op == OP_FRAME {
+                        // The client must answer with a pong before its own answer arrives.
+                        drop(stream.write_all(&encode(OP_PING, b"{\"n\":1}")));
+                        let reply = read_frame(&mut stream);
+                        if let Ok((op, body)) = reply {
+                            seen.lock()
+                                .expect("lock")
+                                .push((op, String::from_utf8_lossy(&body).into()));
+                        }
+                    }
+                    let answer = br#"{"cmd":"SET_ACTIVITY","evt":null,"data":{}}"#;
+                    if stream.write_all(&encode(OP_FRAME, answer)).is_err() {
+                        return;
+                    }
+                }
+                if linger {
+                    while let Ok((op, body)) = read_frame(&mut stream) {
+                        seen.lock()
+                            .expect("lock")
+                            .push((op, String::from_utf8_lossy(&body).into()));
+                    }
+                }
+            });
+            Self { dir, log, thread }
+        }
+    }
+}
+
+#[cfg(unix)]
+fn activity(details: &str) -> Activity {
+    Activity {
+        kind: ActivityKind::Playing,
+        details: details.into(),
+        state: None,
+        start: None,
+        end: None,
+        large: None,
+        small: None,
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn a_client_handshakes_sets_an_activity_and_clears_it() {
+    use super::{Connector, IpcConnector, OP_HANDSHAKE};
+    let server = fake_server::Server::start(false, 2, true);
+    let connector = IpcConnector::with_paths(vec![
+        PathBuf::from("/nonexistent/discord-ipc-0"),
+        server.path(),
+    ]);
+    let mut link = connector.open("42").expect("open");
+    assert_eq!(
+        link.set_activity(Some(&activity("Idle"))).expect("set"),
+        Incoming::Other
+    );
+    assert_eq!(link.set_activity(None).expect("clear"), Incoming::Other);
+    link.close();
+    server.thread.join().expect("server");
+    let log = server.log.lock().expect("lock").clone();
+    assert_eq!(log[0].0, OP_HANDSHAKE);
+    assert_eq!(log[0].1, r#"{"client_id":"42","v":1}"#);
+    assert!(
+        log[1].1.contains(r#""cmd":"SET_ACTIVITY""#) && log[1].1.contains(r#""details":"Idle""#)
+    );
+    assert!(!log[2].1.contains("activity"), "{}", log[2].1);
+    // The close frame is the last one the client writes.
+    assert_eq!(log.last().map(|f| f.0), Some(OP_CLOSE));
+}
+
+#[cfg(unix)]
+#[test]
+fn a_ping_gets_a_pong_before_the_answer() {
+    use super::{Connector, IpcConnector, OP_PONG};
+    let server = fake_server::Server::start(true, 1, false);
+    let connector = IpcConnector::with_paths(vec![server.path()]);
+    let mut link = connector.open("42").expect("open");
+    assert_eq!(
+        link.set_activity(Some(&activity("Idle"))).expect("set"),
+        Incoming::Other
+    );
+    drop(link);
+    server.thread.join().expect("server");
+    let log = server.log.lock().expect("lock").clone();
+    assert!(log.contains(&(OP_PONG, r#"{"n":1}"#.to_owned())), "{log:?}");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_server_that_goes_away_is_an_error_and_the_next_open_works_again() {
+    use super::{Connector, IpcConnector};
+    let server = fake_server::Server::start(false, 1, false);
+    let connector = IpcConnector::with_paths(vec![server.path()]);
+    let mut link = connector.open("42").expect("open");
+    assert!(link.set_activity(Some(&activity("One"))).is_ok());
+    server.thread.join().expect("server");
+    // The server closed its end after one answer: the next command fails.
+    assert!(link.set_activity(Some(&activity("Two"))).is_err());
+    drop(link);
+    // Nobody listens any more: opening fails quietly.
+    assert!(connector.open("42").is_err());
+}
+
+#[cfg(unix)]
+#[test]
+fn an_unreachable_discord_is_an_error_not_a_hang() {
+    use super::{Connector, IpcConnector};
+    let connector = IpcConnector::with_paths(vec![PathBuf::from("/nonexistent/discord-ipc-0")]);
+    assert!(connector.open("42").is_err());
+}

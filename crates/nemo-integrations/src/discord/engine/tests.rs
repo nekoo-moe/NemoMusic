@@ -54,23 +54,23 @@ fn track() -> Track {
 }
 
 fn started() -> Input {
-    Input::Play(PlayHookEvent::TrackStarted {
+    Input::Play(Box::new(PlayHookEvent::TrackStarted {
         track: track(),
         started_at: SystemTime::UNIX_EPOCH,
-    })
+    }))
 }
 
 fn state(state: PlayState, secs: u64) -> Input {
-    Input::Play(PlayHookEvent::StateChanged {
+    Input::Play(Box::new(PlayHookEvent::StateChanged {
         state,
         position: Duration::from_secs(secs),
-    })
+    }))
 }
 
 fn jump(secs: u64) -> Input {
-    Input::Play(PlayHookEvent::PositionJumped {
+    Input::Play(Box::new(PlayHookEvent::PositionJumped {
         position: Duration::from_secs(secs),
-    })
+    }))
 }
 
 fn sets(actions: &[Action]) -> Vec<&str> {

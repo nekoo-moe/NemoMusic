@@ -14,14 +14,14 @@ use crate::discord::engine::{Input, Timing};
 use crate::discord::ipc::{Connector, Incoming, Link};
 
 /// What the fake Discord saw: `Some(details)` for a set, `None` for a clear.
-type Seen = Arc<Mutex<Vec<Option<String>>>>;
+pub(crate) type Seen = Arc<Mutex<Vec<Option<String>>>>;
 
 #[derive(Default)]
-struct Fake {
-    seen: Seen,
+pub(crate) struct Fake {
+    pub(crate) seen: Seen,
     /// Connects that fail before one works.
-    refuse: AtomicUsize,
-    opens: AtomicUsize,
+    pub(crate) refuse: AtomicUsize,
+    pub(crate) opens: AtomicUsize,
     /// The number of the next set that fails with a lost connection (1-based), if any.
     break_at: AtomicUsize,
     sets: Arc<AtomicUsize>,
@@ -76,7 +76,7 @@ fn config(fake: &Arc<Fake>) -> Config {
         timing: Timing {
             min_gap: Duration::from_millis(40),
             retry: Duration::from_millis(60),
-            away_after: Duration::from_secs(600),
+            away_after: Duration::from_mins(10),
         },
         connector: Arc::clone(fake) as Arc<dyn Connector>,
     }
@@ -108,14 +108,14 @@ fn play(title: &str) -> [Input; 2] {
         source_url: None,
     };
     [
-        Input::Play(PlayHookEvent::TrackStarted {
+        Input::Play(Box::new(PlayHookEvent::TrackStarted {
             track,
             started_at: SystemTime::UNIX_EPOCH,
-        }),
-        Input::Play(PlayHookEvent::StateChanged {
+        })),
+        Input::Play(Box::new(PlayHookEvent::StateChanged {
             state: PlayState::Playing,
             position: Duration::ZERO,
-        }),
+        })),
     ]
 }
 

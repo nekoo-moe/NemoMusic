@@ -165,7 +165,7 @@ fn the_length_may_become_known_later() {
         panic!("not listening");
     };
     assert_eq!(end, None);
-    s.on_play(&PlayHookEvent::DurationKnown(Duration::from_secs(60)), 11);
+    s.on_play(&PlayHookEvent::DurationKnown(Duration::from_mins(1)), 11);
     let PresenceState::Listening { end, .. } = s.state(false) else {
         panic!("not listening");
     };
