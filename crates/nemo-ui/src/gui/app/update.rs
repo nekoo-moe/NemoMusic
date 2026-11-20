@@ -34,12 +34,14 @@ impl App {
                     return self.account_msg(AccountMsg::Open);
                 }
                 self.create_open = true;
+                self.create_target = super::sc_write::CreateTarget::Account;
                 self.create_name.clear();
                 self.ui.text_focused = true;
                 Vec::new()
             }
             CreateMsg::Close => {
                 self.create_open = false;
+                self.create_target = super::sc_write::CreateTarget::Account;
                 self.ui.text_focused = false;
                 Vec::new()
             }
@@ -54,6 +56,9 @@ impl App {
                 }
                 self.create_open = false;
                 self.ui.text_focused = false;
+                if !matches!(self.create_target, super::sc_write::CreateTarget::Account) {
+                    return self.sc_sheet_confirm(name);
+                }
                 let text = if let Some(cb) = &self.hooks.on_create_playlist {
                     cb(name.clone());
                     format!("Creating \u{201c}{name}\u{201d}\u{2026}")

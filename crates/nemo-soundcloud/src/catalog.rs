@@ -389,6 +389,22 @@ impl Catalog for SoundcloudCatalog {
         })
     }
 
+    fn library_playlists_owned(
+        &self,
+    ) -> BoxFuture<'_, Result<(Vec<PlaylistSummary>, usize), CatalogError>> {
+        Box::pin(async {
+            let lib = self.all_library().await?;
+            let own = lib.playlists.len();
+            Ok((
+                lib.playlists
+                    .into_iter()
+                    .chain(lib.liked_playlists)
+                    .collect(),
+                own,
+            ))
+        })
+    }
+
     fn library_albums(&self) -> BoxFuture<'_, Result<Vec<AlbumSummary>, CatalogError>> {
         Box::pin(async {
             let lib = self.all_library().await?;

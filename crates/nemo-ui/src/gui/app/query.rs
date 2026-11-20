@@ -168,6 +168,9 @@ impl App {
     #[must_use]
     pub fn is_liked(&self, track: &Track) -> bool {
         self.likes.get(&track.id).copied().unwrap_or_else(|| {
+            if track.origin == nemo_core::audio::Origin::SoundCloud {
+                return self.sc_lib.data.likes.iter().any(|t| t.id == track.id);
+            }
             self.home
                 .shelves
                 .iter()

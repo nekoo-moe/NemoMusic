@@ -4,6 +4,7 @@
 
 use nemo_core::account::SignOutReport;
 use nemo_core::source_account::SourceAccountError;
+use nemo_core::source_writes::WriteError;
 
 /// Title of the SoundCloud section and card.
 pub const TITLE: &str = "SoundCloud";
@@ -90,6 +91,73 @@ pub fn error(error: &SourceAccountError) -> String {
         E::Storage(_) => concat!("NemoMusic could not save the sign-in in ", store!(), ", so you are still signed out.").to_owned(),
         E::Network(_) => "The network request failed, or SoundCloud asked for a pause. Try again in a minute.".to_owned(),
     }
+}
+
+/// A like was tried without a signed-in SoundCloud account.
+pub const SIGN_IN_TO_LIKE: &str = "Sign in to SoundCloud in Settings to like tracks.";
+/// A playlist change was tried without a signed-in SoundCloud account.
+pub const SIGN_IN_TO_WRITE: &str = "Sign in to SoundCloud in Settings to change your playlists.";
+/// A second change was started while the first one waits for SoundCloud.
+pub const WRITE_BUSY: &str =
+    "SoundCloud is still working on your last change. Try again in a moment.";
+/// Under the name field of a new SoundCloud playlist.
+pub const NEW_PLAYLIST_HINT: &str = "It is private. You can change that on soundcloud.com.";
+/// The unfollow went through.
+pub const UNFOLLOWED: &str = "You no longer follow this user.";
+
+/// A change went through: added to `playlist`.
+#[must_use]
+pub fn added_to(playlist: &str) -> String {
+    format!("Added to \u{201c}{playlist}\u{201d}.")
+}
+
+/// A change went through: removed from `playlist`.
+#[must_use]
+pub fn removed_from(playlist: &str) -> String {
+    format!("Removed from \u{201c}{playlist}\u{201d}.")
+}
+
+/// The track was in `playlist` already; nothing was sent.
+#[must_use]
+pub fn already_in(playlist: &str) -> String {
+    format!("This track is already in \u{201c}{playlist}\u{201d}.")
+}
+
+/// The track was not in `playlist`; nothing was sent.
+#[must_use]
+pub fn not_in(playlist: &str) -> String {
+    format!("This track is not in \u{201c}{playlist}\u{201d}.")
+}
+
+/// A playlist was created.
+#[must_use]
+pub fn created(title: &str) -> String {
+    format!("Created \u{201c}{title}\u{201d} on SoundCloud. It is private.")
+}
+
+/// A playlist was renamed.
+#[must_use]
+pub fn renamed(title: &str) -> String {
+    format!("Renamed to \u{201c}{title}\u{201d}.")
+}
+
+/// One sentence for a change that did not happen: what was tried, then why.
+#[must_use]
+pub fn write_failed(action: &str, error: WriteError) -> String {
+    let why = match error {
+        WriteError::NotSignedIn => "Sign in to SoundCloud first.",
+        WriteError::SessionEnded => "SoundCloud ended your sign-in. Sign in again in Settings.",
+        WriteError::Refused => "SoundCloud refused the change.",
+        WriteError::NotFound => "SoundCloud no longer has it.",
+        WriteError::RateLimited => "SoundCloud asked for a pause. Try again in a minute.",
+        WriteError::Network => {
+            "The request did not finish, so the change may not have been made. Look at SoundCloud, then try again."
+        }
+        WriteError::Off => "SoundCloud is switched off.",
+        WriteError::Invalid => "SoundCloud cannot take that name or item.",
+        WriteError::Unchanged => "There was nothing to change.",
+    };
+    format!("Could not {action}. {why}")
 }
 
 /// What sign-out removed, in one sentence.

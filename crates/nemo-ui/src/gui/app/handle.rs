@@ -291,8 +291,12 @@ impl App {
                 self.details.remove(&key);
                 Vec::new()
             }
+            Message::ScWrite(msg) => self.sc_write_msg(msg),
             Message::ToggleLike(track) => {
                 self.ui.menu = None;
+                if track.origin == nemo_core::audio::Origin::SoundCloud {
+                    return self.sc_like(track);
+                }
                 if !self.signed_in() {
                     return self.account_msg(AccountMsg::Open);
                 }

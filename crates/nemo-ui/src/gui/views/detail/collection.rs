@@ -11,12 +11,12 @@ use iced::{Alignment, Background, Element, Length, Padding};
 use nemo_core::catalog::{CollectionMeta, Privacy};
 use nemo_core::track::{Artwork, Track};
 
-use super::super::kit::{PAGE_BOTTOM, Skeleton, art, text_button, vspace};
+use super::super::kit::{PAGE_BOTTOM, Skeleton, art, text_button, tonal_button, vspace};
 use super::meta_line::{count_line, kind_line};
 use super::song_row::{self, Rows};
 use super::sort_menu;
 use crate::collection_sort;
-use crate::gui::app::{App, ArtShape, DetailKey, ListSource, Message};
+use crate::gui::app::{App, ArtShape, DetailKey, ListSource, Message, ScWriteMsg};
 use crate::gui::assets::Icon;
 use crate::gui::fx::Fx;
 use crate::gui::style::{DOWN, col, fit, gap, icon_button, label, scroll, tip};
@@ -359,9 +359,18 @@ fn hero<'a>(
         ),
         "Play",
     );
-    info.push(vspace(gap::XL))
-        .push(row![shuffle, Space::new().width(gap::LG), play].align_y(Alignment::Center))
-        .into()
+    let mut info = info
+        .push(vspace(gap::XL))
+        .push(row![shuffle, Space::new().width(gap::LG), play].align_y(Alignment::Center));
+    // A playlist the user made on SoundCloud can be renamed from its page.
+    if app.sc_can_write() && app.sc_owns_playlist(&key.id) {
+        info = info.push(vspace(gap::LG)).push(tonal_button(
+            "Rename",
+            None,
+            Some(Message::ScWrite(ScWriteMsg::Rename(key.id.clone()))),
+        ));
+    }
+    info.into()
 }
 
 fn tracks<'a>(

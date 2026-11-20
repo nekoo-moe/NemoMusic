@@ -9,7 +9,7 @@ use nemo_core::catalog::{AlbumDetail, ArtistDetail, PlaylistDetail};
 use nemo_core::track::{Artwork, Track};
 
 use super::super::app::{
-    App, ArtShape, DetailData, DetailKey, DetailKind, DetailState, ListSource, Message,
+    App, ArtShape, DetailData, DetailKey, DetailKind, DetailState, ListSource, Message, ScWriteMsg,
 };
 use super::super::assets::Icon;
 use super::super::style::{col, fit, gap, label};
@@ -131,7 +131,7 @@ fn hero<'a>(app: &'a App, h: &Hero<'_>, key: &DetailKey, content_w: f32) -> Elem
             info.push(vspace(gap::SM))
                 .push(paragraph(n.clone(), type_scale::BODY_SM, dim, text_w));
     }
-    info = info.push(vspace(gap::LG)).push(row![
+    let mut actions = row![
         filled_button(
             "Play",
             Icon::Play,
@@ -147,7 +147,16 @@ fn hero<'a>(app: &'a App, h: &Hero<'_>, key: &DetailKey, content_w: f32) -> Elem
             Some(Icon::Shuffle),
             Some(Message::Shuffle(source))
         ),
-    ]);
+    ];
+    // A user the signed-in SoundCloud account follows can be unfollowed from their page.
+    if app.sc_can_write() && app.sc_follows(&key.id) {
+        actions = actions.push(Space::new().width(gap::MD)).push(tonal_button(
+            "Unfollow",
+            None,
+            Some(Message::ScWrite(ScWriteMsg::Unfollow(key.id.clone()))),
+        ));
+    }
+    info = info.push(vspace(gap::LG)).push(actions);
     row![
         Element::from(
             super::super::fx::Fx::new(art(app, &h.artwork, hero_px, h.shape))

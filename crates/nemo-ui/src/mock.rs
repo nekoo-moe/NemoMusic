@@ -32,7 +32,7 @@ mod player;
 #[cfg(test)]
 mod tests;
 
-pub use account::{MockAccount, MockScAccount};
+pub use account::{MockAccount, MockScAccount, MockScWrites};
 pub use catalog::{MockCatalog, SeededCatalog, mock_backend_seeded, signal_path};
 pub use cover::{MockImages, cover_png};
 pub use player::MockPlayer;
@@ -305,6 +305,7 @@ pub fn mock_backend_soundcloud(state: nemo_core::source_account::SourceAccountSt
     Backend {
         soundcloud: Some(Arc::new(MockCatalog)),
         soundcloud_account: Some(Arc::new(MockScAccount::with_state(state))),
+        soundcloud_writes: Some(Arc::new(account::MockScWrites)),
         ..mock_backend()
     }
 }

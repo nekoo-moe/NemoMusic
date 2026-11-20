@@ -7,7 +7,7 @@ use iced::font::Weight;
 use iced::widget::{Space, button, column, container, row, text_input};
 use iced::{Alignment, Background, Border, Color, Element, Length, Padding};
 
-use super::super::app::{App, CreateMsg, MINI_SIZE, Message};
+use super::super::app::{App, CreateMsg, CreateTarget, MINI_SIZE, Message};
 use super::super::assets::{Icon, font};
 use super::super::fx::fx;
 use super::super::style::{button_flat, col, fit, gap, icon_button, label, label_w, tip};
@@ -124,10 +124,23 @@ pub fn create_sheet(app: &App) -> Element<'_, Message> {
             }
         });
     let ready = !app.create_name.trim().is_empty();
+    let (title, hint, go) = match &app.create_target {
+        CreateTarget::Account => (
+            "Create playlist",
+            "It is created in your YouTube Music account when signed in.",
+            "Create",
+        ),
+        CreateTarget::SoundCloud(_) => (
+            "New SoundCloud playlist",
+            crate::copy::soundcloud::NEW_PLAYLIST_HINT,
+            "Create",
+        ),
+        CreateTarget::Rename(_) => ("Rename playlist", "", "Rename"),
+    };
     let create: Element<'_, Message> = if ready {
         let b = button(
             container(label_w(
-                "Create",
+                go,
                 type_scale::BODY_MD,
                 Weight::Medium,
                 col(accent.on_primary),
@@ -143,24 +156,14 @@ pub fn create_sheet(app: &App) -> Element<'_, Message> {
             .radius(shape::FULL)
             .into()
     } else {
-        tonal_button("Create", None, None)
+        tonal_button(go, None, None)
     };
     let body = column![
-        label(
-            "Create playlist",
-            type_scale::TITLE_MD,
-            true,
-            col(color::on_surface())
-        ),
+        label(title, type_scale::TITLE_MD, true, col(color::on_surface())),
         vspace(gap::MD),
         name,
         vspace(gap::SM),
-        label(
-            "It is created in your YouTube Music account when signed in.",
-            type_scale::BODY_SM,
-            false,
-            dim
-        ),
+        label(hint, type_scale::BODY_SM, false, dim),
         vspace(gap::LG),
         row![
             create,

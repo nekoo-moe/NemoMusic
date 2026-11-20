@@ -52,6 +52,7 @@ mod option;
 mod query;
 mod refresh;
 mod sc_library;
+mod sc_write;
 mod setup;
 mod skeleton;
 #[cfg(test)]
@@ -78,6 +79,7 @@ pub use option::{
     AccountLibrary, CreateMsg, FolderPicker, PickFuture, RestartHandler, SleepState, UiHooks,
     UiOptions, WindowHandler,
 };
+pub use sc_write::{CreateTarget, ScWriteDone, ScWriteJob, ScWriteMsg, ScWriteUi};
 
 /// Widget id of the search box.
 pub const SEARCH_ID: &str = "nemo-search";
@@ -141,6 +143,10 @@ pub struct App {
     pub(crate) sc_tab: ScTab,
     /// The SoundCloud library of the signed-in account.
     pub(crate) sc_lib: ScLibrary,
+    /// The SoundCloud account's changes in flight.
+    pub(crate) sc_write: ScWriteUi,
+    /// What the name sheet does when confirmed.
+    pub(crate) create_target: CreateTarget,
     /// What the SoundCloud switch shows, from the app; `None` when the app has no SoundCloud.
     pub(crate) soundcloud_info: Option<nemo_core::opt_in::OptInInfo>,
     /// Likes the user changed in this session (over what the Liked songs shelf says).
@@ -305,6 +311,8 @@ impl App {
             source: Source::default(),
             sc_tab: ScTab::default(),
             sc_lib: ScLibrary::default(),
+            sc_write: ScWriteUi::default(),
+            create_target: CreateTarget::default(),
             soundcloud_info: options.soundcloud_info,
             likes: HashMap::new(),
             last_line: None,

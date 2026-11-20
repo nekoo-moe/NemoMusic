@@ -63,6 +63,8 @@ pub enum Message {
         /// The answer.
         result: Result<Arc<SearchResults>, String>,
     },
+    /// A SoundCloud account change (a like, a playlist change, an unfollow) or its answer.
+    ScWrite(super::sc_write::ScWriteMsg),
     /// A detail page answered.
     Detail {
         /// Page.
@@ -364,6 +366,8 @@ pub enum Job {
         /// The chip.
         kind: nemo_core::catalog::SearchKind,
     },
+    /// Send one change of the SoundCloud account.
+    ScWrite(super::sc_write::ScWriteJob),
     /// Read the SoundCloud library (likes, playlists, albums, followed artists, history).
     ScLibrary {
         /// The read; its answer carries it back.
