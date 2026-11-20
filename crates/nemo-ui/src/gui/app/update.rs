@@ -181,6 +181,7 @@ impl App {
         let mut jobs = Vec::new();
         self.anim.step(dt);
         self.surfaces.advance(dt);
+        self.step_dev(dt);
         self.micro.advance(dt);
         self.skeletons.advance(dt, self.ui.reduced_motion);
         self.scheme_fade.advance(dt);
@@ -373,6 +374,9 @@ impl App {
                 "Link copied".to_owned(),
             ))));
         }
+        if let Some(report) = self.dev_copied.take() {
+            tasks.push(iced::clipboard::write(report));
+        }
         if before != (self.mini, self.fullscreen) {
             tasks.push(self.window_mode_task(before));
         }
@@ -446,7 +450,9 @@ impl App {
             }),
             Subscription::run_with(PlayerKey(Arc::clone(&self.backend.player)), player_events),
         ];
-        if self.sleep.is_some() {
+        // One tick a second for the sleep timer, and for the developer panel while it is open
+        // and the window has the focus.
+        if self.sleep.is_some() || (self.dev.open && self.focused) {
             subs.push(Subscription::run(timer_ticks));
         }
         if self.needs_frames() || self.readout {

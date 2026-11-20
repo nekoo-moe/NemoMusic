@@ -28,6 +28,7 @@ pub use crate::mock_lyrics::{MockLyrics, lyrics_for};
 mod account;
 mod catalog;
 mod cover;
+mod dev;
 mod integrations;
 mod player;
 #[cfg(test)]
@@ -36,6 +37,7 @@ mod tests;
 pub use account::{MockAccount, MockScAccount, MockScWrites};
 pub use catalog::{MockCatalog, SeededCatalog, mock_backend_seeded, signal_path};
 pub use cover::{MockImages, cover_png};
+pub use dev::{MockProbe, SAMPLE_NOW_MS, sample_snapshot};
 pub use integrations::MockIntegrations;
 pub use player::MockPlayer;
 
@@ -297,6 +299,7 @@ pub fn mock_backend() -> Backend {
         ratings: None,
         ai: Arc::new(NoAi),
         translator: Arc::new(NoTranslator),
+        dev: None,
     }
 }
 
@@ -320,6 +323,15 @@ pub fn mock_backend_soundcloud_empty(
     Backend {
         soundcloud: Some(Arc::new(catalog::EmptyCatalog)),
         ..mock_backend_soundcloud(state)
+    }
+}
+
+/// Like [`mock_backend`], with the developer probe over an invented session (`dev` module).
+#[must_use]
+pub fn mock_backend_dev() -> Backend {
+    Backend {
+        dev: Some(Arc::new(MockProbe::default())),
+        ..mock_backend()
     }
 }
 

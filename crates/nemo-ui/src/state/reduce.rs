@@ -162,6 +162,7 @@ impl UiState {
             | KeyAction::Mini
             | KeyAction::LikeCurrent
             | KeyAction::Refresh
+            | KeyAction::DevTools
             | KeyAction::Tools => {}
             KeyAction::LyricsOffsetBy(delta) => {
                 let next = (self.lyrics_offset_ms + delta).clamp(-10_000, 10_000);

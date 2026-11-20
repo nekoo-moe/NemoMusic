@@ -1,13 +1,21 @@
 //! The bounded in-memory ring of captured events.
 
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
+use std::time::{Duration, Instant};
 
+use nemo_core::dev::TRACE_TARGET;
 use tracing::Level;
 
 /// How many events the ring keeps; the oldest are dropped first.
 pub const RING_CAPACITY: usize = 2000;
+
+/// How many different hosts are counted; later ones are counted together as [`OTHER_HOSTS`].
+const HOSTS_MAX: usize = 64;
+
+/// The name under which hosts beyond [`HOSTS_MAX`] are counted.
+pub const OTHER_HOSTS: &str = "(other)";
 
 /// One captured event. Every text in it is already redacted.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -41,6 +49,10 @@ struct Shared {
     capacity: usize,
     /// Counts every push and clear, so a reader can tell that the ring changed.
     generation: AtomicU64,
+    /// Requests per host this run, from the trace events. Not emptied by `clear`.
+    hosts: Mutex<BTreeMap<String, u64>>,
+    /// When the ring was made: the start of the run.
+    started: Instant,
 }
 
 /// A cheap-to-clone handle to the ring. Memory only: nothing here is written anywhere.
@@ -59,6 +71,8 @@ impl DevRing {
                 events: Mutex::new(VecDeque::with_capacity(capacity.min(256))),
                 capacity,
                 generation: AtomicU64::new(0),
+                hosts: Mutex::new(BTreeMap::new()),
+                started: Instant::now(),
             }),
         }
     }
@@ -73,6 +87,11 @@ impl DevRing {
 
     /// Add an event; the oldest one goes when the ring is full.
     pub fn push(&self, event: CapturedEvent) {
+        if event.target == TRACE_TARGET
+            && let Some(host) = event.field("host").filter(|h| !h.is_empty())
+        {
+            self.note_host(host);
+        }
         let mut events = self.lock();
         while events.len() >= self.shared.capacity {
             events.pop_front();
@@ -80,6 +99,38 @@ impl DevRing {
         events.push_back(event);
         drop(events);
         self.shared.generation.fetch_add(1, Ordering::Release);
+    }
+
+    fn note_host(&self, host: &str) {
+        let mut hosts = self
+            .shared
+            .hosts
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let key = if hosts.contains_key(host) || hosts.len() < HOSTS_MAX {
+            host
+        } else {
+            OTHER_HOSTS
+        };
+        *hosts.entry(key.to_owned()).or_insert(0) += 1;
+    }
+
+    /// The requests per host seen this run, by host name.
+    #[must_use]
+    pub fn hosts(&self) -> Vec<(String, u64)> {
+        self.shared
+            .hosts
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .iter()
+            .map(|(host, count)| (host.clone(), *count))
+            .collect()
+    }
+
+    /// How long ago the ring was made, which is the age of this run.
+    #[must_use]
+    pub fn uptime(&self) -> Duration {
+        self.shared.started.elapsed()
     }
 
     /// A copy of the events, oldest first.
@@ -95,12 +146,14 @@ impl DevRing {
     }
 
     /// How many events the ring holds now.
+    #[cfg(test)]
     #[must_use]
     pub fn len(&self) -> usize {
         self.lock().len()
     }
 
     /// Whether the ring holds no event.
+    #[cfg(test)]
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.lock().is_empty()
@@ -174,6 +227,45 @@ mod tests {
         ring.push(event(1));
         ring.push(event(2));
         assert_eq!(ring.snapshot().len(), 1);
+    }
+
+    #[test]
+    fn hosts_are_counted_from_trace_events_and_survive_clear() {
+        let ring = DevRing::new(4);
+        for host in ["a.example", "b.example", "a.example"] {
+            let mut e = event(1);
+            e.target = TRACE_TARGET.to_owned();
+            e.fields = vec![("host", host.to_owned())];
+            ring.push(e);
+        }
+        let mut other = event(2);
+        other.fields = vec![("host", "ignored.example".to_owned())];
+        ring.push(other);
+        ring.clear();
+        assert_eq!(
+            ring.hosts(),
+            vec![("a.example".to_owned(), 2), ("b.example".to_owned(), 1)]
+        );
+    }
+
+    #[test]
+    fn hosts_beyond_the_limit_are_counted_together() {
+        let ring = DevRing::new(4);
+        for n in 0..(HOSTS_MAX + 3) {
+            let mut e = event(1);
+            e.target = TRACE_TARGET.to_owned();
+            e.fields = vec![("host", format!("h{n}.example"))];
+            ring.push(e);
+        }
+        let hosts = ring.hosts();
+        assert_eq!(hosts.len(), HOSTS_MAX + 1);
+        assert_eq!(
+            hosts
+                .iter()
+                .find(|(h, _)| h == OTHER_HOSTS)
+                .map(|(_, c)| *c),
+            Some(3)
+        );
     }
 
     #[test]

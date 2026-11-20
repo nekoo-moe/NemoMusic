@@ -226,6 +226,8 @@ pub enum Message {
     ToggleMute,
     /// Open or close the shortcut sheet.
     Shortcuts(bool),
+    /// The hidden developer panel (dev-tools spec).
+    Dev(super::dev::DevMsg),
     /// The "Create playlist" sheet.
     Create(CreateMsg),
     /// Start or stop the sleep timer.

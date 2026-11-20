@@ -5,6 +5,7 @@ pub mod account;
 pub mod backdrop;
 pub mod bar;
 pub mod detail;
+pub mod dev;
 pub mod explore;
 pub mod home;
 pub mod kit;
@@ -160,6 +161,9 @@ pub fn root(app: &App) -> Element<'_, Message> {
     }
     if app.surfaces.shortcuts.visible() {
         layers.push(panels::shortcuts_sheet(app));
+    }
+    if app.surfaces.dev.visible() {
+        layers.push(dev::panel(app));
     }
     if app.ui.setup.active() {
         layers.push(setup::view(app));

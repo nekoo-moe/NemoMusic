@@ -98,11 +98,38 @@ pub fn sliding_chips_with<'a>(
     pick: fn(usize) -> Message,
     arrows: Option<fn(usize, bool) -> Option<Message>>,
 ) -> Element<'a, Message> {
-    let accent = app.accent();
-    let (x, w) = {
-        let (sx, sw) = &app.chip_pills[slot];
-        (sx.value, sw.value)
-    };
+    let (sx, sw) = &app.chip_pills[slot];
+    chips_row(
+        app.accent(),
+        labels,
+        selected,
+        (sx.value, sw.value),
+        pick,
+        arrows,
+    )
+}
+
+/// [`sliding_chips`] with the pill's left edge and width given (a row that keeps its own
+/// springs, like the tabs of the developer panel).
+pub fn sliding_chips_at<'a>(
+    accent: Palette,
+    labels: &[&'a str],
+    selected: usize,
+    pill_at: (f32, f32),
+    pick: fn(usize) -> Message,
+) -> Element<'a, Message> {
+    chips_row(accent, labels, selected, pill_at, pick, None)
+}
+
+fn chips_row<'a>(
+    accent: Palette,
+    labels: &[&'a str],
+    selected: usize,
+    pill_at: (f32, f32),
+    pick: fn(usize) -> Message,
+    arrows: Option<fn(usize, bool) -> Option<Message>>,
+) -> Element<'a, Message> {
+    let (x, w) = pill_at;
     let pill = container(Space::new())
         .width(Length::Fixed(w.max(0.0)))
         .height(Length::Fixed(32.0))
