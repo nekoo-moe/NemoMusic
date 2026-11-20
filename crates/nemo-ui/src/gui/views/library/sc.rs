@@ -12,10 +12,14 @@ use super::collection::Coll;
 use super::list::{collections, song_block};
 use super::note;
 use crate::gui::app::{
-    App, DetailKey, DetailKind, ListSource, Message, ScMsg, ScPhase, ScTab, SettingsSection,
+    App, DetailKey, DetailKind, ListSource, Message, ScMsg, ScPhase, ScTab, ScWriteMsg,
+    SettingsSection,
 };
+use crate::gui::assets::Icon;
 use crate::gui::style::gap;
-use crate::gui::views::kit::{blank, page, page_title, section_title, sliding_chips, swap, vspace};
+use crate::gui::views::kit::{
+    blank, page, page_title, section_title, sliding_chips, swap, tonal_button, vspace,
+};
 use crate::layout;
 use crate::route::Route;
 use crate::skeleton::Region;
@@ -121,13 +125,28 @@ fn tab_body(app: &App, grid: layout::Grid, content_w: f32) -> Element<'_, Messag
                 grid,
             )
         }
-        ScTab::Playlists => collections(
-            app,
-            data.playlists.iter().map(playlist_coll).collect(),
-            grid,
-            content_w,
-            "No playlists yet.",
-        ),
+        ScTab::Playlists => {
+            let list = collections(
+                app,
+                data.playlists.iter().map(playlist_coll).collect(),
+                grid,
+                content_w,
+                "No playlists yet.",
+            );
+            if !app.sc_can_write() {
+                return list;
+            }
+            column![
+                tonal_button(
+                    "New playlist",
+                    Some(Icon::Add),
+                    Some(Message::ScWrite(ScWriteMsg::NewPlaylist(None))),
+                ),
+                vspace(gap::LG),
+                list,
+            ]
+            .into()
+        }
         ScTab::Albums => collections(
             app,
             data.albums.iter().map(album_coll).collect(),

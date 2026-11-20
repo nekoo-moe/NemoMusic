@@ -6,7 +6,7 @@ use iced::widget::{Space, button, checkbox, column, container, mouse_area, opaqu
 use iced::{Alignment, Background, Border, Color, Element, Length, Padding};
 use nemo_core::track::Track;
 
-use super::super::app::{App, ArtShape, Message};
+use super::super::app::{App, ArtShape, Message, ScWriteMsg};
 use super::super::assets::{Icon, font};
 use super::super::fx::Fx;
 use super::super::style::{
@@ -91,34 +91,43 @@ pub(super) fn scrim<'a>(alpha: f32, on_press: Option<Message>) -> Element<'a, Me
     }
 }
 
+/// One row of a menu: a glyph and a text, pressable when `event` is given, dimmed when not.
+fn menu_entry<'a>(
+    glyph: Icon,
+    text: impl Into<String>,
+    event: Option<Message>,
+) -> Element<'a, Message> {
+    let text: String = text.into();
+    let ink = if event.is_some() {
+        col(color::on_surface())
+    } else {
+        col(color::disabled())
+    };
+    let b = button(
+        row![
+            icon(glyph, 20.0, ink),
+            Space::new().width(gap::MD),
+            label(text, type_scale::BODY_MD, false, ink),
+        ]
+        .align_y(Alignment::Center)
+        .padding(Padding::from([0.0, gap::LG]))
+        .height(Length::Fixed(48.0)),
+    )
+    .padding(0)
+    .width(Length::Fill);
+    match event {
+        Some(e) => animated(b.on_press(e), Color::TRANSPARENT, shape::md()),
+        None => b.style(button_flat(Color::TRANSPARENT, shape::md())).into(),
+    }
+}
+
 /// The track menu: a modal card with Play next, Add to queue, Go to album and Go to artist.
 pub fn track_menu<'a>(app: &'a App, track: &'a Track) -> Element<'a, Message> {
     let dim = col(color::on_surface_variant());
     let remote_blocked =
         !app.ui.youtube_enabled() && track.origin == nemo_core::audio::Origin::YoutubeMusic;
-    let entry = |glyph: Icon, text: &'static str, event: Option<Message>| -> Element<'a, Message> {
-        let ink = if event.is_some() {
-            col(color::on_surface())
-        } else {
-            col(color::disabled())
-        };
-        let b = button(
-            row![
-                icon(glyph, 20.0, ink),
-                Space::new().width(gap::MD),
-                label(text, type_scale::BODY_MD, false, ink),
-            ]
-            .align_y(Alignment::Center)
-            .padding(Padding::from([0.0, gap::LG]))
-            .height(Length::Fixed(48.0)),
-        )
-        .padding(0)
-        .width(Length::Fill);
-        match event {
-            Some(e) => animated(b.on_press(e), Color::TRANSPARENT, shape::md()),
-            None => b.style(button_flat(Color::TRANSPARENT, shape::md())).into(),
-        }
-    };
+    let entry =
+        |glyph: Icon, text: &'static str, event: Option<Message>| menu_entry(glyph, text, event);
     let mut items = column![
         row![
             art(app, &track.artwork, 40, ArtShape::Row),
@@ -155,22 +164,27 @@ pub fn track_menu<'a>(app: &'a App, track: &'a Track) -> Element<'a, Message> {
         .align_y(Alignment::Center)
         .padding(Padding::from([gap::SM, gap::LG])),
         vspace(gap::XS),
-        entry(
+    ];
+    let pick = app.sc_write.pick && app.sc_track_writable(track);
+    if pick {
+        return sc_pick_menu(app, track, items);
+    }
+    items = items
+        .push(entry(
             Icon::PlayNext,
             "Play next",
-            Some(Message::Ui(Event::PlayNext(track.clone())))
-        ),
-        entry(
+            Some(Message::Ui(Event::PlayNext(track.clone()))),
+        ))
+        .push(entry(
             Icon::Queue,
             "Add to queue",
-            Some(Message::Ui(Event::Enqueue(track.clone())))
-        ),
-        entry(
+            Some(Message::Ui(Event::Enqueue(track.clone()))),
+        ))
+        .push(entry(
             Icon::Radio,
             "Start radio",
             (!remote_blocked).then(|| Message::StartRadio(track.clone())),
-        ),
-    ];
+        ));
     items = items.push(entry(
         Icon::Album,
         "Go to album",
@@ -192,6 +206,7 @@ pub fn track_menu<'a>(app: &'a App, track: &'a Track) -> Element<'a, Message> {
             .then(|| Message::CopyLink(track.clone())),
     ));
     let liked = app.is_liked(track);
+    let sc_track = app.sc_track_writable(track);
     items = items.push(entry(
         if liked { Icon::HeartFill } else { Icon::Heart },
         if liked {
@@ -199,11 +214,11 @@ pub fn track_menu<'a>(app: &'a App, track: &'a Track) -> Element<'a, Message> {
         } else {
             "Like"
         },
-        track
-            .video_id
-            .is_some()
-            .then(|| Message::ToggleLike(track.clone())),
+        (track.video_id.is_some() || sc_track).then(|| Message::ToggleLike(track.clone())),
     ));
+    if sc_track {
+        items = sc_entries(app, track, items);
+    }
     let card = container(items.padding(Padding::from([gap::SM, gap::SM])))
         .width(Length::Fixed(320.0))
         .style(card_style(shape::lg()));
@@ -425,4 +440,73 @@ pub fn toast(app: &App) -> Option<Element<'_, Message>> {
 /// A small spinner glyph that turns with the app's frame clock (still when motion is reduced).
 pub fn spinning<'a>(app: &App, size: f32, ink: Color) -> Element<'a, Message> {
     spinner(size, ink, app.spin).into()
+}
+
+/// The SoundCloud entries of the track menu: put the track in one of the user's playlists, and
+/// take it out of the playlist the page shows when that one is the user's own.
+fn sc_entries<'a>(
+    app: &'a App,
+    track: &'a Track,
+    items: iced::widget::Column<'a, Message>,
+) -> iced::widget::Column<'a, Message> {
+    let mut items = items.push(menu_entry(
+        Icon::PlaylistAdd,
+        "Add to a SoundCloud playlist",
+        Some(Message::ScWrite(ScWriteMsg::PickPlaylist(true))),
+    ));
+    if let Some(playlist) = app.sc_open_own_playlist() {
+        items = items.push(menu_entry(
+            Icon::Close,
+            "Remove from this playlist",
+            Some(Message::ScWrite(ScWriteMsg::RemoveFrom {
+                track: track.clone(),
+                playlist,
+            })),
+        ));
+    }
+    items
+}
+
+/// Most playlists listed in the menu before the rest are left to the library.
+const PICK_SHOWN: usize = 8;
+
+/// The menu in pick mode: the user's own playlists to add the track to, `New playlist` and a
+/// way back.
+fn sc_pick_menu<'a>(
+    app: &'a App,
+    track: &'a Track,
+    items: iced::widget::Column<'a, Message>,
+) -> Element<'a, Message> {
+    let mut items = items.push(menu_entry(
+        Icon::Close,
+        "Back",
+        Some(Message::ScWrite(ScWriteMsg::PickPlaylist(false))),
+    ));
+    for list in app.sc_own_playlists().iter().take(PICK_SHOWN) {
+        items = items.push(menu_entry(
+            Icon::Queue,
+            fit(&list.title, 250.0, type_scale::BODY_MD.size),
+            Some(Message::ScWrite(ScWriteMsg::AddTo {
+                track: track.clone(),
+                playlist: list.id.clone(),
+            })),
+        ));
+    }
+    items = items.push(menu_entry(
+        Icon::Add,
+        "New playlist",
+        Some(Message::ScWrite(ScWriteMsg::NewPlaylist(Some(
+            track.clone(),
+        )))),
+    ));
+    let card = container(items.padding(Padding::from([gap::SM, gap::SM])))
+        .width(Length::Fixed(320.0))
+        .style(card_style(shape::lg()));
+    modal(
+        card,
+        app.surfaces.menu.value(),
+        0.4,
+        Some(Message::Ui(Event::CloseMenu)),
+        shape::lg(),
+    )
 }

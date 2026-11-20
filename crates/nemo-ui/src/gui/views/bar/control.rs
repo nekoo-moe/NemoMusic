@@ -92,7 +92,8 @@ pub fn like_button<'a>(
     target: f32,
 ) -> Element<'a, Message> {
     let dim = col(color::on_surface_variant());
-    if track.video_id.is_none() {
+    let soundcloud = track.origin == nemo_core::audio::Origin::SoundCloud;
+    if track.video_id.is_none() && !soundcloud {
         return tip(
             icon_button(
                 Icon::Heart,
@@ -102,11 +103,25 @@ pub fn like_button<'a>(
                 Color::TRANSPARENT,
                 None,
             ),
-            "Only YouTube Music songs can be liked",
+            "Only YouTube Music and SoundCloud tracks can be liked",
         );
     }
     let message = Some(Message::ToggleLike(track.clone()));
-    if !app.signed_in() {
+    if soundcloud && !app.sc_track_writable(track) {
+        // The press says why nothing happens, in a notice.
+        return tip(
+            icon_button(
+                Icon::Heart,
+                glyph_size,
+                target,
+                dim,
+                Color::TRANSPARENT,
+                message,
+            ),
+            "Sign in to SoundCloud to like tracks",
+        );
+    }
+    if !soundcloud && !app.signed_in() {
         return tip(
             icon_button(
                 Icon::Heart,

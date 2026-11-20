@@ -270,3 +270,70 @@ impl SourceAccount for MockScAccount {
         })
     }
 }
+
+/// Fake SoundCloud writes: every change is taken at once and nothing is kept.
+pub struct MockScWrites;
+
+impl nemo_core::source_writes::SourceWrites for MockScWrites {
+    fn set_track_liked<'a>(
+        &'a self,
+        _track: &'a nemo_core::track::TrackId,
+        _liked: bool,
+    ) -> BoxFuture<'a, Result<(), nemo_core::source_writes::WriteError>> {
+        Box::pin(async { Ok(()) })
+    }
+
+    fn set_playlist_liked<'a>(
+        &'a self,
+        _playlist: &'a nemo_core::catalog::BrowseId,
+        _liked: bool,
+    ) -> BoxFuture<'a, Result<(), nemo_core::source_writes::WriteError>> {
+        Box::pin(async { Ok(()) })
+    }
+
+    fn unfollow<'a>(
+        &'a self,
+        _user: &'a nemo_core::catalog::BrowseId,
+    ) -> BoxFuture<'a, Result<(), nemo_core::source_writes::WriteError>> {
+        Box::pin(async { Ok(()) })
+    }
+
+    fn create_playlist<'a>(
+        &'a self,
+        _title: &'a str,
+        _first: Option<&'a nemo_core::track::TrackId>,
+    ) -> BoxFuture<
+        'a,
+        Result<nemo_core::source_writes::NewPlaylist, nemo_core::source_writes::WriteError>,
+    > {
+        Box::pin(async {
+            Ok(nemo_core::source_writes::NewPlaylist {
+                id: nemo_core::catalog::BrowseId("sc:playlist:9000001".to_owned()),
+            })
+        })
+    }
+
+    fn add_to_playlist<'a>(
+        &'a self,
+        _playlist: &'a nemo_core::catalog::BrowseId,
+        _track: &'a nemo_core::track::TrackId,
+    ) -> BoxFuture<'a, Result<(), nemo_core::source_writes::WriteError>> {
+        Box::pin(async { Ok(()) })
+    }
+
+    fn remove_from_playlist<'a>(
+        &'a self,
+        _playlist: &'a nemo_core::catalog::BrowseId,
+        _track: &'a nemo_core::track::TrackId,
+    ) -> BoxFuture<'a, Result<(), nemo_core::source_writes::WriteError>> {
+        Box::pin(async { Ok(()) })
+    }
+
+    fn rename_playlist<'a>(
+        &'a self,
+        _playlist: &'a nemo_core::catalog::BrowseId,
+        _title: &'a str,
+    ) -> BoxFuture<'a, Result<(), nemo_core::source_writes::WriteError>> {
+        Box::pin(async { Ok(()) })
+    }
+}

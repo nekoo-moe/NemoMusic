@@ -3,6 +3,7 @@
 use super::art::device_px;
 use super::message::{AccountBundle, CoverBuilt, ExploreMsg, Job, Message, RefreshData};
 use super::model::{AccountMsg, DetailData, DetailKey, DetailKind, ScLibData, ScMsg};
+use super::sc_write::ScWriteJob;
 use crate::cover;
 use crate::home;
 use crate::refresh::{Start, Step};
@@ -15,6 +16,7 @@ use nemo_core::lyrics::LyricsQuery;
 use nemo_core::secret::Secret;
 use nemo_core::services::Backend;
 use nemo_core::source_account::{SourceAccountError, SourceAccountInfo};
+use nemo_core::source_writes::WriteError;
 use nemo_core::track::{Artwork, Track};
 use std::sync::Arc;
 use std::thread;
@@ -181,6 +183,12 @@ pub async fn run_job(job: Job, backend: Backend) -> Message {
             Message::Sc(ScMsg::SignedIn(sc_sign_in(&backend, Some(token)).await))
         }
         Job::ScSignOut => Message::Sc(ScMsg::SignedOut(sc_sign_out(&backend).await)),
+        Job::ScWrite(job) => {
+            let result = sc_write(&backend, &job).await;
+            Message::ScWrite(super::sc_write::ScWriteMsg::Done(Box::new(
+                super::sc_write::ScWriteDone { job, result },
+            )))
+        }
         Job::ScTurnOff => Message::Sc(ScMsg::TurnedOff(sc_sign_out(&backend).await)),
         Job::ScSearch(query) => {
             let result = match &backend.soundcloud {
@@ -424,6 +432,26 @@ async fn sc_sign_out(backend: &Backend) -> Result<SignOutReport, SourceAccountEr
     }
 }
 
+/// Send one change of the SoundCloud account and report whether the server took it.
+async fn sc_write(backend: &Backend, job: &ScWriteJob) -> Result<(), WriteError> {
+    let Some(writes) = &backend.soundcloud_writes else {
+        return Err(WriteError::NotSignedIn);
+    };
+    match job {
+        ScWriteJob::Like { track, liked } => writes.set_track_liked(&track.id, *liked).await,
+        ScWriteJob::Add { track, playlist } => writes.add_to_playlist(playlist, &track.id).await,
+        ScWriteJob::Remove { track, playlist } => {
+            writes.remove_from_playlist(playlist, &track.id).await
+        }
+        ScWriteJob::Create { title, first } => writes
+            .create_playlist(title, first.as_ref().map(|t| &t.id))
+            .await
+            .map(|_| ()),
+        ScWriteJob::Rename { playlist, title } => writes.rename_playlist(playlist, title).await,
+        ScWriteJob::Unfollow { user } => writes.unfollow(user).await,
+    }
+}
+
 /// Read the SoundCloud library one list after the other, at the client's pace. A list that fails
 /// stays empty; when every list fails, the first reason is the answer.
 async fn sc_library(backend: &Backend) -> Result<ScLibData, String> {
@@ -440,9 +468,10 @@ async fn sc_library(backend: &Backend) -> Result<ScLibData, String> {
         }
         Err(e) => first_error = Some(e),
     }
-    match c.library_playlists().await {
-        Ok(v) => {
+    match c.library_playlists_owned().await {
+        Ok((v, own)) => {
             data.playlists = v;
+            data.own_playlists = own;
             answered = true;
         }
         Err(e) => first_error = first_error.or(Some(e)),

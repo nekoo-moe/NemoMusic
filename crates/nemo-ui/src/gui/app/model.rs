@@ -445,6 +445,8 @@ pub struct ScLibData {
     pub likes: Vec<Track>,
     /// Own playlists, then liked ones.
     pub playlists: Vec<PlaylistSummary>,
+    /// How many of `playlists` the user made (they come first).
+    pub own_playlists: usize,
     /// Own albums, then liked ones.
     pub albums: Vec<AlbumSummary>,
     /// Followed artists.

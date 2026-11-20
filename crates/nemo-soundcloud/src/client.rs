@@ -14,7 +14,9 @@ use nemo_core::secret::Secret;
 
 use crate::auth::Auth;
 use crate::client_id::{MAX_SCRIPTS, find_client_id, script_urls};
-use crate::http::{MAX_JSON_BYTES, MAX_SCRIPT_BYTES, ScAnswer, ScHttp, ScHttpError, ScRequest};
+use crate::http::{
+    MAX_JSON_BYTES, MAX_SCRIPT_BYTES, ScAnswer, ScHttp, ScHttpError, ScMethod, ScRequest,
+};
 use crate::records::TrackRecords;
 
 /// Where the client reads from. [`Endpoints::production`] is the real service.
@@ -95,6 +97,9 @@ pub enum ClientError {
     /// The user switched SoundCloud off: no request is made.
     #[error("SoundCloud is switched off")]
     Off,
+    /// A write needs a signed-in account and nobody is signed in.
+    #[error("sign in to SoundCloud first")]
+    NotSignedIn,
 }
 
 impl From<ScHttpError> for ClientError {
@@ -105,6 +110,9 @@ impl From<ScHttpError> for ClientError {
         }
     }
 }
+
+/// Least time between the starts of two writes: a person clicking, not a script.
+pub const WRITE_GAP: Duration = Duration::from_secs(1);
 
 /// The client. Share it in an `Arc` between the catalog and the stream lookup.
 pub struct ScClient {
@@ -129,6 +137,10 @@ pub struct ScClient {
     auth: Auth,
     /// Cleared when the user switches SoundCloud off: every later request fails at once.
     enabled: AtomicBool,
+    /// When the last write started, for the pace of writes (`write.rs`).
+    last_write: Mutex<Option<Instant>>,
+    /// Least time between the starts of two writes.
+    write_gap: Duration,
 }
 
 /// A callback for the start of a listener's call.
@@ -181,7 +193,16 @@ impl ScClient {
             activity: Mutex::new(None),
             auth: Auth::default(),
             enabled: AtomicBool::new(true),
+            last_write: Mutex::new(None),
+            write_gap: WRITE_GAP,
         }
+    }
+
+    /// The same client with its own least time between two writes (tests).
+    #[must_use]
+    pub const fn with_write_gap(mut self, gap: Duration) -> Self {
+        self.write_gap = gap;
+        self
     }
 
     /// Switch the client on or off. While off, every request fails with [`ClientError::Off`]
@@ -389,6 +410,21 @@ impl ScClient {
         max_bytes: usize,
         token: Option<&Secret<String>>,
     ) -> Result<ScAnswer, ClientError> {
+        let call = Call {
+            url,
+            max_bytes,
+            token,
+            method: ScMethod::Get,
+            body: None,
+        };
+        self.send_paced(&call).await
+    }
+
+    /// The one paced request every call goes through. A write ([`Call::method`] other than GET)
+    /// is sent once and never repeated, after its own longer pause; a read is tried again after a
+    /// 5xx or a connection error.
+    async fn send_paced(&self, call: &Call<'_>) -> Result<ScAnswer, ClientError> {
+        let write = call.method != ScMethod::Get;
         let mut gate = self.gate.lock().await;
         let mut retries = self.pacing.retry_delays.iter();
         loop {
@@ -399,13 +435,18 @@ impl ScClient {
             if let Some(last) = *gate {
                 tokio::time::sleep_until((last + self.pacing.min_gap).into()).await;
             }
+            if write {
+                self.wait_for_write_turn().await;
+            }
             *gate = Some(Instant::now());
             let sent = self
                 .http
                 .send(ScRequest {
-                    url: url.clone(),
-                    max_bytes,
-                    authorization: token.cloned(),
+                    url: call.url.clone(),
+                    max_bytes: call.max_bytes,
+                    authorization: call.token.cloned(),
+                    method: call.method,
+                    body: call.body.clone(),
                 })
                 .await;
             let failure = match sent {
@@ -418,8 +459,8 @@ impl ScClient {
                 Err(e) => return Err(e.into()),
             };
             match retries.next() {
-                Some(delay) => tokio::time::sleep(*delay).await,
-                None => return Err(failure),
+                Some(delay) if !write => tokio::time::sleep(*delay).await,
+                _ => return Err(failure),
             }
         }
     }
@@ -464,6 +505,17 @@ impl ScClient {
         Err(ClientError::NoClientId)
     }
 }
+
+/// One request as the paced sender takes it.
+struct Call<'a> {
+    url: String,
+    max_bytes: usize,
+    token: Option<&'a Secret<String>>,
+    method: ScMethod,
+    body: Option<Vec<u8>>,
+}
+
+mod write;
 
 #[cfg(test)]
 mod tests;

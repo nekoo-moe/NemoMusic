@@ -43,8 +43,10 @@
   - Does: criteria 6d, 6e and the `All` part of 13. Off signs out and wipes (confirm sentence, store-only wipe at start); the `Restart now` pill under the SoundCloud switch; `All` in Search is YouTube Music first, then a SoundCloud group, and Videos is hidden for SoundCloud alone.
   - Depends on: 1a, 6
 
-- [ ] 7. Account writes (PR 7)
-  - Crate and files: `nemo-soundcloud` (`write.rs`), `nemo-ui`.
+- [x] 7. Account writes (PR `feat/nemo-soundcloud-writes`, 2026-11-20)
+  - Crate and files: `nemo-soundcloud` (`write.rs` the requests, `client/write.rs` the one function `ScClient::write`, `writes.rs` `SoundcloudWrites`), `nemo-core` (`source_writes.rs`, `Catalog::library_playlists_owned`), `nemo-app` (`soundcloud.rs`), `nemo-ui` (`gui/app/sc_write.rs`, the heart, the track menu, the name sheet, Rename, Unfollow, New playlist).
+  - Built: like and unlike a track, like and unlike a playlist (backend only, no button yet), unfollow, create a private playlist, add and remove a track, rename. NOT built: follow (the web app signs `POST me/followings/<id>` with a `signature` made from a secret in its own script; copying that is the owner's decision) and delete playlist (not in the owner's list).
+  - Verified only against FIXTURES and a fake HTTP layer, no real account and no real answer: ALL of the above. The endpoints, methods and bodies come from the web app's own script (endpoint table and the model `save`, read 2026-11-20); the `POST playlists` answer shape and the exact 2xx code, the `PUT playlists/<id>` body with only `tracks` or only `title`, and the title limit (100 characters) are assumptions.
   - _Requirements: 16, 17_
   - Depends on: 5, 6; the web app's request bodies read first.
 

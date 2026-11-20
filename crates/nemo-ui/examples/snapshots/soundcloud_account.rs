@@ -335,3 +335,54 @@ pub(super) fn search_shots(out: &mut Vec<Shot>) {
         signed_in(),
     ));
 }
+
+/// The writes (soundcloud-account, task 7): the track menu with its SoundCloud entries and the
+/// playlist list, the name sheets, and the pages with Rename and Unfollow. Every shot is a
+/// signed-in account; the library behind them is the small one of `ScWriteScene`.
+pub(super) fn write_shots(out: &mut Vec<Shot>) {
+    use nemo_core::catalog::BrowseId;
+    use nemo_ui::gui::headless::soundcloud::{FOLLOWED_USER, OWN_PLAYLIST, ScWriteScene};
+
+    let base = |scene: ScWriteScene, route: Route, size: (u32, u32)| Scenario {
+        route,
+        size,
+        settings: UiSettings {
+            base: BaseMode::Dark,
+            tos_acknowledged: true,
+            ..UiSettings::default()
+        },
+        soundcloud: Some(ScScene::Account),
+        sc_write: Some(scene),
+        ..Scenario::default()
+    };
+    for (stem, scene) in [
+        ("menu", ScWriteScene::Menu),
+        ("pick", ScWriteScene::PickMenu),
+        ("new-sheet", ScWriteScene::NewSheet),
+        ("rename-sheet", ScWriteScene::RenameSheet),
+    ] {
+        out.push(running(
+            format!("soundcloud-write-{stem}-dark-960x600"),
+            base(scene, Route::Library, SMALL),
+            signed_in(),
+        ));
+    }
+    out.push(running(
+        "soundcloud-write-playlist-dark-960x1300".to_owned(),
+        base(
+            ScWriteScene::Library,
+            Route::Playlist(BrowseId(OWN_PLAYLIST.to_owned())),
+            (960, 1300),
+        ),
+        signed_in(),
+    ));
+    out.push(running(
+        "soundcloud-write-user-dark-960x600".to_owned(),
+        base(
+            ScWriteScene::Library,
+            Route::Artist(BrowseId(FOLLOWED_USER.to_owned())),
+            SMALL,
+        ),
+        signed_in(),
+    ));
+}

@@ -1,0 +1,10 @@
+{
+  "kind": "playlist",
+  "id": 7000030,
+  "title": "Night drive",
+  "sharing": "private",
+  "permalink_url": "https://soundcloud.com/test-person/sets/night-drive",
+  "track_count": 1,
+  "tracks": [{"id": 7000001, "kind": "track"}],
+  "user": {"id": 7000001, "kind": "user", "username": "Test Person"}
+}
