@@ -3,9 +3,7 @@
 use super::account::shuffle;
 use super::art::ArtEntry;
 use super::message::{Job, Message};
-use super::model::{
-    AccountMsg, DetailData, DetailKey, DetailState, HomePhase, ListSource, NpTab,
-};
+use super::model::{AccountMsg, DetailData, DetailKey, DetailState, HomePhase, ListSource, NpTab};
 use super::option::{CreateMsg, SleepState};
 use super::{App, ROWS_STEP};
 use crate::collection_sort::CollectionSort;

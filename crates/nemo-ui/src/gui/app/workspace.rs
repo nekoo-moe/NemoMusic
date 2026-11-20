@@ -69,6 +69,10 @@ impl App {
         if self.source == Source::SoundCloud {
             self.ui.nav = Nav::new(self.source.landing());
         }
+        if self.source != saved {
+            // The saved area cannot run: store the way back, so the next start agrees.
+            let _ = self.dispatch(Event::Setting(SettingChange::ListeningArea(self.source)));
+        }
     }
 
     /// Press on the switch. Nothing happens for the active area or one that is not offered.

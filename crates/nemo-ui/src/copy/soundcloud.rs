@@ -133,7 +133,8 @@ pub const AREA_NEEDS_ON: &str = "Only YouTube Music for now. Turn on SoundCloud 
 pub const AREA_NEEDS_SIGN_IN: &str =
     "Only YouTube Music for now. Sign in to SoundCloud to add it as a second listening area.";
 /// The SoundCloud card of the account sheet while SoundCloud is off.
-pub const CARD_OFF: &str = "SoundCloud is off. Turn it on to search, play and see your own library from SoundCloud.";
+pub const CARD_OFF: &str =
+    "SoundCloud is off. Turn it on to search, play and see your own library from SoundCloud.";
 /// The button of that card.
 pub const CARD_TURN_ON: &str = "Turn on SoundCloud in Settings";
 /// The quiet line under the brand while SoundCloud is the listening area.

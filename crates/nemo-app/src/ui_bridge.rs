@@ -122,9 +122,7 @@ pub fn apply_ui(s: &mut Settings, ui: &UiSettings) {
         .iter()
         .map(|(k, v)| (k.clone(), v.label().to_owned()))
         .collect();
-    ui.listening_area
-        .label()
-        .clone_into(&mut s.listening_area);
+    ui.listening_area.label().clone_into(&mut s.listening_area);
     // A row the user never touched has no entry, so the feature's default holds.
     if ui.soundcloud != OptInState::default() || s.opt_ins.contains_key(SOUNDCLOUD_ID) {
         s.opt_ins.insert(

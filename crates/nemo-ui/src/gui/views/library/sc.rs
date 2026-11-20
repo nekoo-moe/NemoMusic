@@ -54,7 +54,9 @@ pub(super) fn view(app: &App, w: u32) -> Element<'_, Message> {
 }
 
 fn header<'a>() -> Element<'a, Message> {
-    row![page_title("Library")].align_y(Alignment::Center).into()
+    row![page_title("Library")]
+        .align_y(Alignment::Center)
+        .into()
 }
 
 fn tabs(app: &App) -> Element<'_, Message> {

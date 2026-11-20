@@ -73,12 +73,7 @@ fn avatar_button<'a>(
     let face: Element<'a, Message> = if avatar.is_empty() {
         initial_badge(app, name)
     } else {
-        art(
-            app,
-            &Artwork::Remote(avatar.to_vec()),
-            40,
-            ArtShape::Circle,
-        )
+        art(app, &Artwork::Remote(avatar.to_vec()), 40, ArtShape::Circle)
     };
     tip(
         animated(
@@ -100,7 +95,10 @@ fn refresh_button(app: &App) -> Element<'_, Message> {
         (busy, app.sc_is_signed_in() && !busy)
     } else {
         let busy = app.refresh.busy();
-        (busy, app.ui.youtube_enabled() && app.refresh.ready() && !busy)
+        (
+            busy,
+            app.ui.youtube_enabled() && app.refresh.ready() && !busy,
+        )
     };
     tip(
         icon_button(

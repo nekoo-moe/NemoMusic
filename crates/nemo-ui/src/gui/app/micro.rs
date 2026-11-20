@@ -208,9 +208,7 @@ impl App {
 
     /// Point the details at the current state. Runs after every update.
     pub(super) fn sync_micro(&mut self) {
-        let nav = self
-            .nav_selected()
-            .and_then(|e| self.source.nav_index(e));
+        let nav = self.nav_selected().and_then(|e| self.source.nav_index(e));
         let tab = super::NpTab::ALL
             .iter()
             .position(|t| *t == self.np_tab)

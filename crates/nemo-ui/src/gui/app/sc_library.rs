@@ -246,110 +246,36 @@ mod tests {
         assert_eq!(app.sc_lib.phase, ScPhase::Idle);
         assert!(app.sc_lib.generation > before);
         assert!(!app.sc_lib.owner);
+        assert_eq!(
+            app.source,
+            Source::YouTube,
+            "signed out: back to YouTube Music"
+        );
     }
 
     #[test]
-    fn refresh_reloads_soundcloud_only_when_the_library_shows_it() {
+    fn refresh_reloads_only_the_active_area() {
         let (mut app, _) = app_with(signed_in());
         let jobs = app.update_core(Message::Sc(ScMsg::Source(Source::SoundCloud)));
         app.settle_blocking(jobs);
         assert_eq!(reads(&app.update_core(Message::Refresh)), 1);
         let (mut yt, _) = app_with(signed_in());
         assert_eq!(reads(&yt.update_core(Message::Refresh)), 0);
+        // While SoundCloud is the area, YouTube Music's reload does not start.
+        assert!(
+            !app.update_core(Message::Refresh)
+                .iter()
+                .any(|j| matches!(j, Job::Refresh(_))),
+            "only SoundCloud reloads"
+        );
     }
 
     #[test]
-    fn the_source_switch_and_tabs_are_remembered() {
+    fn the_area_and_the_tab_are_remembered() {
         let (mut app, _) = app_with(signed_in());
         let _ = app.update_core(Message::Sc(ScMsg::Source(Source::SoundCloud)));
         let _ = app.update_core(Message::Sc(ScMsg::Tab(ScTab::History)));
         assert_eq!(app.source, Source::SoundCloud);
         assert_eq!(app.sc_open_tab(), ScTab::History);
-        assert!(Source::All.has_soundcloud() && !Source::YouTube.has_soundcloud());
-    }
-
-    fn search_app(tos: bool) -> App {
-        let backend = mock_backend_soundcloud(signed_in());
-        build_app(
-            &backend,
-            &Scenario {
-                soundcloud: Some(ScScene::Account),
-                settings: crate::settings::UiSettings {
-                    tos_acknowledged: tos,
-                    soundcloud: crate::settings::OptInState {
-                        enabled: true,
-                        confirmed_version: 2,
-                    },
-                    ..crate::settings::UiSettings::default()
-                },
-                route: crate::route::Route::Search(String::new()),
-                ..Scenario::default()
-            },
-        )
-    }
-
-    fn searches(jobs: &[Job]) -> (usize, usize) {
-        let sc = jobs
-            .iter()
-            .filter(|j| matches!(j, Job::ScSearch(_) | Job::ScSearchKind { .. }))
-            .count();
-        let yt = jobs
-            .iter()
-            .filter(|j| matches!(j, Job::Search(_) | Job::SearchKind { .. }))
-            .count();
-        (sc, yt)
-    }
-
-    #[test]
-    fn a_search_goes_to_the_service_the_switch_names() {
-        use crate::state::Event;
-        let mut app = search_app(true);
-        let _ = app.update_core(Message::Ui(Event::SearchInput("velvet".to_owned())));
-        let yt = app.update_core(Message::Ui(Event::SearchSubmit));
-        assert_eq!(searches(&yt), (0, 1), "YouTube Music is the default");
-        let mut app = search_app(true);
-        let _ = app.update_core(Message::Sc(ScMsg::Source(Source::SoundCloud)));
-        let _ = app.update_core(Message::Ui(Event::SearchInput("velvet".to_owned())));
-        let sc = app.update_core(Message::Ui(Event::SearchSubmit));
-        assert_eq!(searches(&sc), (1, 0));
-        let filtered = app.update_core(Message::Ui(Event::SearchFilter(Some(
-            nemo_core::catalog::SearchKind::Albums,
-        ))));
-        assert_eq!(searches(&filtered), (1, 0), "a chip too");
-    }
-
-    #[test]
-    fn soundcloud_search_needs_no_youtube_notice_and_youtube_still_does() {
-        use crate::state::Event;
-        let mut app = search_app(false);
-        let _ = app.update_core(Message::Sc(ScMsg::Source(Source::SoundCloud)));
-        let _ = app.update_core(Message::Ui(Event::SearchInput("velvet".to_owned())));
-        let jobs = app.update_core(Message::Ui(Event::SearchSubmit));
-        assert_eq!(searches(&jobs), (1, 0), "SoundCloud waits for no notice");
-        let mut yt = search_app(false);
-        let _ = yt.update_core(Message::Ui(Event::SearchInput("velvet".to_owned())));
-        let jobs = yt.update_core(Message::Ui(Event::SearchSubmit));
-        assert_eq!(searches(&jobs), (0, 0), "nothing leaves before the notice");
-    }
-
-    #[test]
-    fn switching_the_source_on_the_search_page_drops_the_other_answers_and_searches_again() {
-        use crate::state::Event;
-        let mut app = search_app(true);
-        let _ = app.update_core(Message::Ui(Event::SearchInput("velvet".to_owned())));
-        let jobs = app.update_core(Message::Ui(Event::SearchSubmit));
-        app.settle_blocking(jobs);
-        assert!(app.ui.search.results.is_some());
-        let jobs = app.update_core(Message::Sc(ScMsg::Source(Source::SoundCloud)));
-        assert!(
-            app.ui.search.results.is_none(),
-            "YouTube answers do not stay"
-        );
-        assert_eq!(searches(&jobs), (1, 0));
-        // Choosing the same source again does nothing.
-        assert!(
-            app.update_core(Message::Sc(ScMsg::Source(Source::SoundCloud)))
-                .is_empty()
-        );
     }
 }

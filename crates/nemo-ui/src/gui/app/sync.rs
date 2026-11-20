@@ -149,7 +149,9 @@ impl App {
             .position(|t| *t == self.sc_tab)
             .unwrap_or(0);
         // The listening-area switch of the account sheet and Settings.
-        let areas: Vec<&str> = crate::workspace::Source::ALL.map(|s| s.label()).to_vec();
+        let areas: Vec<&str> = crate::workspace::Source::ALL
+            .map(crate::workspace::Source::label)
+            .to_vec();
         let area_sel = self.source.index();
         for (slot, (labels, sel)) in [
             (home, home_sel),
