@@ -310,6 +310,7 @@ pub fn run_with_startup(start: StartFn, options: UiOptions) -> iced::Result {
         min_size: Some(iced::Size::new(min.0, min.1)),
         maximized,
         transparent,
+        icon: assets::window_icon(),
         ..window::Settings::default()
     })
     .run()

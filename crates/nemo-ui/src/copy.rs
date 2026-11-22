@@ -94,7 +94,7 @@ pub const HEARTBEAT_HELPER: &str =
 /// Intro of the Privacy section.
 pub const PRIVACY_INTRO: &str = "NemoMusic runs entirely on your computer. The project runs no server and collects no telemetry. These are the only hosts it contacts:";
 /// The network egress list (README), `(host, why and when)`.
-pub const EGRESS: [(&str, &str); 7] = [
+pub const EGRESS: [(&str, &str); 8] = [
     (
         "music.youtube.com",
         "Search, browse, timed lyrics. Always (YouTube Music features)",
@@ -119,6 +119,10 @@ pub const EGRESS: [(&str, &str); 7] = [
     (
         "accounts.google.com, *.gstatic.com",
         "Google sign-in page. Only while you sign in",
+    ),
+    (
+        "api.github.com",
+        "Check for new releases (opt-in). Only when Check for updates is switched on; at most once every 24 hours",
     ),
 ];
 /// Where local data lives (README).
@@ -239,6 +243,7 @@ pub mod appearance;
 pub mod discord;
 pub mod setup;
 pub mod soundcloud;
+pub mod tips;
 
 #[cfg(test)]
 mod tests {
@@ -326,8 +331,9 @@ mod tests {
     }
 
     #[test]
-    fn egress_list_has_the_seven_readme_rows() {
-        assert_eq!(EGRESS.len(), 7);
+    fn egress_list_has_the_readme_rows() {
+        assert_eq!(EGRESS.len(), 8);
         assert!(EGRESS.iter().any(|(h, _)| *h == "lrclib.net"));
+        assert!(EGRESS.iter().any(|(h, _)| *h == "api.github.com"));
     }
 }

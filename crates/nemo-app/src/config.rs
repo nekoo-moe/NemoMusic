@@ -116,6 +116,14 @@ pub struct Settings {
     pub listening_area: String,
     /// Display language ("English" or "Tiếng Việt", empty = default English).
     pub language: String,
+    /// Check for updates on GitHub Releases at most once a day (opt-in).
+    pub check_for_updates: bool,
+    /// Timestamp (unix epoch seconds) when updates were last checked.
+    pub last_update_check_epoch: Option<u64>,
+    /// Release tag name the user chose to dismiss.
+    pub dismissed_update_version: Option<String>,
+    /// Show tips, shortcuts and facts on Home.
+    pub show_tips: bool,
 }
 
 /// Stored animated-cover switches. A missing field is off.
@@ -170,6 +178,10 @@ impl Default for Settings {
             collection_sorts: BTreeMap::new(),
             listening_area: String::new(),
             language: String::new(),
+            check_for_updates: false,
+            last_update_check_epoch: None,
+            dismissed_update_version: None,
+            show_tips: true,
         }
     }
 }

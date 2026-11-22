@@ -168,6 +168,14 @@ pub struct UiSettings {
     pub listening_area: Source,
     /// UI display language (English or Tiếng Việt).
     pub language: Language,
+    /// Check for updates on GitHub Releases at most once a day (opt-in).
+    pub check_for_updates: bool,
+    /// Timestamp (unix epoch seconds) when updates were last checked.
+    pub last_update_check_epoch: Option<u64>,
+    /// Release tag name the user chose to dismiss.
+    pub dismissed_update_version: Option<String>,
+    /// Show tips, shortcuts and facts on Home.
+    pub show_tips: bool,
 }
 
 impl Default for UiSettings {
@@ -196,6 +204,10 @@ impl Default for UiSettings {
             soundcloud: OptInState::default(),
             listening_area: Source::default(),
             language: Language::default(),
+            check_for_updates: false,
+            last_update_check_epoch: None,
+            dismissed_update_version: None,
+            show_tips: true,
         }
     }
 }
@@ -239,6 +251,12 @@ pub enum SettingChange {
     ListeningArea(Source),
     /// Display language.
     Language(Language),
+    /// Check for updates switch.
+    CheckForUpdates(bool),
+    /// Timestamp of last update check.
+    UpdateChecked(u64),
+    /// Show tips on Home switch.
+    ShowTips(bool),
 }
 
 impl UiSettings {
@@ -263,6 +281,9 @@ impl UiSettings {
             SettingChange::SoundCloud(v) => self.soundcloud = v,
             SettingChange::ListeningArea(v) => self.listening_area = v,
             SettingChange::Language(v) => self.language = v,
+            SettingChange::CheckForUpdates(v) => self.check_for_updates = v,
+            SettingChange::UpdateChecked(v) => self.last_update_check_epoch = Some(v),
+            SettingChange::ShowTips(v) => self.show_tips = v,
         }
     }
 

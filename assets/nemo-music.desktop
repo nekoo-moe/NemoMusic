@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=NemoMusic
+Comment=Fast, beautiful music player
+Exec=nemo-app
+Icon=nemo-logo
+Terminal=false
+Type=Application
+Categories=AudioVideo;Audio;Player;
+StartupWMClass=NemoMusic

@@ -238,6 +238,12 @@ pub enum Message {
     Speed(u16),
     /// Switch the mini player on or off.
     ToggleMini,
+    /// Update notice answered.
+    UpdateNotice(Option<nemo_core::integrations::UpdateNotice>),
+    /// Open an external URL.
+    OpenUrl(String),
+    /// Dismiss an update notice.
+    DismissUpdate(String),
     /// Switch full-screen Now Playing on or off.
     ToggleFullScreen,
     /// Start a radio from a song (similar songs from search).
@@ -432,5 +438,12 @@ pub enum Job {
         kind: ResolveKind,
         /// The track.
         track: Track,
+    },
+    /// Check for application updates (opt-in).
+    CheckUpdate {
+        /// Current version.
+        current: String,
+        /// Dismissed version.
+        dismissed: Option<String>,
     },
 }

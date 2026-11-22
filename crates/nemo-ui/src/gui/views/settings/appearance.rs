@@ -373,6 +373,22 @@ fn motion_card(app: &App, width: f32) -> Element<'_, Message> {
                     SettingChange::ReduceTransparency,
                 ),
             ),
+            switch_row(
+                inner,
+                t(lang, "Show tips on Home", "Hiển thị mẹo ở Trang chủ"),
+                t(
+                    lang,
+                    "Show one quiet tip or shortcut line under the greeting on Home.",
+                    "Hiển thị một mẹo hoặc phím tắt nhỏ dưới lời chào ở Trang chủ.",
+                )
+                .to_owned(),
+                switch(
+                    lang,
+                    s.show_tips,
+                    SwitchMode::Normal,
+                    SettingChange::ShowTips,
+                ),
+            ),
         ],
     )
 }

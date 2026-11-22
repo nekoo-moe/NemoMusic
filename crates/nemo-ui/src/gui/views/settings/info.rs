@@ -93,6 +93,16 @@ pub(super) fn about(app: &App, width: f32) -> Vec<Element<'_, Message>> {
             Some(text.language_help.to_string()),
             segmented(app, &LANGUAGES, lang, SettingChange::Language),
         ),
+        setting_row(
+            width,
+            text.updates_title,
+            Some(text.updates_help.to_string()),
+            crate::gui::views::settings::switch(
+                app,
+                app.ui.settings.check_for_updates,
+                SettingChange::CheckForUpdates,
+            ),
+        ),
         version.into(),
         block(text.licenses_title, text.licenses_body.to_owned(), dim),
         block(text.credits_title, copy::ABOUT_CREDITS.join("\n"), dim),

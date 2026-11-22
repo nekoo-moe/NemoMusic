@@ -74,7 +74,26 @@ pub fn run(backend: Backend, options: UiOptions) -> iced::Result {
         min_size: Some(iced::Size::new(min.0, min.1)),
         maximized,
         transparent,
+        icon: assets::window_icon(),
         ..iced::window::Settings::default()
     })
     .run()
+}
+
+/// Open a web URL in the system's default browser.
+pub fn open_browser(url: &str) {
+    #[cfg(target_os = "windows")]
+    {
+        let _ = std::process::Command::new("cmd")
+            .args(["/C", "start", "", url])
+            .spawn();
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let _ = std::process::Command::new("open").arg(url).spawn();
+    }
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    {
+        let _ = std::process::Command::new("xdg-open").arg(url).spawn();
+    }
 }

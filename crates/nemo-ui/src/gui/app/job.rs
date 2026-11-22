@@ -292,6 +292,13 @@ pub async fn run_job(job: Job, backend: Backend) -> Message {
             Message::RadioReady { seed, tracks }
         }
         Job::Resolve { kind, track } => Message::Ui(resolve(&backend, kind, &track).await),
+        Job::CheckUpdate { current, dismissed } => {
+            let notice = backend
+                .integrations
+                .check_update(&current, dismissed.as_deref())
+                .await;
+            Message::UpdateNotice(notice)
+        }
     }
 }
 

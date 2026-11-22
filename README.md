@@ -86,6 +86,7 @@ These are the only hosts NemoMusic contacts. Adding a host needs owner approval.
 | `i1.sndcdn.com` | Cover art and avatars | Only when SoundCloud is on |
 | `playback.media-streaming.soundcloud.cloud`, `*.sndcdn.com` | The audio stream itself (HLS segments, previews, older MP3 files) | Only when a SoundCloud track plays |
 | `github.com`, `release-assets.githubusercontent.com` | Download the official [yt-dlp](https://github.com/yt-dlp/yt-dlp) release and its SHA-256 list | Only to install or update the app's own yt-dlp (automatic install on, no `yt_dlp_path` set); at most one update check a day |
+| `api.github.com` | Check for new releases (opt-in) | Only when Check for updates is switched on; at most once every 24 hours |
 
 Discord presence adds no host. While you turn it on in Settings, Privacy (off by default), NemoMusic talks only to the Discord app on your computer through its local socket or named pipe. The Discord app shows the song (title, artist, source, cover address, position) to your friends and servers as your Discord privacy settings allow; Discord's own servers, not NemoMusic, load the cover from the address. `Hide song names on Discord` shows only that you listen to NemoMusic.
 

@@ -37,6 +37,9 @@ rfd = { version = "=0.18.0", default-features = false, features = ["xdg-portal"]
 [target.'cfg(windows)'.dependencies]
 window-vibrancy = "=0.8.1"
 
+[target.'cfg(windows)'.build-dependencies]
+winres = "=0.1.12"
+
 [dev-dependencies]
 # `MemoryStore`, the fake credential store of the SoundCloud account test.
 nemo-core = { workspace = true, features = ["test-util"] }

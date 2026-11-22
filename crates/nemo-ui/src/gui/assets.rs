@@ -251,9 +251,23 @@ impl Icon {
     }
 }
 
+/// Logo icon for the app window titlebar and taskbar.
+#[must_use]
+pub fn window_icon() -> Option<iced::window::Icon> {
+    const LOGO_PNG: &[u8] = include_bytes!("../../../../assets/logo/nemo-logo-64.png");
+    let img = image::load_from_memory(LOGO_PNG).ok()?.to_rgba8();
+    let (width, height) = img.dimensions();
+    iced::window::icon::from_rgba(img.into_raw(), width, height).ok()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn window_icon_loads() {
+        assert!(window_icon().is_some());
+    }
 
     #[test]
     fn every_icon_is_a_material_symbol_svg() {

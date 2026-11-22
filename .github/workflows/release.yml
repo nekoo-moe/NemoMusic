@@ -146,7 +146,7 @@ jobs:
             $archive = "$name.zip"
             Compress-Archive -Path $name -DestinationPath $archive
           } else {
-            Copy-Item target/release/nemo-app, LICENSE, README.md $name
+            Copy-Item target/release/nemo-app, LICENSE, README.md, assets/nemo-music.desktop, assets/logo/nemo-logo-256.png $name
             $archive = "$name.tar.gz"
             # tar keeps the executable bit, which a zip made here would drop.
             tar -czf $archive $name

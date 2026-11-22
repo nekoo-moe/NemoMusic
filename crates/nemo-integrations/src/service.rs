@@ -14,7 +14,7 @@ use nemo_core::BoxFuture;
 use nemo_core::hooks::{PlayHookEvent, PlayObserver};
 use nemo_core::integrations::{
     BrowsingSection, IntegrationError, IntegrationsService, LastFmStatus, NativeWindow,
-    WindowContext,
+    UpdateNotice, WindowContext, is_newer,
 };
 use nemo_core::opt_in::OptInInfo;
 use nemo_core::secret::Secret;
@@ -336,6 +336,43 @@ impl IntegrationsService for Integrations {
     }
 
     fn window_ready(&self, _window: NativeWindow) {}
+
+    fn check_update(
+        &self,
+        current: &str,
+        dismissed: Option<&str>,
+    ) -> BoxFuture<'static, Option<UpdateNotice>> {
+        let current = current.to_owned();
+        let dismissed = dismissed.map(ToOwned::to_owned);
+        Box::pin(async move {
+            let client = reqwest::Client::builder()
+                .timeout(Duration::from_secs(10))
+                .build()
+                .ok()?;
+            let url = "https://api.github.com/repos/nekoo-moe/NemoMusic/releases/latest";
+            let resp = client
+                .get(url)
+                .header(reqwest::header::USER_AGENT, format!("NemoMusic/{current}"))
+                .send()
+                .await
+                .ok()?;
+            if !resp.status().is_success() {
+                return None;
+            }
+            let text = resp.text().await.ok()?;
+            let val: serde_json::Value = serde_json::from_str(&text).ok()?;
+            let tag_name = val.get("tag_name")?.as_str()?;
+            let html_url = val.get("html_url")?.as_str()?;
+            if is_newer(&current, tag_name, dismissed.as_deref()) {
+                Some(UpdateNotice {
+                    version: tag_name.to_owned(),
+                    url: html_url.to_owned(),
+                })
+            } else {
+                None
+            }
+        })
+    }
 }
 
 impl PlayObserver for Integrations {

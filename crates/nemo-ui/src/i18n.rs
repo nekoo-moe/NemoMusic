@@ -304,6 +304,8 @@ pub const fn setup_nav(lang: Language) -> SetupNavText {
 pub struct AboutText {
     pub language_title: &'static str,
     pub language_help: &'static str,
+    pub updates_title: &'static str,
+    pub updates_help: &'static str,
     pub version_label: &'static str,
     pub licenses_title: &'static str,
     pub licenses_body: &'static str,
@@ -322,6 +324,8 @@ pub const fn about_text(lang: Language) -> AboutText {
         Language::Vietnamese => AboutText {
             language_title: "Ngôn ngữ",
             language_help: "Chọn ngôn ngữ hiển thị cho giao diện NemoMusic.",
+            updates_title: "Kiểm tra bản cập nhật",
+            updates_help: "Kiểm tra bản phát hành trên GitHub tối đa 1 lần/ngày. Chỉ gửi User-Agent: NemoMusic/<phiên bản>.",
             version_label: "Phiên bản",
             licenses_title: "Giấy phép",
             licenses_body: "NemoMusic được phát hành theo giấy phép GPL-3.0. Phần mềm mã nguồn mở, độc lập và phi thương mại.",
@@ -336,6 +340,8 @@ pub const fn about_text(lang: Language) -> AboutText {
         Language::English => AboutText {
             language_title: "Language",
             language_help: "Choose the display language for the interface.",
+            updates_title: "Check for updates",
+            updates_help: "Check GitHub Releases at most once a day. Only sends User-Agent: NemoMusic/<version>.",
             version_label: "Version",
             licenses_title: "Licences",
             licenses_body: copy::ABOUT_LICENSE,

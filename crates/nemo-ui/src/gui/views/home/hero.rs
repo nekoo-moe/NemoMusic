@@ -8,8 +8,8 @@ use nemo_core::track::Artwork;
 use crate::format;
 use crate::gui::app::{App, ArtShape, ListSource, Message};
 use crate::gui::assets::Icon;
-use crate::gui::style::{col, gap, label};
-use crate::gui::views::kit::vspace;
+use crate::gui::style::{col, gap, icon, label};
+use crate::gui::views::kit::{text_button, vspace};
 use crate::theme::{color, type_scale};
 
 /// What the hero banner shows.
@@ -84,15 +84,81 @@ fn hero_info(app: &App) -> Option<Hero> {
 pub(super) fn greeting(app: &App, content_w: f32) -> Element<'_, Message> {
     use crate::gui::style::{button_flat, vertical_gradient};
     let lang = app.ui.settings.language;
-    let mut c = column![
-        label(
-            app.day.greeting_localized(lang),
-            type_scale::HEADLINE_MD,
-            true,
-            col(color::on_surface())
-        ),
-        vspace(gap::MD),
-    ];
+    let mut c = column![];
+
+    if let Some(notice) = app
+        .update_notice
+        .as_ref()
+        .filter(|n| app.ui.settings.dismissed_update_version.as_deref() != Some(&n.version))
+    {
+        let update_text = match lang {
+            crate::settings::Language::Vietnamese => {
+                format!("Đã có bản cập nhật NemoMusic {}", notice.version)
+            }
+            crate::settings::Language::English => {
+                format!("NemoMusic {} is available", notice.version)
+            }
+        };
+        let whats_new_label = match lang {
+            crate::settings::Language::Vietnamese => "Có gì mới",
+            crate::settings::Language::English => "What's new",
+        };
+        let dismiss_label = match lang {
+            crate::settings::Language::Vietnamese => "Bỏ qua",
+            crate::settings::Language::English => "Dismiss",
+        };
+        let banner = iced::widget::container(
+            row![
+                icon(Icon::Info, 20.0, col(app.accent().primary)),
+                Space::new().width(gap::MD),
+                label(
+                    update_text,
+                    type_scale::BODY_MD,
+                    true,
+                    col(color::on_surface())
+                ),
+                Space::new().width(Length::Fill),
+                text_button(whats_new_label, Message::OpenUrl(notice.url.clone())),
+                Space::new().width(gap::SM),
+                text_button(
+                    dismiss_label,
+                    Message::DismissUpdate(notice.version.clone())
+                ),
+            ]
+            .align_y(Alignment::Center)
+            .padding(iced::Padding::from([gap::SM, gap::LG])),
+        )
+        .width(Length::Fill)
+        .style(|_| iced::widget::container::Style {
+            background: Some(col(color::surface_container_high()).into()),
+            border: iced::Border {
+                radius: crate::theme::shape::lg().into(),
+                ..iced::Border::default()
+            },
+            ..iced::widget::container::Style::default()
+        });
+
+        c = c.push(banner).push(vspace(gap::LG));
+    }
+
+    c = c.push(label(
+        app.day.greeting_localized(lang),
+        type_scale::HEADLINE_MD,
+        true,
+        col(color::on_surface()),
+    ));
+
+    if app.ui.settings.show_tips {
+        let tip = crate::copy::tips::of_the_day(app.day.day);
+        c = c.push(vspace(gap::XS)).push(label(
+            tip.localized(lang),
+            type_scale::BODY_SM,
+            false,
+            col(color::on_surface_variant()),
+        ));
+    }
+
+    c = c.push(vspace(gap::MD));
     if let Some(h) = hero_info(app) {
         let accent = app.accent();
         let art_px = 176_u32;

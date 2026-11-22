@@ -281,6 +281,8 @@ pub struct App {
     daily_gen: usize,
     /// The local day (seed and greeting).
     pub(crate) day: DayContext,
+    /// Latest update notice, if a newer version was detected and not dismissed.
+    pub(crate) update_notice: Option<nemo_core::integrations::UpdateNotice>,
 }
 
 impl App {
@@ -436,6 +438,7 @@ impl App {
                     .map_or(0, |d| d.as_secs()),
                 options.hooks.utc_offset_minutes,
             ),
+            update_notice: None,
         };
         color::set_active(app.scheme_fade.current());
         app.sync_pane_alpha();
@@ -446,6 +449,18 @@ impl App {
             app.anim.now_playing.snap(1.0);
         }
         let mut jobs = Vec::new();
+        if app.ui.settings.check_for_updates {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |d| d.as_secs());
+            let last = app.ui.settings.last_update_check_epoch.unwrap_or(0);
+            if now.saturating_sub(last) >= 86400 {
+                jobs.push(Job::CheckUpdate {
+                    current: env!("CARGO_PKG_VERSION").to_string(),
+                    dismissed: app.ui.settings.dismissed_update_version.clone(),
+                });
+            }
+        }
         // The reducer starts without a current track; feeding the snapshot requests cover and
         // lyrics.
         app.ui.snapshot = nemo_core::player::PlayerSnapshot::default();

@@ -20,7 +20,26 @@ use std::time::Instant;
 impl App {
     pub(super) fn handle(&mut self, message: Message) -> Vec<Job> {
         match message {
-            Message::Ui(ev) => self.dispatch(ev),
+            Message::Ui(ev) => {
+                let check_on = matches!(
+                    &ev,
+                    Event::Setting(crate::settings::SettingChange::CheckForUpdates(true))
+                );
+                let mut jobs = self.dispatch(ev);
+                if check_on {
+                    let now = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map_or(0, |d| d.as_secs());
+                    let last = self.ui.settings.last_update_check_epoch.unwrap_or(0);
+                    if now.saturating_sub(last) >= 86400 {
+                        jobs.push(Job::CheckUpdate {
+                            current: env!("CARGO_PKG_VERSION").to_string(),
+                            dismissed: self.ui.settings.dismissed_update_version.clone(),
+                        });
+                    }
+                }
+                jobs
+            }
             Message::Player(ev) => self.dispatch(Event::Player(ev)),
             Message::Frame(now) => self.on_frame(now),
             // The setup flow takes the keys: Enter is Next, Esc and the rest do nothing.
@@ -507,6 +526,27 @@ impl App {
             // `Restart` is answered in `App::update`, with a task that closes the window.
             Message::TimerTick => {
                 self.dev_tick();
+                Vec::new()
+            }
+            Message::UpdateNotice(notice) => {
+                self.update_notice = notice;
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map_or(0, |d| d.as_secs());
+                self.dispatch(Event::Setting(
+                    crate::settings::SettingChange::UpdateChecked(now),
+                ))
+            }
+            Message::OpenUrl(url) => {
+                crate::gui::open_browser(&url);
+                Vec::new()
+            }
+            Message::DismissUpdate(tag) => {
+                self.update_notice = None;
+                self.ui.settings.dismissed_update_version = Some(tag);
+                if let Some(cb) = &self.on_settings {
+                    cb(self.ui.settings.clone());
+                }
                 Vec::new()
             }
             Message::Noop | Message::Restart => Vec::new(),

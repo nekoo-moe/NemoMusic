@@ -83,6 +83,10 @@ pub fn to_ui(s: &Settings) -> UiSettings {
             "vi" | "Vietnamese" | "Tiếng Việt" => Language::Vietnamese,
             _ => Language::English,
         },
+        check_for_updates: s.check_for_updates,
+        last_update_check_epoch: s.last_update_check_epoch,
+        dismissed_update_version: s.dismissed_update_version.clone(),
+        show_tips: s.show_tips,
     }
 }
 
@@ -128,6 +132,11 @@ pub fn apply_ui(s: &mut Settings, ui: &UiSettings) {
         .collect();
     ui.listening_area.label().clone_into(&mut s.listening_area);
     ui.language.label().clone_into(&mut s.language);
+    s.check_for_updates = ui.check_for_updates;
+    s.last_update_check_epoch = ui.last_update_check_epoch;
+    s.dismissed_update_version
+        .clone_from(&ui.dismissed_update_version);
+    s.show_tips = ui.show_tips;
     // A row the user never touched has no entry, so the feature's default holds.
     if ui.soundcloud != OptInState::default() || s.opt_ins.contains_key(SOUNDCLOUD_ID) {
         s.opt_ins.insert(

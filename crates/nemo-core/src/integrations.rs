@@ -80,6 +80,36 @@ pub enum IntegrationError {
     Storage(String),
 }
 
+/// A newer release found by [`IntegrationsService::check_update`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UpdateNotice {
+    /// The tag name of the newer release, e.g. "v0.3.13" or "0.3.13".
+    pub version: String,
+    /// Web URL to the release page.
+    pub url: String,
+}
+
+/// `"v0.3.6"` or `"0.3.6"` to `(0, 3, 6)`; `None` for anything else (pre-releases too).
+#[must_use]
+pub fn parse_version(tag: &str) -> Option<(u32, u32, u32)> {
+    let mut it = tag.trim().trim_start_matches('v').split('.');
+    let v = (
+        it.next()?.parse().ok()?,
+        it.next()?.parse().ok()?,
+        it.next()?.parse().ok()?,
+    );
+    it.next().is_none().then_some(v)
+}
+
+/// `true` when `latest` is newer than `current` and was not dismissed.
+#[must_use]
+pub fn is_newer(current: &str, latest: &str, dismissed: Option<&str>) -> bool {
+    match (parse_version(current), parse_version(latest)) {
+        (Some(c), Some(l)) => l > c && dismissed != Some(latest),
+        _ => false,
+    }
+}
+
 /// OS media controls, Last.fm scrobbling and Discord presence, as the settings screen uses them.
 pub trait IntegrationsService: Send + Sync {
     /// The opt-in rows of the integrations, in display order.
@@ -149,6 +179,17 @@ pub trait IntegrationsService: Send + Sync {
     /// differs from the last call. Discord presence uses it for `Away`, `Browsing` and the
     /// sleep timer tooltip.
     fn window_context(&self, _context: WindowContext) {}
+
+    /// Check whether a newer release is available.
+    ///
+    /// Silently returns `None` on any network failure or rate limit.
+    fn check_update(
+        &self,
+        _current: &str,
+        _dismissed: Option<&str>,
+    ) -> BoxFuture<'static, Option<UpdateNotice>> {
+        Box::pin(std::future::ready(None))
+    }
 }
 
 /// An integrations service with nothing behind it: every switch is off, nothing is offered and
@@ -218,6 +259,7 @@ mod tests {
 
     use super::{
         IntegrationError, IntegrationsService, LastFmStatus, NativeWindow, NoIntegrations,
+        is_newer, parse_version,
     };
     use crate::secret::Secret;
 
@@ -260,5 +302,20 @@ mod tests {
             ready(s.lastfm_disconnect()),
             Some(Err(IntegrationError::Unavailable(_)))
         ));
+    }
+
+    #[test]
+    fn version_parsing_and_newer_check() {
+        assert_eq!(parse_version("0.3.5"), Some((0, 3, 5)));
+        assert_eq!(parse_version("v0.3.6"), Some((0, 3, 6)));
+        assert_eq!(parse_version("v0.4.0-rc1"), None);
+        assert_eq!(parse_version("invalid"), None);
+
+        assert!(is_newer("0.3.5", "v0.3.6", None));
+        assert!(!is_newer("0.3.5", "v0.3.5", None));
+        assert!(!is_newer("0.3.6", "v0.3.5", None));
+        assert!(!is_newer("0.3.5", "v0.4.0-rc1", None));
+        assert!(!is_newer("0.3.5", "v0.3.6", Some("v0.3.6")));
+        assert!(is_newer("0.3.5", "v0.3.6", Some("v0.3.5")));
     }
 }

@@ -363,6 +363,21 @@ pub(super) fn done(app: &App, width: f32) -> Element<'_, Message> {
             .into(),
         );
     }
+    rows.push(setting_row(
+        width,
+        crate::i18n::t(lang, "Check for updates", "Kiểm tra bản cập nhật"),
+        Some(
+            crate::i18n::t(
+                lang,
+                "Check GitHub Releases at most once a day. Only sends User-Agent.",
+                "Kiểm tra bản phát hành trên GitHub tối đa 1 lần/ngày. Chỉ gửi User-Agent.",
+            )
+            .to_string(),
+        ),
+        switch_with(lang, app.ui.settings.check_for_updates, |on| {
+            Message::Ui(Event::Setting(SettingChange::CheckForUpdates(on)))
+        }),
+    ));
     column![
         heading(dt.title, None, width),
         vspace(gap::MD),
