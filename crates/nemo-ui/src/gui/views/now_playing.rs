@@ -51,16 +51,25 @@ fn styled(app: &App, w: u32, h: u32) -> Element<'_, Message> {
     }
 }
 
-/// The cover grows from 86% to 100% with the page fade: it seems to come out of the capsule.
-fn grow<'a>(app: &App, cover: Element<'a, Message>) -> Element<'a, Message> {
-    let p = if app.anim.now_playing.value > 0.001 || matches!(app.ui.route(), Route::NowPlaying) {
+/// Progress of a part that starts after `start` (0..1) of the sheet's rise.
+fn after(p: f32, start: f32) -> f32 {
+    ((p - start) / (1.0 - start)).clamp(0.0, 1.0)
+}
+
+fn np_progress(app: &App) -> f32 {
+    if app.anim.now_playing.value > 0.001 || matches!(app.ui.route(), Route::NowPlaying) {
         app.anim.now_playing.value.clamp(0.0, 1.0)
     } else {
         app.anim.page()
-    };
+    }
+}
+
+/// The cover grows from 86% to 100% with the page fade: it seems to come out of the capsule.
+fn grow<'a>(app: &App, cover: Element<'a, Message>) -> Element<'a, Message> {
+    let p = np_progress(app);
     Fx::new(cover)
         .passive()
-        .scale(anim::GROW_FROM + (1.0 - anim::GROW_FROM) * p)
+        .scale(anim::GROW_FROM + (1.0 - anim::GROW_FROM) * after(p, 0.0))
         .into()
 }
 
@@ -128,7 +137,12 @@ fn with_timing<'a>(app: &'a App, page: Element<'a, Message>, top: f32) -> Elemen
 fn titles(app: &App, width: f32, centered: bool) -> Element<'_, Message> {
     let lang = app.ui.settings.language;
     let (title, artist) = app.ui.snapshot.current.as_ref().map_or_else(
-        || (crate::i18n::t(lang, "Nothing playing", "Chưa phát bài nào").to_owned(), String::new()),
+        || {
+            (
+                crate::i18n::t(lang, "Nothing playing", "Chưa phát bài nào").to_owned(),
+                String::new(),
+            )
+        },
         |t| (t.title.clone(), format::artists(&t.artists)),
     );
     let (ts, as_) = if centered {
@@ -162,11 +176,8 @@ fn wide(app: &App, w: u32, h: u32) -> Element<'_, Message> {
     #[allow(clippy::cast_precision_loss)]
     let (art, lyrics_w) = (art as f32, lyrics_w as f32);
 
-    let left = column![
-        grow(
-            app,
-            super::pane::breathing(app, cover_art(app, art, shape::xl()))
-        ),
+    let p = np_progress(app);
+    let controls = column![
         Space::new().height(gap::XL),
         titles(app, art, false),
         Space::new().height(gap::LG),
@@ -175,11 +186,26 @@ fn wide(app: &App, w: u32, h: u32) -> Element<'_, Message> {
         container(controls::transport(app, 56.0)).center_x(Length::Fill),
     ]
     .width(Length::Fixed(art));
+    let controls_fx =
+        Fx::new(controls)
+            .passive()
+            .entrance(after(p, 0.35), 12.0, Color::TRANSPARENT);
 
-    let right = lyrics_panel(app, lyrics_w, lyrics_viewport_height(w, h));
+    let left = column![
+        grow(
+            app,
+            super::pane::breathing(app, cover_art(app, art, shape::xl()))
+        ),
+        Element::from(controls_fx),
+    ]
+    .width(Length::Fixed(art));
+
+    let right = Fx::new(lyrics_panel(app, lyrics_w, lyrics_viewport_height(w, h)))
+        .passive()
+        .entrance(after(p, 0.35), 12.0, Color::TRANSPARENT);
     // The art keeps the left, the lyrics the right 58 to 66% of the window: the room that is
     // left over sits between them, never at the window edges.
-    let body = row![left, Space::new().width(Length::Fill), right]
+    let body = row![left, Space::new().width(Length::Fill), Element::from(right)]
         .width(Length::Fill)
         .align_y(Alignment::Center);
     let page = column![
@@ -200,6 +226,7 @@ fn compact(app: &App, w: u32, h: u32) -> Element<'_, Message> {
     #[allow(clippy::cast_precision_loss)]
     let (art, width) = (art as f32, (w as f32 - 2.0 * gap::XL).min(480.0));
 
+    let p = np_progress(app);
     let tab = |text: &'static str, which: CompactTab| {
         let on = app.compact_tab == which;
         let idle = if on {
@@ -232,11 +259,7 @@ fn compact(app: &App, w: u32, h: u32) -> Element<'_, Message> {
         CompactTab::Lyrics => compact_lyrics(app, width),
         CompactTab::Queue => compact_queue(app, width),
     };
-    let body = column![
-        grow(
-            app,
-            super::pane::breathing(app, cover_art(app, art, shape::xl()))
-        ),
+    let controls = column![
         Space::new().height(gap::MD),
         titles(app, width, true),
         Space::new().height(gap::MD),
@@ -246,8 +269,14 @@ fn compact(app: &App, w: u32, h: u32) -> Element<'_, Message> {
         Space::new().height(gap::SM),
         container(
             row![
-                tab(crate::i18n::t(app.ui.settings.language, "Lyrics", "Lời bài hát"), CompactTab::Lyrics),
-                tab(crate::i18n::t(app.ui.settings.language, "Queue", "Hàng đợi"), CompactTab::Queue)
+                tab(
+                    crate::i18n::t(app.ui.settings.language, "Lyrics", "Lời bài hát"),
+                    CompactTab::Lyrics
+                ),
+                tab(
+                    crate::i18n::t(app.ui.settings.language, "Queue", "Hàng đợi"),
+                    CompactTab::Queue
+                )
             ]
             .spacing(gap::SM)
         )
@@ -256,6 +285,21 @@ fn compact(app: &App, w: u32, h: u32) -> Element<'_, Message> {
         container(lower)
             .width(Length::Fixed(width))
             .height(Length::Fill),
+    ]
+    .align_x(Alignment::Center)
+    .width(Length::Fill);
+
+    let controls_fx =
+        Fx::new(controls)
+            .passive()
+            .entrance(after(p, 0.35), 12.0, Color::TRANSPARENT);
+
+    let body = column![
+        grow(
+            app,
+            super::pane::breathing(app, cover_art(app, art, shape::xl()))
+        ),
+        Element::from(controls_fx),
     ]
     .align_x(Alignment::Center)
     .width(Length::Fill);
@@ -269,7 +313,10 @@ fn compact_lyrics(app: &App, width: f32) -> Element<'_, Message> {
         return lyr::lyrics_status(app, width);
     };
     if doc.instrumental {
-        return lyr::status_text(crate::i18n::t(app.ui.settings.language, "Instrumental", "Không lời"), None);
+        return lyr::status_text(
+            crate::i18n::t(app.ui.settings.language, "Instrumental", "Không lời"),
+            None,
+        );
     }
     column![
         lyr::three_lines(app, doc, width),

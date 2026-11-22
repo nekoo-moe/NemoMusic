@@ -44,7 +44,12 @@ pub(super) fn daily_section<'a>(
                     row![
                         label(name.clone(), type_scale::TITLE_MD, true, col(ink)),
                         Space::new().width(Length::Fill),
-                        label(crate::i18n::t(lang, "Search this mood", "Tìm kiếm tâm trạng này"), type_scale::BODY_SM, false, col(ink)),
+                        label(
+                            crate::i18n::t(lang, "Search this mood", "Tìm kiếm tâm trạng này"),
+                            type_scale::BODY_SM,
+                            false,
+                            col(ink)
+                        ),
                         Space::new().width(gap::SM),
                         crate::gui::style::icon(Icon::ArrowForward, 18.0, col(ink)),
                     ]

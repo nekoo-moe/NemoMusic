@@ -93,10 +93,28 @@ pub(super) fn left_pane(app: &App, width: f32, _h: u32) -> Element<'_, Message> 
     for &entry in app.source.nav() {
         let on = selected == Some(entry);
         let glyph = match entry {
-            NavEntry::Home => if on { Icon::HomeFill } else { Icon::Home },
+            NavEntry::Home => {
+                if on {
+                    Icon::HomeFill
+                } else {
+                    Icon::Home
+                }
+            }
             NavEntry::Explore => Icon::Explore,
-            NavEntry::Search => if on { Icon::SearchFill } else { Icon::Search },
-            _ => if on { Icon::LibraryFill } else { Icon::Library },
+            NavEntry::Search => {
+                if on {
+                    Icon::SearchFill
+                } else {
+                    Icon::Search
+                }
+            }
+            _ => {
+                if on {
+                    Icon::LibraryFill
+                } else {
+                    Icon::Library
+                }
+            }
         };
         let text = entry.label_localized(lang);
         entries = entries.push(nav_pill(app, glyph, text, on, entry.route(), wide));

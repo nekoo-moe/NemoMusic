@@ -210,7 +210,12 @@ pub fn opt_in_row_with<'a>(
 
 /// The switch with its `On` / `Off` text (state is never colour alone). Only the toggle is
 /// focusable, so Enter or Space lands on it.
-fn switch<'a>(lang: crate::settings::Language, on: bool, ask: Message, turn_off: Message) -> Element<'a, Message> {
+fn switch<'a>(
+    lang: crate::settings::Language,
+    on: bool,
+    ask: Message,
+    turn_off: Message,
+) -> Element<'a, Message> {
     let toggle = toggler(on)
         .on_toggle(move |v| if v { ask.clone() } else { turn_off.clone() })
         .size(24.0)
@@ -238,7 +243,11 @@ fn switch<'a>(lang: crate::settings::Language, on: bool, ask: Message, turn_off:
 }
 
 /// "What is sent", "To" and "Risk", each a heading over its wrapped text.
-fn facts<'a>(lang: crate::settings::Language, info: &'a OptInInfo, width: f32) -> Element<'a, Message> {
+fn facts<'a>(
+    lang: crate::settings::Language,
+    info: &'a OptInInfo,
+    width: f32,
+) -> Element<'a, Message> {
     let fact = |heading: &'static str, text: String| -> Element<'a, Message> {
         column![
             label(
@@ -265,7 +274,12 @@ fn facts<'a>(lang: crate::settings::Language, info: &'a OptInInfo, width: f32) -
 }
 
 /// The confirmation panel: the same three texts, then "Turn on" and "Cancel" drawn alike.
-fn panel(lang: crate::settings::Language, info: &OptInInfo, actions: OptInActions, width: f32) -> Element<'_, Message> {
+fn panel(
+    lang: crate::settings::Language,
+    info: &OptInInfo,
+    actions: OptInActions,
+    width: f32,
+) -> Element<'_, Message> {
     let text_w = (width - 2.0 * gap::LG).max(MIN_TEXT_W);
     let on_txt = crate::i18n::t(lang, copy::OPT_IN_TURN_ON, "Bật");
     let cancel_txt = crate::i18n::t(lang, copy::OPT_IN_CANCEL, "Hủy");

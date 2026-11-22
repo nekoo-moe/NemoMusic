@@ -79,13 +79,13 @@ fn tab_body(app: &App, grid: layout::Grid, content_w: f32) -> Element<'_, Messag
                         crate::i18n::t(
                             lang,
                             "Could not load your library. Press Refresh (F5) to try again.",
-                            "Không thể tải thư viện của bạn. Nhấn Làm mới (F5) để thử lại."
+                            "Không thể tải thư viện của bạn. Nhấn Làm mới (F5) để thử lại.",
                         )
                     } else {
                         crate::i18n::t(
                             lang,
                             "Nothing saved in your account yet.",
-                            "Chưa có nội dung nào được lưu trong tài khoản của bạn."
+                            "Chưa có nội dung nào được lưu trong tài khoản của bạn.",
                         )
                     };
                     c = c.push(note(app, line, None));
@@ -105,7 +105,7 @@ fn tab_body(app: &App, grid: layout::Grid, content_w: f32) -> Element<'_, Messag
                     crate::i18n::t(
                         lang,
                         "No playlists in your account yet.",
-                        "Chưa có danh sách phát nào trong tài khoản của bạn."
+                        "Chưa có danh sách phát nào trong tài khoản của bạn.",
                     ),
                 ));
             } else {
@@ -130,7 +130,11 @@ fn tab_body(app: &App, grid: layout::Grid, content_w: f32) -> Element<'_, Messag
                     sorted(data.artists, app.lib_sort),
                     grid,
                     content_w,
-                    crate::i18n::t(lang, "No followed artists yet.", "Chưa theo dõi nghệ sĩ nào."),
+                    crate::i18n::t(
+                        lang,
+                        "No followed artists yet.",
+                        "Chưa theo dõi nghệ sĩ nào.",
+                    ),
                 ));
             } else {
                 c = c.push(sign_in_note(app, content_w));
@@ -146,7 +150,11 @@ fn tab_body(app: &App, grid: layout::Grid, content_w: f32) -> Element<'_, Messag
                     |t| format::artists(&t.artists),
                 );
                 c = c
-                    .push(section_title(crate::i18n::t(lang, "Liked songs", "Bài hát đã thích")))
+                    .push(section_title(crate::i18n::t(
+                        lang,
+                        "Liked songs",
+                        "Bài hát đã thích",
+                    )))
                     .push(vspace(gap::SM))
                     .push(song_block(app, liked, ListSource::Account, content_w, grid))
                     .push(vspace(gap::XL));
@@ -156,11 +164,19 @@ fn tab_body(app: &App, grid: layout::Grid, content_w: f32) -> Element<'_, Messag
             let local = local_tracks(app);
             if !local.is_empty() {
                 c = c
-                    .push(section_title(crate::i18n::t(lang, "On this computer", "Trên máy tính này")))
+                    .push(section_title(crate::i18n::t(
+                        lang,
+                        "On this computer",
+                        "Trên máy tính này",
+                    )))
                     .push(vspace(gap::SM))
                     .push(song_block(app, local, ListSource::Library, content_w, grid));
             } else if signed_in && app.local_tracks.is_empty() {
-                c = c.push(note(app, crate::i18n::t(lang, "No songs yet.", "Chưa có bài hát nào."), None));
+                c = c.push(note(
+                    app,
+                    crate::i18n::t(lang, "No songs yet.", "Chưa có bài hát nào."),
+                    None,
+                ));
             }
         }
         LibTab::Local => {
@@ -190,7 +206,10 @@ fn header(app: &App) -> Element<'_, Message> {
 fn tabs(app: &App, width: f32) -> Element<'_, Message> {
     let lang = app.ui.settings.language;
     let mut r = row![].spacing(gap::SM).align_y(Alignment::Center);
-    let labels: Vec<&str> = LibTab::ALL.iter().map(|t| t.label_localized(lang)).collect();
+    let labels: Vec<&str> = LibTab::ALL
+        .iter()
+        .map(|t| t.label_localized(lang))
+        .collect();
     let selected = LibTab::ALL
         .iter()
         .position(|t| *t == app.lib_tab)
@@ -213,8 +232,12 @@ pub(super) fn sort_and_layout(app: &App) -> Element<'_, Message> {
     let lang = app.ui.settings.language;
     let mut r = row![].spacing(gap::SM).align_y(Alignment::Center);
     let sort_label = match lang {
-        crate::settings::Language::Vietnamese => format!("Sắp xếp: {}", app.lib_sort.label_localized(lang)),
-        crate::settings::Language::English => format!("Sort: {}", app.lib_sort.label_localized(lang)),
+        crate::settings::Language::Vietnamese => {
+            format!("Sắp xếp: {}", app.lib_sort.label_localized(lang))
+        }
+        crate::settings::Language::English => {
+            format!("Sort: {}", app.lib_sort.label_localized(lang))
+        }
     };
     let sort = button(
         row![
@@ -233,8 +256,16 @@ pub(super) fn sort_and_layout(app: &App) -> Element<'_, Message> {
         crate::i18n::t(lang, "Change the sort order", "Thay đổi thứ tự sắp xếp"),
     ));
     for (layout_, glyph, tip_text) in [
-        (LibLayout::List, Icon::List, crate::i18n::t(lang, "List", "Danh sách")),
-        (LibLayout::Grid, Icon::Grid, crate::i18n::t(lang, "Grid", "Lưới")),
+        (
+            LibLayout::List,
+            Icon::List,
+            crate::i18n::t(lang, "List", "Danh sách"),
+        ),
+        (
+            LibLayout::Grid,
+            Icon::Grid,
+            crate::i18n::t(lang, "Grid", "Lưới"),
+        ),
     ] {
         let on = app.lib_layout == layout_;
         r = r.push(tip(
@@ -290,8 +321,11 @@ fn sign_in_note(app: &App, _width: f32) -> Element<'_, Message> {
         crate::i18n::t(
             lang,
             "Sign in to see the playlists, albums, artists and liked songs of your YouTube Music account.",
-            "Đăng nhập để xem danh sách phát, album, nghệ sĩ và bài hát đã thích trong tài khoản YouTube Music của bạn."
+            "Đăng nhập để xem danh sách phát, album, nghệ sĩ và bài hát đã thích trong tài khoản YouTube Music của bạn.",
         ),
-        Some((crate::i18n::t(lang, "Sign in", "Đăng nhập"), Message::Account(AccountMsg::Open))),
+        Some((
+            crate::i18n::t(lang, "Sign in", "Đăng nhập"),
+            Message::Account(AccountMsg::Open),
+        )),
     )
 }

@@ -193,7 +193,12 @@ pub(super) fn top_bar(app: &App, center_w: u32) -> Element<'_, Message> {
             row![
                 icon(Icon::Search, 20.0, dim),
                 Space::new().width(gap::SM),
-                label(crate::i18n::t(lang, "Search", "Tìm kiếm"), type_scale::BODY_MD, false, dim),
+                label(
+                    crate::i18n::t(lang, "Search", "Tìm kiếm"),
+                    type_scale::BODY_MD,
+                    false,
+                    dim
+                ),
                 Space::new().width(Length::Fixed(72.0)),
             ]
             .align_y(Alignment::Center)

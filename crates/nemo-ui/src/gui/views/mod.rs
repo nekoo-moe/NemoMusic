@@ -28,7 +28,7 @@ pub mod shell;
 pub mod splash;
 
 use iced::widget::{container, stack};
-use iced::{Alignment, Element, Length, Padding};
+use iced::{Alignment, Color, Element, Length, Padding};
 
 use super::app::{App, Message};
 use super::fx::Fx;
@@ -36,6 +36,11 @@ use super::style::{col, gap, label};
 use crate::layout;
 use crate::route::Route;
 use crate::theme::{color, shape, type_scale};
+
+/// How far the page behind the Now Playing sheet shrinks (design.md section 8).
+const SHELL_BACK: f32 = 0.04;
+/// Darkness of the scrim over the page at the end of the rise.
+const SCRIM_ALPHA: f32 = 0.45;
 
 /// The whole window.
 pub fn root(app: &App) -> Element<'_, Message> {
@@ -50,15 +55,32 @@ pub fn root(app: &App) -> Element<'_, Message> {
     } else if np_p >= 0.999 {
         now_playing::view(app, w, h)
     } else {
-        let shell_el = shell::view(app, w, h);
-        let mut np_fx = Fx::new(now_playing::view(app, w, h))
-            .entrance(np_p, 20.0, col(color::surface()));
-
+        // The page steps back and dims while the sheet rises over it.
+        #[allow(clippy::cast_precision_loss)]
+        let h_px = h as f32; // window height is small, exact in f32
+        let shell_el = Fx::new(shell::view(app, w, h))
+            .passive()
+            .scale(1.0 - SHELL_BACK * np_p);
+        let scrim = container(iced::widget::Space::new())
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .style(move |_| container::Style {
+                background: Some(
+                    Color {
+                        a: SCRIM_ALPHA * np_p,
+                        ..col(color::SCRIM)
+                    }
+                    .into(),
+                ),
+                ..container::Style::default()
+            });
+        // Full travel: the sheet starts below the window, so it never "pops" in.
+        let mut sheet =
+            Fx::new(now_playing::view(app, w, h)).entrance(np_p, h_px, Color::TRANSPARENT);
         if !is_np {
-            np_fx = np_fx.passive();
+            sheet = sheet.passive();
         }
-
-        stack![shell_el, np_fx]
+        stack![shell_el, scrim, sheet]
             .width(Length::Fill)
             .height(Length::Fill)
             .into()

@@ -72,7 +72,12 @@ fn theme_swatches(app: &App, inner: f32) -> Element<'_, Message> {
                 ]
                 .align_y(Alignment::Center),
                 vspace(gap::SM),
-                label(choice.label_localized(s.language), type_scale::BODY_MD, true, name_ink),
+                label(
+                    choice.label_localized(s.language),
+                    type_scale::BODY_MD,
+                    true,
+                    name_ink
+                ),
                 label(
                     fit(
                         choice.note_localized(s.language),
@@ -130,12 +135,25 @@ fn background_card(app: &App, width: f32) -> Element<'_, Message> {
     let inner = width - 2.0 * CARD_PAD;
     let beat = s.heartbeat_available(app.ui.reduced_motion);
     let beat_helper = if beat {
-        t(lang, HEARTBEAT_HELPER, "Chuyển động nhẹ nhàng theo nhịp tim khi có bài hát đang phát.").to_owned()
+        t(
+            lang,
+            HEARTBEAT_HELPER,
+            "Chuyển động nhẹ nhàng theo nhịp tim khi có bài hát đang phát.",
+        )
+        .to_owned()
     } else {
         format!(
             "{} {}",
-            t(lang, HEARTBEAT_HELPER, "Chuyển động nhẹ nhàng theo nhịp tim khi có bài hát đang phát."),
-            t(lang, words::HEARTBEAT_OFF_NOTE, "Tắt khi Giảm chuyển động được bật.")
+            t(
+                lang,
+                HEARTBEAT_HELPER,
+                "Chuyển động nhẹ nhàng theo nhịp tim khi có bài hát đang phát."
+            ),
+            t(
+                lang,
+                words::HEARTBEAT_OFF_NOTE,
+                "Tắt khi Giảm chuyển động được bật."
+            )
         )
     };
     let beat_mode = if beat {
@@ -149,13 +167,22 @@ fn background_card(app: &App, width: f32) -> Element<'_, Message> {
             head(
                 t(lang, words::BACKGROUND_TITLE, "Nền cửa sổ"),
                 type_scale::TITLE_SM,
-                t(lang, words::BACKGROUND_HELPER, "Cách cửa sổ tô màu phía sau các thẻ và danh sách."),
+                t(
+                    lang,
+                    words::BACKGROUND_HELPER,
+                    "Cách cửa sổ tô màu phía sau các thẻ và danh sách.",
+                ),
                 inner,
             ),
             switch_row(
                 inner,
                 t(lang, SONG_COLOUR_LABEL, "Phối màu theo bài hát đang phát"),
-                t(lang, SONG_COLOUR_HELPER, "Toàn bộ cửa sổ lấy màu từ ảnh bìa của bài hát đang phát.").to_owned(),
+                t(
+                    lang,
+                    SONG_COLOUR_HELPER,
+                    "Toàn bộ cửa sổ lấy màu từ ảnh bìa của bài hát đang phát.",
+                )
+                .to_owned(),
                 switch(
                     lang,
                     s.song_colour_theme,
@@ -167,7 +194,12 @@ fn background_card(app: &App, width: f32) -> Element<'_, Message> {
                 inner,
                 t(lang, HEARTBEAT_LABEL, "Nhịp thở nhẹ nhàng"),
                 beat_helper,
-                switch(lang, s.song_heartbeat, beat_mode, SettingChange::SongHeartbeat),
+                switch(
+                    lang,
+                    s.song_heartbeat,
+                    beat_mode,
+                    SettingChange::SongHeartbeat,
+                ),
             ),
         ],
     )
@@ -225,13 +257,21 @@ fn window_glass_card(app: &App, width: f32) -> Element<'_, Message> {
         let mut lines = column![head(
             t(lang, words::WINDOW_GLASS_TITLE, "Kính mờ cửa sổ"),
             type_scale::TITLE_SM,
-            t(lang, words::WINDOW_GLASS_HELPER, "Hiệu ứng nhìn xuyên thấu phía sau cửa sổ ứng dụng."),
+            t(
+                lang,
+                words::WINDOW_GLASS_HELPER,
+                "Hiệu ứng nhìn xuyên thấu phía sau cửa sổ ứng dụng."
+            ),
             w
         )]
         .spacing(gap::XS);
         if needs_restart {
             lines = lines.push(paragraph(
-                t(lang, words::RESTART_HELPER, "Khởi động lại NemoMusic để áp dụng thay đổi."),
+                t(
+                    lang,
+                    words::RESTART_HELPER,
+                    "Khởi động lại NemoMusic để áp dụng thay đổi.",
+                ),
                 type_scale::BODY_SM,
                 col(color::on_surface()),
                 w,
@@ -262,7 +302,11 @@ fn window_glass_card(app: &App, width: f32) -> Element<'_, Message> {
                     head(
                         t(lang, words::OPACITY_TITLE, "Độ mờ"),
                         type_scale::BODY_MD,
-                        t(lang, words::OPACITY_HELPER, "Độ trong suốt của bề mặt kính."),
+                        t(
+                            lang,
+                            words::OPACITY_HELPER,
+                            "Độ trong suốt của bề mặt kính.",
+                        ),
                         w,
                     )
                 },
@@ -270,7 +314,11 @@ fn window_glass_card(app: &App, width: f32) -> Element<'_, Message> {
                 204.0,
             ),
             paragraph(
-                t(lang, words::WINDOW_GLASS_BLUR, "Độ mờ kính được hỗ trợ tùy theo trình quản lý cửa sổ của hệ điều hành."),
+                t(
+                    lang,
+                    words::WINDOW_GLASS_BLUR,
+                    "Độ mờ kính được hỗ trợ tùy theo trình quản lý cửa sổ của hệ điều hành.",
+                ),
                 type_scale::BODY_SM,
                 col(color::on_surface_variant()),
                 inner,
@@ -287,11 +335,21 @@ fn motion_card(app: &App, width: f32) -> Element<'_, Message> {
     card(
         width,
         vec![
-            head(t(lang, words::MOTION_TITLE, "Chuyển động"), type_scale::TITLE_SM, "", inner),
+            head(
+                t(lang, words::MOTION_TITLE, "Chuyển động"),
+                type_scale::TITLE_SM,
+                "",
+                inner,
+            ),
             switch_row(
                 inner,
                 t(lang, "Reduce motion", "Giảm chuyển động"),
-                t(lang, words::REDUCE_MOTION_HELPER, "Giảm tối đa các hiệu ứng hoạt ảnh chuyển động trong ứng dụng.").to_owned(),
+                t(
+                    lang,
+                    words::REDUCE_MOTION_HELPER,
+                    "Giảm tối đa các hiệu ứng hoạt ảnh chuyển động trong ứng dụng.",
+                )
+                .to_owned(),
                 switch(
                     lang,
                     s.reduce_motion,
@@ -302,7 +360,12 @@ fn motion_card(app: &App, width: f32) -> Element<'_, Message> {
             switch_row(
                 inner,
                 t(lang, "Reduce transparency", "Giảm độ trong suốt"),
-                t(lang, words::REDUCE_TRANSPARENCY_HELPER, "Tắt các bề mặt trong suốt để tăng độ tương phản và dễ đọc.").to_owned(),
+                t(
+                    lang,
+                    words::REDUCE_TRANSPARENCY_HELPER,
+                    "Tắt các bề mặt trong suốt để tăng độ tương phản và dễ đọc.",
+                )
+                .to_owned(),
                 switch(
                     lang,
                     s.reduce_transparency,
@@ -324,11 +387,26 @@ pub(super) fn page(app: &App, width: f32) -> Element<'_, Message> {
         seg_card(
             app,
             width,
-            (t(lang, "Surface", "Chế độ nền"), t(lang, words::SURFACE_HELPER, "Màu sắc bề mặt chủ đạo của ứng dụng.")),
+            (
+                t(lang, "Surface", "Chế độ nền"),
+                t(
+                    lang,
+                    words::SURFACE_HELPER,
+                    "Màu sắc bề mặt chủ đạo của ứng dụng."
+                )
+            ),
             &[
                 (BaseMode::Dark, t(lang, "Dark", "Tối"), Some(Icon::DarkMode)),
-                (BaseMode::Amoled, t(lang, "AMOLED black", "Đen AMOLED"), Some(Icon::Tune)),
-                (BaseMode::Light, t(lang, "Light", "Sáng"), Some(Icon::LightMode)),
+                (
+                    BaseMode::Amoled,
+                    t(lang, "AMOLED black", "Đen AMOLED"),
+                    Some(Icon::Tune)
+                ),
+                (
+                    BaseMode::Light,
+                    t(lang, "Light", "Sáng"),
+                    Some(Icon::LightMode)
+                ),
             ],
             s.base,
             SettingChange::Base,
@@ -337,10 +415,21 @@ pub(super) fn page(app: &App, width: f32) -> Element<'_, Message> {
         seg_card(
             app,
             width,
-            (t(lang, "Accent intensity", "Cường độ màu nhấn"), t(lang, words::ACCENT_HELPER, "Độ nổi bật của các điểm nhấn màu.")),
+            (
+                t(lang, "Accent intensity", "Cường độ màu nhấn"),
+                t(
+                    lang,
+                    words::ACCENT_HELPER,
+                    "Độ nổi bật của các điểm nhấn màu."
+                )
+            ),
             &[
                 (AccentIntensity::Soft, t(lang, "Soft", "Dịu"), None),
-                (AccentIntensity::Standard, t(lang, "Standard", "Tiêu chuẩn"), None),
+                (
+                    AccentIntensity::Standard,
+                    t(lang, "Standard", "Tiêu chuẩn"),
+                    None
+                ),
                 (AccentIntensity::Vivid, t(lang, "Vivid", "Rực rỡ"), None),
             ],
             s.accent_intensity,
@@ -349,7 +438,14 @@ pub(super) fn page(app: &App, width: f32) -> Element<'_, Message> {
         seg_card(
             app,
             width,
-            (t(lang, "Corners", "Bo góc"), t(lang, words::CORNERS_HELPER, "Mức độ bo tròn các góc thẻ và nút.")),
+            (
+                t(lang, "Corners", "Bo góc"),
+                t(
+                    lang,
+                    words::CORNERS_HELPER,
+                    "Mức độ bo tròn các góc thẻ và nút."
+                )
+            ),
             &[
                 (CornerStyle::Sharp, t(lang, "Sharp", "Vuông"), None),
                 (CornerStyle::Soft, t(lang, "Soft", "Vừa"), None),
@@ -361,10 +457,25 @@ pub(super) fn page(app: &App, width: f32) -> Element<'_, Message> {
         seg_card(
             app,
             width,
-            (t(lang, "Now Playing style", "Kiểu hiển thị Now Playing"), t(lang, words::NOW_PLAYING_HELPER, "Giao diện màn hình đang phát.")),
+            (
+                t(lang, "Now Playing style", "Kiểu hiển thị Now Playing"),
+                t(
+                    lang,
+                    words::NOW_PLAYING_HELPER,
+                    "Giao diện màn hình đang phát."
+                )
+            ),
             &[
-                (NowPlayingStyle::Classic, t(lang, "Classic", "Cổ điển"), None),
-                (NowPlayingStyle::M3Expressive, t(lang, "Material 3 Expressive", "Material 3 Biểu cảm"), None),
+                (
+                    NowPlayingStyle::Classic,
+                    t(lang, "Classic", "Cổ điển"),
+                    None
+                ),
+                (
+                    NowPlayingStyle::M3Expressive,
+                    t(lang, "Material 3 Expressive", "Material 3 Biểu cảm"),
+                    None
+                ),
             ],
             s.now_playing_style,
             SettingChange::NowPlayingStyle,

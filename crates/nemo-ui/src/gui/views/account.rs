@@ -294,7 +294,10 @@ fn signed_out(app: &App, service_busy: bool, width: f32) -> Element<'_, Message>
             row![
                 label(copy::ACCOUNT_NEEDS_NOTICE, type_scale::BODY_SM, false, dim),
                 Space::new().width(Length::Fill),
-                text_button(crate::i18n::t(lang, "Review notice", "Xem thông báo"), Message::Ui(Event::TosReview)),
+                text_button(
+                    crate::i18n::t(lang, "Review notice", "Xem thông báo"),
+                    Message::Ui(Event::TosReview)
+                ),
             ]
             .align_y(Alignment::Center),
         );
@@ -499,7 +502,10 @@ fn signed_in<'a>(app: &'a App, info: &AccountInfo, width: f32) -> Element<'a, Me
                     Message::Account(AccountMsg::SignOut)
                 ),
                 Space::new().width(gap::SM),
-                text_button(crate::i18n::t(lang, "Cancel", "Hủy"), Message::Account(AccountMsg::CancelSignOut)),
+                text_button(
+                    crate::i18n::t(lang, "Cancel", "Hủy"),
+                    Message::Account(AccountMsg::CancelSignOut)
+                ),
             ]
             .align_y(Alignment::Center),
         );

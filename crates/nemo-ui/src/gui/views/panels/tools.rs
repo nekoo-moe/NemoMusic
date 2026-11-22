@@ -96,18 +96,30 @@ pub fn tools_panel(app: &App) -> Element<'_, Message> {
                         timer_left(d.saturating_duration_since(Instant::now()))
                     ),
                 },
-                None => crate::i18n::t(lang, "Pauses when this song ends", "Tạm dừng khi bài hát này kết thúc").to_owned(),
+                None => crate::i18n::t(
+                    lang,
+                    "Pauses when this song ends",
+                    "Tạm dừng khi bài hát này kết thúc",
+                )
+                .to_owned(),
             };
             row![
                 label(text, type_scale::BODY_SM, false, col(color::on_surface())),
                 Space::new().width(Length::Fill),
-                text_button(crate::i18n::t(lang, "Turn off", "Tắt"), Message::Sleep(None)),
+                text_button(
+                    crate::i18n::t(lang, "Turn off", "Tắt"),
+                    Message::Sleep(None)
+                ),
             ]
             .align_y(Alignment::Center)
             .into()
         }
         None => label(
-            crate::i18n::t(lang, "Off. Playback pauses by itself when it ends.", "Đang tắt. Tự động tạm dừng khi kết thúc."),
+            crate::i18n::t(
+                lang,
+                "Off. Playback pauses by itself when it ends.",
+                "Đang tắt. Tự động tạm dừng khi kết thúc.",
+            ),
             type_scale::BODY_SM,
             false,
             dim,
@@ -135,19 +147,19 @@ pub fn tools_panel(app: &App) -> Element<'_, Message> {
         crate::i18n::t(
             lang,
             "Off. A different speed resamples the audio and ends bit-perfect output, so it needs engine support first.",
-            "Đang tắt. Tốc độ khác sẽ lấy mẫu lại âm thanh và mất chuẩn bit-perfect, do đó cần hỗ trợ từ engine trước."
+            "Đang tắt. Tốc độ khác sẽ lấy mẫu lại âm thanh và mất chuẩn bit-perfect, do đó cần hỗ trợ từ engine trước.",
         )
     } else if app.speed_percent == 100 {
         crate::i18n::t(
             lang,
             "Off keeps the audio bit-perfect.",
-            "Tắt để giữ âm thanh chuẩn bit-perfect."
+            "Tắt để giữ âm thanh chuẩn bit-perfect.",
         )
     } else {
         crate::i18n::t(
             lang,
             "Speed is on: the audio is resampled and is not bit-perfect.",
-            "Đang bật tốc độ: âm thanh được lấy mẫu lại và không còn bit-perfect."
+            "Đang bật tốc độ: âm thanh được lấy mẫu lại và không còn bit-perfect.",
         )
     };
 
@@ -201,7 +213,12 @@ pub fn tools_panel(app: &App) -> Element<'_, Message> {
             Some("F"),
             Message::ToggleFullScreen
         ),
-        action(Icon::Mini, crate::i18n::t(lang, "Mini player", "Trình phát thu nhỏ"), Some("M"), Message::ToggleMini),
+        action(
+            Icon::Mini,
+            crate::i18n::t(lang, "Mini player", "Trình phát thu nhỏ"),
+            Some("M"),
+            Message::ToggleMini
+        ),
         action(
             Icon::Keyboard,
             crate::i18n::t(lang, "Keyboard shortcuts", "Phím tắt bàn phím"),

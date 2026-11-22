@@ -118,8 +118,18 @@ fn all<'a>(app: &'a App, frame: &section::Frame) -> Element<'a, Message> {
         c = c.push(status(
             Icon::Info,
             crate::i18n::t(lang, "Search did not work", "Tìm kiếm không thành công"),
-            format!("{e} {}", crate::i18n::t(lang, "Check your connection and try again.", "Kiểm tra kết nối mạng và thử lại.")),
-            Some((crate::i18n::t(lang, "Try again", "Thử lại"), Message::Ui(Event::SearchRetry))),
+            format!(
+                "{e} {}",
+                crate::i18n::t(
+                    lang,
+                    "Check your connection and try again.",
+                    "Kiểm tra kết nối mạng và thử lại."
+                )
+            ),
+            Some((
+                crate::i18n::t(lang, "Try again", "Thử lại"),
+                Message::Ui(Event::SearchRetry),
+            )),
         ));
     } else {
         // Pending: the skeleton comes after its 150 ms wait.
@@ -132,8 +142,18 @@ fn all<'a>(app: &'a App, frame: &section::Frame) -> Element<'a, Message> {
         c = c.push(vspace(gap::LG)).push(status(
             Icon::Info,
             crate::i18n::t(lang, "Search did not work", "Tìm kiếm không thành công"),
-            format!("{e} {}", crate::i18n::t(lang, "Showing the previous results.", "Hiển thị kết quả trước đó.")),
-            Some((crate::i18n::t(lang, "Try again", "Thử lại"), Message::Ui(Event::SearchRetry))),
+            format!(
+                "{e} {}",
+                crate::i18n::t(
+                    lang,
+                    "Showing the previous results.",
+                    "Hiển thị kết quả trước đó."
+                )
+            ),
+            Some((
+                crate::i18n::t(lang, "Try again", "Thử lại"),
+                Message::Ui(Event::SearchRetry),
+            )),
         ));
     }
     c.into()
@@ -144,10 +164,16 @@ pub(super) fn no_results(query: &str, lang: crate::settings::Language) -> Elemen
     status(
         Icon::Search,
         match lang {
-            crate::settings::Language::Vietnamese => format!("Không tìm thấy kết quả cho \u{201c}{query}\u{201d}"),
+            crate::settings::Language::Vietnamese => {
+                format!("Không tìm thấy kết quả cho \u{201c}{query}\u{201d}")
+            }
             crate::settings::Language::English => format!("No results for \u{201c}{query}\u{201d}"),
         },
-        crate::i18n::t(lang, "Check the spelling or try fewer words.", "Kiểm tra lỗi chính tả hoặc thử ít từ hơn."),
+        crate::i18n::t(
+            lang,
+            "Check the spelling or try fewer words.",
+            "Kiểm tra lỗi chính tả hoặc thử ít từ hơn.",
+        ),
         None,
     )
 }
@@ -160,42 +186,46 @@ fn query_box(app: &App, width: f32) -> Element<'_, Message> {
     let ring = col(app.accent().primary);
     let width = width.min(560.0);
     let input = text_input(
-        crate::i18n::t(lang, "Search songs, albums, artists", "Tìm bài hát, album, nghệ sĩ"),
+        crate::i18n::t(
+            lang,
+            "Search songs, albums, artists",
+            "Tìm bài hát, album, nghệ sĩ",
+        ),
         &app.ui.search.input,
     )
-        .id(SEARCH_ID)
-        .on_input(|t| Message::Ui(Event::SearchInput(t)))
-        .on_submit(Message::Ui(Event::SearchSubmit))
-        .size(f32::from(type_scale::BODY_MD.size))
-        .font(super::super::assets::font(false))
-        .width(Length::Fixed(width))
-        .padding(Padding {
-            top: gap::MD,
-            bottom: gap::MD,
-            left: gap::XXXL,
-            right: gap::XXXL,
-        })
-        .style(move |_, status| {
-            let focused = matches!(status, text_input::Status::Focused { .. });
-            text_input::Style {
-                background: iced::Background::Color(col(color::surface_container_high())),
-                border: Border {
-                    width: if focused { 2.0 } else { 0.0 },
-                    radius: shape::FULL.into(),
-                    color: ring,
-                },
-                icon: col(color::on_surface_variant()),
-                placeholder: col(color::on_surface_variant()),
-                value: col(color::on_surface()),
-                selection: col(color::PRIMARY_FALLBACK.with_alpha(0.4)),
-            }
-        });
+    .id(SEARCH_ID)
+    .on_input(|t| Message::Ui(Event::SearchInput(t)))
+    .on_submit(Message::Ui(Event::SearchSubmit))
+    .size(f32::from(type_scale::BODY_MD.size))
+    .font(super::super::assets::font(false))
+    .width(Length::Fixed(width))
+    .padding(Padding {
+        top: gap::MD,
+        bottom: gap::MD,
+        left: gap::XXXL,
+        right: gap::XXXL,
+    })
+    .style(move |_, status| {
+        let focused = matches!(status, text_input::Status::Focused { .. });
+        text_input::Style {
+            background: iced::Background::Color(col(color::surface_container_high())),
+            border: Border {
+                width: if focused { 2.0 } else { 0.0 },
+                radius: shape::FULL.into(),
+                color: ring,
+            },
+            icon: col(color::on_surface_variant()),
+            placeholder: col(color::on_surface_variant()),
+            value: col(color::on_surface()),
+            selection: col(color::PRIMARY_FALLBACK.with_alpha(0.4)),
+        }
+    });
     let hint: Element<'_, Message> = if app.ui.search.loading {
         label(
             crate::i18n::t(lang, "Searching\u{2026}", "Đang tìm kiếm\u{2026}"),
             type_scale::BODY_SM,
             false,
-            dim
+            dim,
         )
         .into()
     } else {

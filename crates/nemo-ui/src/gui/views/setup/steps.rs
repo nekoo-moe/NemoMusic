@@ -157,9 +157,11 @@ fn reduce_motion_row(app: &App, width: f32) -> Element<'_, Message> {
         width,
         title,
         None,
-        switch_with(app.ui.settings.language, app.ui.settings.reduce_motion, |on| {
-            Message::Ui(Event::Setting(SettingChange::ReduceMotion(on)))
-        }),
+        switch_with(
+            app.ui.settings.language,
+            app.ui.settings.reduce_motion,
+            |on| Message::Ui(Event::Setting(SettingChange::ReduceMotion(on))),
+        ),
     )
 }
 
@@ -194,9 +196,21 @@ fn look_choices(app: &App, width: f32) -> Vec<Element<'_, Message>> {
             segmented(
                 app,
                 &[
-                    (BaseMode::Dark, BaseMode::Dark.label_localized(lang), Some(Icon::DarkMode)),
-                    (BaseMode::Amoled, BaseMode::Amoled.label_localized(lang), Some(Icon::Tune)),
-                    (BaseMode::Light, BaseMode::Light.label_localized(lang), Some(Icon::LightMode)),
+                    (
+                        BaseMode::Dark,
+                        BaseMode::Dark.label_localized(lang),
+                        Some(Icon::DarkMode),
+                    ),
+                    (
+                        BaseMode::Amoled,
+                        BaseMode::Amoled.label_localized(lang),
+                        Some(Icon::Tune),
+                    ),
+                    (
+                        BaseMode::Light,
+                        BaseMode::Light.label_localized(lang),
+                        Some(Icon::LightMode),
+                    ),
                 ],
                 s.base,
                 SettingChange::Base,
@@ -208,9 +222,21 @@ fn look_choices(app: &App, width: f32) -> Vec<Element<'_, Message>> {
             segmented(
                 app,
                 &[
-                    (AccentIntensity::Soft, AccentIntensity::Soft.label_localized(lang), None),
-                    (AccentIntensity::Standard, AccentIntensity::Standard.label_localized(lang), None),
-                    (AccentIntensity::Vivid, AccentIntensity::Vivid.label_localized(lang), None),
+                    (
+                        AccentIntensity::Soft,
+                        AccentIntensity::Soft.label_localized(lang),
+                        None,
+                    ),
+                    (
+                        AccentIntensity::Standard,
+                        AccentIntensity::Standard.label_localized(lang),
+                        None,
+                    ),
+                    (
+                        AccentIntensity::Vivid,
+                        AccentIntensity::Vivid.label_localized(lang),
+                        None,
+                    ),
                 ],
                 s.accent_intensity,
                 SettingChange::AccentIntensity,
@@ -222,9 +248,21 @@ fn look_choices(app: &App, width: f32) -> Vec<Element<'_, Message>> {
             segmented(
                 app,
                 &[
-                    (CornerStyle::Sharp, CornerStyle::Sharp.label_localized(lang), None),
-                    (CornerStyle::Soft, CornerStyle::Soft.label_localized(lang), None),
-                    (CornerStyle::Round, CornerStyle::Round.label_localized(lang), None),
+                    (
+                        CornerStyle::Sharp,
+                        CornerStyle::Sharp.label_localized(lang),
+                        None,
+                    ),
+                    (
+                        CornerStyle::Soft,
+                        CornerStyle::Soft.label_localized(lang),
+                        None,
+                    ),
+                    (
+                        CornerStyle::Round,
+                        CornerStyle::Round.label_localized(lang),
+                        None,
+                    ),
                 ],
                 s.corner_style,
                 SettingChange::CornerStyle,
@@ -236,8 +274,16 @@ fn look_choices(app: &App, width: f32) -> Vec<Element<'_, Message>> {
             segmented(
                 app,
                 &[
-                    (NowPlayingStyle::Classic, NowPlayingStyle::Classic.label_localized(lang), None),
-                    (NowPlayingStyle::M3Expressive, NowPlayingStyle::M3Expressive.label_localized(lang), None),
+                    (
+                        NowPlayingStyle::Classic,
+                        NowPlayingStyle::Classic.label_localized(lang),
+                        None,
+                    ),
+                    (
+                        NowPlayingStyle::M3Expressive,
+                        NowPlayingStyle::M3Expressive.label_localized(lang),
+                        None,
+                    ),
                 ],
                 s.now_playing_style,
                 SettingChange::NowPlayingStyle,

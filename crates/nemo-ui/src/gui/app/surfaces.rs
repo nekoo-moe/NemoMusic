@@ -8,6 +8,7 @@ use nemo_core::track::Track;
 
 use super::App;
 use crate::motion::Presence;
+use crate::route::Route;
 use crate::state::Toast;
 
 /// See the module docs.
@@ -191,6 +192,10 @@ impl App {
     pub fn freeze_mid_motion(&mut self, ms: f32) {
         self.anim.set_reduced(false);
         self.anim.restart_page();
+        if matches!(self.ui.route(), Route::NowPlaying) {
+            self.anim.now_playing.snap(0.0);
+            self.anim.now_playing.target = 1.0;
+        }
         self.anim.step(ms);
         for p in self.surfaces.all() {
             if p.is_on() {

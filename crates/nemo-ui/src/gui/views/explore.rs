@@ -106,14 +106,12 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
         || match app.explore.data() {
             Some(e) => real(app, grid, e),
             None if app.explore.shows_fallback() => fallback(app, grid),
-            None if !app.ui.youtube_enabled() => {
-                status(
-                    Icon::Explore,
-                    crate::i18n::t(lang, "Explore is waiting", "Khám phá đang chờ"),
-                    GATE_MESSAGE,
-                    None
-                )
-            }
+            None if !app.ui.youtube_enabled() => status(
+                Icon::Explore,
+                crate::i18n::t(lang, "Explore is waiting", "Khám phá đang chờ"),
+                GATE_MESSAGE,
+                None,
+            ),
             // Loading: the skeleton comes after its 150 ms wait.
             None => blank(),
         },
@@ -132,7 +130,10 @@ fn notice(line: &'static str, lang: crate::settings::Language) -> Element<'stati
             col(color::on_surface_variant())
         ),
         Space::new().width(gap::SM),
-        text_button(crate::i18n::t(lang, "Retry", "Thử lại"), Message::Explore(ExploreMsg::Retry)),
+        text_button(
+            crate::i18n::t(lang, "Retry", "Thử lại"),
+            Message::Explore(ExploreMsg::Retry)
+        ),
     ]
     .align_y(Alignment::Center)
     .into()
@@ -145,7 +146,11 @@ fn real<'a>(app: &'a App, grid: layout::Grid, e: &'a Explore) -> Element<'a, Mes
     let lang = app.ui.settings.language;
     if !releases.is_empty() {
         c = c
-            .push(section_title(crate::i18n::t(lang, "New albums and singles", "Album & đĩa đơn mới")))
+            .push(section_title(crate::i18n::t(
+                lang,
+                "New albums and singles",
+                "Album & đĩa đơn mới",
+            )))
             .push(vspace(gap::MD))
             .push(card_grid(app, grid, releases, RELEASE_ROWS, 0))
             .push(vspace(gap::XXL));
@@ -167,7 +172,11 @@ fn real<'a>(app: &'a App, grid: layout::Grid, e: &'a Explore) -> Element<'a, Mes
             .collect()
     };
     c = c
-        .push(section_title(crate::i18n::t(lang, "Moods and genres", "Tâm trạng & thể loại")))
+        .push(section_title(crate::i18n::t(
+            lang,
+            "Moods and genres",
+            "Tâm trạng & thể loại",
+        )))
         .push(vspace(gap::MD))
         .push(tiles(grid, tiles_in))
         .push(vspace(gap::XXL));
@@ -189,7 +198,11 @@ fn real<'a>(app: &'a App, grid: layout::Grid, e: &'a Explore) -> Element<'a, Mes
 /// shelves.
 fn fallback(app: &App, grid: layout::Grid) -> Element<'_, Message> {
     let mut c = column![
-        section_title(crate::i18n::t(app.ui.settings.language, "Moods and genres", "Tâm trạng & thể loại")),
+        section_title(crate::i18n::t(
+            app.ui.settings.language,
+            "Moods and genres",
+            "Tâm trạng & thể loại"
+        )),
         vspace(gap::MD),
         tiles(grid, search_tiles()),
         vspace(gap::XXL),

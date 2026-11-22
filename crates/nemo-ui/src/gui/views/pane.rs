@@ -108,7 +108,12 @@ fn empty(app: &App, width: f32) -> Element<'_, Message> {
     let recent = &app.ui.recent;
     if !recent.is_empty() {
         c = c
-            .push(label(crate::i18n::t(lang, "Play it again", "Nghe lại"), type_scale::LABEL_MD, true, dim))
+            .push(label(
+                crate::i18n::t(lang, "Play it again", "Nghe lại"),
+                type_scale::LABEL_MD,
+                true,
+                dim,
+            ))
             .push(vspace(gap::SM));
         for (i, track) in recent.iter().enumerate().take(4) {
             c = c.push(quick_pick(app, track, ListSource::Recent, i, inner, i));
@@ -121,7 +126,12 @@ fn empty(app: &App, width: f32) -> Element<'_, Message> {
     {
         {
             c = c
-                .push(label(crate::i18n::t(lang, "Start with", "Bắt đầu với"), type_scale::LABEL_MD, true, dim))
+                .push(label(
+                    crate::i18n::t(lang, "Start with", "Bắt đầu với"),
+                    type_scale::LABEL_MD,
+                    true,
+                    dim,
+                ))
                 .push(vspace(gap::SM))
                 .push(card_view(
                     app,
@@ -306,12 +316,19 @@ fn live_line(app: &App, width: f32) -> Element<'_, Message> {
     let st = type_scale::TITLE_SM;
     let lang = app.ui.settings.language;
     let (text, live) = match &app.ui.lyrics {
-        LyricsState::Ready(doc) if doc.instrumental => {
-            (crate::i18n::t(lang, "Instrumental", "Không lời").to_owned(), false)
-        }
-        LyricsState::Ready(doc) if doc.granularity == Granularity::Unsynced => {
-            (crate::i18n::t(lang, "These lyrics are not synced", "Lời bài hát chưa được khớp thời gian").to_owned(), false)
-        }
+        LyricsState::Ready(doc) if doc.instrumental => (
+            crate::i18n::t(lang, "Instrumental", "Không lời").to_owned(),
+            false,
+        ),
+        LyricsState::Ready(doc) if doc.granularity == Granularity::Unsynced => (
+            crate::i18n::t(
+                lang,
+                "These lyrics are not synced",
+                "Lời bài hát chưa được khớp thời gian",
+            )
+            .to_owned(),
+            false,
+        ),
         LyricsState::Ready(doc) => match app.ui.active_lyric().and_then(|i| doc.lines.get(i)) {
             Some(l) => (l.text.clone(), true),
             None => ("\u{266a}".to_owned(), false),
@@ -359,11 +376,16 @@ fn tabs(
             col(color::on_surface_variant())
         };
         let b = button(
-            container(label_w(t.label_localized(lang), type_scale::BODY_MD, Weight::Medium, ink))
-                .width(Length::Fixed(tab_w))
-                .height(Length::Fixed(36.0))
-                .center_x(Length::Fixed(tab_w))
-                .center_y(Length::Fixed(36.0)),
+            container(label_w(
+                t.label_localized(lang),
+                type_scale::BODY_MD,
+                Weight::Medium,
+                ink,
+            ))
+            .width(Length::Fixed(tab_w))
+            .height(Length::Fixed(36.0))
+            .center_x(Length::Fixed(tab_w))
+            .center_y(Length::Fixed(36.0)),
         )
         .padding(0)
         .on_press(Message::NpTab(t));
@@ -438,8 +460,14 @@ fn info_tab(app: &App, width: f32) -> Element<'_, Message> {
         .into()
     };
     let mut c = column![
-        pair(crate::i18n::t(lang, "Title", "Tiêu đề"), track.title.clone()),
-        pair(crate::i18n::t(lang, "Artist", "Nghệ sĩ"), format::artists(&track.artists)),
+        pair(
+            crate::i18n::t(lang, "Title", "Tiêu đề"),
+            track.title.clone()
+        ),
+        pair(
+            crate::i18n::t(lang, "Artist", "Nghệ sĩ"),
+            format::artists(&track.artists)
+        ),
     ]
     .spacing(gap::MD)
     .width(Length::Fixed(width));
@@ -449,14 +477,25 @@ fn info_tab(app: &App, width: f32) -> Element<'_, Message> {
     c = c.push(pair(
         crate::i18n::t(lang, "Source", "Nguồn phát"),
         match track.origin {
-            nemo_core::audio::Origin::Local => crate::i18n::t(lang, "Your music folder", "Thư mục nhạc của bạn").to_owned(),
-            nemo_core::audio::Origin::YoutubeMusic => crate::i18n::t(lang, "YouTube Music (lossy)", "YouTube Music (nén)").to_owned(),
-            nemo_core::audio::Origin::SoundCloud => crate::i18n::t(lang, "SoundCloud (lossy)", "SoundCloud (nén)").to_owned(),
+            nemo_core::audio::Origin::Local => {
+                crate::i18n::t(lang, "Your music folder", "Thư mục nhạc của bạn").to_owned()
+            }
+            nemo_core::audio::Origin::YoutubeMusic => {
+                crate::i18n::t(lang, "YouTube Music (lossy)", "YouTube Music (nén)").to_owned()
+            }
+            nemo_core::audio::Origin::SoundCloud => {
+                crate::i18n::t(lang, "SoundCloud (lossy)", "SoundCloud (nén)").to_owned()
+            }
         },
     ));
     c = c.push(
         column![
-            label(crate::i18n::t(lang, "Quality", "Chất lượng"), type_scale::LABEL_MD, false, dim),
+            label(
+                crate::i18n::t(lang, "Quality", "Chất lượng"),
+                type_scale::LABEL_MD,
+                false,
+                dim
+            ),
             badge(app, width),
         ]
         .spacing(gap::XS),

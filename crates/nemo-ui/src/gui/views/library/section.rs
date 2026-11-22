@@ -26,9 +26,18 @@ pub(super) fn account_overview<'a>(
     let lang = app.ui.settings.language;
     let mut c = column![].width(Length::Fill);
     let sections = [
-        (crate::i18n::t(lang, "Playlists", "Danh sách phát"), sorted(data.playlists.clone(), app.lib_sort)),
-        (crate::i18n::t(lang, "Albums", "Album"), sorted(data.albums.clone(), app.lib_sort)),
-        (crate::i18n::t(lang, "Artists", "Nghệ sĩ"), sorted(data.artists.clone(), app.lib_sort)),
+        (
+            crate::i18n::t(lang, "Playlists", "Danh sách phát"),
+            sorted(data.playlists.clone(), app.lib_sort),
+        ),
+        (
+            crate::i18n::t(lang, "Albums", "Album"),
+            sorted(data.albums.clone(), app.lib_sort),
+        ),
+        (
+            crate::i18n::t(lang, "Artists", "Nghệ sĩ"),
+            sorted(data.artists.clone(), app.lib_sort),
+        ),
     ];
     for (i, (title, items)) in sections.into_iter().enumerate() {
         if items.is_empty() {
@@ -50,7 +59,11 @@ pub(super) fn account_overview<'a>(
         );
         liked.truncate(6);
         c = c
-            .push(section_title(crate::i18n::t(lang, "Liked songs", "Bài hát đã thích")))
+            .push(section_title(crate::i18n::t(
+                lang,
+                "Liked songs",
+                "Bài hát đã thích",
+            )))
             .push(vspace(gap::SM))
             .push(song_block(app, liked, ListSource::Account, content_w, grid))
             .push(vspace(gap::XL));
@@ -69,7 +82,11 @@ pub(super) fn local_section(
 ) -> Element<'_, Message> {
     let lang = app.ui.settings.language;
     let mut c = column![
-        section_title(crate::i18n::t(lang, "On this computer", "Trên máy tính này")),
+        section_title(crate::i18n::t(
+            lang,
+            "On this computer",
+            "Trên máy tính này"
+        )),
         vspace(gap::SM),
         folders_note(app, content_w),
         vspace(gap::LG),
@@ -82,13 +99,13 @@ pub(super) fn local_section(
             crate::i18n::t(
                 lang,
                 "No music files found yet. Add a folder in Settings.",
-                "Chưa tìm thấy tệp nhạc nào. Thêm thư mục trong Cài đặt."
+                "Chưa tìm thấy tệp nhạc nào. Thêm thư mục trong Cài đặt.",
             )
         } else {
             crate::i18n::t(
                 lang,
                 "Looking for your music\u{2026}",
-                "Đang tìm kiếm nhạc của bạn\u{2026}"
+                "Đang tìm kiếm nhạc của bạn\u{2026}",
             )
         };
         return c.push(note(app, text, None)).into();

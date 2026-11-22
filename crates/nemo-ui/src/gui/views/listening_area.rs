@@ -47,13 +47,13 @@ fn only_youtube(app: &App) -> &'static str {
         crate::i18n::t(
             lang,
             text::AREA_NEEDS_SIGN_IN,
-            "Hiện chỉ phát YouTube Music. Đăng nhập SoundCloud để thêm làm khu vực nghe nhạc thứ hai."
+            "Hiện chỉ phát YouTube Music. Đăng nhập SoundCloud để thêm làm khu vực nghe nhạc thứ hai.",
         )
     } else {
         crate::i18n::t(
             lang,
             text::AREA_NEEDS_ON,
-            "Hiện chỉ phát YouTube Music. Bật SoundCloud trong Cài đặt để thêm làm khu vực nghe nhạc thứ hai."
+            "Hiện chỉ phát YouTube Music. Bật SoundCloud trong Cài đặt để thêm làm khu vực nghe nhạc thứ hai.",
         )
     }
 }
@@ -95,7 +95,11 @@ fn choices(app: &App, width: f32) -> Element<'_, Message> {
             Some(step)
         ),
         paragraph(
-            crate::i18n::t(lang, text::AREA_HELP, "NemoMusic chỉ hiển thị nội dung từ khu vực đang hoạt động."),
+            crate::i18n::t(
+                lang,
+                text::AREA_HELP,
+                "NemoMusic chỉ hiển thị nội dung từ khu vực đang hoạt động."
+            ),
             type_scale::BODY_SM,
             dim,
             width

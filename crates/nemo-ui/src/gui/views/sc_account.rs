@@ -54,7 +54,10 @@ pub(in crate::gui::views) fn body(app: &App, width: f32, place: Place) -> Elemen
 }
 
 /// Notice box with SoundCloud development warning.
-pub(in crate::gui::views) fn warning_box<'a>(lang: crate::settings::Language, width: f32) -> Element<'a, Message> {
+pub(in crate::gui::views) fn warning_box<'a>(
+    lang: crate::settings::Language,
+    width: f32,
+) -> Element<'a, Message> {
     notice_box(
         Icon::Info,
         col(color::warning()),
@@ -291,7 +294,10 @@ fn signed_in<'a>(
                         Message::Sc(ScMsg::SignOut)
                     ),
                     Space::new().width(gap::SM),
-                    text_button(crate::i18n::t(lang, "Cancel", "Hủy"), Message::Sc(ScMsg::CancelSignOut)),
+                    text_button(
+                        crate::i18n::t(lang, "Cancel", "Hủy"),
+                        Message::Sc(ScMsg::CancelSignOut)
+                    ),
                 ]
                 .align_y(Alignment::Center),
             );

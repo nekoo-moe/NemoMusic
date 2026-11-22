@@ -65,7 +65,8 @@ fn hero_info(app: &App) -> Option<Hero> {
             .next()
         {
             return Some(Hero {
-                tag: crate::i18n::t(lang, "A suggestion to start with", "Gợi ý để bắt đầu").to_owned(),
+                tag: crate::i18n::t(lang, "A suggestion to start with", "Gợi ý để bắt đầu")
+                    .to_owned(),
                 title: t.title.clone(),
                 subtitle: format::artists(&t.artists),
                 artwork: t.artwork.clone(),

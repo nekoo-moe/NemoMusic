@@ -99,7 +99,9 @@ pub fn view(app: &App, w: u32) -> Element<'_, Message> {
 
 /// `On` / `Off` text next to a switch (state is never colour alone).
 fn switch<'a>(app: &App, on: bool, change: fn(bool) -> SettingChange) -> Element<'a, Message> {
-    switch_with(app.ui.settings.language, on, move |v| Message::Ui(Event::Setting(change(v))))
+    switch_with(app.ui.settings.language, on, move |v| {
+        Message::Ui(Event::Setting(change(v)))
+    })
 }
 
 /// Like [`switch`], with any message.
@@ -139,22 +141,32 @@ pub(super) fn song_colour_rows(app: &App, width: f32) -> Vec<Element<'_, Message
     vec![
         control::setting_row(
             width,
-            crate::i18n::t(lang, copy::SONG_COLOUR_LABEL, "Phối màu theo bài hát đang phát"),
-            Some(crate::i18n::t(
+            crate::i18n::t(
                 lang,
-                copy::SONG_COLOUR_HELPER,
-                "Toàn bộ cửa sổ đổi màu sắc hài hòa theo ảnh bìa của bài hát đang phát.",
-            ).to_owned()),
+                copy::SONG_COLOUR_LABEL,
+                "Phối màu theo bài hát đang phát",
+            ),
+            Some(
+                crate::i18n::t(
+                    lang,
+                    copy::SONG_COLOUR_HELPER,
+                    "Toàn bộ cửa sổ đổi màu sắc hài hòa theo ảnh bìa của bài hát đang phát.",
+                )
+                .to_owned(),
+            ),
             switch(app, s.song_colour_theme, SettingChange::SongColourTheme),
         ),
         control::setting_row(
             width,
             crate::i18n::t(lang, copy::HEARTBEAT_LABEL, "Thở nhẹ nhàng"),
-            Some(crate::i18n::t(
-                lang,
-                copy::HEARTBEAT_HELPER,
-                "Hiệu ứng chuyển động thở chậm rãi, mềm mại của màu nền khi đang phát nhạc.",
-            ).to_owned()),
+            Some(
+                crate::i18n::t(
+                    lang,
+                    copy::HEARTBEAT_HELPER,
+                    "Hiệu ứng chuyển động thở chậm rãi, mềm mại của màu nền khi đang phát nhạc.",
+                )
+                .to_owned(),
+            ),
             if s.heartbeat_available(app.ui.reduced_motion) {
                 switch(app, s.song_heartbeat, SettingChange::SongHeartbeat)
             } else {
@@ -166,7 +178,10 @@ pub(super) fn song_colour_rows(app: &App, width: f32) -> Vec<Element<'_, Message
 
 /// A switch that cannot be used now (greyed out at the disabled opacity of `design.md` section
 /// 5). The state still shows as `On` or `Off` text, and nothing is sent when it is pressed.
-pub(super) fn switch_disabled<'a>(lang: crate::settings::Language, on: bool) -> Element<'a, Message> {
+pub(super) fn switch_disabled<'a>(
+    lang: crate::settings::Language,
+    on: bool,
+) -> Element<'a, Message> {
     let dim = |c: crate::theme::Rgba| col(c.with_alpha(DISABLED_ALPHA));
     let switch_text = crate::i18n::t(
         lang,

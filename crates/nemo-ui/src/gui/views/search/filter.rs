@@ -16,7 +16,10 @@ use crate::state::Event;
 
 /// The localized label of a chip.
 #[must_use]
-pub(crate) fn label_localized(kind: Option<SearchKind>, lang: crate::settings::Language) -> &'static str {
+pub(crate) fn label_localized(
+    kind: Option<SearchKind>,
+    lang: crate::settings::Language,
+) -> &'static str {
     match (kind, lang) {
         (None, crate::settings::Language::Vietnamese) => "Tất cả",
         (None, crate::settings::Language::English) => "All",
@@ -28,7 +31,9 @@ pub(crate) fn label_localized(kind: Option<SearchKind>, lang: crate::settings::L
         (Some(SearchKind::Albums), crate::settings::Language::English) => "Albums",
         (Some(SearchKind::Artists), crate::settings::Language::Vietnamese) => "Nghệ sĩ",
         (Some(SearchKind::Artists), crate::settings::Language::English) => "Artists",
-        (Some(SearchKind::Playlists), crate::settings::Language::Vietnamese) => "Danh sách phát cộng đồng",
+        (Some(SearchKind::Playlists), crate::settings::Language::Vietnamese) => {
+            "Danh sách phát cộng đồng"
+        }
         (Some(SearchKind::Playlists), crate::settings::Language::English) => "Community playlists",
         (Some(SearchKind::Channels), crate::settings::Language::Vietnamese) => "Kênh",
         (Some(SearchKind::Channels), crate::settings::Language::English) => "Channels",
@@ -50,8 +55,14 @@ fn kinds(with_videos: bool) -> Vec<Option<SearchKind>> {
 
 /// The localized labels of the chips, All first.
 #[must_use]
-pub(crate) fn labels_localized(with_videos: bool, lang: crate::settings::Language) -> Vec<&'static str> {
-    kinds(with_videos).into_iter().map(|k| label_localized(k, lang)).collect()
+pub(crate) fn labels_localized(
+    with_videos: bool,
+    lang: crate::settings::Language,
+) -> Vec<&'static str> {
+    kinds(with_videos)
+        .into_iter()
+        .map(|k| label_localized(k, lang))
+        .collect()
 }
 
 /// The English labels of the chips, All first (tests).

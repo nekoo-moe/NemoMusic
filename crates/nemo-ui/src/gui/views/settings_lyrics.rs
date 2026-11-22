@@ -134,9 +134,9 @@ fn setting_source_row<'a>(
         Space::new().height(32.0),
         text,
         Space::new().width(Length::Fill),
-        container(switch_with(lang, s.enabled, move |v| Message::SetLyricsSource(
-            id, v
-        )))
+        container(switch_with(lang, s.enabled, move |v| {
+            Message::SetLyricsSource(id, v)
+        }))
         .width(Length::Fixed(CONTROL_W))
         .align_x(Alignment::End),
     ]

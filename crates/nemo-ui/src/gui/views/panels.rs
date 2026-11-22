@@ -76,7 +76,11 @@ pub fn shortcuts_sheet(app: &App) -> Element<'_, Message> {
         list,
         vspace(gap::MD),
         label(
-            crate::i18n::t(lang, "Single letters are off while you type in a text field.", "Phím chữ đơn bị vô hiệu hóa khi bạn đang nhập văn bản."),
+            crate::i18n::t(
+                lang,
+                "Single letters are off while you type in a text field.",
+                "Phím chữ đơn bị vô hiệu hóa khi bạn đang nhập văn bản."
+            ),
             type_scale::BODY_SM,
             false,
             dim
@@ -99,41 +103,56 @@ pub fn create_sheet(app: &App) -> Element<'_, Message> {
     let accent = app.accent();
     let dim = col(color::on_surface_variant());
     let lang = app.ui.settings.language;
-    let name = text_input(crate::i18n::t(lang, "Playlist name", "Tên danh sách phát"), &app.create_name)
-        .on_input(|s| Message::Create(CreateMsg::Name(s)))
-        .on_submit(Message::Create(CreateMsg::Confirm))
-        .font(font(false))
-        .size(f32::from(type_scale::BODY_MD.size))
-        .padding(Padding::from([gap::MD, gap::LG]))
-        .style(move |_, status| {
-            let focused = matches!(status, text_input::Status::Focused { .. });
-            text_input::Style {
-                background: Background::Color(col(color::surface_container_highest())),
-                border: Border {
-                    radius: shape::md().into(),
-                    width: if focused { 2.0 } else { 1.0 },
-                    color: if focused {
-                        col(accent.primary)
-                    } else {
-                        col(color::outline())
-                    },
+    let name = text_input(
+        crate::i18n::t(lang, "Playlist name", "Tên danh sách phát"),
+        &app.create_name,
+    )
+    .on_input(|s| Message::Create(CreateMsg::Name(s)))
+    .on_submit(Message::Create(CreateMsg::Confirm))
+    .font(font(false))
+    .size(f32::from(type_scale::BODY_MD.size))
+    .padding(Padding::from([gap::MD, gap::LG]))
+    .style(move |_, status| {
+        let focused = matches!(status, text_input::Status::Focused { .. });
+        text_input::Style {
+            background: Background::Color(col(color::surface_container_highest())),
+            border: Border {
+                radius: shape::md().into(),
+                width: if focused { 2.0 } else { 1.0 },
+                color: if focused {
+                    col(accent.primary)
+                } else {
+                    col(color::outline())
                 },
-                icon: dim,
-                placeholder: dim,
-                value: col(color::on_surface()),
-                selection: col(accent.primary.with_alpha(0.35)),
-            }
-        });
+            },
+            icon: dim,
+            placeholder: dim,
+            value: col(color::on_surface()),
+            selection: col(accent.primary.with_alpha(0.35)),
+        }
+    });
     let ready = !app.create_name.trim().is_empty();
     let (title, hint, go) = match &app.create_target {
         CreateTarget::Account => (
             crate::i18n::t(lang, "Create playlist", "Tạo danh sách phát"),
-            crate::i18n::t(lang, "It is created in your YouTube Music account when signed in.", "Danh sách sẽ được tạo trong tài khoản YouTube Music của bạn khi đã đăng nhập."),
+            crate::i18n::t(
+                lang,
+                "It is created in your YouTube Music account when signed in.",
+                "Danh sách sẽ được tạo trong tài khoản YouTube Music của bạn khi đã đăng nhập.",
+            ),
             crate::i18n::t(lang, "Create", "Tạo"),
         ),
         CreateTarget::SoundCloud(_) => (
-            crate::i18n::t(lang, "New SoundCloud playlist", "Danh sách phát SoundCloud mới"),
-            crate::i18n::t(lang, crate::copy::soundcloud::NEW_PLAYLIST_HINT, "Danh sách sẽ được tạo công khai trên SoundCloud."),
+            crate::i18n::t(
+                lang,
+                "New SoundCloud playlist",
+                "Danh sách phát SoundCloud mới",
+            ),
+            crate::i18n::t(
+                lang,
+                crate::copy::soundcloud::NEW_PLAYLIST_HINT,
+                "Danh sách sẽ được tạo công khai trên SoundCloud.",
+            ),
             crate::i18n::t(lang, "Create", "Tạo"),
         ),
         CreateTarget::Rename(_) => (
@@ -173,7 +192,10 @@ pub fn create_sheet(app: &App) -> Element<'_, Message> {
         row![
             create,
             Space::new().width(gap::SM),
-            text_button(crate::i18n::t(lang, "Cancel", "Hủy"), Message::Create(CreateMsg::Close)),
+            text_button(
+                crate::i18n::t(lang, "Cancel", "Hủy"),
+                Message::Create(CreateMsg::Close)
+            ),
         ]
         .align_y(Alignment::Center),
     ]
@@ -216,7 +238,17 @@ pub fn mini_player(app: &App) -> Element<'_, Message> {
             ),
         ]
         .into(),
-        None => label(crate::i18n::t(app.ui.settings.language, "Nothing playing", "Chưa phát bài nào"), type_scale::TITLE_SM, true, dim).into(),
+        None => label(
+            crate::i18n::t(
+                app.ui.settings.language,
+                "Nothing playing",
+                "Chưa phát bài nào",
+            ),
+            type_scale::TITLE_SM,
+            true,
+            dim,
+        )
+        .into(),
     };
     let controls = row![
         icon_button(
@@ -250,7 +282,11 @@ pub fn mini_player(app: &App) -> Element<'_, Message> {
                 Color::TRANSPARENT,
                 Some(Message::ToggleMini),
             ),
-            crate::i18n::t(app.ui.settings.language, "Back to the full window", "Trở lại cửa sổ đầy đủ"),
+            crate::i18n::t(
+                app.ui.settings.language,
+                "Back to the full window",
+                "Trở lại cửa sổ đầy đủ"
+            ),
         ),
     ]
     .spacing(gap::XS)

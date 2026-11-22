@@ -168,11 +168,7 @@ fn off_confirm(app: &App, width: f32) -> Element<'_, Message> {
         text::OFF_CONFIRM,
         "Tắt SoundCloud sẽ đăng xuất và xóa token cũng như dữ liệu SoundCloud mà NemoMusic đã tải trên máy tính này. Thao tác này không đăng xuất soundcloud.com trên trình duyệt của bạn. Bạn có thể bật lại và đăng nhập sau.",
     );
-    let confirm_btn = crate::i18n::t(
-        lang,
-        text::OFF_CONFIRM_BUTTON,
-        "Tắt và đăng xuất",
-    );
+    let confirm_btn = crate::i18n::t(lang, text::OFF_CONFIRM_BUTTON, "Tắt và đăng xuất");
     let cancel_btn = crate::i18n::t(lang, "Cancel", "Hủy");
     column![
         paragraph(

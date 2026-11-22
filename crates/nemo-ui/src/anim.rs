@@ -99,7 +99,7 @@ impl Anim {
             pane: unit(SPATIAL_DEFAULT),
             capsule: unit(SPATIAL_DEFAULT),
             sheet: unit(SPATIAL_DEFAULT),
-            now_playing: unit(SPATIAL_DEFAULT),
+            now_playing: unit(SPATIAL_SLOW),
             reduced,
         }
     }
@@ -222,9 +222,15 @@ impl Anim {
             || self.bloom_ms < BLOOM_MS
             || self.line_ms < LINE_MS
             || self.list_ms < ENTRANCE_MS
-            || [&self.play, &self.pane, &self.capsule, &self.sheet, &self.now_playing]
-                .iter()
-                .any(|s| !s.is_settled())
+            || [
+                &self.play,
+                &self.pane,
+                &self.capsule,
+                &self.sheet,
+                &self.now_playing,
+            ]
+            .iter()
+            .any(|s| !s.is_settled())
     }
 }
 
@@ -363,7 +369,7 @@ mod tests {
         let mut a = Anim::new(false);
         a.now_playing.target = 1.0;
         let mut max = 0.0_f32;
-        for _ in 0..80 {
+        for _ in 0..120 {
             a.step(16.0);
             max = max.max(a.now_playing.value);
         }
