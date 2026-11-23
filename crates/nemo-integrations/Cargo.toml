@@ -12,7 +12,7 @@ workspace = true
 
 [dependencies]
 nemo-core.workspace = true
-rusqlite = { version = "=0.41.1", features = ["bundled"] }
+rusqlite = { version = "=0.43.0", features = ["bundled"] }
 serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
