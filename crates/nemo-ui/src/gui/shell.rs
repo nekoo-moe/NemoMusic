@@ -273,11 +273,7 @@ impl Shell {
 /// # Errors
 /// Returns the iced error when the window or the renderer cannot start.
 pub fn run_with_startup(start: StartFn, options: UiOptions) -> iced::Result {
-    let (width, height) = options.window_size;
-    let maximized = options.maximized;
-    // The window is created once: it is see-through only when the switch is on now.
-    let transparent = options.settings.window_glass;
-    let min = crate::theme::layout::MIN_WINDOW;
+    let window = super::window_settings(&options);
     let slot = Mutex::new(Some((start, options)));
     iced::application(
         move || {
@@ -305,14 +301,7 @@ pub fn run_with_startup(start: StartFn, options: UiOptions) -> iced::Result {
     .font(assets::DISPLAY_SEMIBOLD)
     .default_font(assets::font(false))
     .antialiasing(true)
-    .window(window::Settings {
-        size: iced::Size::new(width, height),
-        min_size: Some(iced::Size::new(min.0, min.1)),
-        maximized,
-        transparent,
-        icon: assets::window_icon(),
-        ..window::Settings::default()
-    })
+    .window(window)
     .run()
 }
 
