@@ -41,15 +41,31 @@ pub(crate) fn boot_app(backend: Backend, options: &UiOptions) -> (App, iced::Tas
     (app, iced::Task::batch([jobs, size, scale]))
 }
 
+/// Build shared `iced::window::Settings` (size, icon, and Linux `application_id`).
+pub(crate) fn window_settings(options: &UiOptions) -> iced::window::Settings {
+    let (width, height) = options.window_size;
+    let min = crate::theme::layout::MIN_WINDOW;
+    iced::window::Settings {
+        size: iced::Size::new(width, height),
+        min_size: Some(iced::Size::new(min.0, min.1)),
+        maximized: options.maximized,
+        transparent: options.settings.window_glass,
+        icon: assets::window_icon(),
+        #[cfg(target_os = "linux")]
+        platform_specific: iced::window::settings::PlatformSpecific {
+            application_id: "NemoMusic".to_owned(),
+            ..iced::window::settings::PlatformSpecific::default()
+        },
+        ..iced::window::Settings::default()
+    }
+}
+
 /// Run the UI on `backend` until the window closes.
 ///
 /// # Errors
 /// Returns the iced error when the window or the renderer cannot start.
 pub fn run(backend: Backend, options: UiOptions) -> iced::Result {
-    let (width, height) = options.window_size;
-    let maximized = options.maximized;
-    let transparent = options.settings.window_glass;
-    let min = crate::theme::layout::MIN_WINDOW;
+    let window = window_settings(&options);
     iced::application(
         move || {
             let (app, task) = boot_app(backend.clone(), &options);
@@ -69,14 +85,7 @@ pub fn run(backend: Backend, options: UiOptions) -> iced::Result {
     .font(assets::DISPLAY_SEMIBOLD)
     .default_font(assets::font(false))
     .antialiasing(true)
-    .window(iced::window::Settings {
-        size: iced::Size::new(width, height),
-        min_size: Some(iced::Size::new(min.0, min.1)),
-        maximized,
-        transparent,
-        icon: assets::window_icon(),
-        ..iced::window::Settings::default()
-    })
+    .window(window)
     .run()
 }
 

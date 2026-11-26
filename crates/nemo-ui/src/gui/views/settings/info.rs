@@ -1,13 +1,13 @@
 //! The Privacy and About sections.
 
-use iced::widget::{column, container, mouse_area};
-use iced::{Color, Element, Padding};
+use iced::widget::{column, container, image, mouse_area, row};
+use iced::{Alignment, Color, Element, Length, Padding};
 
 use super::control::{segmented, setting_row};
 use crate::copy;
 use crate::gui::app::dev::DevMsg;
 use crate::gui::app::{App, Message};
-use crate::gui::assets::Icon;
+use crate::gui::assets::{Icon, app_logo};
 use crate::gui::style::{col, gap, label};
 use crate::gui::views::kit::{paragraph, text_button};
 use crate::i18n;
@@ -79,11 +79,33 @@ pub(super) fn about(app: &App, width: f32) -> Vec<Element<'_, Message>> {
     };
     // Ten clicks on the title and the version open the developer panel (dev-tools spec). The
     // text looks and behaves like any other: no hover, no cursor, no hint, no count.
-    let version = mouse_area(block(
-        "NemoMusic",
-        format!("{} {}", text.version_label, env!("CARGO_PKG_VERSION")),
-        dim,
-    ))
+    let version = mouse_area(
+        container(
+            row![
+                image(app_logo())
+                    .width(Length::Fixed(40.0))
+                    .height(Length::Fixed(40.0)),
+                column![
+                    label(
+                        "NemoMusic",
+                        type_scale::BODY_MD,
+                        true,
+                        col(color::on_surface())
+                    ),
+                    paragraph(
+                        format!("{} {}", text.version_label, env!("CARGO_PKG_VERSION")),
+                        type_scale::BODY_SM,
+                        dim,
+                        inner - 40.0 - gap::MD,
+                    ),
+                ]
+                .spacing(gap::XS),
+            ]
+            .spacing(gap::MD)
+            .align_y(Alignment::Center),
+        )
+        .padding(Padding::from([gap::MD, gap::LG])),
+    )
     .on_press(Message::Dev(DevMsg::Click));
 
     vec![

@@ -11,6 +11,7 @@ repository.workspace = true
 workspace = true
 
 [dependencies]
+image = { version = "=0.25.10", default-features = false, features = ["png"] }
 serde_json.workspace = true
 # WebView2 window (Windows) and its event loop. Pinned exactly (tech.md, Sign-in window).
 wry = { version = "=0.57.2", default-features = false }

@@ -251,6 +251,27 @@ impl Icon {
     }
 }
 
+/// Embedded application logo (`assets/logo/nemo-logo-256.png`).
+pub const APP_LOGO_PNG: &[u8] = include_bytes!("../../../../assets/logo/nemo-logo-256.png");
+
+/// Shared image handle for the application logo shown inside the UI (splash, setup, sidebar,
+/// settings). Decoded once so every frame reuses the same texture ID.
+#[must_use]
+pub fn app_logo() -> iced::widget::image::Handle {
+    static HANDLE: std::sync::OnceLock<iced::widget::image::Handle> = std::sync::OnceLock::new();
+    HANDLE
+        .get_or_init(|| {
+            if let Ok(img) = image::load_from_memory(APP_LOGO_PNG) {
+                let rgba = img.to_rgba8();
+                let (width, height) = rgba.dimensions();
+                iced::widget::image::Handle::from_rgba(width, height, rgba.into_raw())
+            } else {
+                iced::widget::image::Handle::from_bytes(APP_LOGO_PNG)
+            }
+        })
+        .clone()
+}
+
 /// Logo icon for the app window titlebar and taskbar.
 #[must_use]
 pub fn window_icon() -> Option<iced::window::Icon> {
@@ -267,6 +288,12 @@ mod tests {
     #[test]
     fn window_icon_loads() {
         assert!(window_icon().is_some());
+    }
+
+    #[test]
+    fn app_logo_loads() {
+        assert!(image::load_from_memory(APP_LOGO_PNG).is_ok());
+        let _ = app_logo();
     }
 
     #[test]

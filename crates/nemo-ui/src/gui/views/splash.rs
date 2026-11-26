@@ -10,12 +10,12 @@ use iced::widget::image::Handle;
 use iced::widget::{Space, button, column, container, image, row, stack, text};
 use iced::{Alignment, Background, Border, Color, Element, Length, Padding, Pixels};
 
-use super::super::assets::{Icon, display_font};
-use super::super::style::{animated, col, gap, icon, label};
+use super::super::assets::{app_logo, display_font};
+use super::super::style::{animated, col, gap, label};
 use crate::palette::Palette;
 use crate::splash::intro::{
-    BLOOM_SIZE, Frame, GAP_MARK, GAP_TAGLINE, GLYPH_SIZE, MARK_SIZE, Reveal, SIGNATURE_H, TAGLINE,
-    TAGLINE_BOX, WORD_BOX, WORDMARK,
+    BLOOM_SIZE, Frame, GAP_MARK, GAP_TAGLINE, MARK_SIZE, Reveal, SIGNATURE_H, TAGLINE, TAGLINE_BOX,
+    WORD_BOX, WORDMARK,
 };
 use crate::theme::{Rgba, color, shape, type_scale};
 
@@ -79,7 +79,7 @@ pub fn view<'a, M: Clone + 'a>(look: &SplashLook<'_>, on_close: M) -> Element<'a
     let bloom = bloom_layer(look.bloom, &frame, o);
     let signature = container(
         column![
-            mark(look.accent, &frame, o),
+            mark(&frame, o),
             Space::new().height(GAP_MARK),
             wordmark(look.t_ms, at_rest, o),
             Space::new().height(GAP_TAGLINE),
@@ -125,35 +125,22 @@ fn bloom_layer<'a, M: 'a>(handle: &Handle, frame: &Frame, o: f32) -> Element<'a,
     .into()
 }
 
-/// The mark: a disc in the accent with the note rising into it.
-fn mark<'a, M: 'a>(accent: Palette, frame: &Frame, o: f32) -> Element<'a, M> {
+/// The brand mark (`assets/logo/nemo-logo-256.png`), scaling and fading in with `frame`.
+fn mark<'a, M: 'a>(frame: &Frame, o: f32) -> Element<'a, M> {
     let scale = frame.mark_scale.max(0.0);
     let side = MARK_SIZE * scale;
-    let fill = tint(accent.primary, o * frame.mark_opacity);
-    let ink = tint(accent.on_primary, o * frame.glyph.opacity);
-    let disc = container(
-        container(icon(Icon::Note, GLYPH_SIZE * scale, ink))
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .center_x(Length::Fill)
-            .center_y(Length::Fill)
-            .padding(Padding {
-                top: 2.0 * frame.glyph.rise_px * scale,
-                ..Padding::ZERO
-            }),
+    let logo = container(
+        image(app_logo())
+            .width(Length::Fixed(side))
+            .height(Length::Fixed(side))
+            .opacity(o * frame.mark_opacity),
     )
-    .width(Length::Fixed(side))
-    .height(Length::Fixed(side))
-    .style(move |_| container::Style {
-        background: Some(Background::Color(fill)),
-        border: Border {
-            radius: shape::FULL.into(),
-            ..Border::default()
-        },
-        ..container::Style::default()
+    .padding(Padding {
+        top: 2.0 * frame.glyph.rise_px * scale,
+        ..Padding::ZERO
     });
-    // The slot keeps its size while the disc scales, so nothing around it moves.
-    container(disc)
+    // The slot keeps its size while the mark scales, so nothing around it moves.
+    container(logo)
         .width(Length::Fixed(MARK_SIZE))
         .height(Length::Fixed(MARK_SIZE))
         .center_x(Length::Fixed(MARK_SIZE))

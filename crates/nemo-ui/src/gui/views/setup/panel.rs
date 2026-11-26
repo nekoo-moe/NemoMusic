@@ -1,17 +1,16 @@
 //! The stage around the step: the brand panel (from 1100 px wide) and the top row with dots
 //! (below that). Shared by every step. The stepper itself is in [`super::stepper`].
 
-use iced::widget::{Space, column, container, row, text};
-use iced::{Alignment, Background, Border, Color, Element, Length, Padding, Pixels};
+use iced::widget::{Space, column, container, image, row, text};
+use iced::{Alignment, Color, Element, Length, Padding, Pixels};
 
 use super::stepper::{dots, stepper};
 use crate::gui::app::{App, Message};
-use crate::gui::assets::{Icon, display_font};
-use crate::gui::style::{col, gap, icon, label};
-use crate::palette::Palette;
+use crate::gui::assets::{app_logo, display_font};
+use crate::gui::style::{col, gap, label};
 use crate::setup::SetupStep;
 use crate::setup::motion::{TOTAL_MS, settle};
-use crate::theme::{TextStyle, color, shape, type_scale};
+use crate::theme::{TextStyle, color, type_scale};
 
 /// Side of the mark in the brand panel and in the top row.
 const MARK_PANEL: f32 = 48.0;
@@ -35,29 +34,20 @@ pub(super) fn display<'a>(
         .wrapping(text::Wrapping::Word)
 }
 
-/// The brand mark: a disc in the accent with the note. `scale` is 1 at rest; the Done step
-/// settles it from a little smaller. The slot keeps its size, so nothing around it moves.
-pub(super) fn mark<'a>(accent: Palette, side: f32, scale: f32) -> Element<'a, Message> {
+/// The brand mark (`assets/logo/nemo-logo-256.png`). `scale` is 1 at rest; the Done step settles
+/// it from a little smaller. The slot keeps its size, so nothing around it moves.
+pub(super) fn mark<'a>(side: f32, scale: f32) -> Element<'a, Message> {
     let inner = side * scale;
-    let disc = container(icon(Icon::Note, inner / 2.0, col(accent.on_primary)))
-        .width(Length::Fixed(inner))
-        .height(Length::Fixed(inner))
-        .center_x(Length::Fixed(inner))
-        .center_y(Length::Fixed(inner))
-        .style(move |_| container::Style {
-            background: Some(Background::Color(col(accent.primary))),
-            border: Border {
-                radius: shape::FULL.into(),
-                ..Border::default()
-            },
-            ..container::Style::default()
-        });
-    container(disc)
-        .width(Length::Fixed(side))
-        .height(Length::Fixed(side))
-        .center_x(Length::Fixed(side))
-        .center_y(Length::Fixed(side))
-        .into()
+    container(
+        image(app_logo())
+            .width(Length::Fixed(inner))
+            .height(Length::Fixed(inner)),
+    )
+    .width(Length::Fixed(side))
+    .height(Length::Fixed(side))
+    .center_x(Length::Fixed(side))
+    .center_y(Length::Fixed(side))
+    .into()
 }
 
 /// Scale of the mark: the Done step settles it once, every other moment it is at rest.
@@ -73,10 +63,9 @@ fn mark_scale(app: &App, current: SetupStep) -> f32 {
 /// The left panel: the mark and name, where the person is (`Step 2 of 6` and the step's name in
 /// `font.display`), and the vertical stepper.
 pub(super) fn brand_panel(app: &App, current: SetupStep, width: f32) -> Element<'_, Message> {
-    let accent = app.accent();
     let dim = col(color::on_surface_variant());
     let brand = row![
-        mark(accent, MARK_PANEL, mark_scale(app, current)),
+        mark(MARK_PANEL, mark_scale(app, current)),
         Space::new().width(gap::MD),
         display("NemoMusic", type_scale::TITLE_MD, col(color::on_surface())),
     ]
@@ -106,11 +95,10 @@ pub(super) fn brand_panel(app: &App, current: SetupStep, width: f32) -> Element<
 
 /// Below 1100 px: the small mark and name on the left, one dot per step in the middle.
 pub(super) fn top_row(app: &App, current: SetupStep) -> Element<'_, Message> {
-    let accent = app.accent();
     row![
         container(
             row![
-                mark(accent, MARK_TOP, mark_scale(app, current)),
+                mark(MARK_TOP, mark_scale(app, current)),
                 Space::new().width(gap::SM),
                 display("NemoMusic", type_scale::TITLE_SM, col(color::on_surface())),
             ]

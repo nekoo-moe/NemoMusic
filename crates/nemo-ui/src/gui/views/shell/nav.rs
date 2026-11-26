@@ -1,14 +1,14 @@
 //! The left pane: brand, navigation pills and the library list below them.
 
 use iced::font::Weight;
-use iced::widget::{Space, button, column, container, row, stack};
+use iced::widget::{Space, button, column, container, image, row, stack};
 use iced::{Alignment, Border, Color, Element, Length, Padding};
 
 use super::pane_surface;
 use super::sidebar::{library_chips, library_header, library_list};
 use crate::copy::soundcloud as text;
 use crate::gui::app::{App, Message, Source};
-use crate::gui::assets::Icon;
+use crate::gui::assets::{Icon, app_logo};
 use crate::gui::fx::{entrance, fx};
 use crate::gui::style::{button_flat, col, gap, icon, icon_button, label, label_w, tip};
 use crate::gui::views::kit::{pane_bg, vspace};
@@ -19,22 +19,8 @@ use crate::theme::{color, shape, type_scale};
 /// Height of a nav pill.
 const PILL_H: f32 = 48.0;
 
-/// Side of the brand mark in the sidebar, in px. The note is half of it, as in the setup mark.
+/// Side of the brand mark in the sidebar, in px.
 const MARK_SIDE: f32 = 36.0;
-// A radius of at least half the side makes the square a circle.
-const _: () = assert!(shape::FULL >= MARK_SIDE / 2.0);
-
-/// The brand mark: a disc in the accent, the same shape as the splash and the setup mark.
-fn mark_style(fill: iced::Color) -> container::Style {
-    container::Style {
-        background: Some(fill.into()),
-        border: Border {
-            radius: shape::FULL.into(),
-            ..Border::default()
-        },
-        ..container::Style::default()
-    }
-}
 
 /// The name of the app and, while SoundCloud is the listening area, one quiet line under it.
 /// Nothing under it while YouTube Music is the area. Both lines fit the 48 px of the brand row.
@@ -64,15 +50,15 @@ pub(super) fn left_pane(app: &App, width: f32, _h: u32) -> Element<'_, Message> 
     let wide = width >= 200.0;
     let route = app.ui.route();
     let selected = app.nav_selected();
-    let accent = app.accent();
 
     let brand: Element<'_, Message> = {
-        let mark = container(icon(Icon::Note, MARK_SIDE / 2.0, col(accent.on_primary)))
-            .width(Length::Fixed(MARK_SIDE))
-            .height(Length::Fixed(MARK_SIDE))
-            .center_x(Length::Fixed(MARK_SIDE))
-            .center_y(Length::Fixed(MARK_SIDE))
-            .style(move |_| mark_style(col(accent.primary)));
+        let mark = container(
+            image(app_logo())
+                .width(Length::Fixed(MARK_SIDE))
+                .height(Length::Fixed(MARK_SIDE)),
+        )
+        .width(Length::Fixed(MARK_SIDE))
+        .height(Length::Fixed(MARK_SIDE));
         if wide {
             row![mark, Space::new().width(gap::MD), brand_text(app)]
                 .align_y(Alignment::Center)
@@ -269,12 +255,8 @@ mod mark_tests {
     use super::*;
 
     #[test]
-    fn the_sidebar_mark_is_a_disc_like_the_splash_and_setup_mark() {
-        let style = mark_style(Color::from_rgb(0.9, 0.4, 0.5));
-        assert_eq!(
-            style.border.radius,
-            Border::default().rounded(shape::FULL).radius
-        );
-        assert!(style.background.is_some());
+    fn the_sidebar_mark_has_a_positive_size_and_loads_the_app_logo() {
+        const { assert!(MARK_SIDE > 0.0) };
+        let _ = app_logo();
     }
 }

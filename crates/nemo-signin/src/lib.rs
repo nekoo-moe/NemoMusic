@@ -154,6 +154,14 @@ fn attach(builder: WebViewBuilder<'_>, window: &tao::window::Window) -> wry::Res
     builder.build_gtk(vbox)
 }
 
+/// Window icon for the sign-in window (`assets/logo/nemo-logo-64.png`).
+fn window_icon() -> Option<tao::window::Icon> {
+    const LOGO_PNG: &[u8] = include_bytes!("../../../assets/logo/nemo-logo-64.png");
+    let img = image::load_from_memory(LOGO_PNG).ok()?.to_rgba8();
+    let (width, height) = img.dimensions();
+    tao::window::Icon::from_rgba(img.into_raw(), width, height).ok()
+}
+
 /// Open the window and run its loop. Returns only when the window cannot be built; on success
 /// the cookie line is already written and the process has ended.
 fn show(event_loop: EventLoop<Message>, site: Site, data_dir: PathBuf) -> i32 {
@@ -161,6 +169,7 @@ fn show(event_loop: EventLoop<Message>, site: Site, data_dir: PathBuf) -> i32 {
     let Ok(window) = WindowBuilder::new()
         .with_title(site.title())
         .with_inner_size(LogicalSize::new(480.0, 720.0))
+        .with_window_icon(window_icon())
         .build(&event_loop)
     else {
         return EXIT_UNAVAILABLE;
