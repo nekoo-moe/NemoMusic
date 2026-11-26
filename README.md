@@ -2,6 +2,9 @@
 <h1>NemoMusic</h1>
 
 A calm, FOSS desktop music player in Rust for YouTube Music and your own files,<br>with a bit-perfect output path, honest quality labels and Material 3 + Liquid Glass design.
+
+
+<img width="1920" height="1080" alt="NemoMusic" src="https://github.com/user-attachments/assets/be12e33c-afa8-4d2e-b33a-8a8fd485171c" />
 <br><br>
 <a href="https://github.com/nekoo-moe/NemoMusic/actions"><img src="https://github.com/nekoo-moe/NemoMusic/actions/workflows/ci.yml/badge.svg"></a>
 <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue"></a>
@@ -12,7 +15,8 @@ A calm, FOSS desktop music player in Rust for YouTube Music and your own files,<
 <img width="300" height="150" alt="badge2" src="https://github.com/user-attachments/assets/c6138556-398f-466d-822e-d1e7933eb469" />
 </div>
 
-> NemoMusic (*Nimomyūjikku*) is in early development. It runs on Windows 10/11 and Linux (x86_64). Plans and progress: [`docs/feature-wave-plan.md`](docs/feature-wave-plan.md) and [`docs/leftover-work.md`](docs/leftover-work.md).
+> [!WARNING] Notes about Windows Smartscreen
+> We cannot register a proper certificate for this project because it [requires complicated steps](https://learn.microsoft.com/en-us/windows/uwp/debug-test-perf/windows-app-certification-kit). If SmartScreen appears, please ignore it and run the program anyway. Learn more in [our Code of Conduct](https://github.com/nekoo-moe/NemoMusic?tab=coc-ov-file).
 
 ## Features ✨
 
