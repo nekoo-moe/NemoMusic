@@ -18,7 +18,7 @@ sha2.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 # Offline cache index (offline-cache design), the same SQLite build as nemo-lyrics.
-rusqlite = { version = "=0.41.1", features = ["bundled"] }
+rusqlite = { version = "=0.43.0", features = ["bundled"] }
 # Random opaque file names for the offline cache.
 getrandom = { version = "=0.3.4", default-features = false }
 # Runtime pieces: process spawn and timeout (yt-dlp), `sync` for the lazy catalog client, `macros` for `join!`.

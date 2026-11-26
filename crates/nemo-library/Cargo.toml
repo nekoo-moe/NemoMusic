@@ -19,4 +19,4 @@ unicode-normalization = { version = "=0.1.26", default-features = false }
 # so the default id3v2 compression feature stays on.
 lofty = "=0.25.5"
 # The library database, library.db (local-library design), the same SQLite build as nemo-lyrics.
-rusqlite = { version = "=0.41.1", features = ["bundled"] }
+rusqlite = { version = "=0.43.0", features = ["bundled"] }
